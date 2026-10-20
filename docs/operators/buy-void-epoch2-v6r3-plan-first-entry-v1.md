@@ -182,4 +182,21 @@ treasury_liquidity_action=false
 funds_movement=false
 ```
 
+## Root-opened output-descriptor custody — additive repair
+
+Building on the #3582 nondefault-securebits rejection and irreversible
+Linux-capability clear, this successor also blocks **inherited regular
+stdout/stderr file descriptors** before any HOLD can print into them.
+Output is permitted only through writable pipes, TTYs, or `/dev/null`.
+A root-opened regular-file fd1/fd2 retains write authority despite the
+UID/GID1000 transition, so unsafe destinations exit nonzero without writing.
+Disposable source-CI fixtures exercise both unsafe output paths and verify
+root-owned sentinel files remain empty.
+
+This is an ADDITIVE source/test repair; it preserves all of #3582's
+`capset`/securebits/ambient-capability tests. The older #3573/#3574 ELF
+candidate and accepted lock are superseded for future installation.
+A new exact-generation binary candidate/lock, independent review, and
+separately authorized installed host qualification remain mandatory.
+
 PROTECT THE CORE.
