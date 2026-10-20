@@ -32,7 +32,7 @@ EXPECTED = {
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
-    RUNNER_V4: "2f17fd716f266fc1e12144799879d949983cc807",
+    RUNNER_V4: "2f147d8841e96c6bbf83997104e6905ac07f986c",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
     QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
     QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
@@ -42,7 +42,7 @@ EXPECTED = {
     LOCK_V2: "b73415ce8fc95ff2d49cbde97a15d701ad5b7937",
     LOCK_V6: "772945b639d138284fc18cc312f7b9115b10c748",
     PARSER_V4: "223a8acf32f8c7961d61222b83c0db17075f86c6",
-    SEALED_V3: "f5ae61a95e4bc8f908109cafb38e40807fc7c2e8",
+    SEALED_V3: "ad4df07e9875e3c92eb8da01d6fd735d68417a45",
 }
 
 def git_blob(raw: bytes) -> str:
@@ -151,21 +151,23 @@ for required in (
     'canonical_git_dir_worktree_pinned=true',
     'sealed_probe_runtime_release_cwd_required=true',
     'runtime_release_root_custody_required=true',
-    'retained_setpriv_generation_revalidated_path_execution_required=true',
-    'retained_python_generation_revalidated_path_execution_required=true',
+    'retained_setpriv_generation_revalidated_descriptor_execution_required=true',
+    'retained_python_generation_revalidated_descriptor_execution_required=true',
     'retained_git_descriptor_execution_required=true',
     'retained_node_descriptor_execution_required=true',
     'root_tool_ancestor_custody_required=true',
     'runtime_uid_effective_tool_nonwritability_required=true',
+    'retained_procfd_portable_cwd_required=true',
+    'retained_procfd_missing_cwd_errno_distinguished=true',
     'root_tool_terminal_generation_revalidation_required=true',
     "function requireRuntimeUidNonwritable(candidate,label){",
-    'const SEALED_BLOB="f5ae61a95e4bc8f908109cafb38e40807fc7c2e8";',
+    'const SEALED_BLOB="ad4df07e9875e3c92eb8da01d6fd735d68417a45";',
     "function openRetainedTrustedExecutable(file,label){",
     "function runRetainedTrustedExecutable(tool,args,options={}){",
-    'const executable=tool.real;',
-    'const setprivExecutable=tools.setpriv.real;',
+    'const executable="/proc/self/fd/"+String(tool.fd);',
+    'const setprivExecutable="/proc/self/fd/"+String(tools.setpriv.fd);',
     '"/proc/self/fd/"+String(commandChildFd)',
-    'stdio:["pipe","pipe","pipe","ignore",commandTool.fd]',
+    'stdio[tools.setpriv.fd]=tools.setpriv.fd;',
 ):
     assert required in runner_v4, required
 
@@ -230,10 +232,12 @@ for mode in ("--self-test", "--plan"):
             "git_prompt_and_askpass_disabled=true",
             "credential_content_access=false",
             "nontransaction_signature=false",
-            "retained_setpriv_generation_revalidated_path_execution_required=true",
-            "retained_python_generation_revalidated_path_execution_required=true",
+            "retained_setpriv_generation_revalidated_descriptor_execution_required=true",
+            "retained_python_generation_revalidated_descriptor_execution_required=true",
             "retained_git_descriptor_execution_required=true",
             "retained_node_descriptor_execution_required=true",
+            "retained_procfd_portable_cwd_required=true",
+            "retained_procfd_missing_cwd_errno_distinguished=true",
         ):
             assert line in lines, line
 
@@ -364,8 +368,8 @@ print("runner_v4_git_prompt_and_askpass_disabled=true")
 print("runner_v4_canonical_git_dir_worktree_pinned=true")
 print("runner_v4_sealed_probe_runtime_release_cwd=true")
 print("runner_v4_runtime_release_root_custody_required=true")
-print("runner_v4_retained_setpriv_generation_revalidated_path_execution=true")
-print("runner_v4_retained_python_generation_revalidated_path_execution=true")
+print("runner_v4_retained_setpriv_generation_revalidated_descriptor_execution=true")
+print("runner_v4_retained_python_generation_revalidated_descriptor_execution=true")
 print("runner_v4_retained_git_descriptor_execution=true")
 print("runner_v4_retained_node_descriptor_binding_contract=true")
 print("runner_v4_trusted_root_tool_rebind_adversary=true")
