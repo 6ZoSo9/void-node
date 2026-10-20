@@ -31,7 +31,7 @@ QUALIFIER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "fd6a6be74ae9ab6284bd493472f4d9e20a7f6051"
+QUALIFIER_BLOB = "132e03eaea440f3f8c59aeaca879596c677c6bcf"
 QUALIFIER_UPGRADER_BLOB = "d4b298dea73a4970987bf22435be3e76a5e7a02d"
 QUALIFIER_UPGRADE_PLAN_BLOB = "9ba10aac284da9e44db0ad258348425cfa3c2e2c"
 
@@ -969,6 +969,10 @@ def collect_plan(
         "temporary_git_metadata_write_required": True,
         "temporary_git_metadata_cleanup_required": True,
         "qualification_git_callbacks_neutralized_required": True,
+        "preliminary_git_local_config_isolation_required": True,
+        "preliminary_git_lazy_fetch_disabled_required": True,
+        "preliminary_git_protocols_denied_required": True,
+        "preliminary_git_object_alternates_rejection_required": True,
         "descriptor_bound_source_execution_required": True,
         "interpreter": python_info,
         "git_tool": git_info,
@@ -993,6 +997,10 @@ def collect_plan(
             "temporary_git_metadata_write_performed": True,
             "temporary_git_metadata_cleanup_completed": True,
             "qualification_git_callbacks_neutralized": True,
+            "preliminary_git_local_config_isolated": True,
+            "preliminary_git_lazy_fetch_disabled": True,
+            "preliminary_git_protocols_denied": True,
+            "preliminary_git_object_alternates_rejected": True,
             "source_repository_mutation": False,
             "source_object_fetch": False,
             "repository_config_loaded": False,
@@ -1090,6 +1098,10 @@ def emit_plan(result: dict[str, Any]) -> None:
     print("qualification_protected_state_read_only_required=true")
     print("qualification_temporary_git_metadata_write_required=true")
     print("qualification_git_callbacks_neutralized_required=true")
+    print("qualification_preliminary_git_local_config_isolation_required=true")
+    print("qualification_preliminary_git_lazy_fetch_disabled_required=true")
+    print("qualification_preliminary_git_protocols_denied_required=true")
+    print("qualification_preliminary_git_object_alternates_rejection_required=true")
     print("qualification_descriptor_bound_source_execution_required=true")
     print("expected_installed_bootstrap_identity_bound=true")
     print("accepted_launcher_identity_green=true")
@@ -1149,6 +1161,10 @@ def source_plan() -> None:
     print("qualification_protected_state_read_only_required=true")
     print("qualification_temporary_git_metadata_write_required=true")
     print("qualification_git_callbacks_neutralized_required=true")
+    print("qualification_preliminary_git_local_config_isolation_required=true")
+    print("qualification_preliminary_git_lazy_fetch_disabled_required=true")
+    print("qualification_preliminary_git_protocols_denied_required=true")
+    print("qualification_preliminary_git_object_alternates_rejection_required=true")
     print("qualification_descriptor_bound_source_execution_required=true")
     print("bootstrap_execution_performed=false")
     print("protected_installer_apply_performed=false")
@@ -1182,6 +1198,10 @@ def self_test() -> None:
     print("qualification_protected_state_read_only_required=true")
     print("qualification_temporary_git_metadata_write_required=true")
     print("qualification_git_callbacks_neutralized_required=true")
+    print("qualification_preliminary_git_local_config_isolation_required=true")
+    print("qualification_preliminary_git_lazy_fetch_disabled_required=true")
+    print("qualification_preliminary_git_protocols_denied_required=true")
+    print("qualification_preliminary_git_object_alternates_rejection_required=true")
     print("accepted_launcher_materializer_bound=true")
     print("accepted_launcher_lock_v2_bound=true")
     print("launcher_runtime_head_contract_accepted=true")

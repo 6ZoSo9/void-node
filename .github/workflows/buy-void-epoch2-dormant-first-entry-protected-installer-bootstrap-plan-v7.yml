@@ -53,9 +53,9 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           case "$EVENT_NAME" in
-            pull_request) base="1ee54f96d341cd9d62bb69d2d3f3b27f4c03acb7" ;;
+            pull_request) base="45f7d0c26f9cbc9d85fb0bf811145cf9c85c8ce2" ;;
             push) base="$PUSH_BEFORE" ;;
-            workflow_dispatch) base="1ee54f96d341cd9d62bb69d2d3f3b27f4c03acb7" ;;
+            workflow_dispatch) base="45f7d0c26f9cbc9d85fb0bf811145cf9c85c8ce2" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           test -n "$base"
@@ -73,14 +73,14 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            1717477f21a43b8a6984c15657415d5dc09cf706
+            597dd61923d349980cd30bcf190fee354ff1c1f2
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            3128743fbd2f410669c4898522c0ede5626cb178
+            656075f1941e9cca302ebfd40efad09d979b4f25
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v7.md)" = \
-            ac4d30c7ef6ad97d93e41d3c5b9c260ece687ccc
+            877a37b8edaaf3415e6b356960bf916c19347aa1
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
-            fd6a6be74ae9ab6284bd493472f4d9e20a7f6051
+            132e03eaea440f3f8c59aeaca879596c677c6bcf
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = \
             7c3ad1188fca114188a8f9876c7a1b7390280b56
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v6.py)" = \
@@ -132,6 +132,10 @@ jobs:
             'qualification_temporary_git_metadata_write_required=true'
             'qualification_temporary_git_metadata_cleanup_required=true'
             'qualification_git_callbacks_neutralized_required=true'
+            'qualification_preliminary_git_local_config_isolation_required=true'
+            'qualification_preliminary_git_lazy_fetch_disabled_required=true'
+            'qualification_preliminary_git_protocols_denied_required=true'
+            'qualification_preliminary_git_object_alternates_rejection_required=true'
             'qualification_bootstrap_self_test_absent=true'
             'complete_plan_body_content_addressed=true'
             'structured_bootstrap_argv_only=true'
@@ -154,12 +158,16 @@ jobs:
             'source_only=true'
             'host_read=false'
             'host_write=false'
-            'qualifier_git_blob_sha1=fd6a6be74ae9ab6284bd493472f4d9e20a7f6051'
+            'qualifier_git_blob_sha1=132e03eaea440f3f8c59aeaca879596c677c6bcf'
             'installed_qualification_performed=false'
             'qualification_nonroot_execution_required=true'
             'qualification_protected_state_read_only_required=true'
             'qualification_temporary_git_metadata_write_required=true'
             'qualification_git_callbacks_neutralized_required=true'
+            'qualification_preliminary_git_local_config_isolation_required=true'
+            'qualification_preliminary_git_lazy_fetch_disabled_required=true'
+            'qualification_preliminary_git_protocols_denied_required=true'
+            'qualification_preliminary_git_object_alternates_rejection_required=true'
             'qualification_descriptor_bound_source_execution_required=true'
             'bootstrap_execution_performed=false'
             'protected_installer_apply_performed=false'

@@ -16,14 +16,14 @@ WORKFLOW_REL = (
     "buy-void-epoch2-dormant-first-entry-protected-installer-"
     "bootstrap-plan-v7.yml"
 )
-EXACT_PARENT = "1ee54f96d341cd9d62bb69d2d3f3b27f4c03acb7"
+EXACT_PARENT = "45f7d0c26f9cbc9d85fb0bf811145cf9c85c8ce2"
 
 TARGET_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-TARGET_BLOB = "1717477f21a43b8a6984c15657415d5dc09cf706"
+TARGET_BLOB = "597dd61923d349980cd30bcf190fee354ff1c1f2"
 
 PREDECESSOR_REL = (
     "ops/precision/"
@@ -42,7 +42,7 @@ QUALIFIER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "fd6a6be74ae9ab6284bd493472f4d9e20a7f6051"
+QUALIFIER_BLOB = "132e03eaea440f3f8c59aeaca879596c677c6bcf"
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"
@@ -258,10 +258,18 @@ assert qualifier.PLAN_BLOB == "9ba10aac284da9e44db0ad258348425cfa3c2e2c"
 qualifier_source = qualifier_raw.decode("utf-8", "strict")
 for required in (
     '"qualification_git_callbacks_neutralized": True',
+    '"preliminary_git_local_config_isolated": True',
+    '"preliminary_git_lazy_fetch_disabled": True',
+    '"preliminary_git_protocols_denied": True',
+    '"preliminary_git_object_alternates_rejected": True',
+    '"GIT_NO_LAZY_FETCH": "1"',
     '"GIT_CONFIG_KEY_0": "core.fsmonitor"',
     '"GIT_CONFIG_VALUE_0": "false"',
     '"GIT_CONFIG_KEY_1": "core.hooksPath"',
     '"GIT_CONFIG_VALUE_1": "/dev/null"',
+    '"GIT_CONFIG_KEY_5": "protocol.allow"',
+    '"GIT_CONFIG_VALUE_5": "never"',
+    '"git_object_alternates_forbidden"',
 ):
     assert required in qualifier_source, required
 
@@ -358,6 +366,10 @@ assert contract["protected_state_read_only_required"] is True
 assert contract["temporary_git_metadata_write_required"] is True
 assert contract["temporary_git_metadata_cleanup_required"] is True
 assert contract["qualification_git_callbacks_neutralized_required"] is True
+assert contract["preliminary_git_local_config_isolation_required"] is True
+assert contract["preliminary_git_lazy_fetch_disabled_required"] is True
+assert contract["preliminary_git_protocols_denied_required"] is True
+assert contract["preliminary_git_object_alternates_rejection_required"] is True
 assert contract["descriptor_bound_source_execution_required"] is True
 
 required_result = contract["required_result"]
@@ -371,6 +383,10 @@ assert required_result["temporary_git_metadata_write_required"] is True
 assert required_result["temporary_git_metadata_write_performed"] is True
 assert required_result["temporary_git_metadata_cleanup_completed"] is True
 assert required_result["qualification_git_callbacks_neutralized"] is True
+assert required_result["preliminary_git_local_config_isolated"] is True
+assert required_result["preliminary_git_lazy_fetch_disabled"] is True
+assert required_result["preliminary_git_protocols_denied"] is True
+assert required_result["preliminary_git_object_alternates_rejected"] is True
 assert required_result["source_repository_mutation"] is False
 assert required_result["filesystem_write"] is True
 assert required_result["protected_filesystem_mutation"] is False
@@ -410,6 +426,10 @@ assert fields["qualification_nonroot_execution_required"] == "true"
 assert fields["qualification_protected_state_read_only_required"] == "true"
 assert fields["qualification_temporary_git_metadata_write_required"] == "true"
 assert fields["qualification_git_callbacks_neutralized_required"] == "true"
+assert fields["qualification_preliminary_git_local_config_isolation_required"] == "true"
+assert fields["qualification_preliminary_git_lazy_fetch_disabled_required"] == "true"
+assert fields["qualification_preliminary_git_protocols_denied_required"] == "true"
+assert fields["qualification_preliminary_git_object_alternates_rejection_required"] == "true"
 
 # Root planner invocation must fail closed before host observations.
 module.os.geteuid = lambda: 0
@@ -435,6 +455,10 @@ print("qualification_protected_state_read_only_required=true")
 print("qualification_temporary_git_metadata_write_required=true")
 print("qualification_temporary_git_metadata_cleanup_required=true")
 print("qualification_git_callbacks_neutralized_required=true")
+print("qualification_preliminary_git_local_config_isolation_required=true")
+print("qualification_preliminary_git_lazy_fetch_disabled_required=true")
+print("qualification_preliminary_git_protocols_denied_required=true")
+print("qualification_preliminary_git_object_alternates_rejection_required=true")
 print("qualification_bootstrap_self_test_absent=true")
 print("complete_plan_body_content_addressed=true")
 print("structured_bootstrap_argv_only=true")
