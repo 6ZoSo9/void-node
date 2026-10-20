@@ -138,8 +138,36 @@ def require_current(accepted: dict, observed: dict) -> None:
         for member in paths:
             if not isinstance(member, str) or not member.startswith("/") or "\x00" in member:
                 raise Hold("git_runtime_closure_path_invalid")
-            if member not in observed["manifest"]["objects"] and member not in observed["manifest"]["absent"]:
-                raise Hold("git_runtime_path_unobserved")
+            if group == "config_paths":
+                # A config is either a hashed regular file or an explicit
+                # absent path with a qualified nearest parent.
+                present = observed["manifest"]["objects"].get(member)
+                absent = observed["manifest"]["absent"].get(member)
+                if present is None and absent is None:
+                    raise Hold("git_runtime_config_unobserved")
+                if present is not None:
+                    if (present.get("kind") != "regular" or
+                        not isinstance(present.get("sha256"), str) or
+                        len(present["sha256"]) != 64 or
+                        present.get("runtime_uid_writable") is not False):
+                        raise Hold("git_runtime_config_identity_invalid")
+                elif (absent.get("exists") is not False or
+                      absent.get("parent_runtime_uid_writable") is not False or
+                      not isinstance(absent.get("parent_inode"), int) or
+                      absent["parent_inode"] <= 0):
+                    raise Hold("git_runtime_config_absence_invalid")
+            else:
+                # No claimed mapped/invoked code can be an absent path.
+                present = observed["manifest"]["objects"].get(member)
+                if (not isinstance(present, dict) or
+                    present.get("kind") != "regular" or
+                    not isinstance(present.get("bytes"), int) or
+                    present["bytes"] <= 0 or
+                    not isinstance(present.get("sha256"), str) or
+                    len(present["sha256"]) != 64 or
+                    any(ch not in "0123456789abcdef" for ch in present["sha256"]) or
+                    present.get("runtime_uid_writable") is not False):
+                    raise Hold("git_runtime_required_code_not_present")
     if git["executable"] not in git["mapped_elf_paths"]:
         raise Hold("git_executable_not_in_mapped_elf_closure")
     allowed = set(observed["manifest"]["objects"])
@@ -151,10 +179,10 @@ def synthetic_test() -> None:
         "sys_path": ["/usr/lib/python3.12", "/usr/lib/python3.12/lib-dynload"],
         "objects": {
             "/usr/bin/python3.12": {"sha256": "a" * 64, "inode": 100, "runtime_uid_writable": False},
-            "/usr/bin/git": {"sha256": "e" * 64, "inode": 400, "runtime_uid_writable": False},
-            "/usr/lib/git-core/git-upload-pack": {"sha256": "f" * 64, "inode": 401, "runtime_uid_writable": False},
-            "/usr/lib/x86_64-linux-gnu/libz.so.1": {"sha256": "9" * 64, "inode": 402, "runtime_uid_writable": False},
-            "/lib/ld-linux.so.2": {"sha256": "b" * 64, "inode": 200, "runtime_uid_writable": False},
+            "/usr/bin/git": {"sha256": "e" * 64, "inode": 400, "bytes": 2048, "kind": "regular", "runtime_uid_writable": False},
+            "/usr/lib/git-core/git-upload-pack": {"sha256": "f" * 64, "inode": 401, "bytes": 1536, "kind": "regular", "runtime_uid_writable": False},
+            "/usr/lib/x86_64-linux-gnu/libz.so.1": {"sha256": "9" * 64, "inode": 402, "bytes": 4096, "kind": "regular", "runtime_uid_writable": False},
+            "/lib/ld-linux.so.2": {"sha256": "b" * 64, "inode": 200, "bytes": 3072, "kind": "regular", "runtime_uid_writable": False},
             "/usr/lib/python3.12/hashlib.py": {"sha256": "c" * 64, "inode": 300, "runtime_uid_writable": False},
         },
         "absent": {
@@ -177,7 +205,7 @@ def synthetic_test() -> None:
     }
     observed = {
         "manifest": copy.deepcopy(manifest), "runtime_uid_gid": [1000, 1000],
-        "host_id": "synthetic-precision", "accessed_paths": ["/usr/bin/python3.12"],
+        "host_id": "synthetic-precision", "accessed_paths": ["/usr/bin/python3.12", "/usr/bin/git"],
     }
     require_current(accepted, observed)
     adversaries = {
@@ -224,14 +252,41 @@ def synthetic_test() -> None:
             pass
         else:
             raise AssertionError("stale_or_hostile_generation_accepted:" + name)
+    # Same-data adversary: an accepted and current report can both be
+    # re-hashed after a malicious source omits a required executable.
+    # The guard must reject absence as such, not only A-vs-B drift.
+    required_code = [
+        *manifest["git_runtime"]["mapped_elf_paths"],
+        *manifest["git_runtime"]["helper_paths"],
+    ]
+    for member in required_code:
+        a, o = copy.deepcopy(accepted), copy.deepcopy(observed)
+        for item in (a["manifest"], o["manifest"]):
+            del item["objects"][member]
+            item["absent"][member] = {
+                "exists": False, "parent_inode": 77,
+                "parent_runtime_uid_writable": False,
+            }
+        o["accessed_paths"] = [x for x in o["accessed_paths"] if x != member]
+        a["report_sha256"] = sha256(canonical(a["manifest"]))
+        assert a["manifest"] == o["manifest"], member
+        try:
+            require_current(a, o)
+        except Hold as exc:
+            assert str(exc) == "git_runtime_required_code_not_present", (
+                member, str(exc)
+            )
+        else:
+            raise AssertionError("absent_required_git_code_accepted:" + member)
     print(MARKER + "_SYNTHETIC_GREEN")
     print("synthetic_current_manifest_accepted=true")
     print("stale_report_and_host_drift_rejected=true")
     print("python_loader_sys_path_acl_and_absence_drift_rejected=true")
     print("unaccepted_runtime_path_rejected=true")
     print("git_executable_loader_dso_helper_config_drift_rejected=true")
+    print("git_mapped_elf_and_helper_absence_same_data_rejected=true")
     print("v2_binary_lock_generation_exact=true")
-    print("synthetic_adversary_count=" + str(len(adversaries)))
+    print("synthetic_adversary_count=" + str(len(adversaries)+len(required_code)))
     print("host_census_performed=false")
     print("live_enforcement_proven=false")
     print("post_exec_dumpability_not_proven_by_freshness_gate=true")
