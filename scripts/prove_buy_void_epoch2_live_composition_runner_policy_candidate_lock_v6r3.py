@@ -105,7 +105,7 @@ assert lock["source_evidence_pr"]==3566
 assert lock["integration_base_head"]=="0ada7fde0d90c3946b10693f4621cbd690bfcde6"
 assert lock["integration_head"]==SOURCE_EVIDENCE_HEAD
 assert lock["integration_tree_binding"]=={
- "method":"git_commit_sha1_transitively_binds_tree",
+ "method":"git_commit_object",
  "head":SOURCE_EVIDENCE_HEAD,
  "verification_required":True,
 }
