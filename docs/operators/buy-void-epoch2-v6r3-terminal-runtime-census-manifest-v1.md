@@ -192,3 +192,44 @@ real Python/Git import roots on Precision, qualify root/ACL ancestry, or
 provide complete descriptor-based host path confinement. `HOST_EXECUTION_ENABLED`
 remains `False`, with no new live observer, installer, signer, transaction,
 payment or presale mode.
+
+## Caller-provided census input budget — source-only successor
+
+The scanner's bounded `scandir` and 100,000 inventory-object cap do not,
+by themselves, bound its caller-provided `sys.path`, `declared_absent` and
+`accessed_paths` arrays. The previous implementation expanded
+`sorted(set(declared_absent))`, resolved each absent path, and finally
+serialized the manifest before testing the 16 MiB report cap. A malformed
+or extremely long caller list could therefore force substantial memory/IO
+work before the output size rejection was reached.
+
+This follow-up adds `require_manifest_input_budget()` **at the beginning**
+of `build_manifest()`, before any directory traversal or list-to-set/map
+expansion. The input must consist of real lists of nonempty UTF-8 strings,
+with no NUL bytes, each at most 4,096 encoded bytes. The *combined* path
+count across the three arrays must not exceed 100,000; the combined encoded
+bytes must not exceed 16 MiB. Any mismatch produces a structured `Hold`.
+
+Synthetic negative tests use much smaller caller-supplied limits to show
+HOLD on too many paths in one list, too many across multiple lists, over-
+budget bytes, an oversized path, a NUL-containing or non-string path, and
+an unbounded generator instead of a bounded list. A positive one-item
+input remains accepted. The deployed maximums are unchanged.
+
+```text
+census_source_git_blob=05458587b5743da09ed2f752e971ca67938cceac
+census_proof_git_blob=16915e58d3812f2ea651911e6d5a669d47a8794b
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+protected_install_authorized=false
+funds_movement=false
+```
+
+This is input-denial-of-service hardening for the **source-only synthetic
+manifest builder**. It does not add a live collector or qualify Python,
+Git, ELF/loader dependencies, protected path custody, post-exec isolation,
+or a presale payment. Distinct review and a separately authorized
+read-only host observer remain required.
+
+PROTECT THE CORE.
