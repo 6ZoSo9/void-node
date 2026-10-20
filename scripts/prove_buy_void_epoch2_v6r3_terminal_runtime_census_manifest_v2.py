@@ -7,6 +7,10 @@ from __future__ import annotations
 import sys
 if not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):
     raise SystemExit("HOLD=isolated_no_site_python_required")
+# Assertions authenticate the evidence/source generations in this verifier.
+# -O and -OO remove them; refuse optimized Python before any further import.
+if sys.flags.optimize != 0:
+    raise SystemExit("HOLD=optimized_python_forbidden")
 
 import ast
 import hashlib
@@ -21,7 +25,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="860b82127bc3e6300612daf51d12e443b7ef4a35"
+SOURCE_BLOB="a349f5650b6439c4b88e1fad61370f1d886071c4"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -100,7 +104,9 @@ assert isinstance(tree.body[0],ast.ImportFrom) and tree.body[0].module=="__futur
 assert isinstance(tree.body[1],ast.Import) and len(tree.body[1].names)==1
 assert tree.body[1].names[0].name=="sys"
 assert isinstance(tree.body[2],ast.If)
-assert source.startswith("#!/usr/bin/env python3\nfrom __future__ import annotations\n\n# Python initialization precedes this script: this accidental-entry guard\n# is NOT a trusted privileged first-instruction authorization.\nimport sys\nif not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):\n    raise SystemExit(\"HOLD=isolated_no_site_python_required\")\n\nimport argparse\n")
+assert isinstance(tree.body[3],ast.If)
+assert isinstance(tree.body[4],ast.Import)
+assert source.startswith("#!/usr/bin/env python3\nfrom __future__ import annotations\n\n# Python initialization precedes this script: this accidental-entry guard\n# is NOT a trusted privileged first-instruction authorization.\nimport sys\nif not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):\n    raise SystemExit(\"HOLD=isolated_no_site_python_required\")\n# -O/-OO strip assertions which are part of the synthetic evidence policy.\n# Reject optimization before any non-builtin imports or fixture execution.\nif sys.flags.optimize != 0:\n    raise SystemExit(\"HOLD=optimized_python_forbidden\")\n\nimport argparse\n")
 
 assignments={
     node.targets[0].id:node.value
@@ -354,6 +360,30 @@ for scenario,options in (
 
 print("isolated_preimport_negative_fixtures=3")
 print("isolated_before_checkout_stdlib_imports=true")
+
+# An assertion-optimizing interpreter would otherwise disable evidence
+# checks throughout *both* scripts and print false GREEN/proven receipts.
+# Invoke the actual source and this verifier with -O and -OO.  The guard
+# must HOLD before imports, fixture startup, or any assertion-based proof.
+for target_label,target_path,argv in (
+    ("census_source",SOURCE,("--source-plan",)),
+    ("source_verifier",Path(__file__).resolve(),()),
+):
+    for option in ("-O","-OO"):
+        rejected=subprocess.run(
+            [sys.executable,option,"-I","-B","-S",str(target_path),*argv],
+            stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            text=True,encoding="utf-8",errors="strict",
+            env=env,timeout=20,check=False,
+        )
+        assert rejected.returncode!=0,(target_label,option,rejected.stdout,rejected.stderr)
+        assert rejected.stdout=="",(target_label,option,rejected.stdout)
+        assert "HOLD=optimized_python_forbidden" in rejected.stderr,(
+            target_label,option,rejected.stderr,
+        )
+
+print("optimized_python_negative_fixtures=4")
+print("assertion_capable_interpreter_required=true")
 
 print(MARKER+"_PROOF_GREEN")
 print("source_blob="+SOURCE_BLOB)
