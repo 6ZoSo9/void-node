@@ -31,7 +31,7 @@ v2_native_binary_lock_blob=14a3ff2eca0583d1355dc8b75bd54cc55115d946
 v2_native_binary_lock_id=voidbuye2v6r3planfirstentrybinlock2_b5e1bbca28ed7aad579ac7f37a7575ed90eadd44f73d24edac79df3cc74664c1
 v2_native_binary_sha256=b3043169c466ab96a953d00fedd960817e982bf45897ac6b3259baaaeb0e81dd
 v1_census_substrate_source_blob=05458587b5743da09ed2f752e971ca67938cceac
-v2_census_substrate_source_blob=fb31838cc28303a3da9bd6e238edad704bffe3e2
+v2_census_substrate_source_blob=f036cd4674d4d1748db9686722599ea4a68af6c7
 ```
 
 The source proof additionally requires the current #3598 Git-specific loader, helper, config and accepted runtime-access subset constraints, never treating a generic Python-file inventory as sufficient Git closure evidence. The V2 manifest itself additionally records the exact V2 binary lock ID and **keeps**
@@ -46,6 +46,33 @@ The terminal-equality checker rejects attempts to upgrade any of those claims. C
 The dedicated workflow checks exact checkout HEAD; isolated Python syntax; the source proof's SHA-1 Git blob binding to the **new V2 census source**, source identity of both V2 contract/freshness JSON and V2 native lock; AST-verified `HOST_EXECUTION_ENABLED=False`; and the full disposable fixture covering path budget, symlink escapes/dangling links, declared absences, import-path custody, special files, and report drift. The proof runs with isolated Python `-I -B -S`, sanitized environment, no real protected host data or credentials.
 
 The current source exposes only `--self-test` and `--source-plan`. It has no host census command, no installed entry, and no supported route to force it on. No previous V1 proof, CI, or lock applies transitively to this exact V2 head.
+
+
+## Logical-root and rendered-key byte-bound repair
+
+The existing `require_manifest_input_budget()` guarded the three supplied
+lists (`sys_path`, declared absences, accessed paths) but **not** the separate
+`display_root` parameter. `collect_tree()` embeds that root into every
+serialized object key before the 16 MiB final-report size test. A
+caller-supplied oversized logical root could therefore amplify across a wide
+inventory without triggering the path-input budget.
+
+This child requires canonical, strict UTF-8, NUL-free, absolute logical
+paths at the inventory-root boundary and rejects any logical
+`display_root` longer than `MAX_INPUT_PATH_BYTES=4096` **before filesystem
+traversal**. The same policy holds for direct `collect_tree()` callers,
+standalone `absence_record()` callers and every constructed `_display()`
+key, including a symlink's rendered resolved-target path. Synthetic
+adversaries reject a >4 KiB root, a double-slash root, an unencodable
+Unicode root, a derived key longer than 4 KiB, and an oversized declared
+absence without touching production paths.
+
+**Limit:** This is a per-path and root-amplification bound, not a proof of
+strict peak-memory or total-runtime limits. The existing 100,000-entry
+streaming discovery budget and 16 MiB *final* report guard remain separate;
+a future host adapter will still require cumulative work/output budgeting,
+FD-relative custody and distinct security review. No new host mode or
+economic authority is introduced.
 
 ## Explicit future HOLDs
 
