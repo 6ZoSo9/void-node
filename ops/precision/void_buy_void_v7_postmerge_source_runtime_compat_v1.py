@@ -321,30 +321,155 @@ def _stat_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int, in
     )
 
 
-def _ancestor_symlink_free(root: Path, path: Path) -> None:
-    relative = path.relative_to(root)
-    current = root
-    for part in relative.parts[:-1]:
-        current = current / part
-        st = os.lstat(current)
-        if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode):
-            raise CompatError("tracked_ancestor_not_direct_directory:" + str(relative))
+DirectoryLeases = dict[
+    tuple[str, ...],
+    tuple[int, tuple[int, int, int, int, int, int, int]],
+]
+
+
+def _open_directory_leases(root: Path) -> DirectoryLeases:
+    try:
+        fd = os.open(
+            root,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        )
+        opened = os.fstat(fd)
+        visible = os.lstat(root)
+    except OSError as exc:
+        try:
+            os.close(fd)
+        except (NameError, OSError):
+            pass
+        raise CompatError(
+            "worktree_root_lease_failed:errno_"
+            + str(exc.errno if exc.errno is not None else "unknown")
+        ) from exc
+    expected = _stat_identity(opened)
+    if (
+        not stat.S_ISDIR(opened.st_mode)
+        or stat.S_ISLNK(visible.st_mode)
+        or _stat_identity(visible) != expected
+    ):
+        os.close(fd)
+        raise CompatError("worktree_root_generation_mismatch")
+    return {(): (fd, expected)}
+
+
+def _close_directory_leases(leases: DirectoryLeases) -> None:
+    for key in sorted(leases, key=len, reverse=True):
+        try:
+            os.close(leases[key][0])
+        except OSError:
+            pass
+    leases.clear()
+
+
+def _leased_parent(
+    leases: DirectoryLeases,
+    relative: str,
+) -> tuple[int, str]:
+    parts = Path(relative).parts
+    if (
+        not parts
+        or Path(relative).is_absolute()
+        or any(part in ("", ".", "..") for part in parts)
+    ):
+        raise CompatError("tracked_path_invalid:" + relative)
+    current: tuple[str, ...] = ()
+    for part in parts[:-1]:
+        key = current + (part,)
+        if key not in leases:
+            parent_fd = leases[current][0]
+            try:
+                fd = os.open(
+                    part,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                    dir_fd=parent_fd,
+                )
+                st = os.fstat(fd)
+            except OSError as exc:
+                try:
+                    os.close(fd)
+                except (NameError, OSError):
+                    pass
+                raise CompatError(
+                    "tracked_ancestor_lease_failed:"
+                    + relative
+                    + ":errno_"
+                    + str(exc.errno if exc.errno is not None else "unknown")
+                ) from exc
+            if not stat.S_ISDIR(st.st_mode):
+                os.close(fd)
+                raise CompatError("tracked_ancestor_not_direct_directory:" + relative)
+            leases[key] = (fd, _stat_identity(st))
+        current = key
+    return leases[current][0], parts[-1]
+
+
+def _revalidate_directory_leases(root: Path, leases: DirectoryLeases) -> None:
+    root_fd, root_expected = leases[()]
+    try:
+        root_opened = os.fstat(root_fd)
+        root_visible = os.lstat(root)
+    except OSError as exc:
+        raise CompatError(
+            "worktree_root_revalidation_failed:errno_"
+            + str(exc.errno if exc.errno is not None else "unknown")
+        ) from exc
+    if (
+        _stat_identity(root_opened) != root_expected
+        or _stat_identity(root_visible) != root_expected
+        or not stat.S_ISDIR(root_visible.st_mode)
+        or stat.S_ISLNK(root_visible.st_mode)
+    ):
+        raise CompatError("worktree_root_generation_changed")
+
+    for key in sorted((key for key in leases if key), key=len):
+        retained_fd, expected = leases[key]
+        parent_fd = leases[key[:-1]][0]
+        try:
+            retained = os.fstat(retained_fd)
+            visible_fd = os.open(
+                key[-1],
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=parent_fd,
+            )
+            try:
+                visible = os.fstat(visible_fd)
+            finally:
+                os.close(visible_fd)
+        except OSError as exc:
+            raise CompatError(
+                "tracked_ancestor_revalidation_failed:"
+                + "/".join(key)
+                + ":errno_"
+                + str(exc.errno if exc.errno is not None else "unknown")
+            ) from exc
+        if (
+            _stat_identity(retained) != expected
+            or _stat_identity(visible) != expected
+            or not stat.S_ISDIR(visible.st_mode)
+        ):
+            raise CompatError(
+                "tracked_ancestor_generation_changed:" + "/".join(key)
+            )
 
 
 def _read_exact_worktree(
     root: Path,
     relative: str,
     identity: tuple[str, str, int],
+    leases: DirectoryLeases,
 ) -> tuple[str, tuple[int, int, int, int, int, int, int], bytes | None]:
+    del root
     mode, oid, size = identity
-    path = root / relative
     try:
-        _ancestor_symlink_free(root, path)
-        st = os.lstat(path)
+        parent_fd, name = _leased_parent(leases, relative)
+        st = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
         if mode == "120000":
             if not stat.S_ISLNK(st.st_mode):
                 raise CompatError("worktree_symlink_kind_mismatch:" + relative)
-            raw = os.fsencode(os.readlink(path))
+            raw = os.fsencode(os.readlink(name, dir_fd=parent_fd))
             if len(raw) != size or git_blob(raw) != oid:
                 raise CompatError("worktree_symlink_identity_mismatch:" + relative)
             return ("L", _stat_identity(st), raw)
@@ -354,7 +479,11 @@ def _read_exact_worktree(
         if actual_mode != mode or st.st_size != size or st.st_nlink < 1:
             raise CompatError("worktree_regular_metadata_mismatch:" + relative)
         before = _stat_identity(st)
-        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+        fd = os.open(
+            name,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+            dir_fd=parent_fd,
+        )
         try:
             opened = os.fstat(fd)
             if _stat_identity(opened) != before:
@@ -371,7 +500,7 @@ def _read_exact_worktree(
             if os.read(fd, 1):
                 raise CompatError("worktree_regular_grew:" + relative)
             after = os.fstat(fd)
-            visible = os.lstat(path)
+            visible = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
             if _stat_identity(after) != before or _stat_identity(visible) != before:
                 raise CompatError("worktree_regular_generation_changed:" + relative)
             if h.hexdigest() != oid:
@@ -394,18 +523,19 @@ def _terminal_revalidate_worktree(
         str,
         tuple[str, tuple[int, int, int, int, int, int, int], bytes | None],
     ],
+    leases: DirectoryLeases,
 ) -> None:
+    del root
     for relative, (kind, expected_stat, expected_target) in fingerprints.items():
-        path = root / relative
         try:
-            _ancestor_symlink_free(root, path)
-            st = os.lstat(path)
+            parent_fd, name = _leased_parent(leases, relative)
+            st = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
             if _stat_identity(st) != expected_stat:
                 raise CompatError("worktree_terminal_generation_changed:" + relative)
             if kind == "L":
                 if not stat.S_ISLNK(st.st_mode):
                     raise CompatError("worktree_terminal_kind_changed:" + relative)
-                if os.fsencode(os.readlink(path)) != expected_target:
+                if os.fsencode(os.readlink(name, dir_fd=parent_fd)) != expected_target:
                     raise CompatError("worktree_terminal_symlink_changed:" + relative)
             elif kind == "F":
                 if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
@@ -466,24 +596,33 @@ def verify_repository(root: Path, expected_head: str, require_main: bool) -> dic
         str,
         tuple[str, tuple[int, int, int, int, int, int, int], bytes | None],
     ] = {}
-    for path, identity in current_entries.items():
-        total += identity[2]
-        if total > MAX_TOTAL_BYTES:
-            raise CompatError("tracked_worktree_total_bytes_limit")
-        fingerprints[path] = _read_exact_worktree(root, path, identity)
+    directory_leases = _open_directory_leases(root)
+    try:
+        for path, identity in current_entries.items():
+            total += identity[2]
+            if total > MAX_TOTAL_BYTES:
+                raise CompatError("tracked_worktree_total_bytes_limit")
+            fingerprints[path] = _read_exact_worktree(
+                root, path, identity, directory_leases
+            )
 
-    _require_index_unchanged(raw_index, _run_git(root, *index_query))
-    _terminal_revalidate_worktree(root, fingerprints)
+        _revalidate_directory_leases(root, directory_leases)
+        _require_index_unchanged(raw_index, _run_git(root, *index_query))
+        _terminal_revalidate_worktree(root, fingerprints, directory_leases)
+        _revalidate_directory_leases(root, directory_leases)
 
-    if _git_text(root, "rev-parse", "--verify", "HEAD^{commit}") != expected_head:
-        raise CompatError("checkout_head_changed_terminal")
-    if _git_text(root, "rev-parse", SOURCE_BASE_HEAD + "^{tree}") != SOURCE_BASE_TREE:
-        raise CompatError("source_base_tree_changed_terminal")
+        if _git_text(root, "rev-parse", "--verify", "HEAD^{commit}") != expected_head:
+            raise CompatError("checkout_head_changed_terminal")
+        if _git_text(root, "rev-parse", SOURCE_BASE_HEAD + "^{tree}") != SOURCE_BASE_TREE:
+            raise CompatError("source_base_tree_changed_terminal")
 
-    # Repeat both barriers after the terminal Git observations so drift during
-    # the terminal phase cannot be reported as a stable GREEN generation.
-    _require_index_unchanged(raw_index, _run_git(root, *index_query))
-    _terminal_revalidate_worktree(root, fingerprints)
+        # Repeat all barriers after the terminal Git observations so drift
+        # during the terminal phase cannot be reported as stable GREEN.
+        _require_index_unchanged(raw_index, _run_git(root, *index_query))
+        _terminal_revalidate_worktree(root, fingerprints, directory_leases)
+        _revalidate_directory_leases(root, directory_leases)
+    finally:
+        _close_directory_leases(directory_leases)
 
     return {
         "runtime_head": RUNTIME_HEAD,
@@ -645,28 +784,74 @@ def self_test() -> None:
             tracked = fixture_root / "tracked.txt"
             tracked.write_bytes(b"A")
             tracked_identity = ("100644", git_blob(b"A"), 1)
-            fingerprint = _read_exact_worktree(fixture_root, "tracked.txt", tracked_identity)
-            tracked.write_bytes(b"B")
+            leases = _open_directory_leases(fixture_root)
             try:
-                _terminal_revalidate_worktree(
-                    fixture_root, {"tracked.txt": fingerprint}
+                fingerprint = _read_exact_worktree(
+                    fixture_root, "tracked.txt", tracked_identity, leases
                 )
-            except CompatError:
-                pass
-            else:
-                raise AssertionError("worktree_terminal_drift_not_rejected")
+                tracked.write_bytes(b"B")
+                try:
+                    _terminal_revalidate_worktree(
+                        fixture_root, {"tracked.txt": fingerprint}, leases
+                    )
+                except CompatError:
+                    pass
+                else:
+                    raise AssertionError("worktree_terminal_drift_not_rejected")
 
-            missing = fixture_root / "missing.txt"
+                missing = fixture_root / "missing.txt"
+                try:
+                    _read_exact_worktree(
+                        fixture_root,
+                        "missing.txt",
+                        ("100644", git_blob(b"M"), 1),
+                        leases,
+                    )
+                except CompatError as exc:
+                    assert str(exc).startswith(
+                        "worktree_observation_failed:missing.txt:"
+                    )
+                else:
+                    raise AssertionError(
+                        "missing_tracked_path_not_normalized_to_hold"
+                    )
+            finally:
+                _close_directory_leases(leases)
+
+        with tempfile.TemporaryDirectory(
+            prefix="void-v7-postmerge-ancestor-lease-"
+        ) as td:
+            fixture_root = Path(td)
+            parent = fixture_root / "dir"
+            parent.mkdir()
+            tracked = parent / "tracked.txt"
+            tracked.write_bytes(b"A")
+            tracked_identity = ("100644", git_blob(b"A"), 1)
+            leases = _open_directory_leases(fixture_root)
             try:
-                _read_exact_worktree(
-                    fixture_root,
-                    "missing.txt",
-                    ("100644", git_blob(b"M"), 1),
+                fingerprint = _read_exact_worktree(
+                    fixture_root, "dir/tracked.txt", tracked_identity, leases
                 )
-            except CompatError as exc:
-                assert str(exc).startswith("worktree_observation_failed:missing.txt:")
-            else:
-                raise AssertionError("missing_tracked_path_not_normalized_to_hold")
+                old_parent = fixture_root / "dir.old"
+                parent.rename(old_parent)
+                parent.mkdir()
+                (parent / "tracked.txt").write_bytes(b"A")
+
+                # The retained parent descriptor still addresses the reviewed
+                # generation; only the visible ancestor mapping has drifted.
+                _terminal_revalidate_worktree(
+                    fixture_root, {"dir/tracked.txt": fingerprint}, leases
+                )
+                try:
+                    _revalidate_directory_leases(fixture_root, leases)
+                except CompatError:
+                    pass
+                else:
+                    raise AssertionError(
+                        "tracked_ancestor_directory_replacement_not_rejected"
+                    )
+            finally:
+                _close_directory_leases(leases)
     finally:
         BASE_ADDITIONS.clear()
         BASE_ADDITIONS.update(saved_add)
@@ -683,6 +868,8 @@ def self_test() -> None:
     print("tracked_source_checkout_exact_required=true")
     print("terminal_index_generation_revalidation_required=true")
     print("terminal_worktree_generation_revalidation_required=true")
+    print("retained_directory_fd_traversal_required=true")
+    print("terminal_ancestor_directory_generation_revalidation_required=true")
     print("worktree_filesystem_errors_normalized_to_hold=true")
     print("git_timeout_normalized_to_hold=true")
     print("git_exec_errors_normalized_to_hold=true")
