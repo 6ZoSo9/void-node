@@ -356,7 +356,7 @@ def require_manifest_input_budget(
     total_bytes=0
     for group in groups:
         for candidate in group:
-            if type(candidate) is not str or not candidate or "\\x00" in candidate:
+            if type(candidate) is not str or not candidate or "\x00" in candidate:
                 raise Hold("manifest_input_path_invalid")
             try:
                 n=len(candidate.encode("utf-8","strict"))
@@ -467,7 +467,7 @@ def fixture_self_test()->None:
             assert str(exc)=="manifest_input_path_length_exceeded"
         else:
             raise AssertionError("oversized_input_path_accepted")
-        for bad_path in (None,"",123,"/fixture/\\x00bad"):
+        for bad_path in (None,"",123,"/fixture/\x00bad"):
             try:
                 require_manifest_input_budget([bad_path],[],[])
             except Hold as exc:
