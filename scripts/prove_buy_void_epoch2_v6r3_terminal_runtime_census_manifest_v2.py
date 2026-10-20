@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="8d7a61675c28a2dc7f00c21571fae870bee961ff"
+SOURCE_BLOB="4bbb5d2296649893eba1ddeef71de2655b70709a"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -184,6 +184,10 @@ for required in (
     "census_hash_budget_checked_before_file_open=true",
     "census_canonical_json_record_payload_budget_bound=true",
     "census_escaped_control_record_amplification_rejected=true",
+    "census_absence_record_canonical_budget_bound=true",
+    "census_absence_json_escape_amplification_rejected=true",
+    'raise Hold("manifest_absence_record_budget_exceeded")',
+    'raise AssertionError("absence_escaped_json_over_budget_accepted")',
     "MAX_REPORT_BYTES=16*1024*1024",
     "os.O_NOFOLLOW|os.O_NONBLOCK",
     'raise Hold("special_file_forbidden:"',
@@ -249,6 +253,8 @@ for mode,required_lines in (
         "census_hash_budget_checked_before_file_open=true",
         "census_canonical_json_record_payload_budget_bound=true",
         "census_escaped_control_record_amplification_rejected=true",
+        "census_absence_record_canonical_budget_bound=true",
+        "census_absence_json_escape_amplification_rejected=true",
         "census_direct_absence_display_path_budget_bound=true",
         "census_unbounded_generator_and_oversize_path_rejected=true",
         "noncanonical_manifest_paths_rejected=true",
@@ -325,6 +331,7 @@ print("census_symlink_record_string_budget_proven=true")
 print("census_cumulative_hash_read_budget_proven=true")
 print("census_hash_bound_precedes_open_proven=true")
 print("census_canonical_json_record_payload_budget_proven=true")
+print("census_canonical_absence_record_budget_proven=true")
 print("host_execution_enabled=false")
 print("host_census_authorized=false")
 print("protected_install_authorized=false")
