@@ -508,3 +508,51 @@ implicitly reissued, and this fixture does **not** license production
 root execution or presale/customer payments.
 
 Tor renewal is handled in another chat. PROTECT THE CORE.
+
+
+## Native trusted-leaf FIFO replacement cannot block — source-only successor
+
+The native preentry's `open_trusted()` verifies a root-owned, canonical
+regular leaf with `lstat` and then revalidates the retained FD with
+`fstat`. A concurrent **privileged** cutover replacing that checked leaf
+with a FIFO after `lstat` could previously stall the **blocking**
+`open(O_RDONLY|O_NOFOLLOW)` before reaching its fail-closed generation
+check. This is an availability/first-entry provenance issue conditional on a
+trusted-root path being replaced; it is **not** evidence of an exploitable
+Precision root-writable ancestor or current host compromise.
+
+The same native trusted-leaf opening helper now uses
+`O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK`. The original ancestor, mode,
+UID/GID, link-count, regular type and before/open/visible generation tests
+remain. If a FIFO appears, the open returns without waiting for a writer
+and `safe_regular()` rejects the special FD. The existing sealed accepted
+Binder-JS memfd snapshot and root Node first-entry contract are unchanged.
+
+An unprivileged **actual native C self-test** creates a disposable 0600 FIFO
+without a writer, uses the *same helper* as `open_trusted`, verifies the
+returned descriptor is a FIFO rejected by `safe_regular`, and requires the
+`trusted_fifo_swap_open_nonblocking=true` marker. A blocking helper would
+hang and time out in the hosted 10-second self-test rather than report
+success. The exact source proof pins this changed native C Git blob:
+
+```text
+parent_pr=3639
+parent_head=9746fdd767f35cb08e2967c616fb5da4a144c44e
+native_preentry_source_blob=78b2264a46adfc457c648dd2c57838c246c3ca71
+binder_js_git_blob=be4a40954e5541168ab3403ad5b9b74207dc5ddd
+binder_js_bytes=62308
+HOST_EXECUTION_AUTHORIZED=false
+credential_access=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+This invalidates prior compiled-native-preentry **source generation** evidence.
+It does not alter the separately accepted V6R2 *child* ELF or its lock.
+Requalify the new native-preentry source, build/lock any future installed
+binary, obtain genuinely independent review and perform a separately approved
+host-generation qualification. Do not invoke protected `--run` on the
+basis of a synthetic fixture. Tor is being handled separately.
+
+PROTECT THE CORE.
