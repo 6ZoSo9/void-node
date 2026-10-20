@@ -22,11 +22,11 @@ The launcher is source-bound to the landed V4 installer generation:
 
 The launcher source Git blob is:
 
-`7d5645531fced8a114101285150ebdfdf7266907`.
+`3b6402a1df523842720a24b719c2b3e86c18ed42`.
 
 The source proof Git blob is:
 
-`1f0d6e24fc7b0f251293466019121c864a3ec109`.
+`32932490c003c32d6549d471aeec2c8cff67ae2b`.
 
 These are source identities only. A later installed launcher must be separately bound to its compiled ELF identity.
 
@@ -66,6 +66,16 @@ The Python runtime directories are closed: the runtime root contains exactly `bi
 
 Every trusted path and every ancestor is additionally checked for effective writability by runtime UID/GID `1000:1000` after clearing supplementary groups. Mode bits alone are not treated as sufficient ACL evidence.
 
+That ACL test is **not** treated as a content seal. A writable file descriptor or writable mmap opened before a later chmod/chown can survive metadata hardening. Therefore every privileged file that can affect pre-V4 execution must already have Linux **fs-verity** enabled before the launcher will trust it:
+
+- the installed launcher ELF;
+- `policy-v1.conf`;
+- the V4 installer file inside the source snapshot;
+- `bin/python3.12-static`;
+- `lib/python312.zip`.
+
+The launcher requires `FS_IOC_MEASURE_VERITY` to succeed with the SHA-256 fs-verity algorithm on each retained descriptor. The ordinary full-file SHA-256 checks still authenticate the expected bytes; fs-verity supplies the kernel-enforced no-write/stable-read property that metadata checks alone cannot provide. A host filesystem without fs-verity support is a **HOLD**, not permission to fall back to chmod/chown-only custody.
+
 ## Host policy
 
 The future root-custodied policy is a closed eleven-row LF-terminated file:
@@ -100,7 +110,8 @@ Before Python starts, the native launcher requires:
 6. exact policy-bound static Python size + SHA-256 and static-ELF admission;
 7. exact policy-bound stdlib-zip size + SHA-256;
 8. runtime UID/GID 1000 with empty supplementary groups to be unable to write every trusted runtime/source/launcher path or ancestor;
-9. terminal descriptor/path generation revalidation before `fexecve`.
+9. SHA-256 fs-verity admission on launcher self, policy, installer, static Python, and stdlib zip;
+10. terminal descriptor/path generation revalidation before `fexecve`.
 
 Python receives only:
 
@@ -151,7 +162,8 @@ The focused proof:
 - parses the ELF64 program headers directly;
 - requires x86-64 `ET_EXEC`, at least one `PT_LOAD`, and **no** `PT_INTERP` or `PT_DYNAMIC`;
 - runs the launcher `--self-test`;
-- requires the self-test to bind static-Python, exact stdlib-zip, closed runtime-tree, retained-descriptor exec, and false host/economic authority markers;
+- requires source bindings for `FS_IOC_MEASURE_VERITY`, SHA-256 fs-verity algorithm admission, and all five privileged-file verity gates;
+- requires the self-test to bind static-Python, exact stdlib-zip, closed runtime-tree, retained-descriptor exec, kernel content sealing, and false host/economic authority markers;
 - rejects source use of write/create filesystem primitives, network primitives, ambient environment reads, or PATH-resolved execution.
 
 Hosted CI proves only the source/native construction contract. It does not prove the future installed host generations.
@@ -160,11 +172,10 @@ Hosted CI proves only the source/native construction contract. It does not prove
 
 1. Review and land this source generation.
 2. Separately derive and review one exact static Python executable + stdlib zip, the corresponding host policy, and a content-addressed root-owned full source snapshot from canonical landed `main`.
-3. Separately install/qualify the static launcher + closed Python runtime + policy + source snapshot.
+3. Separately install those files as fresh root-custodied generations, enable fs-verity on launcher/policy/installer/Python/stdlib, and qualify the verity state plus exact bytes. Enabling or measuring verity failure is HOLD.
 4. Run the launcher in **plan** mode and review the exact V4 `plan_id` and installed state.
 5. Only under separate protected-host authorization may the exact reviewed plan be replayed in `--apply` mode with the explicit V4 confirmation.
 6. Run installed qualification V3 only through its separately reviewed exact-landed-source launch context.
-
 No earlier source/CI GREEN substitutes for these host gates.
 
 ## Authority
