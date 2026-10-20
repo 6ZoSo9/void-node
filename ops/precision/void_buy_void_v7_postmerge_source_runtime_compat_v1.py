@@ -556,6 +556,32 @@ def _require_index_unchanged(initial: bytes, observed: bytes) -> None:
         raise CompatError("checkout_index_generation_changed")
 
 
+def _require_git_toplevel_exact(root: Path) -> None:
+    observed_raw = _git_text(root, "rev-parse", "--show-toplevel")
+    observed = Path(observed_raw)
+    if not observed.is_absolute():
+        raise CompatError("checkout_git_toplevel_not_absolute")
+    try:
+        resolved = observed.resolve(strict=True)
+    except OSError as exc:
+        raise CompatError(
+            "checkout_git_toplevel_observation_failed:errno_"
+            + str(exc.errno if exc.errno is not None else "unknown")
+        ) from exc
+    if resolved != root:
+        raise CompatError("checkout_git_toplevel_mismatch")
+
+
+def _require_branch(root: Path, require_main: bool, *, terminal: bool) -> None:
+    if not require_main:
+        return
+    if _git_text(root, "branch", "--show-current") != "main":
+        raise CompatError(
+            "checkout_branch_changed_terminal" if terminal
+            else "checkout_branch_not_main"
+        )
+
+
 def verify_repository(root: Path, expected_head: str, require_main: bool) -> dict[str, object]:
     try:
         root = root.resolve(strict=True)
@@ -566,10 +592,10 @@ def verify_repository(root: Path, expected_head: str, require_main: bool) -> dic
         ) from exc
     if HEX40.fullmatch(expected_head) is None:
         raise CompatError("expected_head_invalid")
+    _require_git_toplevel_exact(root)
     if _git_text(root, "rev-parse", "--verify", "HEAD^{commit}") != expected_head:
         raise CompatError("checkout_head_mismatch")
-    if require_main and _git_text(root, "branch", "--show-current") != "main":
-        raise CompatError("checkout_branch_not_main")
+    _require_branch(root, require_main, terminal=False)
     if not _is_ancestor(root, SOURCE_BASE_HEAD, expected_head):
         raise CompatError("source_base_not_ancestor")
     if _git_text(root, "rev-parse", RUNTIME_HEAD + "^{tree}") != RUNTIME_TREE:
@@ -611,16 +637,20 @@ def verify_repository(root: Path, expected_head: str, require_main: bool) -> dic
         _terminal_revalidate_worktree(root, fingerprints, directory_leases)
         _revalidate_directory_leases(root, directory_leases)
 
+        _require_git_toplevel_exact(root)
+        _require_branch(root, require_main, terminal=True)
         if _git_text(root, "rev-parse", "--verify", "HEAD^{commit}") != expected_head:
             raise CompatError("checkout_head_changed_terminal")
         if _git_text(root, "rev-parse", SOURCE_BASE_HEAD + "^{tree}") != SOURCE_BASE_TREE:
             raise CompatError("source_base_tree_changed_terminal")
 
-        # Repeat all barriers after the terminal Git observations so drift
+        # Repeat every barrier after the terminal Git observations so drift
         # during the terminal phase cannot be reported as stable GREEN.
         _require_index_unchanged(raw_index, _run_git(root, *index_query))
         _terminal_revalidate_worktree(root, fingerprints, directory_leases)
         _revalidate_directory_leases(root, directory_leases)
+        _require_git_toplevel_exact(root)
+        _require_branch(root, require_main, terminal=True)
     finally:
         _close_directory_leases(directory_leases)
 
@@ -819,6 +849,42 @@ def self_test() -> None:
                 _close_directory_leases(leases)
 
         with tempfile.TemporaryDirectory(
+            prefix="void-v7-postmerge-git-root-"
+        ) as td:
+            fixture_root = Path(td)
+            nested = fixture_root / "nested"
+            nested.mkdir()
+            original_git_text = globals()["_git_text"]
+            try:
+                globals()["_git_text"] = (
+                    lambda _root, *_args: str(fixture_root)
+                )
+                try:
+                    _require_git_toplevel_exact(nested.resolve(strict=True))
+                except CompatError as exc:
+                    assert str(exc) == "checkout_git_toplevel_mismatch"
+                else:
+                    raise AssertionError(
+                        "nested_checkout_git_discovery_not_rejected"
+                    )
+
+                branch_values = iter(("main", "other"))
+                globals()["_git_text"] = (
+                    lambda _root, *_args: next(branch_values)
+                )
+                _require_branch(fixture_root, True, terminal=False)
+                try:
+                    _require_branch(fixture_root, True, terminal=True)
+                except CompatError as exc:
+                    assert str(exc) == "checkout_branch_changed_terminal"
+                else:
+                    raise AssertionError(
+                        "terminal_branch_drift_not_rejected"
+                    )
+            finally:
+                globals()["_git_text"] = original_git_text
+
+        with tempfile.TemporaryDirectory(
             prefix="void-v7-postmerge-ancestor-lease-"
         ) as td:
             fixture_root = Path(td)
@@ -870,6 +936,8 @@ def self_test() -> None:
     print("terminal_worktree_generation_revalidation_required=true")
     print("retained_directory_fd_traversal_required=true")
     print("terminal_ancestor_directory_generation_revalidation_required=true")
+    print("exact_git_toplevel_binding_required=true")
+    print("terminal_required_branch_revalidation_required=true")
     print("worktree_filesystem_errors_normalized_to_hold=true")
     print("git_timeout_normalized_to_hold=true")
     print("git_exec_errors_normalized_to_hold=true")
