@@ -47,8 +47,11 @@ jobs:
       - name: Syntax and static source
         run: |
           set -euo pipefail
-          python3 -I -B -m py_compile scripts/prove_buy_void_epoch2_v6r3_plan_first_entry_v1.py
-          cc -std=c11 -Wall -Wextra -Werror -O2 -static             ops/precision/void_buy_void_epoch2_v6r3_plan_first_entry_v1.c             -o "$RUNNER_TEMP/epoch2-v6r3-plan-first-entry"
+          python3 -I -B -m py_compile \
+            scripts/prove_buy_void_epoch2_v6r3_plan_first_entry_v1.py
+          cc -std=c11 -Wall -Wextra -Werror -O2 -static \
+            ops/precision/void_buy_void_epoch2_v6r3_plan_first_entry_v1.c \
+            -o "$RUNNER_TEMP/epoch2-v6r3-plan-first-entry"
           file "$RUNNER_TEMP/epoch2-v6r3-plan-first-entry" | grep -F 'statically linked'
           readelf -l "$RUNNER_TEMP/epoch2-v6r3-plan-first-entry" > "$RUNNER_TEMP/readelf.txt"
           if grep -F ' INTERP ' "$RUNNER_TEMP/readelf.txt"; then
@@ -57,12 +60,65 @@ jobs:
           fi
           "$RUNNER_TEMP/epoch2-v6r3-plan-first-entry" --self-test
 
-      - name: Prove authenticated planner first entry
+      - name: Safe default source proof
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/epoch2-v6r3-plan-first-entry-source-proof.txt"
+          python3 -I -B scripts/prove_buy_void_epoch2_v6r3_plan_first_entry_v1.py \
+            | tee "$OUT"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_V6R3_PLAN_FIRST_ENTRY_V1_PROOF_SOURCE_CHECK_GREEN' "$OUT"
+          grep -Fx 'privileged_fixture_executed=false' "$OUT"
+          grep -Fx 'protected_install_authorized=false' "$OUT"
+          grep -Fx 'host_plan_authorized=false' "$OUT"
+          grep -Fx 'funds_movement=false' "$OUT"
+
+      - name: Explicit isolated disposable fixture proof
         run: |
           set -euo pipefail
           OUT="$RUNNER_TEMP/epoch2-v6r3-plan-first-entry-proof.txt"
-          python3 -I -B scripts/prove_buy_void_epoch2_v6r3_plan_first_entry_v1.py | tee "$OUT"
-          for marker in             'VOID_BUY_VOID_EPOCH2_V6R3_PLAN_FIRST_ENTRY_V1_PROOF_GREEN'             'native_static_first_instruction=true'             'native_no_pt_interp=true'             'native_ld_preload_blocked_before_main=true'             'hosted_opt_ancestry_normalized_for_fixture=true'             'root_static_first_entry_required=true'             'runtime_uid_gid_1000_required=true'             'permanent_uid_gid_drop_before_python=true'             'planner_runtime_uid_gid_1000_proven=true'             'runtime_dumpable_disabled_before_python=true'             'protected_generations_revalidated_after_uid_drop=true'             'planner_sha256_and_size_bound_before_python=true'             'planner_retained_fd_execution=true'             'planner_sealed_memfd_execution=true'             'python_sealed_memfd_fexecve=true'             'sealed_memfd_write_rejected=true'             'authenticated_original_paths_not_execution_authority_after_snapshot=true'             'python_root_owned_generation_policy_bound=true'             'python_retained_fd_fexecve=true'             'isolated_python_i_b_s=true'             'python_site_import_disabled=true'             'caller_stdin_python_source_rejected=true'             'hostile_pythonpath_not_imported=true'             'hostile_ld_preload_not_propagated_to_python=true'             'nonroot_direct_launcher_rejected_before_python=true'             'same_size_planner_substitution_rejected_before_python=true'             'wrong_launcher_path_rejected_before_python=true'             'protected_install_authorized=false'             'host_plan_authorized=false'             'credential_access=false'             'signing=false'             'transaction=false'             'funds_movement=false'
+          python3 -I -B scripts/prove_buy_void_epoch2_v6r3_plan_first_entry_v1.py \
+            --isolated-disposable-fixture \
+            | tee "$OUT"
+          for marker in \
+            'VOID_BUY_VOID_EPOCH2_V6R3_PLAN_FIRST_ENTRY_V1_PROOF_GREEN' \
+            'native_static_first_instruction=true' \
+            'native_no_pt_interp=true' \
+            'native_ld_preload_blocked_before_main=true' \
+            'privileged_fixture_explicit_opt_in=true' \
+            'isolated_disposable_fixture_root=true' \
+            'preexisting_fixture_root_rejected=true' \
+            'generation_bound_nonrecursive_cleanup=true' \
+            'root_static_first_entry_required=true' \
+            'standard_fds_reserved_before_trusted_opens=true' \
+            'mapped_planner_fd3_revalidated=true' \
+            'closed_stdin_first_entry_green=true' \
+            'runtime_uid_gid_1000_required=true' \
+            'permanent_uid_gid_drop_before_python=true' \
+            'planner_runtime_uid_gid_1000_proven=true' \
+            'runtime_dumpable_disabled_before_python=true' \
+            'protected_generations_revalidated_after_uid_drop=true' \
+            'planner_sha256_and_size_bound_before_python=true' \
+            'planner_retained_fd_execution=true' \
+            'planner_sealed_memfd_execution=true' \
+            'python_sealed_memfd_fexecve=true' \
+            'sealed_memfd_write_rejected=true' \
+            'authenticated_original_paths_not_execution_authority_after_snapshot=true' \
+            'python_root_owned_generation_policy_bound=true' \
+            'python_retained_fd_fexecve=true' \
+            'isolated_python_i_b_s=true' \
+            'python_site_import_disabled=true' \
+            'caller_stdin_python_source_rejected=true' \
+            'hostile_pythonpath_not_imported=true' \
+            'hostile_ld_preload_not_propagated_to_python=true' \
+            'nonroot_direct_launcher_rejected_before_python=true' \
+            'same_size_planner_substitution_rejected_before_python=true' \
+            'wrong_launcher_path_rejected_before_python=true' \
+            'protected_install_authorized=false' \
+            'host_plan_authorized=false' \
+            'credential_access=false' \
+            'signing=false' \
+            'transaction=false' \
+            'funds_movement=false'
           do
             grep -Fx "$marker" "$OUT"
           done
