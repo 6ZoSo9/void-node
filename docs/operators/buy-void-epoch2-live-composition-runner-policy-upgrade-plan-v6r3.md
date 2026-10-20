@@ -207,7 +207,7 @@ The `--self-test` fixture also directly executes the retained Git ELF via
 the hosted runner; it does not authenticate or inspect Precision's host
 binary, execute the production Runner, or authorize a host plan.
 
-Planner Git blob: `9eeadd69546cf0eb5793a744b273319bec757d39`.
+Planner Git blob: `83ef44f0cacc3f0445ccdb23fb0c478d79f01f70`.
 
 
 ## Retained-first-exec V8 lock rebind
@@ -219,7 +219,7 @@ candidate_id=voidbuye2runnerpolcand6r3_0a3bfc00032b0feeb253fb0f295b4dacc1e3e66af
 runner_git_blob=2fa028824d71a22f4d228cdb7fcda738bce7b409
 runner_sha256=9b8497c813fc3899b745736da01929380b5f28f988f70790def1e0a98b35a261
 runner_bytes=84928
-planner_git_blob=9eeadd69546cf0eb5793a744b273319bec757d39
+planner_git_blob=83ef44f0cacc3f0445ccdb23fb0c478d79f01f70
 ```
 
 The planner rejects any lock that does not explicitly accept the retained-first-exec
