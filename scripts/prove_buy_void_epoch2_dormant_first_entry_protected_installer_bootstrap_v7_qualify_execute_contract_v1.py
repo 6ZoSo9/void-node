@@ -160,8 +160,6 @@ for required in (
     '_require_exact_keys(body, PLANNER_BODY_KEYS, "planner_body")',
     "planner_body_installed_qualification_performed_invalid",
     "planner_body_qualification_requirement_invalid",
-    "qualification_required_result_boolean_type_mismatch:",
-    "if isinstance(expected, bool):",
     'except (ValueError, RecursionError) as exc:',
 ):
     assert required in validate_source, required
@@ -173,6 +171,8 @@ qualification_source = (
 for required in (
     "qualification_contract_mismatch:",
     "qualification_required_result_mismatch:",
+    "qualification_required_result_boolean_type_mismatch:",
+    "if isinstance(expected, bool):",
     "QUALIFICATION_CONTRACT_KEYS",
     '"qualification_contract"',
     "QUALIFICATION_REQUIRED_RESULT_KEYS",
