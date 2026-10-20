@@ -265,6 +265,84 @@ assert.deepEqual(isolatedReservationCalls, [
 ]);
 failureIsolation.stop();
 
+const failingUpgradeStreamId = "5".repeat(32);
+const healthyUpgradeStreamId = "6".repeat(32);
+const isolatedUpgradeCalls: string[] = [];
+const upgradeFailureIsolationNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
+  ...node,
+  relaySnapshot: () => ({
+    client_reservations: [
+      { relay_node_id: failingRelayNodeId, expires_at_ms: 120_000 },
+      { relay_node_id: healthyRelayNodeId, expires_at_ms: 120_000 },
+    ],
+    streams: [
+      {
+        relay_node_id: failingRelayNodeId,
+        remote_node_id: targetNodeId,
+        stream_id: failingUpgradeStreamId,
+        outgoing: true,
+        started: true,
+      },
+      {
+        relay_node_id: healthyRelayNodeId,
+        remote_node_id: relayNodeId,
+        stream_id: healthyUpgradeStreamId,
+        outgoing: true,
+        started: true,
+      },
+    ],
+  }),
+  udpSwarmControlSnapshot: () => ({
+    pending_requests: [],
+    active_routes: [],
+  }),
+  requestUdpSwarmUpgradeV1: (relay) => {
+    isolatedUpgradeCalls.push(relay);
+    if (relay === failingRelayNodeId) {
+      throw new Error("synthetic upgrade adapter failure");
+    }
+    return { ok: true as const, request_id: "7".repeat(32) };
+  },
+};
+const upgradeFailureIsolation = new VoidUdpSwarmRelayOrchestratorV1(
+  upgradeFailureIsolationNode,
+  {
+    enabled: true,
+    routes: [
+      {
+        relay_node_id: failingRelayNodeId,
+        target_node_id: targetNodeId,
+      },
+      {
+        relay_node_id: healthyRelayNodeId,
+        target_node_id: relayNodeId,
+      },
+    ],
+  },
+);
+assert.doesNotThrow(() => upgradeFailureIsolation.runOnce(0));
+assert.deepEqual(isolatedUpgradeCalls, [
+  failingRelayNodeId,
+  healthyRelayNodeId,
+]);
+upgradeFailureIsolation.runOnce(1_000);
+assert.deepEqual(isolatedUpgradeCalls, [
+  failingRelayNodeId,
+  healthyRelayNodeId,
+  failingRelayNodeId,
+]);
+upgradeFailureIsolation.runOnce(
+  VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1,
+);
+assert.deepEqual(isolatedUpgradeCalls, [
+  failingRelayNodeId,
+  healthyRelayNodeId,
+  failingRelayNodeId,
+  failingRelayNodeId,
+  healthyRelayNodeId,
+]);
+upgradeFailureIsolation.stop();
+
 console.log(JSON.stringify({
   marker: "VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_V1_PROOF",
   status: "green",
@@ -278,6 +356,8 @@ console.log(JSON.stringify({
     bounded_upgrade_retry: true,
     route_local_adapter_failure_isolated: true,
     later_routes_advance_after_failure: true,
+    thrown_upgrade_retries_next_sweep: true,
+    returned_upgrade_uses_bounded_backoff: true,
     incoming_stream_not_initiated: true,
     sanitized_status: true,
     stop_is_terminal: true,
