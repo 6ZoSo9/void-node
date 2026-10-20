@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -183,6 +184,12 @@ static bool same_generation(const struct stat *a,const struct stat *b){
 }
 
 static void require_nonwritable(const char *path,const char *reason){
+    /*
+     * Root's DAC-bypass makes access(W_OK) unsuitable before privilege drop.
+     * The same custody is revalidated after permanent UID/GID 1000 drop, where
+     * the effective write check is authoritative for the runtime identity.
+     */
+    if(geteuid()==0)return;
     errno=0;
     if(access(path,W_OK)==0)hold(reason);
     if(!(errno==EACCES||errno==EPERM||errno==EROFS))hold("effective_write_audit_unavailable");
@@ -264,7 +271,7 @@ static void require_digest_size(int fd,const char *expected_sha,size_t expected_
     char observed[65];sha256_fd_hex(fd,observed);if(strcmp(observed,expected_sha)!=0)hold(reason);
 }
 
-static void require_self_identity(void){
+static void require_self_identity(struct stat *opened_out){
     char observed[PATH_MAX];
     const ssize_t n=readlink("/proc/self/exe",observed,sizeof(observed)-1U);
     if(n<=0||(size_t)n>=sizeof(observed))hold("launcher_self_identity_unreadable");
@@ -272,6 +279,17 @@ static void require_self_identity(void){
     struct stat opened;
     const int fd=open_trusted_regular(FIXED_SELF,true,0555,"launcher_self_custody_invalid",&opened);
     revalidate_trusted_regular(FIXED_SELF,fd,&opened,true,0555,"launcher_self_custody_invalid");
+    close(fd);
+    if(opened_out)*opened_out=opened;
+}
+
+static void revalidate_fixed_generation(
+    const char *path,const struct stat *expected,bool executable,mode_t exact_mode,const char *reason
+){
+    struct stat observed;
+    const int fd=open_trusted_regular(path,executable,exact_mode,reason,&observed);
+    if(!same_generation(expected,&observed)){close(fd);hold(reason);}
+    revalidate_trusted_regular(path,fd,expected,executable,exact_mode,reason);
     close(fd);
 }
 
@@ -311,7 +329,7 @@ static policy_v1 parse_policy(char *text){
     memcpy(p.python_sha256,python_sha,65U);p.python_bytes=parsed_python;return p;
 }
 
-static policy_v1 read_policy(void){
+static policy_v1 read_policy(struct stat *opened_out){
     struct stat opened;
     const int fd=open_trusted_regular(FIXED_POLICY,false,0444,"policy_custody_invalid",&opened);
     if(opened.st_size<=0||(uintmax_t)opened.st_size>MAX_POLICY_BYTES){close(fd);hold("policy_size_invalid");}
@@ -326,7 +344,9 @@ static policy_v1 read_policy(void){
     }
     if(buf[n-1U]!='\n'){free(buf);close(fd);hold("policy_final_newline_required");}
     revalidate_trusted_regular(FIXED_POLICY,fd,&opened,false,0444,"policy_generation_changed");
-    close(fd);policy_v1 p=parse_policy(buf);free(buf);return p;
+    close(fd);
+    if(opened_out)*opened_out=opened;
+    policy_v1 p=parse_policy(buf);free(buf);return p;
 }
 
 static void require_python_link(const char *expected_realpath){
@@ -344,6 +364,25 @@ static void close_unneeded(int keep_a,int keep_b){
     for(int fd=5;fd<maxfd;fd++){if(fd==keep_a||fd==keep_b)continue;close(fd);}
 }
 
+static void drop_to_runtime(void){
+    if(getuid()!=0U||geteuid()!=0U||getgid()!=0U||getegid()!=0U){
+        hold("root_static_first_entry_required");
+    }
+    if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)!=0)hold("no_new_privs_failed");
+    if(setgroups(0,NULL)!=0)hold("supplementary_group_clear_failed");
+    if(setresgid((gid_t)REQUIRED_GID,(gid_t)REQUIRED_GID,(gid_t)REQUIRED_GID)!=0){
+        hold("runtime_gid_drop_failed");
+    }
+    if(setresuid((uid_t)REQUIRED_UID,(uid_t)REQUIRED_UID,(uid_t)REQUIRED_UID)!=0){
+        hold("runtime_uid_drop_failed");
+    }
+    if(getuid()!=REQUIRED_UID||geteuid()!=REQUIRED_UID||
+       getgid()!=REQUIRED_GID||getegid()!=REQUIRED_GID){
+        hold("runtime_identity_drop_not_permanent");
+    }
+    if(prctl(PR_SET_DUMPABLE,0,0,0,0)!=0)hold("runtime_dumpable_disable_failed");
+}
+
 static int self_test(void){
     static const unsigned char expected[32]={
         0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,
@@ -357,7 +396,10 @@ static int self_test(void){
     printf("planner_git_blob=%s\n",PLANNER_GIT_BLOB);
     printf("planner_sha256=%s\n",PLANNER_SHA256);
     printf("planner_bytes=%u\n",(unsigned)PLANNER_BYTES);
+    printf("root_static_first_entry_required=true\n");
     printf("runtime_uid_gid_1000_required=true\n");
+    printf("permanent_uid_gid_drop_before_python=true\n");
+    printf("runtime_dumpable_disabled_before_python=true\n");
     printf("planner_retained_descriptor_required=true\n");
     printf("python_retained_descriptor_fexecve_required=true\n");
     printf("isolated_python_required=true\n");
@@ -379,10 +421,15 @@ static void prepare_child_fd(int source,int target,const char *reason){
 int main(int argc,char **argv){
     if(argc==2&&strcmp(argv[1],"--self-test")==0)return self_test();
     if(argc!=2||strcmp(argv[1],"--plan")!=0)hold("launcher_arguments_invalid");
-    require_self_identity();
-    if(getuid()!=REQUIRED_UID||geteuid()!=REQUIRED_UID||
-       getgid()!=REQUIRED_GID||getegid()!=REQUIRED_GID)hold("exact_runtime_uid_gid_required");
-    policy_v1 policy=read_policy();
+
+    struct stat self_stat;
+    require_self_identity(&self_stat);
+    if(getuid()!=0U||geteuid()!=0U||getgid()!=0U||getegid()!=0U){
+        hold("root_static_first_entry_required");
+    }
+
+    struct stat policy_stat;
+    policy_v1 policy=read_policy(&policy_stat);
 
     struct stat planner_stat;
     int planner_fd=open_trusted_regular(FIXED_PLANNER,false,0444,"planner_custody_invalid",&planner_stat);
@@ -395,6 +442,27 @@ int main(int argc,char **argv){
     require_digest_size(python_fd,policy.python_sha256,policy.python_bytes,"python_identity_invalid");
     revalidate_trusted_regular(policy.python_realpath,python_fd,&python_stat,true,0,"python_generation_changed");
 
+    umask(077);
+    drop_to_runtime();
+
+    /*
+     * Now that DAC/ACL checks execute under the actual planner identity,
+     * revalidate every protected generation before descriptor handoff.
+     */
+    revalidate_fixed_generation(
+        FIXED_SELF,&self_stat,true,0555,"launcher_runtime_custody_invalid"
+    );
+    revalidate_fixed_generation(
+        FIXED_POLICY,&policy_stat,false,0444,"policy_runtime_custody_invalid"
+    );
+    revalidate_trusted_regular(
+        FIXED_PLANNER,planner_fd,&planner_stat,false,0444,"planner_runtime_generation_changed"
+    );
+    require_python_link(policy.python_realpath);
+    revalidate_trusted_regular(
+        policy.python_realpath,python_fd,&python_stat,true,0,"python_runtime_generation_changed"
+    );
+
     int nullfd=open("/dev/null",O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
     if(nullfd<0||dup2(nullfd,STDIN_FILENO)<0){
         if(nullfd>=0){
@@ -404,8 +472,7 @@ int main(int argc,char **argv){
         close(python_fd);
         hold("devnull_stdin_install_failed");
     }
-    close(nullfd);umask(077);
-    if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)!=0){close(planner_fd);close(python_fd);hold("no_new_privs_failed");}
+    close(nullfd);
 
     if(python_fd==CHILD_PLANNER_FD&&planner_fd!=CHILD_PLANNER_FD){
         const int moved=fcntl(python_fd,F_DUPFD_CLOEXEC,5);
