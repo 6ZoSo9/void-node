@@ -29,7 +29,7 @@
     "compat_proof_git_blob_sha1": "c17b5d6fd3af8a3d8bc187930468c98a793dfdb3",
     "compat_workflow_git_blob_sha1": "676fc24e89d67d1592e2ab1813b345f0ef1135db",
     "runner_source_git_blob_sha1": "11a147d565bd0ee3ff48c4e3cb75d608b59e87b1",
-    "runner_sha256": "7f727f23d93e3c2e237f73cad448f9cf825f37f22bcdaf0eb5c050a5cbbf30e8",
+    "runner_sha256": "9302bcbdf70c3d4fd46be5deb0a2101ab09d51bf84171e43f2b5fb6e6b4f92a8",
     "runner_bytes": 82972,
     "runner_install_mode": "0444",
     "sealed_v3_git_blob_sha1": "ad19417c7d25bfab532af3ea92f4a627d4cc857a",
@@ -114,5 +114,5 @@
   "funds_movement_authorized": false,
   "production_host_evidence_authority": false,
   "next_gate": "void_buy_void_epoch2_live_composition_runner_policy_upgrade_v6r3_plan",
-  "lock_id": "voidbuye2runnerpollock6r3_dea4081ea3ee00d2bb94279ceae023bb74f9b2322c74e5b80e73981cfe1a6783"
+  "lock_id": "voidbuye2runnerpollock6r3_72ecfe7a0d5aa87237520290cdf63cf0faef821931ef094ac0ec5dd1858e496f"
 }
