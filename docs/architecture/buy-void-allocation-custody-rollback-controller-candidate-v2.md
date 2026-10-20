@@ -10,8 +10,8 @@ This candidate is stacked on the [V2 challenge plan #3556](https://github.com/6Z
 - V2 plan ID: `voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844`.
 - V2 plan Git blob: `1cdecf34117e4e890f67e62b412419d32870dfa0`.
 - Historical V1 controller source blob: `96d4ac3499d222841f1f7a3c53e14900b68ae8cf`; original V1 proof blob: `b196fcaa77a6bdc465baacb3387aa949f47bc956`.
-- New V2 controller source blob: `911d759029dc890a00e9da5e0cd64b30c8c62b62`.
-- New V2 behavior proof blob: `889718b202d47210997c630d02ee2664f3c0e5fc`.
+- New V2 controller source blob: `7a42e1863f3f4d842dd59060b366901adb402848`.
+- New V2 behavior proof blob: `4c3e3145614ed9e52496cc4bc4f8b6a7d0143ebe`.
 - Accepted economic tree remains `71c67e62a2b21a98f3f5135ee6aa56e0ef97d262`.
 
 ## V2 authorization and replay boundary
@@ -177,6 +177,44 @@ callback has already run at this point; no no-write claim is inferred about
 that future adapter. A recovery workflow for an out-of-sync baseline
 requires its own independently reviewed design before any new canary test
 may proceed.
+
+## V2 second-control approval ID must identify exactly one context
+
+The earlier V2 source rejected **V1-formatted** second-control approval IDs,
+but still allowed any `voidbuycustodysecondcontrol2_` followed by 64 hex
+digits. A callback could reuse the identical V2 approval ID with a new
+challenge, authorization, operation claim, exclusive lease or rollback
+checkpoint while changing its other self-reported fields. The controlled
+rollback callback received that ambiguous ID.
+
+The new pure
+`buildBuyVoidAllocationCustodySecondControlApprovalIdV2()` helper
+content-addresses a **closed canonical approval context** under the
+`VOID_BUY_VOID_CUSTODY_SECOND_CONTROL_APPROVAL_V2` marker and distinct
+`voidbuycustodysecondcontrol2_` namespace. It includes the exact
+V2 plan ID; authorization, operation, authorization-claim, challenge and
+operation-lease IDs; host identity; rollback target journal SHA; protected
+high-water SHA; and external-witness sequence and tip SHA. The controller
+passes that same frozen context to the second-control callback, and
+requires the returned approval ID to equal its own computed commitment
+**before** invoking the controlled rollback capability. The existing
+`approved=true` and callback field comparisons still apply.
+
+Synthetic adversarial cases independently substitute each of ten identities
+or checkpoint fields into an otherwise syntactically valid **V2** approval
+ID, preserving the surrounding approval callback fields. Every attempt
+must fail `second_control_approval_context_digest_mismatch` at the
+`second` phase without invoking `rollback`. Historical V1 approval
+prefix rejection and the V2 evidence-transcript domain remain unchanged.
+
+**Critical trust limitation:** This is an integrity/anti-aliasing *identity*
+check, **not** a second-control authentication protocol or digital
+signature. The injected callback can recompute any deterministic hash.
+A future independently reviewed protected adapter must verify the
+**separate approving principal**, the operation/claim/lease's durable
+authority, current source/policy and physical storage evidence, and
+reject stale authorizations before accepting an actual rollback. All
+current host/payment/presale/funds authority remains FALSE.
 
 ## Source-only controller semantics
 

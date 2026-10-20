@@ -12,11 +12,12 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_PLAN_ID_V2,
   buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV2,
   executeBuyVoidAllocationCustodyRollbackControllerCandidateV2,
+  buildBuyVoidAllocationCustodySecondControlApprovalIdV2,
 } from "../tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs";
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs";
-const SOURCE_BLOB="911d759029dc890a00e9da5e0cd64b30c8c62b62";
+const SOURCE_BLOB="7a42e1863f3f4d842dd59060b366901adb402848";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json";
 const PLAN_BLOB="1cdecf34117e4e890f67e62b412419d32870dfa0";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -195,12 +196,28 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
         operation_lease_id:leaseId};
       return state.witness;
     },
-    obtain_second_control_approval({challenge_id,operation_lease_id}){
-      order.push("second");assert.equal(operation_lease_id,leaseId);
-      return {approved:true,approval_id:"voidbuycustodysecondcontrol2_"+"2".repeat(64),
-        challenge_id,rollback_target_journal_tip_sha256:before.journal_tip_sha256,
-        protected_high_water_sha256:state.high.high_water_sha256,
-        operation_lease_id:leaseId};
+    obtain_second_control_approval(body){
+      order.push("second");assert.equal(body.operation_lease_id,leaseId);
+      assert.equal(body.marker,"VOID_BUY_VOID_CUSTODY_SECOND_CONTROL_APPROVAL_V2");
+      assert.equal(body.version,2);
+      assert.equal(body.plan_id,authBody.plan_id);
+      assert.equal(body.authorization_id,state.claim.authorization_id);
+      assert.equal(body.operation_id,state.claim.operation_id);
+      assert.equal(body.authorization_claim_id,state.claim.claim_id);
+      assert.equal(body.rollback_target_journal_tip_sha256,before.journal_tip_sha256);
+      assert.equal(body.protected_high_water_sha256,state.high.high_water_sha256);
+      assert.equal(body.external_witness_sequence,state.witness.external_witness_sequence);
+      assert.equal(body.external_witness_tip_sha256,state.witness.external_witness_tip_sha256);
+      assert.equal(body.host_id,before.host_id);
+      state.secondControlBody=body;
+      state.secondControlId=buildBuyVoidAllocationCustodySecondControlApprovalIdV2(body);
+      return {
+        approved:true,approval_id:state.secondControlId,
+        challenge_id:body.challenge_id,
+        rollback_target_journal_tip_sha256:body.rollback_target_journal_tip_sha256,
+        protected_high_water_sha256:body.protected_high_water_sha256,
+        operation_lease_id:body.operation_lease_id,
+      };
     },
     attempt_controlled_journal_rollback({challenge_id,authorization_claim_id,operation_lease_id}){
       order.push("rollback");assert.equal(operation_lease_id,leaseId);
@@ -424,6 +441,36 @@ mustFail("legacy V1 second-control approval ID rejected",(c)=>{
     ...original(args),approval_id:"voidbuycustodysecondcontrol1_"+"2".repeat(64),
   });
 },/second_control_approval_id_invalid/);
+
+// A syntactically valid V2 approval ID must not denote a different
+// challenge, authorization claim, lease, target, witness or host identity.
+// These synthetic substitutions preserve the callback's claimed fields but
+// must be rejected before the controlled-rollback capability is invoked.
+for(const [field,forged] of [
+  ["operation_id","voidbuycustodychallengeop2_"+"e".repeat(64)],
+  ["authorization_id","voidbuycustodychallengeauth2_"+"f".repeat(64)],
+  ["authorization_claim_id","voidbuycustodychallengeclaim2_"+"e".repeat(64)],
+  ["challenge_id","voidbuycustodychallenge2_"+"e".repeat(64)],
+  ["operation_lease_id","voidbuycustodyoperationlease2_"+"e".repeat(64)],
+  ["host_id","other-host-fixture"],
+  ["rollback_target_journal_tip_sha256",sha("other-rollback-target")],
+  ["protected_high_water_sha256",sha("other-protected-high-water")],
+  ["external_witness_sequence",13],
+  ["external_witness_tip_sha256",sha("other-external-witness")],
+]){
+  mustFailAtPhase("V2 approval ID foreign context: "+field,(c)=>{
+    const original=c.obtain_second_control_approval;
+    c.obtain_second_control_approval=(body)=>{
+      const approval=original(body);
+      const foreignId=buildBuyVoidAllocationCustodySecondControlApprovalIdV2({
+        ...body,[field]:forged,
+      });
+      assert.notEqual(foreignId,approval.approval_id,field);
+      return {...approval,approval_id:foreignId};
+    };
+  },/second_control_approval_context_digest_mismatch/,"second");
+}
+
 mustFail("operation lease lost before origin",(c)=>{
   c.revalidate_operation_lease=({authorization_id,operation_id,challenge_id,lease_id})=>({
     present:false,exclusive:false,authorization_id,operation_id,challenge_id,lease_id,
@@ -732,6 +779,9 @@ assert.throws(
 );
 console.log("v1_v2_authorization_namespace_replay_rejected=true");
 console.log("v1_second_control_approval_id_rejected=true");
+console.log("v2_second_control_approval_id_content_bound=true");
+console.log("foreign_approval_context_rejected_before_rollback=true");
+console.log("foreign_approval_context_adversary_count=10");
 console.log("v2_evidence_transcript_marker_distinct=true");
 console.log("cross_generation_capability_probe_not_invoked=true");
 
