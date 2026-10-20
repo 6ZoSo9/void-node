@@ -18,7 +18,7 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_postmerge_source_runtime_compat_v1.py"
-TARGET_BLOB = "90eb38f9eb9fc1709c83e16522e29a74bb06c767"
+TARGET_BLOB = "1db8fa024731a7bc342d14049a5a97491808041c"
 MARKER = _EARLY_MARKER
 
 
@@ -63,6 +63,10 @@ for required in (
     'terminal_ancestor_directory_generation_revalidation_required=true',
     'exact_git_toplevel_binding_required=true',
     'terminal_required_branch_revalidation_required=true',
+    'terminal_exact_head_revalidation_required=true',
+    'post_git_retained_root_worktree_revalidation_required=true',
+    'def _require_expected_head(root: Path, expected_head: str, *, terminal: bool) -> None:',
+    '_require_expected_head(root, expected_head, terminal=True)',
     'def _require_git_toplevel_exact(root: Path) -> None:',
     '"rev-parse", "--show-toplevel"',
     'def _require_branch(root: Path, require_main: bool, *, terminal: bool) -> None:',
@@ -138,6 +142,8 @@ for line in (
     "terminal_ancestor_directory_generation_revalidation_required=true",
     "exact_git_toplevel_binding_required=true",
     "terminal_required_branch_revalidation_required=true",
+    "terminal_exact_head_revalidation_required=true",
+    "post_git_retained_root_worktree_revalidation_required=true",
     "worktree_filesystem_errors_normalized_to_hold=true",
     "git_timeout_normalized_to_hold=true",
     "git_exec_errors_normalized_to_hold=true",
@@ -215,6 +221,8 @@ print("retained_directory_fd_traversal_bound=true")
 print("terminal_ancestor_directory_generation_revalidation_bound=true")
 print("exact_git_toplevel_binding_bound=true")
 print("terminal_required_branch_revalidation_bound=true")
+print("terminal_exact_head_revalidation_bound=true")
+print("post_git_retained_root_worktree_revalidation_bound=true")
 print("worktree_filesystem_errors_normalized_to_hold=true")
 print("git_subprocess_failures_normalized_to_hold=true")
 print("canonical_checkout_mutation_performed=false")
