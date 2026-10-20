@@ -5,8 +5,8 @@
   "repository": "6ZoSo9/void-node",
   "parent": {
     "closure_contract_path": "ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v1.json",
-    "closure_contract_git_blob_sha1": "d6b31cab5745bf76f5ae8c69bef864ee4f3338b5",
-    "closure_contract_id": "voidbuye2v6r3pyruntimecontract1_6b88925643319fd7724f4fd66d115fd5ec9598a3c59a57cbc0a8c51737c8bae8",
+    "closure_contract_git_blob_sha1": "d3f1deeaf82c49c11353cebbb4c72466be9d2472",
+    "closure_contract_id": "voidbuye2v6r3pyruntimecontract1_80553976a9a5a241991a827f2b6913c08b22c27865136216dd66b21b07790df5",
     "native_first_entry_lock_path": "ops/security/buy-void-epoch2-v6r3-plan-first-entry-binary-candidate-lock-v1.json",
     "native_first_entry_lock_git_blob_sha1": "66bf48fd6477e0335b1eea6e2b7e8a7f297f8c57",
     "native_first_entry_lock_id": "voidbuye2v6r3planfirstentrybinlock1_f6b452bb75542809454a0b68bae2f0049a4f2af6329e0b13075de1491bbbbc61"
@@ -51,5 +51,5 @@
     "funds_movement": false
   },
   "next_gate": "void_buy_void_epoch2_v6r3_python_runtime_closure_terminal_host_census_v1",
-  "gate_id": "voidbuye2v6r3pyclosurefreshness1_63ab4349db96b99792bd58531b39d05527821af8eec0111c11b088e6ab381342"
+  "gate_id": "voidbuye2v6r3pyclosurefreshness1_28fafff8e9cb508c9de7db9b32fcb7bc23766ad2eb9ecb86621aeba429d6bc11"
 }
