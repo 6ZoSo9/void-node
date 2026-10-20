@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="23e975df97f6cd02b1c1f3ce6a83ab02334468b2"
+SOURCE_BLOB="78afee78387d50e9144d5739cabfd33664492aa5"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -120,6 +120,9 @@ for required in (
     "display_bytes_total+=display_bytes",
     "display_budget:int=MAX_REPORT_BYTES",
     "census_display_root_length_utf8_and_path_budget_bound=true",
+    "census_individual_display_path_bound=true",
+    'raise Hold("manifest_display_path_length_exceeded")',
+    'record["resolved_display_path"]=_display(display_root,Path(rel))',
     "census_direct_absence_display_path_budget_bound=true",
     'raise Hold("declared_absence_path_invalid")',
     'raise Hold("accessed_path_invalid_or_noncanonical")',
@@ -215,6 +218,7 @@ for mode,required_lines in (
         "sys_path_must_be_inventoried_or_explicitly_absent=true",
         "census_input_cardinality_and_byte_budget_pretraversal=true",
         "census_display_root_length_utf8_and_path_budget_bound=true",
+        "census_individual_display_path_bound=true",
         "census_direct_absence_display_path_budget_bound=true",
         "census_unbounded_generator_and_oversize_path_rejected=true",
         "noncanonical_manifest_paths_rejected=true",
@@ -284,6 +288,7 @@ print("symlink_missing_parent_reentry_hold_proven=true")
 print("absence_parent_and_sys_path_coverage_proven=true")
 print("census_input_budget_pretraversal_proven=true")
 print("census_display_root_and_path_key_budget_proven=true")
+print("census_individual_display_key_bound_proven=true")
 print("host_execution_enabled=false")
 print("host_census_authorized=false")
 print("protected_install_authorized=false")
