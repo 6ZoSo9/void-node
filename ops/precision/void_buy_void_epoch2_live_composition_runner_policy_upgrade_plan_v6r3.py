@@ -93,11 +93,82 @@ GREEN_STATE="EPOCH2_V6R3_RUNNER_POLICY_ROOT_GREEN_WITH_V6R2_PREDECESSOR"
 HEX40=re.compile(r"^[0-9a-f]{40}$")
 MAX_GIT_OUTPUT=16*1024*1024
 MAX_FILE_BYTES=512*1024*1024
+RUNTIME_UID=1000
+RUNTIME_GID=1000
 
 
 class PlanError(RuntimeError):
     pass
 
+
+# The host plan is restricted to the identity whose write access is audited.
+# Access checks are effective-credential / ACL-aware rather than mode-bit only.
+STAT_FIELDS=("st_dev","st_ino","st_mode","st_uid","st_gid","st_nlink",
+             "st_size","st_mtime_ns","st_ctime_ns")
+
+def _identity(st:os.stat_result)->tuple[int,...]:
+    return tuple(getattr(st,field) for field in STAT_FIELDS)
+
+def require_plan_identity()->None:
+    if (
+        os.getuid()!=RUNTIME_UID or os.geteuid()!=RUNTIME_UID
+        or os.getgid()!=RUNTIME_GID or os.getegid()!=RUNTIME_GID
+    ):
+        raise PlanError("exact_runtime_identity_required_for_host_plan")
+
+def _directory_chain(path:Path)->list[tuple[Path,tuple[int,...]]]:
+    # Never resolve through an unauthenticated directory or symlink.
+    if not path.is_absolute() or Path(os.path.abspath(os.fspath(path)))!=path:
+        raise PlanError("noncanonical_protected_path")
+    records=[]
+    for ancestor in reversed((path,*path.parents)):
+        try:
+            st=ancestor.lstat()
+        except OSError as exc:
+            raise PlanError("protected_ancestor_unavailable:"+str(ancestor)) from exc
+        if (
+            not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode)
+            or st.st_uid!=0 or st.st_gid!=0
+            or stat.S_IMODE(st.st_mode)&0o022
+            or os.access(ancestor,os.W_OK,effective_ids=True)
+        ):
+            raise PlanError("protected_ancestor_custody_invalid:"+str(ancestor))
+        records.append((ancestor,_identity(st)))
+    return records
+
+def _revalidate_chain(records:list[tuple[Path,tuple[int,...]]])->None:
+    for ancestor,expected in records:
+        try:
+            st=ancestor.lstat()
+        except OSError as exc:
+            raise PlanError("protected_ancestor_disappeared:"+str(ancestor)) from exc
+        if (
+            _identity(st)!=expected
+            or not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode)
+            or os.access(ancestor,os.W_OK,effective_ids=True)
+        ):
+            raise PlanError("protected_ancestor_generation_changed:"+str(ancestor))
+
+def _trusted_file_before(path:Path,*,executable:bool)->os.stat_result:
+    try:
+        st=path.lstat()
+    except OSError as exc:
+        raise PlanError("trusted_file_unavailable:"+str(path)) from exc
+    if (
+        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode)
+        or st.st_uid!=0 or st.st_gid!=0 or st.st_nlink!=1
+        or not 0<st.st_size<=MAX_FILE_BYTES
+        or stat.S_IMODE(st.st_mode)&0o022
+        or (executable and not stat.S_IMODE(st.st_mode)&0o111)
+        or os.access(path,os.W_OK,effective_ids=True)
+    ):
+        raise PlanError("trusted_file_custody_invalid:"+str(path))
+    return st
+
+def _revalidate_trusted_file(path:Path,expected:tuple[int,...],*,executable:bool)->None:
+    st=_trusted_file_before(path,executable=executable)
+    if _identity(st)!=expected:
+        raise PlanError("trusted_file_generation_changed:"+str(path))
 
 def sha256(raw:bytes)->str:
     return hashlib.sha256(raw).hexdigest()
@@ -135,28 +206,49 @@ def clean_git_env()->dict[str,str]:
 
 
 def git(args:list[str],*,binary:bool=False)->bytes|str:
-    command=[
-        str(FIXED_GIT),
-        "--git-dir="+str(FIXED_CHECKOUT/".git"),
-        "--work-tree="+str(FIXED_CHECKOUT),
-        "-c","core.worktree="+str(FIXED_CHECKOUT),
-        "-c","core.fileMode=true",
-        "-c","core.fsmonitor=false",
-        "-c","core.hooksPath=/dev/null",
-        "-c","core.untrackedCache=false",
-        "-c","core.sparseCheckout=false",
-        "-c","core.sparseCheckoutCone=false",
-        "-c","submodule.recurse=false",
-        *args,
-    ]
+    # Authenticate the exact Git ELF under root-owned, ACL-sealed ancestors.
+    # The first child image is the retained fd, not a re-open by pathname.
+    require_plan_identity()
+    chain=_directory_chain(FIXED_GIT.parent)
+    before=_trusted_file_before(FIXED_GIT,executable=True)
     try:
-        cp=subprocess.run(
-            command,stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,stderr=subprocess.PIPE,
-            env=clean_git_env(),cwd="/",timeout=20,check=False,
-        )
-    except (OSError,subprocess.SubprocessError) as exc:
-        raise PlanError("git_execution_failed") from exc
+        tool_fd=os.open(FIXED_GIT,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
+    except OSError as exc:
+        raise PlanError("git_trusted_fd_open_failed") from exc
+    try:
+        opened=os.fstat(tool_fd)
+        if _identity(opened)!=_identity(before):
+            raise PlanError("git_trusted_fd_rebound")
+        _revalidate_chain(chain)
+        command=[
+            "/proc/self/fd/"+str(tool_fd),
+            "--git-dir="+str(FIXED_CHECKOUT/".git"),
+            "--work-tree="+str(FIXED_CHECKOUT),
+            "-c","core.worktree="+str(FIXED_CHECKOUT),
+            "-c","core.fileMode=true",
+            "-c","core.fsmonitor=false",
+            "-c","core.hooksPath=/dev/null",
+            "-c","core.untrackedCache=false",
+            "-c","core.sparseCheckout=false",
+            "-c","core.sparseCheckoutCone=false",
+            "-c","submodule.recurse=false",
+            *args,
+        ]
+        try:
+            cp=subprocess.run(
+                command,stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+                env=clean_git_env(),cwd="/",timeout=20,check=False,
+                pass_fds=(tool_fd,),
+            )
+        except (OSError,subprocess.SubprocessError) as exc:
+            raise PlanError("git_execution_failed") from exc
+        if _identity(os.fstat(tool_fd))!=_identity(opened):
+            raise PlanError("git_trusted_fd_changed")
+        _revalidate_trusted_file(FIXED_GIT,_identity(opened),executable=True)
+        _revalidate_chain(chain)
+    finally:
+        os.close(tool_fd)
     if cp.returncode!=0:
         raise PlanError("git_failed:"+str(args[0] if args else "unknown"))
     if cp.stderr:
@@ -169,7 +261,6 @@ def git(args:list[str],*,binary:bool=False)->bytes|str:
         return cp.stdout.decode("utf-8","strict")
     except UnicodeError as exc:
         raise PlanError("git_output_invalid") from exc
-
 
 MAX_ACTUAL_ANCESTRY_COMMITS=4096
 MAX_ACTUAL_COMMIT_PARENTS=64
@@ -312,27 +403,16 @@ def source_snapshot()->dict[str,Any]:
     }
 
 def snapshot_host_file(path:Path,*,executable:bool)->dict[str,Any]:
+    # Snapshot the entire executable ancestor chain before opening the leaf.
+    chain=_directory_chain(path.parent)
+    before=_trusted_file_before(path,executable=executable)
     try:
-        before=path.lstat()
-    except OSError as exc:
-        raise PlanError("host_file_unavailable:"+str(path)) from exc
-    if (
-        not stat.S_ISREG(before.st_mode)
-        or stat.S_ISLNK(before.st_mode)
-        or before.st_uid!=0 or before.st_gid!=0
-        or before.st_nlink!=1
-        or before.st_size<1 or before.st_size>MAX_FILE_BYTES
-        or (before.st_mode&0o022)!=0
-        or (executable and (before.st_mode&0o111)==0)
-    ):
-        raise PlanError("host_file_metadata_invalid:"+str(path))
-    try:
-        fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)
+        fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK)
     except OSError as exc:
         raise PlanError("host_file_open_failed:"+str(path)) from exc
     try:
         opened=os.fstat(fd)
-        if opened.st_dev!=before.st_dev or opened.st_ino!=before.st_ino:
+        if _identity(opened)!=_identity(before) or not stat.S_ISREG(opened.st_mode):
             raise PlanError("host_file_rebound:"+str(path))
         digest=hashlib.sha256(); remaining=opened.st_size
         while remaining:
@@ -342,20 +422,19 @@ def snapshot_host_file(path:Path,*,executable:bool)->dict[str,Any]:
             digest.update(chunk); remaining-=len(chunk)
         if os.read(fd,1):
             raise PlanError("host_file_grew:"+str(path))
-        after=os.fstat(fd); visible=path.lstat()
-        for field in ("st_dev","st_ino","st_mode","st_uid","st_gid","st_nlink","st_size","st_mtime_ns","st_ctime_ns"):
-            if getattr(opened,field)!=getattr(after,field) or getattr(after,field)!=getattr(visible,field):
-                raise PlanError("host_file_changed:"+str(path))
+        if _identity(os.fstat(fd))!=_identity(opened):
+            raise PlanError("host_file_fd_changed:"+str(path))
+        _revalidate_trusted_file(path,_identity(opened),executable=executable)
+        _revalidate_chain(chain)
         return {
-            "path":str(path),"dev":visible.st_dev,"ino":visible.st_ino,
-            "uid":visible.st_uid,"gid":visible.st_gid,
-            "mode":format(stat.S_IMODE(visible.st_mode),"04o"),
-            "nlink":visible.st_nlink,"bytes":visible.st_size,
+            "path":str(path),"dev":opened.st_dev,"ino":opened.st_ino,
+            "uid":opened.st_uid,"gid":opened.st_gid,
+            "mode":format(stat.S_IMODE(opened.st_mode),"04o"),
+            "nlink":opened.st_nlink,"bytes":opened.st_size,
             "sha256":digest.hexdigest(),
         }
     finally:
         os.close(fd)
-
 
 def build_policy(
     *,
@@ -374,18 +453,29 @@ def build_policy(
     ).encode("ascii")
 
 
-def require_root_dir(path:Path)->None:
+def require_root_dir(path:Path)->list[tuple[Path,tuple[int,...]]]:
+    chain=_directory_chain(path)
     try:
-        st=path.lstat()
+        leaf=path.lstat()
     except OSError as exc:
         raise PlanError("protected_root_unavailable:"+str(path)) from exc
-    if (
-        not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode)
-        or st.st_uid!=0 or st.st_gid!=0
-        or stat.S_IMODE(st.st_mode)!=0o755
-    ):
+    if _identity(leaf)!=chain[-1][1] or stat.S_IMODE(leaf.st_mode)!=0o755:
         raise PlanError("protected_root_metadata_invalid:"+str(path))
+    return chain
 
+def _open_verified_root_fd(path:Path,chain:list[tuple[Path,tuple[int,...]]])->int:
+    try:
+        fd=os.open(path,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
+    except OSError as exc:
+        raise PlanError("protected_root_open_failed:"+str(path)) from exc
+    try:
+        if _identity(os.fstat(fd))!=chain[-1][1]:
+            raise PlanError("protected_root_rebound:"+str(path))
+        _revalidate_chain(chain)
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
 
 def verify_file(
     root_fd:int,name:str,*,expected_bytes:int,expected_sha256:str,expected_mode:int,
@@ -401,10 +491,10 @@ def verify_file(
         or before.st_nlink!=1 or before.st_size!=expected_bytes
     ):
         raise PlanError("protected_file_metadata_invalid:"+name)
-    fd=os.open(name,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW,dir_fd=root_fd)
+    fd=os.open(name,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=root_fd)
     try:
         opened=os.fstat(fd)
-        if opened.st_dev!=before.st_dev or opened.st_ino!=before.st_ino:
+        if not stat.S_ISREG(opened.st_mode) or _identity(opened)!=_identity(before):
             raise PlanError("protected_file_rebound:"+name)
         digest=hashlib.sha256(); remaining=expected_bytes
         while remaining:
@@ -429,43 +519,46 @@ def verify_generation(
     root:Path,*,native_sha256:str,native_bytes:int,
     runner_sha256:str,runner_bytes:int,policy:bytes,
 )->None:
-    require_root_dir(root)
+    chain=require_root_dir(root)
+    root_fd=_open_verified_root_fd(root,chain)
     try:
-        entries=sorted(os.listdir(root))
-    except OSError as exc:
-        raise PlanError("protected_root_list_failed:"+str(root)) from exc
-    if entries!=sorted((NATIVE_NAME,RUNNER_NAME,POLICY_NAME)):
-        raise PlanError("protected_root_entries_invalid:"+str(root))
-    root_fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
-    try:
+        # fd-bound listing closes pathname-list vs descriptor-open swaps.
+        entries=sorted(os.listdir(root_fd))
+        if entries!=sorted((NATIVE_NAME,RUNNER_NAME,POLICY_NAME)):
+            raise PlanError("protected_root_entries_invalid:"+str(root))
         verify_file(root_fd,NATIVE_NAME,expected_bytes=native_bytes,expected_sha256=native_sha256,expected_mode=0o555)
         verify_file(root_fd,RUNNER_NAME,expected_bytes=runner_bytes,expected_sha256=runner_sha256,expected_mode=0o444)
         verify_file(root_fd,POLICY_NAME,expected_bytes=len(policy),expected_sha256=sha256(policy),expected_mode=0o444)
+        if _identity(os.fstat(root_fd))!=chain[-1][1]:
+            raise PlanError("protected_root_fd_changed:"+str(root))
+        _revalidate_chain(chain)
     finally:
         os.close(root_fd)
 
-
 def verify_v4_predecessor()->None:
-    require_root_dir(PREDECESSOR_V4_ROOT)
-    root_fd=os.open(PREDECESSOR_V4_ROOT,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
+    chain=require_root_dir(PREDECESSOR_V4_ROOT)
+    root_fd=_open_verified_root_fd(PREDECESSOR_V4_ROOT,chain)
     try:
-        entries=sorted(os.listdir(PREDECESSOR_V4_ROOT))
+        entries=sorted(os.listdir(root_fd))
         if entries!=sorted((NATIVE_NAME,RUNNER_NAME,POLICY_NAME)):
             raise PlanError("v4_predecessor_entries_invalid")
         verify_file(root_fd,NATIVE_NAME,expected_bytes=V4_NATIVE_BYTES,expected_sha256=V4_NATIVE_SHA256,expected_mode=0o555)
         verify_file(root_fd,RUNNER_NAME,expected_bytes=V4_RUNNER_BYTES,expected_sha256=V4_RUNNER_SHA256,expected_mode=0o444)
         verify_file(root_fd,POLICY_NAME,expected_bytes=V4_POLICY_BYTES,expected_sha256=V4_POLICY_SHA256,expected_mode=0o444)
+        if _identity(os.fstat(root_fd))!=chain[-1][1]:
+            raise PlanError("v4_predecessor_fd_changed")
+        _revalidate_chain(chain)
     finally:
         os.close(root_fd)
 
-
 def classify_state(old_policy:bytes,new_policy:bytes)->str:
+    # The parent custody barrier precedes any child pathname probe.
+    parent_chain=require_root_dir(INSTALL_PARENT)
     if STAGE_ROOT.exists() or STAGE_ROOT.is_symlink():
         raise PlanError("v6r3_stage_root_present")
     if not INSTALL_ROOT.exists():
         raise PlanError("current_install_root_missing")
     verify_v4_predecessor()
-
     pred_v6r2_exists=PREDECESSOR_V6R2_ROOT.exists() or PREDECESSOR_V6R2_ROOT.is_symlink()
     if pred_v6r2_exists:
         verify_generation(
@@ -480,16 +573,16 @@ def classify_state(old_policy:bytes,new_policy:bytes)->str:
             runner_sha256=NEW_RUNNER_SHA256,runner_bytes=NEW_RUNNER_BYTES,
             policy=new_policy,
         )
+        _revalidate_chain(parent_chain)
         return GREEN_STATE
-
     verify_generation(
         INSTALL_ROOT,
         native_sha256=NATIVE_SHA256,native_bytes=NATIVE_BYTES,
         runner_sha256=OLD_RUNNER_SHA256,runner_bytes=OLD_RUNNER_BYTES,
         policy=old_policy,
     )
+    _revalidate_chain(parent_chain)
     return READY_STATE
-
 
 def _collect_plan_with_observers(
     *,
@@ -583,6 +676,7 @@ def _collect_plan_with_observers(
 def collect_plan()->dict[str,Any]:
     if os.geteuid()==0:
         raise PlanError("nonroot_required_for_plan")
+    require_plan_identity()
     return _collect_plan_with_observers(
         source_snapshot_fn=source_snapshot,
         snapshot_host_file_fn=snapshot_host_file,
@@ -608,6 +702,10 @@ def source_plan()->None:
     print("runtime_source_complete_dependency_set_bound=true")
     print("source_runtime_actual_object_ancestry_required=true")
     print("terminal_source_revalidation_required=true")
+    print("protected_ancestor_acl_custody_required=true")
+    print("protected_directory_listing_fd_bound=true")
+    print("trusted_git_first_exec_retained_fd_required=true")
+    print("host_plan_exact_runtime_uid_gid_required=true")
     print("full_root_stage_required=true")
     print("atomic_root_exchange_required=true")
     print("predecessor_v6r2_retention_required=true")
@@ -622,6 +720,15 @@ def source_plan()->None:
 
 
 def self_test()->None:
+    # A writable ancestor is never eligible as a trusted path, regardless of
+    # leaf uid/mode. /tmp is untrusted on Linux even if it is root-owned.
+    try:
+        _directory_chain(Path("/tmp"))
+    except PlanError as exc:
+        assert "protected_ancestor_custody_invalid" in str(exc)
+    else:
+        raise AssertionError("writable_directory_ancestor_accepted")
+    assert hasattr(os,"O_NONBLOCK") and hasattr(os,"O_NOFOLLOW")
     assert len(SOURCE_RUNTIME_DEPENDENCY_SPECS)==9
     assert [row[0] for row in SOURCE_RUNTIME_DEPENDENCY_SPECS]==[
         "qualifier","replacement_v3r","qualifier_v6","replacement_v6",
@@ -760,6 +867,12 @@ def self_test()->None:
     print("v4_predecessor_retained=true")
     print("v6r2_predecessor_retention_required=true")
     print("nonroot_host_plan_required=true")
+    print("host_plan_exact_runtime_uid_gid_required=true")
+    print("protected_ancestor_acl_custody_required=true")
+    print("protected_directory_listing_fd_bound=true")
+    print("trusted_git_first_exec_retained_fd_required=true")
+    print("host_node_nonblocking_fd_required=true")
+    print("writable_ancestor_rejected=true")
     print("filesystem_write=false")
     print("runner_execution=false")
     print("native_execution=false")
@@ -794,6 +907,10 @@ def emit_plan()->None:
     print("runtime_source_complete_dependency_set_bound=true")
     print("source_runtime_actual_object_ancestry_required=true")
     print("source_terminal_revalidated=true")
+    print("protected_ancestor_acl_custody_required=true")
+    print("protected_directory_listing_fd_bound=true")
+    print("trusted_git_first_exec_retained_fd_required=true")
+    print("host_plan_exact_runtime_uid_gid_required=true")
     print("full_root_stage_required=true")
     print("atomic_root_exchange_required=true")
     print("rename_exchange_required=true")
