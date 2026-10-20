@@ -461,3 +461,47 @@ source remains a disposable CI fixture, not an installed host observer.
 No production host, credential/signing or funds/payment authority follows.
 
 **PROTECT THE CORE.**
+
+
+## Per-code-object optimization HOLD — source-only security descendant
+
+The earlier #3627 guard rejects `python3 -O` / `-OO` by inspecting
+`sys.flags.optimize`, but that flag is **process-wide**, not a guarantee
+that an individual code object was compiled with assertions enabled.
+`exec(compile(source, filename, "exec", optimize=1))` inside an ordinary
+`python3 -I -B -S` process leaves `sys.flags.optimize=0` but sets
+`__debug__=False` in that compiled code object, removing all
+assertion-based digest/custody/evidence checks before a forged proof marker.
+
+Both the V2 census and its exact-source verifier now reject either
+`sys.flags.optimize != 0` **or** `not __debug__` immediately after the
+isolated/no-site interpreter flag guard and before non-builtin imports.
+The verifier additionally authenticates the census guard's AST/source
+prefix and executes four actual disposable optimized-code-object negatives:
+both scripts at `optimize=1` and `optimize=2` under otherwise normal
+unoptimized `python3 -I -B -S`. All cases require nonzero exit, **no
+proof stdout**, and the exact `HOLD=optimized_python_forbidden` reason.
+The existing four `-O/-OO` subprocess negatives remain active.
+
+```text
+parent_pr=3627
+parent_head=c0ebee2fb58cee55357fc73057551a22d2055ae1
+source_git_blob=c58c4461728370fc58842e3a614a18fa64af2f2f
+optimized_python_negative_fixtures=4
+optimized_code_object_negative_fixtures=4
+per_code_object_debug_required=true
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+This prevents one class of optimized source-proof false-success; it does
+**not** attest the Python executable/startup/stdlib/Git loader, physical
+host root/ACL/retained-FD custody, post-`fexecve` process isolation,
+independent security review or presale launch readiness. Source-only
+Draft/unmerged. Tor renewal belongs to another chat.
+
+**PROTECT THE CORE.**
