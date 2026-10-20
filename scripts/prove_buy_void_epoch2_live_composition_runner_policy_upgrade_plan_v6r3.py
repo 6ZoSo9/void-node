@@ -17,7 +17,7 @@ LOCK_ID="voidbuye2runnerpollock6r3_72ecfe7a0d5aa87237520290cdf63cf0faef821931ef0
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_aaa50e1bbfe2303045336c03be2bacd504a736a0fd04f97d4f38be7e76fbba7d"
 LOCK_BLOB="a9565f1dbe49e694ee07eb0cfdddb42d591d856b"
 RUNNER_BLOB="11a147d565bd0ee3ff48c4e3cb75d608b59e87b1"
-PLAN_BLOB="6908ad9a41afcb88d73f5e0011614c0e239864ca"
+PLAN_BLOB="e6aca9152038ed76ec8d7fc82a63e81ed0beca2a"
 RUNNER_SHA256="9302bcbdf70c3d4fd46be5deb0a2101ab09d51bf84171e43f2b5fb6e6b4f92a8"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
@@ -73,6 +73,9 @@ for required in (
     'raise PlanError("host_node_generation_changed_during_plan")',
     'raise PlanError("protected_state_changed_during_plan")',
     'host_node_terminal_drift_rejected=true',
+    'host_missing_ancestor_structured_hold=true',
+    'protected_file_opened_type_or_generation_invalid',
+    'os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=root_fd',
     'protected_state_terminal_drift_rejected=true',
     'source_after=source_snapshot_fn()',
     'if source_after!=source_before:',
@@ -127,10 +130,12 @@ for mode in ("--self-test","--source-plan"):
             "host_ancestor_acl_nonwritability_required=true",
             "host_root_descriptor_identity_required=true",
             "host_nonblocking_regular_file_open_required=true",
+            "host_missing_ancestor_structured_hold_required=true",
             "host_node_and_state_terminal_revalidation_required=true",
             "host_node_terminal_drift_rejected=true",
             "protected_state_terminal_drift_rejected=true",
             "host_ancestor_acl_writability_adversary_rejected=true",
+            "host_missing_ancestor_structured_hold=true",
             "late_source_drift_rejected=true",
             "full_root_atomic_exchange_required=true",
             "v6r2_predecessor_retention_required=true",
@@ -153,6 +158,7 @@ for mode in ("--self-test","--source-plan"):
             "host_ancestor_acl_nonwritability_required=true",
             "host_root_descriptor_identity_required=true",
             "host_nonblocking_regular_file_open_required=true",
+            "host_missing_ancestor_structured_hold_required=true",
             "host_node_and_state_terminal_revalidation_required=true",
             "atomic_root_exchange_required=true",
             "filesystem_write=false",
