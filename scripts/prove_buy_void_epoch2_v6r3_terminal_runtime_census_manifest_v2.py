@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="4ce879f1be9581d65759e64e185621fcbe57f8a7"
+SOURCE_BLOB="81ef2fbf72b94457c6cc7fb058e45b54f9f5089d"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -124,6 +124,14 @@ for required in (
     "census_display_root_length_utf8_and_path_budget_bound=true",
     "census_individual_display_path_bound=true",
     "census_symlink_record_strings_budget_bound=true",
+    "census_canonical_json_record_payload_budget_bound=true",
+    "census_escaped_control_record_amplification_rejected=true",
+    "record_budget:int=MAX_REPORT_BYTES",
+    'def add_record(display:str,record:dict[str,object])->None:',
+    'encoded_bytes=len(canonical({display:record}))',
+    'if encoded_bytes>record_budget-record_bytes_total:',
+    'raise Hold("manifest_record_budget_exceeded")',
+    'raise AssertionError("escaped_json_record_over_budget_accepted")',
     'raise Hold("manifest_symlink_record_encoding_invalid")',
     'for field in ("target_text","resolved_display_path"):',
     "symlink_record_variable_strings_unbudgeted",
@@ -228,6 +236,8 @@ for mode,required_lines in (
         "census_display_root_length_utf8_and_path_budget_bound=true",
         "census_individual_display_path_bound=true",
         "census_symlink_record_strings_budget_bound=true",
+        "census_canonical_json_record_payload_budget_bound=true",
+        "census_escaped_control_record_amplification_rejected=true",
         "census_direct_absence_display_path_budget_bound=true",
         "census_unbounded_generator_and_oversize_path_rejected=true",
         "noncanonical_manifest_paths_rejected=true",
@@ -301,6 +311,7 @@ print("census_display_root_and_path_key_budget_proven=true")
 print("display_name_budget_pre_materialization_proven=true")
 print("census_individual_display_key_bound_proven=true")
 print("census_symlink_record_string_budget_proven=true")
+print("census_canonical_json_record_payload_budget_proven=true")
 print("host_execution_enabled=false")
 print("host_census_authorized=false")
 print("protected_install_authorized=false")
