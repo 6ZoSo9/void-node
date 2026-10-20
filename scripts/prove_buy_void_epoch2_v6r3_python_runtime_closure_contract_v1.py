@@ -129,19 +129,35 @@ assert value["runtime_process"]["uid"]==1000 and value["runtime_process"]["gid"]
 assert value["runtime_process"]["supplementary_groups_empty"] is True
 assert value["runtime_process"]["no_new_privileges"] is True
 assert value["runtime_process"]["caller_stdin_authority"] is False
+def verify_dumpability_evidence(process:dict)->None:
+    assert "dumpable" not in process,"post_exec_dumpable_cannot_be_inferred_from_native_preexec"
+    for key in (
+        "pre_exec_dumpability_zero_required",
+        "ordinary_sealed_python_fexecve_reset_observed_in_fixture",
+    ):
+        assert process[key] is True,key
+    for key in ("post_exec_dumpability_verified","post_exec_dumpability_accepted"):
+        assert process[key] is False,key
+
+
 process=value["runtime_process"]
-assert "dumpable" not in process,"post_exec_dumpable_cannot_be_inferred_from_native_preexec"
-for key in (
-    "pre_exec_dumpability_zero_required",
-    "ordinary_sealed_python_fexecve_reset_observed_in_fixture",
+verify_dumpability_evidence(process)
+# Actual negative verifier calls: neither a falsely accepted child nor a
+# missing pre-exec gate can pass by inheriting the native pre-exec marker.
+for key,bad in (
+    ("post_exec_dumpability_accepted",True),
+    ("post_exec_dumpability_verified",True),
+    ("pre_exec_dumpability_zero_required",False),
+    ("ordinary_sealed_python_fexecve_reset_observed_in_fixture",False),
+    ("dumpable",False),
 ):
-    assert process[key] is True,key
-for key in ("post_exec_dumpability_verified","post_exec_dumpability_accepted"):
-    assert process[key] is False,key
-# Negative control: no future report can promote post-exec dumpability by
-# inheriting the native pre-exec-only assertion.
-negative=dict(process);negative["post_exec_dumpability_accepted"]=True
-assert negative!=process and negative["post_exec_dumpability_accepted"] is not False
+    negative=dict(process);negative[key]=bad
+    try:
+        verify_dumpability_evidence(negative)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("invalid_dumpability_evidence_accepted:"+key)
 h=value["host_census_requirements"]
 for key in (
     "post_exec_pr_get_dumpable_observation_required",
@@ -233,6 +249,7 @@ print("alternate_future_directive_rejected=true")
 print("python_flags_i_b_s_bound=true")
 print("native_pre_exec_dumpability_not_child_authority=true")
 print("post_exec_dumpability_accepted=false")
+print("invalid_post_exec_dumpability_claims_rejected=true")
 print("post_exec_pr_get_dumpable_required=true")
 print("post_exec_ptrace_procfs_isolation_evidence_required=true")
 print("post_exec_loader_window_review_required=true")
