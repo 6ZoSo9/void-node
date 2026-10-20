@@ -39,7 +39,7 @@ This is not a claim that the currently installed Xiphos systemd unit has any cre
 - #3525 capability source blob: `bcb47a4b105b89a459a4ea876b03f057450371c5`
 - parent proof blob: `ff4abd9e709f9b1e9b8df533c619be4724409941`
 - historical #3525 security document blob: `e061865a9cf4c4f7a0aa3eea424dd7d581844809` (immutable at the historical commit)
-- current #3529 capability security document blob: `2d2d517c1757301d3df1af89e92fdb5cd8664011` (explicit current-parent reconciliation)
+- current #3529 capability security document blob: `de24249f7c541a6bb7c7db8cc8d020d299a44e74` (P1 intrinsic bearer length repair, not historical identity)
 - selected fixed candidate credential name: `apollyon-training-activation-v1`
 - bearer secret required length: exactly 32 bytes
 
@@ -136,3 +136,21 @@ Next gate: `apollyon_training_activation_credential_transport_host_qualification
 No host install/read/write, protected-store mutation, capability issuance, systemd/service action, trainer release/training, credential/private-key/wallet access, signing, transaction or funds movement is authorized by this PR.
 
 PROTECT THE CORE.
+
+## Source-only current bearer fix versus historical transport identity
+
+Current unmerged #3529 capability implementation now uses captured native
+typed-array byte length to verify a genuine exactly-32-byte Buffer without
+observing a forged own `length` getter. Its exact current source blob is
+`7af22ba4e4374a5da490d909c32525a68bf0c5d2`, proof `a3b93893ab36437c4d5c819e2bef2650157c959a`, security document `de24249f7c541a6bb7c7db8cc8d020d299a44e74`. The transport
+verifier pins these current checkout bytes separately from the historical
+#3525 parent identity.
+
+The transport candidate's immutable `parent_capability_contract_head`
+(`d6670d8dd6185d034c9b07ef3a29390add63ee21`) and historical source
+blob `bcb47a4b105b89a459a4ea876b03f057450371c5` remain UNCHANGED. They
+must not be silently retargeted to the repaired current source while keeping
+the old head. Any future production contract reissue must explicitly review
+that historical/current trust transition and generate a new accepted source
+identity. No real bearer issuance, installation, training, systemd or funds
+authority has been granted by this source-only security repair.

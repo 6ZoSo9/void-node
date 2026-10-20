@@ -1,6 +1,15 @@
 import crypto from "node:crypto";
 import {types as utilTypes} from "node:util";
 
+// Capture native typed-array internals before handling any caller-supplied
+// Buffer. Unlike secret.length, the native byteLength getter cannot be
+// shadowed on a Buffer instance or successfully invoked on Proxy wrappers.
+const INTRINSIC_BYTE_LENGTH_GETTER=Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype),"byteLength",
+).get;
+const INTRINSIC_REFLECT_APPLY=Reflect.apply;
+const INTRINSIC_BUFFER_IS_BUFFER=Buffer.isBuffer;
+
 export const VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_CONTRACT_V1 =
   "VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_CONTRACT_V1";
 export const VOID_APOLLYON_TRAINING_ACTIVATION_CAPABILITY_V1 =
@@ -375,7 +384,18 @@ function validPositiveU64Decimal(value){
 }
 
 export function hashApollyonTrainingActivationSecretV1(secret){
-  if(!Buffer.isBuffer(secret)||secret.length!==32){
+  let nativeByteLength;
+  try{
+    // Brand-check the internal typed-array slot BEFORE any object property
+    // access. Genuine Buffers pass; Proxy/revoked Proxy wrappers fail here
+    // without exercising user-supplied traps or shadowed length accessors.
+    nativeByteLength=INTRINSIC_REFLECT_APPLY(
+      INTRINSIC_BYTE_LENGTH_GETTER,secret,[],
+    );
+  }catch{
+    fail("apollyon_training_activation_secret_invalid");
+  }
+  if(nativeByteLength!==32||!INTRINSIC_BUFFER_IS_BUFFER(secret)){
     fail("apollyon_training_activation_secret_invalid");
   }
   return sha256(secret);

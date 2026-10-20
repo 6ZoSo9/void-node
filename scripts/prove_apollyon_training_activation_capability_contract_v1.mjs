@@ -20,7 +20,7 @@ import {
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE="tools/apollyon-training-activation-capability-contract-v1.mjs";
-const SOURCE_BLOB="bcb47a4b105b89a459a4ea876b03f057450371c5";
+const SOURCE_BLOB="7af22ba4e4374a5da490d909c32525a68bf0c5d2";
 const PARENT_HEAD="d00ca0141db62d752be7ddc6e7d9618e0475d897";
 const CONSUMPTION_HEAD="bdadfcc6854d6f4e1804347e51b940e897a8da9f";
 const CONSUMPTION_BLOB="42d7d5d4ab75bfd4fc145f63c2a0432f9bcf9bd3";
@@ -128,6 +128,45 @@ expectRejected(
 );
 expectRejected(
   ()=>hashApollyonTrainingActivationSecretV1("not-bytes"),
+  /secret_invalid/u,
+);
+for(const size of [0,1,31,33]){
+  expectRejected(
+    ()=>hashApollyonTrainingActivationSecretV1(Buffer.alloc(size,0x42)),
+    /secret_invalid/u,
+  );
+  const forged=Buffer.alloc(size,0x42);
+  let getterCalls=0;
+  Object.defineProperty(forged,"length",{
+    configurable:true,
+    get(){getterCalls++;return 32;},
+  });
+  expectRejected(
+    ()=>hashApollyonTrainingActivationSecretV1(forged),
+    /secret_invalid/u,
+  );
+  assert.equal(getterCalls,0,"shadowed short Buffer getter must not run");
+}
+const shadowed32=Buffer.alloc(32,0x42);
+let validGetterCalls=0;
+Object.defineProperty(shadowed32,"length",{
+  configurable:true,
+  get(){validGetterCalls++;return 1;},
+});
+assert.equal(hashApollyonTrainingActivationSecretV1(shadowed32),secretHash);
+assert.equal(validGetterCalls,0,"shadowed 32-byte Buffer getter must not run");
+expectRejected(
+  ()=>hashApollyonTrainingActivationSecretV1(new Uint8Array(32)),
+  /secret_invalid/u,
+);
+const bearerProxy=reflectionTrapProxy(Buffer.alloc(32,0x42));
+expectRejected(
+  ()=>hashApollyonTrainingActivationSecretV1(bearerProxy.proxy),
+  /secret_invalid/u,
+);
+assert.equal(bearerProxy.trapCalls(),0,"bearer Proxy traps must not run");
+expectRejected(
+  ()=>hashApollyonTrainingActivationSecretV1(revokedProxy(Buffer.alloc(32,0x42))),
   /secret_invalid/u,
 );
 
@@ -806,6 +845,9 @@ console.log("systemd_credential_transport_candidate_only=true");
 console.log("systemd_credential_runtime_proven=false");
 console.log("activation_secret_possession_proven=false");
 console.log("activation_generation_bound=false");
+console.log("activation_secret_intrinsic_byte_length_bound=true");
+console.log("activation_secret_shadowed_length_getter_calls=0");
+console.log("activation_secret_proxy_traps_not_invoked=true");
 console.log("start_ticks_preclone_length_bound=true");
 console.log("start_ticks_u64_range_bound=true");
 console.log("unknown_object_graph_rejected_before_clone=true");

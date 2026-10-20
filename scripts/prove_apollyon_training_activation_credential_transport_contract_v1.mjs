@@ -25,18 +25,21 @@ const PARENT=path.join(ROOT,"tools/apollyon-training-activation-capability-contr
 const PARENT_PROOF=path.join(ROOT,"scripts/prove_apollyon_training_activation_capability_contract_v1.mjs");
 const PARENT_DOC=path.join(ROOT,"docs/security/apollyon-training-activation-capability-contract-v1.md");
 const EXPECTED_PARENT_BLOB="bcb47a4b105b89a459a4ea876b03f057450371c5";
-const EXPECTED_PARENT_PROOF_BLOB="ff4abd9e709f9b1e9b8df533c619be4724409941";
-const EXPECTED_PARENT_DOC_BLOB="2d2d517c1757301d3df1af89e92fdb5cd8664011";
+const CURRENT_PARENT_SOURCE_BLOB="7af22ba4e4374a5da490d909c32525a68bf0c5d2";
+const EXPECTED_PARENT_PROOF_BLOB="a3b93893ab36437c4d5c819e2bef2650157c959a";
+const EXPECTED_PARENT_DOC_BLOB="de24249f7c541a6bb7c7db8cc8d020d299a44e74";
 const gitBlob=(data)=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+data.length+"\0","ascii")).update(data).digest("hex");
 
-assert.equal(gitBlob(fs.readFileSync(PARENT)),EXPECTED_PARENT_BLOB);
+assert.equal(gitBlob(fs.readFileSync(PARENT)),CURRENT_PARENT_SOURCE_BLOB);
 assert.equal(gitBlob(fs.readFileSync(PARENT_PROOF)),EXPECTED_PARENT_PROOF_BLOB);
 assert.equal(gitBlob(fs.readFileSync(PARENT_DOC)),EXPECTED_PARENT_DOC_BLOB);
 assert.equal(
   APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1.head,
   "d6670d8dd6185d034c9b07ef3a29390add63ee21",
 );
+// The transport candidate's source reference is a frozen historical #3525
+// identity. The repaired current source above has a distinct Git blob.
 assert.equal(APOLLYON_ACTIVATION_TRANSPORT_PARENT_V1.capability_contract_blob,EXPECTED_PARENT_BLOB);
 assert.equal(
   APOLLYON_TRAINING_ACTIVATION_DEPENDENCIES_V1.parent_head,

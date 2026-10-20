@@ -73,11 +73,11 @@ jobs:
 
 
           test "$(git rev-parse HEAD:tools/apollyon-training-activation-capability-contract-v1.mjs)" = \
-            bcb47a4b105b89a459a4ea876b03f057450371c5
+            7af22ba4e4374a5da490d909c32525a68bf0c5d2
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_activation_capability_contract_v1.mjs)" = \
-            ff4abd9e709f9b1e9b8df533c619be4724409941
+            a3b93893ab36437c4d5c819e2bef2650157c959a
           test "$(git rev-parse HEAD:docs/security/apollyon-training-activation-capability-contract-v1.md)" = \
-            2d2d517c1757301d3df1af89e92fdb5cd8664011
+            de24249f7c541a6bb7c7db8cc8d020d299a44e74
 
           external_consumption_ref=refs/heads/ren/apollyon-training-start-consumption-contract-v1-20261016
           external_consumption_head=bdadfcc6854d6f4e1804347e51b940e897a8da9f
@@ -148,6 +148,9 @@ jobs:
           grep -Fx 'external_consumption_validation_performed=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'activation_secret_possession_proven=false' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'activation_generation_bound=false' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'activation_secret_intrinsic_byte_length_bound=true' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'activation_secret_shadowed_length_getter_calls=0' /tmp/apollyon-activation-capability-proof.txt
+          grep -Fx 'activation_secret_proxy_traps_not_invoked=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'start_ticks_preclone_length_bound=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'start_ticks_u64_range_bound=true' /tmp/apollyon-activation-capability-proof.txt
           grep -Fx 'unknown_object_graph_rejected_before_clone=true' /tmp/apollyon-activation-capability-proof.txt

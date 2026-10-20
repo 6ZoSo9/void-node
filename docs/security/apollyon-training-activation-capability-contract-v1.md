@@ -248,3 +248,21 @@ Hosted proof must establish:
 This gate performs no Xiphos read/write, filesystem mutation, service/systemd action, activation capability issuance, protected capability-store write, #3333 protected training-start consumption, trainer release, training/model/candidate-weight execution, credential/private-key/signing/wallet action, transaction, or funds action.
 
 PROTECT THE CORE.
+
+## Activation secret: intrinsic byte-length acceptance (P1 repair)
+
+`Buffer.isBuffer(secret)` paired with `secret.length === 32` was
+insufficient: a genuine short Buffer can have an own `length` getter that
+lies about its number of bytes. Reading that property can execute
+caller-controlled code. The activation-secret hash now uses a captured native
+TypedArray `byteLength` getter via captured `Reflect.apply` to validate
+the internal byte count before checking genuine Buffer identity and hashing.
+Proxied/revoked Buffer wrappers fail the native brand check before their
+reflection traps are used; non-Buffer `Uint8Array` values are rejected.
+
+The fixture rejects ordinary 0/1/31/33-byte buffers, forged own-length
+getters on all four sizes, wrapped and revoked Proxies, and a 32-byte
+non-Buffer typed array. A genuine 32-byte Buffer with a false own-length
+getter hashes correctly **without invoking the getter**. These are source
+and disposable fixture tests, not protected capability issuance, actual
+credential delivery, Xiphos admission, signing, or training authority.
