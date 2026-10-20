@@ -265,6 +265,82 @@ assert.deepEqual(isolatedReservationCalls, [
 ]);
 failureIsolation.stop();
 
+// A throwing connect adapter must not starve a later route or consume
+// the 15-second retry fence when it never returns a request ID.
+const isolatedConnectCalls: string[] = [];
+const connectFailureIsolationNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
+  ...node,
+  relaySnapshot: () => ({
+    client_reservations: [
+      { relay_node_id: failingRelayNodeId, expires_at_ms: 120_000 },
+      { relay_node_id: healthyRelayNodeId, expires_at_ms: 120_000 },
+    ],
+    streams: [],
+  }),
+  udpSwarmControlSnapshot: () => ({
+    pending_requests: [],
+    active_routes: [],
+  }),
+  connectViaRelay: (relay) => {
+    isolatedConnectCalls.push(relay);
+    if (relay === failingRelayNodeId) {
+      throw new Error("synthetic connect adapter failure");
+    }
+    return "8".repeat(32);
+  },
+};
+const connectFailureIsolation = new VoidUdpSwarmRelayOrchestratorV1(
+  connectFailureIsolationNode,
+  {
+    enabled: true,
+    routes: [
+      {
+        relay_node_id: failingRelayNodeId,
+        target_node_id: targetNodeId,
+      },
+      {
+        relay_node_id: healthyRelayNodeId,
+        target_node_id: relayNodeId,
+      },
+    ],
+  },
+);
+assert.doesNotThrow(() => connectFailureIsolation.runOnce(0));
+assert.deepEqual(isolatedConnectCalls, [
+  failingRelayNodeId,
+  healthyRelayNodeId,
+]);
+const connectFailureStatus = connectFailureIsolation.status();
+assert.equal(
+  (connectFailureStatus.counters as Record<string, number>).sweep_failures,
+  1,
+);
+assert.equal(
+  (connectFailureStatus.counters as Record<string, number>).connect_attempts,
+  2,
+);
+assert.equal(
+  (connectFailureStatus.counters as Record<string, number>).connect_requests,
+  1,
+);
+connectFailureIsolation.runOnce(1_000);
+assert.deepEqual(isolatedConnectCalls, [
+  failingRelayNodeId,
+  healthyRelayNodeId,
+  failingRelayNodeId,
+]);
+connectFailureIsolation.runOnce(
+  VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1,
+);
+assert.deepEqual(isolatedConnectCalls, [
+  failingRelayNodeId,
+  healthyRelayNodeId,
+  failingRelayNodeId,
+  failingRelayNodeId,
+  healthyRelayNodeId,
+]);
+connectFailureIsolation.stop();
+
 const failingUpgradeStreamId = "5".repeat(32);
 const healthyUpgradeStreamId = "6".repeat(32);
 const isolatedUpgradeCalls: string[] = [];
@@ -355,6 +431,7 @@ console.log(JSON.stringify({
     pending_and_active_upgrade_suppression: true,
     bounded_upgrade_retry: true,
     route_local_adapter_failure_isolated: true,
+    throwing_connect_route_isolated: true,
     later_routes_advance_after_failure: true,
     thrown_upgrade_retries_next_sweep: true,
     returned_upgrade_uses_bounded_backoff: true,
