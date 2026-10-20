@@ -43,8 +43,15 @@ jobs:
         run: python3 -I -B -m py_compile scripts/prove_buy_void_epoch2_v6r3_python_runtime_closure_contract_v2.py
       - name: Exact contract proof
         run: python3 -I -B scripts/prove_buy_void_epoch2_v6r3_python_runtime_closure_contract_v2.py
-      - name: Diff hygiene
+      - name: Exact-head diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          git diff --check
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git rev-parse "$HEAD^")"
+          fi
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
