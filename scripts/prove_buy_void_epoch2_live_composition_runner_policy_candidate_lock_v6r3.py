@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -22,7 +23,7 @@ V6R2_LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-native-candidate-l
 
 MARKER="VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_CANDIDATE_LOCK_V6R3_MAIN_INTEGRATION"
 LOCK_PREFIX="voidbuye2runnerpollock6r3_"
-LOCK_ID="voidbuye2runnerpollock6r3_dea4081ea3ee00d2bb94279ceae023bb74f9b2322c74e5b80e73981cfe1a6783"
+LOCK_ID="voidbuye2runnerpollock6r3_72ecfe7a0d5aa87237520290cdf63cf0faef821931ef094ac0ec5dd1858e496f"
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_aaa50e1bbfe2303045336c03be2bacd504a736a0fd04f97d4f38be7e76fbba7d"
 EXPECTED={
  CANDIDATE:"af7d6b8f34e273b99161bada37f88afa614fc137",
@@ -34,7 +35,7 @@ EXPECTED={
  COMPAT_WORKFLOW:"676fc24e89d67d1592e2ab1813b345f0ef1135db",
  V6R2_LOCK:"bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b",
 }
-RUNNER_SHA256="7f727f23d93e3c2e237f73cad448f9cf825f37f22bcdaf0eb5c050a5cbbf30e8"
+RUNNER_SHA256="9302bcbdf70c3d4fd46be5deb0a2101ab09d51bf84171e43f2b5fb6e6b4f92a8"
 RUNNER_BYTES=82972
 NATIVE_SHA256="85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
@@ -129,7 +130,8 @@ assert lock["next_gate"]=="void_buy_void_epoch2_live_composition_runner_policy_u
 material=dict(lock); observed=material.pop("lock_id")
 assert observed==LOCK_ID==LOCK_PREFIX+sha256(canonical(material))
 
-node="/usr/bin/node"
+node=shutil.which("node")
+assert node is not None and os.path.isabs(node),"node_unavailable"
 sealed_cp=subprocess.run(
  [node,str(SEALED_V3),"--self-test"],stdin=subprocess.DEVNULL,
  stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding="utf-8",errors="strict",
