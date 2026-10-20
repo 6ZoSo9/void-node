@@ -67,7 +67,11 @@ Hosted CI:
    retained planner bytes;
 7. replaces the planner with a same-size modified root-owned file and requires rejection
    at `planner_identity_invalid` **before Python starts**;
-8. invokes the launcher from a wrong path and requires rejection before Python.
+8. invokes the launcher from a wrong path and requires rejection before Python;
+9. invokes the correct fixed launcher directly as UID/GID `1000:1000` and requires
+   `root_static_first_entry_required` before Python;
+10. supplies hostile `LD_PRELOAD` to the real fixed static launcher and requires it not
+    to propagate to the Python child.
 
 The fixture is deleted at the end of the hosted proof.
 
