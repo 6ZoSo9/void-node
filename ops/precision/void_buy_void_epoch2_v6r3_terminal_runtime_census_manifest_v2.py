@@ -224,6 +224,26 @@ def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->
             raise Hold("symlink_missing_component_materialized:"+display_path)
     return record
 
+def require_display_root(display_root:str)->int:
+    # A logical root prefixes *every* inventoried path and must not bypass
+    # MAX_INPUT_PATH_BYTES. Reject giant values before encoding or traversal.
+    if (type(display_root) is not str or not display_root
+        or len(display_root)>MAX_INPUT_PATH_BYTES
+        or "\x00" in display_root or not display_root.startswith("/")
+        or display_root=="/" or display_root.startswith("//")
+        or posixpath.normpath(display_root)!=display_root):
+        if type(display_root) is str and len(display_root)>MAX_INPUT_PATH_BYTES:
+            raise Hold("display_root_length_exceeded")
+        raise Hold("display_root_not_canonical")
+    try:
+        n=len(display_root.encode("utf-8","strict"))
+    except UnicodeError as exc:
+        raise Hold("display_root_encoding_invalid") from exc
+    if n>MAX_INPUT_PATH_BYTES:
+        raise Hold("display_root_length_exceeded")
+    return n
+
+
 def _display(display_root:str,rel:Path)->str:
     if not display_root.startswith("/") or display_root=="/":
         raise Hold("display_root_invalid")
@@ -231,7 +251,18 @@ def _display(display_root:str,rel:Path)->str:
         return display_root
     return display_root.rstrip("/")+"/"+rel.as_posix()
 
-def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
+def collect_tree(
+    real_root:Path,display_root:str,*,display_budget:int=MAX_REPORT_BYTES,
+)->dict[str,dict[str,object]]:
+    root_bytes=require_display_root(display_root)
+    if (type(display_budget) is not int
+        or not 1<=display_budget<=MAX_REPORT_BYTES):
+        raise Hold("manifest_display_budget_invalid")
+    if root_bytes>display_budget:
+        raise Hold("manifest_display_path_budget_exceeded")
+    # The root contributes once. Charge every discovered child before any
+    # stat/hash/queue; directories are not charged again when later popped.
+    display_bytes_total=root_bytes
     real_root=Path(os.path.abspath(os.fspath(real_root)))
     if real_root.is_symlink():
         raise Hold("inventory_root_symlink")
@@ -273,6 +304,13 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
             path=Path(entry.path)
             rel=path.relative_to(real_root)
             display=_display(display_root,rel)
+            try:
+                display_bytes=len(display.encode("utf-8","strict"))
+            except UnicodeError as exc:
+                raise Hold("manifest_display_path_encoding_invalid") from exc
+            if display_bytes_total+display_bytes>display_budget:
+                raise Hold("manifest_display_path_budget_exceeded")
+            display_bytes_total+=display_bytes
             st=path.lstat()
             if stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode):
                 stack.append(path)
@@ -294,16 +332,23 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
     return dict(sorted(objects.items()))
 
 def absence_record(real_root:Path,display_root:str,display_path:str)->dict[str,object]:
-    # An absence is an authority claim too. Check *every* path component
-    # before the first pathname-based existence query can follow an alias.
-    if (not isinstance(display_root,str) or chr(0) in display_root
-        or not display_root.startswith("/") or display_root.startswith("//")
-        or display_root=="/"
-        or posixpath.normpath(display_root)!=display_root
-        or not isinstance(display_path,str) or chr(0) in display_path
-        or not display_path.startswith(display_root+"/")
+    # This helper can be called without build_manifest; validate its own
+    # caller-controlled identities before any path expansion or filesystem IO.
+    try:
+        require_display_root(display_root)
+    except Hold as exc:
+        raise Hold("absence_path_not_canonical_or_outside_root") from exc
+    if (type(display_path) is not str
+        or not display_path or len(display_path)>MAX_INPUT_PATH_BYTES
+        or "\x00" in display_path or not display_path.startswith(display_root+"/")
         or posixpath.normpath(display_path)!=display_path):
         raise Hold("absence_path_not_canonical_or_outside_root")
+    try:
+        path_bytes=len(display_path.encode("utf-8","strict"))
+    except UnicodeError as exc:
+        raise Hold("absence_path_encoding_invalid") from exc
+    if path_bytes>MAX_INPUT_PATH_BYTES:
+        raise Hold("absence_path_length_exceeded")
     rel=display_path[len(display_root)+1:]
     if not rel or rel.startswith("/") or "." in rel.split("/") or ".." in rel.split("/"):
         raise Hold("absence_path_invalid")
@@ -382,11 +427,7 @@ def build_manifest(
     accessed_paths:list[str],
 )->dict[str,object]:
     require_manifest_input_budget(sys_path,declared_absent,accessed_paths)
-    if (not isinstance(display_root,str) or chr(0) in display_root
-        or not display_root.startswith("/") or display_root.startswith("//")
-        or display_root=="/"
-        or posixpath.normpath(display_root)!=display_root):
-        raise Hold("display_root_not_canonical")
+    require_display_root(display_root)
     if not isinstance(sys_path,list) or not sys_path or any(
         not isinstance(p,str) or chr(0) in p or not p.startswith("/")
         or p.startswith("//") or posixpath.normpath(p)!=p or p.endswith("/")
@@ -462,6 +503,48 @@ def fixture_self_test()->None:
         require_terminal_equal(manifest,json.loads(canonical(manifest)))
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
+
+        # The logical root is a multiplier on every output path. Reject
+        # oversized/non-UTF8 roots before even attempting a directory scan.
+        oversized_root="/"+("r"*MAX_INPUT_PATH_BYTES)
+        non_utf8_root="/"+chr(0xd800)
+        for bad_root,reason in (
+            (oversized_root,"display_root_length_exceeded"),
+            (non_utf8_root,"display_root_encoding_invalid"),
+            ("//fixture","display_root_not_canonical"),
+        ):
+            for op in (
+                lambda: collect_tree(root,bad_root),
+                lambda: build_manifest(root,bad_root,sys_path,absent,[]),
+            ):
+                try:
+                    op()
+                except Hold as exc:
+                    assert str(exc)==reason,(str(bad_root[:12]),str(exc))
+                else:
+                    raise AssertionError("unbounded_display_root_accepted")
+        # Even direct helper calls cannot skip logical-path input custody.
+        try:
+            absence_record(root,oversized_root,oversized_root+"/ghost")
+        except Hold as exc:
+            assert str(exc)=="absence_path_not_canonical_or_outside_root"
+        else:
+            raise AssertionError("unbounded_absence_root_accepted")
+        try:
+            absence_record(root,"/fixture","/fixture/"+("x"*MAX_INPUT_PATH_BYTES))
+        except Hold as exc:
+            assert str(exc)=="absence_path_not_canonical_or_outside_root"
+        else:
+            raise AssertionError("unbounded_absence_leaf_accepted")
+        # Tiny display-byte budget tests actual discovery rather than merely
+        # counting paths after serializing the final manifest.
+        try:
+            collect_tree(root,"/fixture",display_budget=len("/fixture".encode())+1)
+        except Hold as exc:
+            assert str(exc)=="manifest_display_path_budget_exceeded"
+        else:
+            raise AssertionError("inventory_output_path_budget_bypassed")
+        assert len(collect_tree(root,"/fixture"))>3
 
         # NUL and noncanonical paths must fail before constructing a JSON
         # authority record or calling a POSIX filesystem API.
@@ -724,6 +807,8 @@ def fixture_self_test()->None:
     print("sys_path_must_be_inventoried_or_explicitly_absent=true")
     print("census_input_cardinality_and_byte_budget_pretraversal=true")
     print("census_unbounded_generator_and_oversize_path_rejected=true")
+    print("census_display_root_length_utf8_and_path_budget_bound=true")
+    print("census_direct_absence_display_path_budget_bound=true")
     print("noncanonical_manifest_paths_rejected=true")
     print("embedded_nul_and_non_posix_input_paths_rejected=true")
     print("non_posix_path_negative_fixtures=9")
