@@ -47,7 +47,6 @@ def verify_source_contract() -> None:
     upper = json.loads(UPSTREAM.read_bytes())
     lock = json.loads(BINARY_LOCK.read_bytes())
     assert upper["contract_id"] == UPSTREAM_ID
-    assert p["closure_contract_head"] == "c674df2fb523803f27b7ae886f4a043ffffde27e"
     process=upper["runtime_process"]
     assert process["post_exec_dumpability_verified"] is False
     assert process["post_exec_dumpability_accepted"] is False
@@ -59,6 +58,7 @@ def verify_source_contract() -> None:
     assert diagnostic["pre_fexecve_dumpable"]==0 and diagnostic["post_fexecve_dumpable"]==1
     assert lock["lock_id"] == BINARY_LOCK_ID
     p = value["parent"]
+    assert p["closure_contract_head"] == "c674df2fb523803f27b7ae886f4a043ffffde27e"
     assert p["closure_contract_git_blob_sha1"] == UPSTREAM_BLOB
     assert p["native_first_entry_lock_git_blob_sha1"] == BINARY_LOCK_BLOB
     assert p["closure_contract_id"] == UPSTREAM_ID
