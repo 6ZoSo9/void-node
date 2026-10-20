@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+
+# This verifier uses assertion-based identity checks. A different optimized
+# code object can disable them even when the parent interpreter flags are 0.
+# Fail before importing non-builtin modules or performing source operations.
+import sys
+if sys.flags.optimize != 0 or not __debug__:
+    sys.stderr.write("HOLD=optimized_python_forbidden\n")
+    raise SystemExit(2)
+if (sys.flags.isolated != 1 or not sys.dont_write_bytecode
+    or sys.flags.no_site != 1):
+    sys.stderr.write("HOLD=isolated_python_proof_required\n")
+    raise SystemExit(2)
 
 import hashlib
 import json
 import pathlib
 import shutil
 import subprocess
-import sys
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -345,6 +355,70 @@ with tempfile.TemporaryDirectory(prefix="void-dormant-binding-v4-proof-") as td:
     ):
         assert line in lines, line
 
+
+# Actual subprocess matrix: neither -O/-OO nor an optimized code object in an
+# otherwise unoptimized isolated interpreter can bypass identity assertions.
+# In each case the guard must stop before source reads, Git or Node execution.
+proof_path = pathlib.Path(__file__).resolve()
+proof_env = {
+    "PATH": "/usr/bin:/bin", "HOME": "/nonexistent",
+    "LANG": "C", "LC_ALL": "C", "TZ": "UTC",
+}
+for optimization in ("-O", "-OO"):
+    cp = subprocess.run(
+        [sys.executable, optimization, "-I", "-B", "-S", str(proof_path)],
+        cwd=ROOT, env=proof_env, stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        check=False, timeout=20,
+    )
+    assert cp.returncode == 2, (optimization, cp.returncode, cp.stdout, cp.stderr)
+    assert cp.stdout == "", (optimization, cp.stdout)
+    assert cp.stderr == "HOLD=optimized_python_forbidden\n", (optimization, cp.stderr)
+
+# An unoptimized interpreter can receive a separately optimized code object
+# via compile(..., optimize=1/2). The __debug__ guard must also reject it.
+code_object_runner = (
+    "import pathlib,sys\n"
+    "p=pathlib.Path(sys.argv[1])\n"
+    "code=compile(p.read_bytes(),str(p),'exec',optimize=int(sys.argv[2]))\n"
+    "exec(code,{'__name__':'__main__','__file__':str(p)})\n"
+)
+for optimization in (1, 2):
+    cp = subprocess.run(
+        [sys.executable, "-I", "-B", "-S", "-c", code_object_runner,
+         str(proof_path), str(optimization)],
+        cwd=ROOT, env=proof_env, stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        check=False, timeout=20,
+    )
+    assert cp.returncode == 2, (optimization, cp.returncode, cp.stdout, cp.stderr)
+    assert cp.stdout == "", (optimization, cp.stdout)
+    assert cp.stderr == "HOLD=optimized_python_forbidden\n", (optimization, cp.stderr)
+
+
+# The standard-library __future__ module is otherwise imported BEFORE the
+# guard when the script uses a future statement. A sibling checkout-local
+# __future__.py could execute before -I is checked. This disposable copy
+# demonstrates that the removed preguard import cannot run attacker bytes.
+with tempfile.TemporaryDirectory(prefix="void-dormant-proof-preimport-") as td:
+    fixture_dir = pathlib.Path(td)
+    poisoned_future = fixture_dir / "__future__.py"
+    poisoned_future.write_text(
+        'print("POISONED_PRE_GUARD_IMPORT")\nannotations=object()\n',
+        encoding="utf-8",
+    )
+    fixture_script = fixture_dir / "verifier.py"
+    fixture_script.write_bytes(proof_path.read_bytes())
+    cp = subprocess.run(
+        [sys.executable, "-B", "-S", str(fixture_script)],
+        cwd=fixture_dir, env=proof_env, stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        check=False, timeout=20,
+    )
+    assert cp.returncode == 2, (cp.returncode, cp.stdout, cp.stderr)
+    assert cp.stdout == "", cp.stdout
+    assert cp.stderr == "HOLD=isolated_python_proof_required\n", cp.stderr
+
 print("VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4_PROOF_GREEN")
 print("binder_blob=" + BINDER_BLOB)
 print("binder_sha256=" + BINDER_SHA256)
@@ -370,6 +444,11 @@ print("binder_native_accepted_lock_v6r2_digest_bound=true")
 print("binder_native_retained_root_fd_static_elf_guard_proven=true")
 print("binder_native_exact_fd_elf_parser_fixture_proven=true")
 print("binder_native_short_read_and_generation_drift_negative_proven=true")
+print("optimized_python_negative_fixtures=2")
+print("optimized_code_object_negative_fixtures=2")
+print("per_code_object_debug_required=true")
+print("isolated_no_site_python_proof_entry_required=true")
+print("pre_guard_future_import_poison_rejected=true")
 print("runtime_policy_authenticated_by_native_preentry=true")
 print("historical_generation_overclaim_absent=true")
 print("native_preentry_binds_exact_binder_bytes=true")
