@@ -279,6 +279,18 @@ def _verify_sensitive(
             raise CompatError("runtime_sensitive_identity_drift:" + path)
 
 
+def _stat_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int, int]:
+    return (
+        st.st_dev,
+        st.st_ino,
+        st.st_mode,
+        st.st_nlink,
+        st.st_size,
+        st.st_mtime_ns,
+        st.st_ctime_ns,
+    )
+
+
 def _ancestor_symlink_free(root: Path, path: Path) -> None:
     relative = path.relative_to(root)
     current = root
@@ -289,55 +301,109 @@ def _ancestor_symlink_free(root: Path, path: Path) -> None:
             raise CompatError("tracked_ancestor_not_direct_directory:" + str(relative))
 
 
-def _read_exact_worktree(root: Path, relative: str, identity: tuple[str, str, int]) -> None:
+def _read_exact_worktree(
+    root: Path,
+    relative: str,
+    identity: tuple[str, str, int],
+) -> tuple[str, tuple[int, int, int, int, int, int, int], bytes | None]:
     mode, oid, size = identity
     path = root / relative
-    _ancestor_symlink_free(root, path)
-    st = os.lstat(path)
-    if mode == "120000":
-        if not stat.S_ISLNK(st.st_mode):
-            raise CompatError("worktree_symlink_kind_mismatch:" + relative)
-        raw = os.fsencode(os.readlink(path))
-        if len(raw) != size or git_blob(raw) != oid:
-            raise CompatError("worktree_symlink_identity_mismatch:" + relative)
-        return
-    if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
-        raise CompatError("worktree_regular_kind_mismatch:" + relative)
-    actual_mode = "100755" if (st.st_mode & 0o111) else "100644"
-    if actual_mode != mode or st.st_size != size or st.st_nlink < 1:
-        raise CompatError("worktree_regular_metadata_mismatch:" + relative)
-    before = (st.st_dev, st.st_ino, st.st_mode, st.st_nlink, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
-    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
-        opened = os.fstat(fd)
-        now = (opened.st_dev, opened.st_ino, opened.st_mode, opened.st_nlink, opened.st_size, opened.st_mtime_ns, opened.st_ctime_ns)
-        if now != before:
-            raise CompatError("worktree_regular_rebound:" + relative)
-        h = hashlib.sha1()
-        h.update(b"blob " + str(size).encode("ascii") + b"\0")
-        remaining = size
-        while remaining:
-            part = os.read(fd, min(1024 * 1024, remaining))
-            if not part:
-                raise CompatError("worktree_regular_short_read:" + relative)
-            h.update(part)
-            remaining -= len(part)
-        if os.read(fd, 1):
-            raise CompatError("worktree_regular_grew:" + relative)
-        after = os.fstat(fd)
-        visible = os.lstat(path)
-        a = (after.st_dev, after.st_ino, after.st_mode, after.st_nlink, after.st_size, after.st_mtime_ns, after.st_ctime_ns)
-        v = (visible.st_dev, visible.st_ino, visible.st_mode, visible.st_nlink, visible.st_size, visible.st_mtime_ns, visible.st_ctime_ns)
-        if a != before or v != before:
-            raise CompatError("worktree_regular_generation_changed:" + relative)
-        if h.hexdigest() != oid:
-            raise CompatError("worktree_regular_blob_mismatch:" + relative)
-    finally:
-        os.close(fd)
+        _ancestor_symlink_free(root, path)
+        st = os.lstat(path)
+        if mode == "120000":
+            if not stat.S_ISLNK(st.st_mode):
+                raise CompatError("worktree_symlink_kind_mismatch:" + relative)
+            raw = os.fsencode(os.readlink(path))
+            if len(raw) != size or git_blob(raw) != oid:
+                raise CompatError("worktree_symlink_identity_mismatch:" + relative)
+            return ("L", _stat_identity(st), raw)
+        if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
+            raise CompatError("worktree_regular_kind_mismatch:" + relative)
+        actual_mode = "100755" if (st.st_mode & 0o111) else "100644"
+        if actual_mode != mode or st.st_size != size or st.st_nlink < 1:
+            raise CompatError("worktree_regular_metadata_mismatch:" + relative)
+        before = _stat_identity(st)
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            opened = os.fstat(fd)
+            if _stat_identity(opened) != before:
+                raise CompatError("worktree_regular_rebound:" + relative)
+            h = hashlib.sha1()
+            h.update(b"blob " + str(size).encode("ascii") + b"\0")
+            remaining = size
+            while remaining:
+                part = os.read(fd, min(1024 * 1024, remaining))
+                if not part:
+                    raise CompatError("worktree_regular_short_read:" + relative)
+                h.update(part)
+                remaining -= len(part)
+            if os.read(fd, 1):
+                raise CompatError("worktree_regular_grew:" + relative)
+            after = os.fstat(fd)
+            visible = os.lstat(path)
+            if _stat_identity(after) != before or _stat_identity(visible) != before:
+                raise CompatError("worktree_regular_generation_changed:" + relative)
+            if h.hexdigest() != oid:
+                raise CompatError("worktree_regular_blob_mismatch:" + relative)
+            return ("F", before, None)
+        finally:
+            os.close(fd)
+    except OSError as exc:
+        raise CompatError(
+            "worktree_observation_failed:"
+            + relative
+            + ":errno_"
+            + str(exc.errno if exc.errno is not None else "unknown")
+        ) from exc
+
+
+def _terminal_revalidate_worktree(
+    root: Path,
+    fingerprints: dict[
+        str,
+        tuple[str, tuple[int, int, int, int, int, int, int], bytes | None],
+    ],
+) -> None:
+    for relative, (kind, expected_stat, expected_target) in fingerprints.items():
+        path = root / relative
+        try:
+            _ancestor_symlink_free(root, path)
+            st = os.lstat(path)
+            if _stat_identity(st) != expected_stat:
+                raise CompatError("worktree_terminal_generation_changed:" + relative)
+            if kind == "L":
+                if not stat.S_ISLNK(st.st_mode):
+                    raise CompatError("worktree_terminal_kind_changed:" + relative)
+                if os.fsencode(os.readlink(path)) != expected_target:
+                    raise CompatError("worktree_terminal_symlink_changed:" + relative)
+            elif kind == "F":
+                if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
+                    raise CompatError("worktree_terminal_kind_changed:" + relative)
+            else:
+                raise CompatError("worktree_terminal_fingerprint_kind_invalid:" + relative)
+        except OSError as exc:
+            raise CompatError(
+                "worktree_terminal_observation_failed:"
+                + relative
+                + ":errno_"
+                + str(exc.errno if exc.errno is not None else "unknown")
+            ) from exc
+
+
+def _require_index_unchanged(initial: bytes, observed: bytes) -> None:
+    if observed != initial:
+        raise CompatError("checkout_index_generation_changed")
 
 
 def verify_repository(root: Path, expected_head: str, require_main: bool) -> dict[str, object]:
-    root = root.resolve(strict=True)
+    try:
+        root = root.resolve(strict=True)
+    except OSError as exc:
+        raise CompatError(
+            "checkout_root_observation_failed:errno_"
+            + str(exc.errno if exc.errno is not None else "unknown")
+        ) from exc
     if HEX40.fullmatch(expected_head) is None:
         raise CompatError("expected_head_invalid")
     if _git_text(root, "rev-parse", "--verify", "HEAD^{commit}") != expected_head:
@@ -358,22 +424,36 @@ def verify_repository(root: Path, expected_head: str, require_main: bool) -> dic
     _verify_current_delta(base_entries, current_entries)
     _verify_sensitive(runtime_entries, base_entries, current_entries)
 
-    index_entries = _index_entries(_run_git(root, "ls-files", "--stage", "--full-name", "-z"))
+    index_query = ("ls-files", "--stage", "--full-name", "-z")
+    raw_index = _run_git(root, *index_query)
+    index_entries = _index_entries(raw_index)
     expected_index = {path: (mode, oid) for path, (mode, oid, _size) in current_entries.items()}
     if index_entries != expected_index:
         raise CompatError("checkout_index_tree_mismatch")
 
     total = 0
+    fingerprints: dict[
+        str,
+        tuple[str, tuple[int, int, int, int, int, int, int], bytes | None],
+    ] = {}
     for path, identity in current_entries.items():
         total += identity[2]
         if total > MAX_TOTAL_BYTES:
             raise CompatError("tracked_worktree_total_bytes_limit")
-        _read_exact_worktree(root, path, identity)
+        fingerprints[path] = _read_exact_worktree(root, path, identity)
+
+    _require_index_unchanged(raw_index, _run_git(root, *index_query))
+    _terminal_revalidate_worktree(root, fingerprints)
 
     if _git_text(root, "rev-parse", "--verify", "HEAD^{commit}") != expected_head:
         raise CompatError("checkout_head_changed_terminal")
     if _git_text(root, "rev-parse", SOURCE_BASE_HEAD + "^{tree}") != SOURCE_BASE_TREE:
         raise CompatError("source_base_tree_changed_terminal")
+
+    # Repeat both barriers after the terminal Git observations so drift during
+    # the terminal phase cannot be reported as a stable GREEN generation.
+    _require_index_unchanged(raw_index, _run_git(root, *index_query))
+    _terminal_revalidate_worktree(root, fingerprints)
 
     return {
         "runtime_head": RUNTIME_HEAD,
@@ -481,6 +561,42 @@ def self_test() -> None:
             pass
         else:
             raise AssertionError("modified_path_drift_not_rejected")
+
+        try:
+            _require_index_unchanged(b"index-generation-a", b"index-generation-b")
+        except CompatError:
+            pass
+        else:
+            raise AssertionError("index_generation_drift_not_rejected")
+
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="void-v7-postmerge-worktree-") as td:
+            fixture_root = Path(td)
+            tracked = fixture_root / "tracked.txt"
+            tracked.write_bytes(b"A")
+            tracked_identity = ("100644", git_blob(b"A"), 1)
+            fingerprint = _read_exact_worktree(fixture_root, "tracked.txt", tracked_identity)
+            tracked.write_bytes(b"B")
+            try:
+                _terminal_revalidate_worktree(
+                    fixture_root, {"tracked.txt": fingerprint}
+                )
+            except CompatError:
+                pass
+            else:
+                raise AssertionError("worktree_terminal_drift_not_rejected")
+
+            missing = fixture_root / "missing.txt"
+            try:
+                _read_exact_worktree(
+                    fixture_root,
+                    "missing.txt",
+                    ("100644", git_blob(b"M"), 1),
+                )
+            except CompatError as exc:
+                assert str(exc).startswith("worktree_observation_failed:missing.txt:")
+            else:
+                raise AssertionError("missing_tracked_path_not_normalized_to_hold")
     finally:
         BASE_ADDITIONS.clear()
         BASE_ADDITIONS.update(saved_add)
@@ -493,6 +609,9 @@ def self_test() -> None:
     print("compatibility_self_scope_exact_four_additions_required=true")
     print("runtime_sensitive_five_path_identity_equality_required=true")
     print("tracked_source_checkout_exact_required=true")
+    print("terminal_index_generation_revalidation_required=true")
+    print("terminal_worktree_generation_revalidation_required=true")
+    print("worktree_filesystem_errors_normalized_to_hold=true")
     print("canonical_checkout_mutation_authorized=false")
     print("filesystem_write_authorized=false")
     print("service_mutation_authorized=false")
