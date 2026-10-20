@@ -16,7 +16,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs";
-const SOURCE_BLOB="845dd5d0afbdc3ed35a852d0286886d1aa8b6c01";
+const SOURCE_BLOB="bccb22f13324e66d4aef93a2d71a1a520e3ede2d";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json";
 const PLAN_BLOB="1cdecf34117e4e890f67e62b412419d32870dfa0";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -335,6 +335,33 @@ function mustFail(label,mutator,pattern){
     authorization,capabilities:h.caps,
   }),pattern,label);
 }
+function mustFailAtPhase(label,mutator,pattern,terminalPhase){
+  const h=makeHarness(mutator);
+  assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV2({
+    authorization,capabilities:h.caps,
+  }),pattern,label);
+  const last=expectedOrder.indexOf(terminalPhase);
+  assert.ok(last>=0,terminalPhase);
+  assert.deepEqual(h.order,expectedOrder.slice(0,last+1),label+": no subsequent callbacks");
+}
+mustFailAtPhase("journal append sequence+1 unchanged tip",(c,s,b)=>{
+  const original=c.append_journal_canary;
+  c.append_journal_canary=(args)=>({
+    ...original(args),journal_tip_sha256:b.journal_tip_sha256,
+  });
+},/journal_append_tip_not_advanced/,"append");
+mustFailAtPhase("high-water sequence advance unchanged tip",(c,s,b)=>{
+  const original=c.advance_high_water;
+  c.advance_high_water=(args)=>({
+    ...original(args),high_water_sha256:b.high_water_sha256,
+  });
+},/high_water_tip_not_advanced/,"high");
+mustFailAtPhase("external witness sequence advance unchanged tip",(c,s,b)=>{
+  const original=c.append_external_witness;
+  c.append_external_witness=(args)=>({
+    ...original(args),external_witness_tip_sha256:b.external_witness_tip_sha256,
+  });
+},/external_witness_tip_not_advanced/,"witness");
 mustFail("bad entropy",(c)=>{c.generate_challenge_entropy=()=>Buffer.alloc(31);},/challenge_entropy_invalid/);
 mustFail("operation lease acquisition refused",(c)=>{c.acquire_operation_lease=({
   authorization_id,operation_id,challenge_id,
@@ -721,6 +748,10 @@ console.log("challenge_entropy_capability_invoked=true");
 console.log("challenge_unpredictability_proven=false");
 console.log("second_control_precedes_rollback=true");
 console.log("protected_high_water_non_decrease_required=true");
+console.log("journal_append_fresh_tip_required=true");
+console.log("high_water_advance_fresh_tip_required=true");
+console.log("external_witness_append_fresh_tip_required=true");
+console.log("unchanged_tip_rejected_before_downstream_callbacks=true");
 console.log("post_rollback_high_water_exact_checkpoint_required=true");
 console.log("post_rollback_external_witness_exact_checkpoint_required=true");
 console.log("terminal_high_water_exact_checkpoint_required=true");

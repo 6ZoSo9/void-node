@@ -354,6 +354,8 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
   safeInt(append.journal_sequence,"append_journal_sequence_invalid",0);
   if(append.journal_sequence!==before.journal_sequence+1)fail("journal_sequence_not_advanced");
   string(append.journal_tip_sha256,SHA,"append_journal_tip_invalid");
+  if(append.journal_tip_sha256===before.journal_tip_sha256)
+    fail("journal_append_tip_not_advanced");
   string(append.event_sha256,SHA,"append_event_invalid");
 
   const high=exactResult(callSync(caps.advance_high_water,
@@ -369,6 +371,8 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
      high.high_water_sequence<Math.max(before.high_water_sequence+1,append.journal_sequence))
     fail("high_water_not_advanced");
   string(high.high_water_sha256,SHA,"high_water_sha_invalid");
+  if(high.high_water_sha256===before.high_water_sha256)
+    fail("high_water_tip_not_advanced");
 
   const reopened=normalizeObservation(callSync(caps.sync_close_reopen,
     Object.freeze({challenge_id:challengeId,journal_sequence:append.journal_sequence,
@@ -403,6 +407,8 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
      witness.source_high_water_sha256!==high.high_water_sha256)
     fail("external_witness_binding_invalid");
   string(witness.external_witness_tip_sha256,SHA,"external_witness_tip_invalid");
+  if(witness.external_witness_tip_sha256===before.external_witness_tip_sha256)
+    fail("external_witness_tip_not_advanced");
 
   const approval=exactResult(callSync(caps.obtain_second_control_approval,
     Object.freeze({challenge_id:challengeId,

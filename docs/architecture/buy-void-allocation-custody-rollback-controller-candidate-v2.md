@@ -10,8 +10,8 @@ This candidate is stacked on the [V2 challenge plan #3556](https://github.com/6Z
 - V2 plan ID: `voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844`.
 - V2 plan Git blob: `1cdecf34117e4e890f67e62b412419d32870dfa0`.
 - Historical V1 controller source blob: `96d4ac3499d222841f1f7a3c53e14900b68ae8cf`; original V1 proof blob: `b196fcaa77a6bdc465baacb3387aa949f47bc956`.
-- New V2 controller source blob: `845dd5d0afbdc3ed35a852d0286886d1aa8b6c01`.
-- New V2 behavior proof blob: `ba21b81231f9b2bcac3250a95d729f4eaab63e7b`.
+- New V2 controller source blob: `bccb22f13324e66d4aef93a2d71a1a520e3ede2d`.
+- New V2 behavior proof blob: `8e8f0ca8b2d377520520b75adfea14b502f9ae3d`.
 - Accepted economic tree remains `71c67e62a2b21a98f3f5135ee6aa56e0ef97d262`.
 
 ## V2 authorization and replay boundary
@@ -99,6 +99,32 @@ than treating a newer sequence and old hash as coherent.
 This is **not** authentication of injected callbacks, proof of physical
 storage isolation, a real replay-resistant journal, or permission to attempt
 a protected rollback. The controller remains a source-only artifact.
+
+## Fresh commitments for advancing journal, high-water and witness
+
+The earlier controller already required these *sequence* advances during
+`append_journal_canary`, `advance_high_water` and
+`append_external_witness`. But the corresponding newly reported tip SHA-256
+was only syntax-checked. A callback could claim sequence+1 while repeating
+the *previous* tip SHA-256, and all later readbacks could still agree with
+that stale commitment.
+
+The source-only successor rejects unchanged tip digests **immediately after**
+each corresponding callback's normal sequence and SHA validation:
+`journal_append_tip_not_advanced`, `high_water_tip_not_advanced`, and
+`external_witness_tip_not_advanced`. Three synthetic adversaries override
+each fresh digest with the previous digest, preserving a valid sequence+1,
+and assert no later callbacks run. The post-rollback and terminal exact
+checkpoint checks remain unchanged; they now consume checkpoint results that
+also passed this earliest fresh-tip requirement.
+
+This is a minimal necessary consistency condition for an append challenge,
+**not** proof that the resulting SHA came from new bytes, that a durable write
+succeeded, or that an external witness is independent. A future protected
+adapter must independently authenticate append/hash-chain provenance,
+sync/close/reopen durable readback, storage isolation and claim/lease
+atomicity. Source-only fixture success does not authorize a rollback or
+customer/presale payments.
 
 ## Source-only controller semantics
 
