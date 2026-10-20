@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import annotations
 
 # Require isolated, no-bytecode and no-site Python *before* imports that
 # might resolve via checkout/environment-controlled stdlib paths.
@@ -20,13 +19,14 @@ import os
 from pathlib import Path
 import stat
 import subprocess
+import tempfile
 
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_manifest_v2.py"
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="c58c4461728370fc58842e3a614a18fa64af2f2f"
+SOURCE_BLOB="c5578a6954ff3309e7f32c83f8a73b62d0c97ee9"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -101,20 +101,27 @@ tree=ast.parse(source)
 # The only import before the fail-closed accidental-entry guard is
 # built-in sys. Require that this test also precedes *all* other stdlib
 # imports in the exact source generation.
-assert isinstance(tree.body[0],ast.ImportFrom) and tree.body[0].module=="__future__"
-assert isinstance(tree.body[1],ast.Import) and len(tree.body[1].names)==1
-assert tree.body[1].names[0].name=="sys"
+assert isinstance(tree.body[0],ast.Import) and len(tree.body[0].names)==1
+assert tree.body[0].names[0].name=="sys"
+assert isinstance(tree.body[1],ast.If)
 assert isinstance(tree.body[2],ast.If)
-assert isinstance(tree.body[3],ast.If)
-assert isinstance(tree.body[3].test,ast.BoolOp)
-assert isinstance(tree.body[3].test.op,ast.Or)
-assert len(tree.body[3].test.values)==2
-assert isinstance(tree.body[3].test.values[1],ast.UnaryOp)
-assert isinstance(tree.body[3].test.values[1].op,ast.Not)
-assert isinstance(tree.body[3].test.values[1].operand,ast.Name)
-assert tree.body[3].test.values[1].operand.id=="__debug__"
-assert isinstance(tree.body[4],ast.Import)
-assert source.startswith("#!/usr/bin/env python3\nfrom __future__ import annotations\n\n# Python initialization precedes this script: this accidental-entry guard\n# is NOT a trusted privileged first-instruction authorization.\nimport sys\nif not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):\n    raise SystemExit(\"HOLD=isolated_no_site_python_required\")\n# -O/-OO or a code object compiled with optimize=1/2 strips assertions.\n# sys.flags.optimize alone is insufficient: compile(..., optimize=1) leaves\n# that process flag zero but binds __debug__ to False in this code object.\n# Reject both forms before any non-builtin imports or fixture execution.\nif sys.flags.optimize != 0 or not __debug__:\n    raise SystemExit(\"HOLD=optimized_python_forbidden\")\n\nimport argparse\n")
+assert isinstance(tree.body[2].test,ast.BoolOp)
+assert isinstance(tree.body[2].test.op,ast.Or)
+assert len(tree.body[2].test.values)==2
+assert isinstance(tree.body[2].test.values[1],ast.UnaryOp)
+assert isinstance(tree.body[2].test.values[1].op,ast.Not)
+assert isinstance(tree.body[2].test.values[1].operand,ast.Name)
+assert tree.body[2].test.values[1].operand.id=="__debug__"
+assert isinstance(tree.body[3],ast.Import)
+# The pre-guard import must be built-in sys, not a checkout-loadable
+# __future__ module.  The verifier itself has this same early boundary.
+self_tree=ast.parse(Path(__file__).read_text(encoding="utf-8"))
+assert isinstance(self_tree.body[0],ast.Import)
+assert len(self_tree.body[0].names)==1 and self_tree.body[0].names[0].name=="sys"
+assert isinstance(self_tree.body[1],ast.If) and isinstance(self_tree.body[2],ast.If)
+assert all(not isinstance(node,ast.ImportFrom) or node.module!="__future__"
+           for node in (*tree.body[:3],*self_tree.body[:3]))
+assert source.startswith("#!/usr/bin/env python3\n\n# Python initialization precedes this script: this accidental-entry guard\n# is NOT a trusted privileged first-instruction authorization.\nimport sys\nif not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):\n    raise SystemExit(\"HOLD=isolated_no_site_python_required\")\n# -O/-OO or a code object compiled with optimize=1/2 strips assertions.\n# sys.flags.optimize alone is insufficient: compile(..., optimize=1) leaves\n# that process flag zero but binds __debug__ to False in this code object.\n# Reject both forms before any non-builtin imports or fixture execution.\nif sys.flags.optimize != 0 or not __debug__:\n    raise SystemExit(\"HOLD=optimized_python_forbidden\")\n\nimport argparse\n")
 
 assignments={
     node.targets[0].id:node.value
@@ -368,6 +375,35 @@ for scenario,options in (
 
 print("isolated_preimport_negative_fixtures=3")
 print("isolated_before_checkout_stdlib_imports=true")
+
+# Actual poisoned-checkout first-import adversary: without -I, Python puts
+# the script directory on sys.path.  A sibling __future__.py can execute
+# *before* any import/flag guard if a future directive remains.  Test the
+# complete source and verifier entrypoints, not a detached token string.
+with tempfile.TemporaryDirectory(prefix="void-e2-preimport-future-") as td:
+    poisoned_dir=Path(td)
+    (poisoned_dir/"__future__.py").write_text(
+        "print('POISON_PRE_GUARD')\\n",encoding="utf-8",
+    )
+    for label,target,argv in (
+        ("census_source",SOURCE,("--source-plan",)),
+        ("source_verifier",Path(__file__).resolve(),()),
+    ):
+        candidate=poisoned_dir/(label+".py")
+        candidate.write_bytes(target.read_bytes())
+        rejected=subprocess.run(
+            [sys.executable,"-B","-S",str(candidate),*argv],
+            stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            text=True,encoding="utf-8",errors="strict",
+            env=env,timeout=20,check=False,
+        )
+        assert rejected.returncode!=0,(label,rejected.stdout,rejected.stderr)
+        assert rejected.stdout=="",(label,rejected.stdout)
+        assert rejected.stderr=="HOLD=isolated_no_site_python_required\\n",(
+            label,rejected.stderr,
+        )
+print("pre_guard_future_import_poison_negative_fixtures=2")
+print("first_executable_import_builtin_sys_only=true")
 
 # An assertion-optimizing interpreter would otherwise disable evidence
 # checks throughout *both* scripts and print false GREEN/proven receipts.
