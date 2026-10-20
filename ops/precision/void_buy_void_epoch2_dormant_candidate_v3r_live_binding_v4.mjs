@@ -869,6 +869,8 @@ function plan(){
   console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
   console.log("caller_stdin_alone_authority=false");
   console.log("root_required_for_run=true");
+  console.log("root_setpriv_git_native_retained_first_exec_required=true");
+  console.log("trusted_executable_ancestor_and_runtime_acl_custody_required=true");
   console.log("exact_dormant_candidate_v4_current_source_git_object_required=true");
   console.log("source_compatibility_before_after_sensitive_sequence_required=true");
   console.log("fixed_runtime_native_v3_live_composition_required=true");
@@ -893,6 +895,40 @@ function plan(){
   console.log("next_action=SEPARATELY_AUTHORIZE_EPOCH2_V3R_DORMANT_CANDIDATE_LIVE_BINDING_V4");
 }
 function selfTest(){
+  // The static public Git tool is safe to exercise under an unprivileged
+  // Actions runner. No protected credentials or native live runtime execute.
+  const selfGit=openRetainedTrustedExecutable(GIT,"git_self_test");
+  const selfSetpriv=openRetainedTrustedExecutable(SETPRIV,"setpriv_self_test");
+  try{
+    const version=runRetainedTrustedExecutable(selfGit,["--version"],{
+      cwd:"/",env:cleanRootEnv(),timeout:10_000,
+    });
+    if(version.status!==0||
+       !String(version.stdout||"").startsWith("git version ")||
+       version.stderr!==""){
+      throw new Error("retained_git_actual_exec_self_test_failed");
+    }
+    let ancestorHeld=false;
+    try{requireRootOwnedExecutableAncestors("/tmp/void-unsafe-exec","fixture");}
+    catch{ancestorHeld=true;}
+    if(!ancestorHeld)throw new Error("trusted_ancestor_self_test_failed");
+    let reboundHeld=false;
+    try{
+      runRetainedTrustedExecutable(
+        {...selfGit,real:selfSetpriv.real},["--version"],{
+          cwd:"/",env:cleanRootEnv(),timeout:10_000,
+        },
+      );
+    }catch(error){
+      reboundHeld=String(error?.message||"")
+        .includes("trusted_executable_generation_changed");
+    }
+    if(!reboundHeld)throw new Error("retained_path_rebind_self_test_failed");
+  }finally{
+    closeRetainedTrustedExecutable(selfSetpriv);
+    closeRetainedTrustedExecutable(selfGit);
+  }
+
   if(SOURCE_RUNTIME_DEPENDENCY_SPECS.length!==9){
     throw new Error("runtime_compatibility_identity_self_test_failed");
   }
@@ -1058,6 +1094,11 @@ function selfTest(){
   console.log("runner_v4_child_source_checkout_crosscheck=true");
   console.log("runner_v4_child_source_checkout_drift_rejected=true");
   console.log("native_binder_first_entry_required_for_live=true");
+  console.log("binder_root_setpriv_retained_first_exec=true");
+  console.log("binder_native_child_retained_first_exec=true");
+  console.log("binder_root_executable_ancestor_custody_required=true");
+  console.log("binder_runtime_uid_acl_custody_required=true");
+  console.log("binder_retained_exec_path_rebind_rejected=true");
   console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
   console.log("runtime_native_receives_runtime_policy_head_only=true");
   console.log("canonical_checkout_rewind_performed=false");
