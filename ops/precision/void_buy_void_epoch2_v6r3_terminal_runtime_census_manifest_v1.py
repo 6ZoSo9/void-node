@@ -136,6 +136,11 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
     objects:dict[str,dict[str,object]]={}
     directory_generations:dict[Path,os.stat_result]={}
     stack=[real_root]
+    # Count all discovered objects, including directories not yet popped from
+    # the stack.  A budget on objects alone misses queued directory fan-out.
+    discovered_count=1
+    if discovered_count>MAX_TREE_ENTRIES:
+        raise Hold("tree_entry_bound_exceeded")
     while stack:
         current=stack.pop()
         rel=current.relative_to(real_root)
@@ -147,10 +152,19 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
         directory_generations[current]=before_dir
         if len(objects)>MAX_TREE_ENTRIES:
             raise Hold("tree_entry_bound_exceeded")
+        # Never materialize an unbounded scandir iterator.  Reject the
+        # first over-budget entry before sorting, stat-ing, or queuing it.
+        entries=[]
         try:
-            entries=sorted(os.scandir(current),key=lambda e:e.name,reverse=True)
+            with os.scandir(current) as iterator:
+                for entry in iterator:
+                    discovered_count+=1
+                    if discovered_count>MAX_TREE_ENTRIES:
+                        raise Hold("tree_entry_bound_exceeded")
+                    entries.append(entry)
         except OSError as exc:
             raise Hold("directory_scan_failed:"+display) from exc
+        entries.sort(key=lambda e:e.name,reverse=True)
         for entry in entries:
             path=Path(entry.path)
             rel=path.relative_to(real_root)
@@ -279,6 +293,55 @@ def fixture_self_test()->None:
         else: raise AssertionError("special_file_accepted")
         fifo.unlink()
 
+        # Bounded fan-out regression: root + one queued directory consumes the
+        # entire two-entry budget.  The next directory must HOLD *before*
+        # building a larger list or appending more pending directories.
+        fanout=Path(td)/"fanout";fanout.mkdir()
+        for name in ("one","two","three"):
+            (fanout/name).mkdir()
+        original_limit=MAX_TREE_ENTRIES
+        try:
+            globals()["MAX_TREE_ENTRIES"]=2
+            try:
+                collect_tree(fanout,"/fixture-fanout")
+            except Hold as exc:
+                assert str(exc)=="tree_entry_bound_exceeded"
+            else:
+                raise AssertionError("queued_directory_fanout_over_budget_accepted")
+        finally:
+            globals()["MAX_TREE_ENTRIES"]=original_limit
+
+        # A synthetic endless scandir proves the collector takes no more than
+        # remaining-budget + one sentinel from an iterator.  No filesystem
+        # mutation or privileged host path is involved in this fake iterator.
+        observed=[0]
+        class _BudgetSentinel:
+            def __enter__(self):return self
+            def __exit__(self,*_exc):return False
+            def __iter__(self):return self
+            def __next__(self):
+                observed[0]+=1
+                if observed[0]>2:
+                    raise AssertionError("unbounded_scandir_consumption")
+                return object()
+        original_scan=os.scandir
+        def _synthetic_scan(_path):
+            assert Path(_path)==fanout
+            return _BudgetSentinel()
+        try:
+            globals()["MAX_TREE_ENTRIES"]=2
+            os.scandir=_synthetic_scan
+            try:
+                collect_tree(fanout,"/fixture-fanout")
+            except Hold as exc:
+                assert str(exc)=="tree_entry_bound_exceeded"
+            else:
+                raise AssertionError("unbounded_scandir_accepted")
+            assert observed[0]==2,observed
+        finally:
+            os.scandir=original_scan
+            globals()["MAX_TREE_ENTRIES"]=original_limit
+
         (root/"etc"/"ld.so.preload").write_text("hostile",encoding="utf-8")
         try: absence_record(root,"/fixture","/fixture/etc/ld.so.preload")
         except Hold as exc: assert "declared_absence_materialized" in str(exc)
@@ -289,6 +352,9 @@ def fixture_self_test()->None:
     print("complete_directory_regular_symlink_inventory=true")
     print("declared_absence_parent_identity_bound=true")
     print("special_files_rejected=true")
+    print("discovered_entry_budget_includes_queued_directories=true")
+    print("scandir_consumption_bounded_before_sort=true")
+    print("over_budget_synthetic_scandir_rejected=true")
     print("terminal_manifest_drift_rejected=true")
     print("post_exec_dumpability_overclaim_rejected=true")
     print("host_execution_enabled=false")
