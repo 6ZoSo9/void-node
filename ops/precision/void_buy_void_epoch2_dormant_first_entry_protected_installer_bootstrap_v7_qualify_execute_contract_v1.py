@@ -1186,7 +1186,7 @@ def self_test() -> None:
 
     for raw_json in (
         '{"oversized_integer":' + ("9" * 10000) + '}',
-        ("[" * 2000) + "0" + ("]" * 2000),
+        ("[" * 10000) + "0" + ("]" * 10000),
     ):
         try:
             validate_planner_output(_raw_line_fixture("plan_body_json", raw_json))
