@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="81ef2fbf72b94457c6cc7fb058e45b54f9f5089d"
+SOURCE_BLOB="8405ed69861481fd91f29c6f3dcfb0c7ae2e9971"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -126,6 +126,10 @@ for required in (
     "census_symlink_record_strings_budget_bound=true",
     "census_canonical_json_record_payload_budget_bound=true",
     "census_escaped_control_record_amplification_rejected=true",
+    "census_absence_record_canonical_budget_bound=true",
+    "census_absence_json_escape_amplification_rejected=true",
+    'raise Hold("manifest_absence_record_budget_exceeded")',
+    'raise AssertionError("absence_escaped_json_over_budget_accepted")',
     "record_budget:int=MAX_REPORT_BYTES",
     'def add_record(display:str,record:dict[str,object])->None:',
     'encoded_bytes=len(canonical({display:record}))',
@@ -193,6 +197,9 @@ for required in (
     assert required in source,required
 assert "sorted(os.scandir(current)" not in source
 assert "entries=sorted(os.scandir(current)" not in source
+absence_code=source[source.index("def build_manifest("):source.index("def require_terminal_equal(")]
+assert absence_code.index('raise Hold("manifest_absence_record_budget_exceeded")') < absence_code.index("absences[absent_path]=evidence")
+assert "absences={p:absence_record" not in absence_code
 # Output-key amplification is held before any stat/hash/queue.
 tree_code=source[source.index("def collect_tree("):source.index("def absence_record(")]
 assert tree_code.index("root_bytes=require_display_root(display_root)") < tree_code.index("real_root=Path(os.path.abspath(")
@@ -238,6 +245,8 @@ for mode,required_lines in (
         "census_symlink_record_strings_budget_bound=true",
         "census_canonical_json_record_payload_budget_bound=true",
         "census_escaped_control_record_amplification_rejected=true",
+        "census_absence_record_canonical_budget_bound=true",
+        "census_absence_json_escape_amplification_rejected=true",
         "census_direct_absence_display_path_budget_bound=true",
         "census_unbounded_generator_and_oversize_path_rejected=true",
         "noncanonical_manifest_paths_rejected=true",
@@ -312,6 +321,7 @@ print("display_name_budget_pre_materialization_proven=true")
 print("census_individual_display_key_bound_proven=true")
 print("census_symlink_record_string_budget_proven=true")
 print("census_canonical_json_record_payload_budget_proven=true")
+print("census_absence_record_budget_proven=true")
 print("host_execution_enabled=false")
 print("host_census_authorized=false")
 print("protected_install_authorized=false")
