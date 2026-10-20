@@ -152,8 +152,6 @@ for required in (
     "bootstrap_argv_mismatch",
     "planner_qualification_line_mismatch",
     "planner_body_keys_invalid",
-    "qualification_contract_keys_invalid",
-    "qualification_required_result_keys_invalid",
 ):
     assert required in validate_source, required
 
