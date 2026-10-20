@@ -21,7 +21,9 @@ The incoming relay endpoint never races the outgoing endpoint by initiating a
 second upgrade. Pending and active exact-stream upgrades suppress duplicates.
 Accepted local requests and rejected upgrades retry only after a bounded
 backoff. An attempt that could not be sent before relay authentication retries
-on the next one-second sweep. Relay retirement is outside this lane.
+on the next one-second sweep. A route-local adapter exception increments the
+failure counter but does not prevent later independent routes from advancing in
+the same sweep. Relay retirement is outside this lane.
 
 ## Exact field-test configuration
 
