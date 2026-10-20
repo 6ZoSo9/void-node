@@ -135,7 +135,10 @@ def read_regular(path: Path, maximum: int = 2 * 1024 * 1024) -> bytes:
     fd = os.open(path, flags)
     try:
         opened = os.fstat(fd)
-        attrs = ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns")
+        attrs = (
+            "st_dev", "st_ino", "st_mode", "st_uid", "st_gid",
+            "st_nlink", "st_size", "st_mtime_ns", "st_ctime_ns",
+        )
         need(
             all(getattr(before, key) == getattr(opened, key) for key in attrs),
             "source_generation_changed:" + str(path),
@@ -319,6 +322,53 @@ def adversarial_self_test(plan: dict) -> int:
     return rejected
 
 
+def source_metadata_identity_adversaries() -> None:
+    """Synthetic descriptor metadata drift; never mutate protected inputs."""
+    with tempfile.TemporaryDirectory(prefix="void-apollyon-source-identity-") as td:
+        candidate = Path(td) / "source-proof.txt"
+        payload = b"source-only-metadata-identity-fixture\n"
+        candidate.write_bytes(payload)
+        need(read_regular(candidate) == payload, "metadata_fixture_positive_failed")
+        baseline = candidate.lstat()
+        original_fstat = os.fstat
+
+        class _DriftedStat:
+            def __init__(self, observed: object, changed_field: str) -> None:
+                self.observed = observed
+                self.changed_field = changed_field
+
+            def __getattr__(self, name: str) -> object:
+                value = getattr(self.observed, name)
+                if name == self.changed_field:
+                    return value + 1
+                return value
+
+        for field in ("st_uid", "st_gid", "st_nlink"):
+            def changed_fstat(fd: int, selected: str = field) -> object:
+                observed = original_fstat(fd)
+                if (
+                    observed.st_dev == baseline.st_dev
+                    and observed.st_ino == baseline.st_ino
+                ):
+                    return _DriftedStat(observed, selected)
+                return observed
+
+            try:
+                os.fstat = changed_fstat
+                try:
+                    read_regular(candidate)
+                except Hold as exc:
+                    need(
+                        str(exc).startswith("source_generation_changed:"),
+                        "metadata_fixture_wrong_hold:" + field + ":" + str(exc),
+                    )
+                else:
+                    raise Hold("source_metadata_identity_drift_accepted:" + field)
+            finally:
+                os.fstat = original_fstat
+    print("source_uid_gid_nlink_metadata_drift_rejected=true")
+
+
 def observe_unsafe_supervisor_death_fence_reuse() -> None:
     """Prove *hazard*, not protection, on disposable Linux file/processes.
 
@@ -382,6 +432,7 @@ def main() -> None:
     need(sys.argv[1:] in (["--self-test"], ["--run"]), "mode_invalid")
     plan = validate(json.loads(read_regular(PLAN)))
     rejected = adversarial_self_test(plan)
+    source_metadata_identity_adversaries()
     observe_unsafe_supervisor_death_fence_reuse()
 
     if sys.argv[1] == "--run":
