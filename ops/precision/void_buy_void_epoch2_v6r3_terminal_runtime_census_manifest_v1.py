@@ -290,8 +290,10 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
 def absence_record(real_root:Path,display_root:str,display_path:str)->dict[str,object]:
     # An absence is an authority claim too. Check *every* path component
     # before the first pathname-based existence query can follow an alias.
-    if (not display_root.startswith("/") or display_root=="/"
+    if (not isinstance(display_root,str) or chr(0) in display_root
+        or not display_root.startswith("/") or display_root=="/"
         or posixpath.normpath(display_root)!=display_root
+        or not isinstance(display_path,str) or chr(0) in display_path
         or not display_path.startswith(display_root+"/")
         or posixpath.normpath(display_path)!=display_path):
         raise Hold("absence_path_not_canonical_or_outside_root")
@@ -339,15 +341,26 @@ def build_manifest(
     real_root:Path,display_root:str,sys_path:list[str],declared_absent:list[str],
     accessed_paths:list[str],
 )->dict[str,object]:
-    if (not isinstance(display_root,str) or not display_root.startswith("/")
-        or display_root=="/" or posixpath.normpath(display_root)!=display_root):
+    if (not isinstance(display_root,str) or chr(0) in display_root
+        or not display_root.startswith("/") or display_root=="/"
+        or posixpath.normpath(display_root)!=display_root):
         raise Hold("display_root_not_canonical")
-    if not sys_path or any(
-        not isinstance(p,str) or not p.startswith("/") or p.startswith("//")
-        or posixpath.normpath(p)!=p or p.endswith("/")
+    if not isinstance(sys_path,list) or not sys_path or any(
+        not isinstance(p,str) or chr(0) in p or not p.startswith("/")
+        or p.startswith("//") or posixpath.normpath(p)!=p or p.endswith("/")
         for p in sys_path
     ):
         raise Hold("sys_path_invalid_or_noncanonical")
+    if not isinstance(declared_absent,list) or any(
+        not isinstance(p,str) or chr(0) in p for p in declared_absent
+    ):
+        raise Hold("declared_absence_path_invalid")
+    if not isinstance(accessed_paths,list) or any(
+        not isinstance(p,str) or chr(0) in p or not p.startswith("/")
+        or p.startswith("//") or posixpath.normpath(p)!=p or p.endswith("/")
+        for p in accessed_paths
+    ):
+        raise Hold("accessed_path_invalid_or_noncanonical")
     objects=collect_tree(real_root,display_root)
     absences={p:absence_record(real_root,display_root,p) for p in sorted(set(declared_absent))}
     for p in sys_path:
@@ -399,6 +412,32 @@ def fixture_self_test()->None:
         )
         require_terminal_equal(manifest,json.loads(canonical(manifest)))
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
+        # The canonical lexical normpath check alone admits embedded NUL
+        # strings; downstream POSIX/C APIs cannot interpret that identity.
+        nul=chr(0)
+        nul_adversaries=(
+            ("root",lambda:build_manifest(root,"/fixture"+nul,sys_path,absent,[]),
+             "display_root_not_canonical"),
+            ("sys_path",lambda:build_manifest(root,"/fixture",["/fixture/python"+nul],absent,[]),
+             "sys_path_invalid_or_noncanonical"),
+            ("declared_absence",lambda:build_manifest(root,"/fixture",sys_path,
+             ["/fixture/etc/ghost"+nul],[]),"declared_absence_path_invalid"),
+            ("accessed",lambda:build_manifest(root,"/fixture",sys_path,absent,
+             ["/fixture/python/hashlib.py"+nul]),"accessed_path_invalid_or_noncanonical"),
+            ("accessed_noncanonical",lambda:build_manifest(root,"/fixture",sys_path,absent,
+             ["/fixture/python/../etc/ld.so.preload"]),"accessed_path_invalid_or_noncanonical"),
+            ("absence_root",lambda:absence_record(root,"/fixture"+nul,
+             "/fixture"+nul+"/etc/ghost"),"absence_path_not_canonical_or_outside_root"),
+            ("absence_leaf",lambda:absence_record(root,"/fixture",
+             "/fixture/etc/ghost"+nul),"absence_path_not_canonical_or_outside_root"),
+        )
+        for label,case,expected_reason in nul_adversaries:
+            try:
+                case()
+            except Hold as exc:
+                assert str(exc)==expected_reason,(label,str(exc))
+            else:
+                raise AssertionError("non_posix_path_identity_accepted:"+label)
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
 
         # No sys.path entry is execution authority merely because it is
@@ -586,6 +625,8 @@ def fixture_self_test()->None:
     print("absence_parent_symlink_alias_rejected=true")
     print("sys_path_must_be_inventoried_or_explicitly_absent=true")
     print("noncanonical_manifest_paths_rejected=true")
+    print("embedded_nul_and_non_posix_input_paths_rejected=true")
+    print("non_posix_path_negative_fixtures=7")
     print("symlink_missing_component_parent_reentry_rejected=true")
     print("contained_dangling_symlink_remains_absent=true")
     print("discovered_entry_budget_includes_queued_directories=true")
