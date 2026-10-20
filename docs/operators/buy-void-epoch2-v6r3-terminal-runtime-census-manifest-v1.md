@@ -146,8 +146,8 @@ The synthetic self-test constructs both a missing-parent reentry link
 remain explicitly absent). No protected host paths are inspected.
 
 ```text
-source_git_blob=3a21cc20a49147a97dc9266ec8ff52d509cf2ef7
-proof_git_blob=9152c925f73fb2b0c6b9bf442100b46760d1e2ec
+source_git_blob=3b6b0c6eae0c386b7a5a9ce4c47166fffc8ae2eb
+proof_git_blob=165f9674a9bc49eb58cf1f472c3ee57ee20424f8
 HOST_EXECUTION_ENABLED=False
 host_census_authorized=false
 host_plan_authorized=false
