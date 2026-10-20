@@ -207,6 +207,19 @@ binary, execute the production Runner, or authorize a host plan.
 Planner Git blob: `19c6e1cdf9f2361cedfba4ea8d650a63eb5061ff`.
 
 
+## Host planner first-exec gate
+
+This Draft does **not** authorize direct execution of the checkout path with
+`python3 ... --plan`. The planner's source snapshot runs only after Python has
+already begun executing that file, so it cannot by itself authenticate its own
+first instruction.
+
+Before any future host `--plan`, a separately reviewed external launcher must
+authenticate the exact planner Git blob
+`19c6e1cdf9f2361cedfba4ea8d650a63eb5061ff` before executing planner bytes,
+while preserving the non-root UID/GID 1000 boundary. Until that launcher is
+qualified, host-plan execution remains HOLD.
+
 ## Protected leaf effective-ACL custody refinement
 
 Every protected native, Runner, and policy leaf is now checked for effective runtime-UID
