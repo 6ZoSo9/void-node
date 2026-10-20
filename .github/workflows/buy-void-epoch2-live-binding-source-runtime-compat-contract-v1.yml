@@ -1,0 +1,90 @@
+name: Buy VOID Epoch-2 live-binding source/runtime compatibility contract V1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py'
+      - 'ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs'
+      - 'scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py'
+      - 'docs/operators/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.md'
+      - '.github/workflows/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.yml'
+      - 'ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py'
+      - 'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs'
+      - 'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c'
+      - 'ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs'
+      - 'ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c'
+      - 'ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py'
+      - 'ops/precision/void_buy_void_user_manager_credential_query_protected_replace_v3r.py'
+      - 'ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py'
+      - 'ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py'
+      - 'ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json'
+      - 'ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json'
+      - 'ops/security/buy-void-user-manager-query-elf-lock-v6.json'
+      - 'tools/void-buy-allocation-custody-host-evidence-v4.mjs'
+  push:
+    branches: [ main ]
+    paths:
+      - 'ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py'
+      - 'ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs'
+      - 'scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py'
+      - 'docs/operators/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.md'
+      - '.github/workflows/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.yml'
+      - 'ops/precision/void_buy_void_presale_epoch2_installed_generation_host_evidence_v3.py'
+      - 'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v2.mjs'
+      - 'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v2.c'
+      - 'ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v3.mjs'
+      - 'ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c'
+      - 'ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py'
+      - 'ops/precision/void_buy_void_user_manager_credential_query_protected_replace_v3r.py'
+      - 'ops/precision/void_buy_void_user_manager_query_live_qualification_v6.py'
+      - 'ops/precision/void_buy_void_user_manager_query_protected_replace_v6.py'
+      - 'ops/security/buy-void-user-manager-credential-query-elf-lock-v3r.json'
+      - 'ops/security/buy-void-user-manager-credential-query-elf-lock-v2.json'
+      - 'ops/security/buy-void-user-manager-query-elf-lock-v6.json'
+      - 'tools/void-buy-allocation-custody-host-evidence-v4.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact workflow head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Python syntax
+        run: |
+          python3 -m py_compile \
+            ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py \
+            scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py
+      - name: Runner V4 syntax and inert modes
+        run: |
+          node --check ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs
+          node ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs --self-test
+          node ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs --plan
+      - name: Source self-test
+        run: |
+          python3 -I -B \
+            ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py \
+            --self-test
+      - name: Source plan
+        run: |
+          python3 -I -B \
+            ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py \
+            --plan
+      - name: Exact contract and runner proof
+        run: |
+          python3 -I -B \
+            scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py
+      - name: Diff hygiene
+        run: git diff --check
