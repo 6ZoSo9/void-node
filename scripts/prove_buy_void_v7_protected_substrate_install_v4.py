@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="0dc070665b2bb3a786e0e7d2a91a1a25326e2adc"
+assert gblob(INS)=="6e187a9a6e782df13ecd423fc80c82b759a8f6db"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -25,7 +25,12 @@ assert gblob(PRED_QUAL)=="56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
 
 src=INS.read_text("utf-8")
 qsrc=QUAL.read_text("utf-8")
-ast.parse(src)
+parsed_source = ast.parse(src)
+assert isinstance(parsed_source.body[0], ast.Import)
+assert len(parsed_source.body[0].names) == 1
+assert parsed_source.body[0].names[0].name == "sys"
+assert parsed_source.body[0].names[0].asname == "_bootstrap_sys"
+assert not any(isinstance(item, ast.ImportFrom) and item.module == "__future__" for item in parsed_source.body)
 ast.parse(qsrc)
 
 required=(
@@ -235,6 +240,31 @@ with tempfile.TemporaryDirectory(prefix="void-v7-installer-isolation-") as td:
     assert "reason=python_isolated_mode_required" in bad.stdout.splitlines()
     assert not marker.exists()
 
+    # Adversarial control: -S disables site initialization, making the
+    # checkout-local __future__ shadow visible to an unsafe pre-guard import.
+    (t/"__future__.py").write_text(
+        "open("+repr(str(marker))+",'w').write('pre_guard_future_import')\n"
+        "class annotations: pass\n", "utf-8"
+    )
+    legacy=t/"unsafe_future_import.py"
+    legacy.write_text("from __future__ import annotations\n"+src, "utf-8")
+    control=subprocess.run(
+        [sys.executable,"-S","-B",str(legacy),"--self-test"],
+        cwd=t,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+        text=True,check=False,timeout=10
+    )
+    assert control.returncode==2
+    assert marker.exists(), "negative_control_future_shadow_not_executed"
+    marker.unlink()
+    guarded_result=subprocess.run(
+        [sys.executable,"-S","-B",str(guarded),"--self-test"],
+        cwd=t,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+        text=True,check=False,timeout=10
+    )
+    assert guarded_result.returncode==2
+    assert "reason=python_isolated_mode_required" in guarded_result.stdout.splitlines()
+    assert not marker.exists(), "checkout_future_shadow_executed_before_HOLD"
+
 with tempfile.TemporaryDirectory(prefix="void-v7-effective-write-model-") as td:
     model=pathlib.Path(td)/"mode-safe-but-effective-writable"
     model.mkdir(mode=0o755)
@@ -348,6 +378,7 @@ assert "runtime_identity_required=1000:1000" in cp.stdout.splitlines()
 assert "runtime_supplementary_groups_required=empty" in cp.stdout.splitlines()
 
 print(MARKER+"_GREEN")
+print("installer_no_pre_guard_checkout_future_import=true")
 print("precision_observed_source_release_root_mode_0555_bound=true")
 print("immutable_source_release_root_mode_0555_required=true")
 print("protected_source_root_mode_0755_required=true")
