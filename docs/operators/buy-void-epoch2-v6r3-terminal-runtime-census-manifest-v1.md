@@ -122,3 +122,36 @@ a runtime-writable ancestor being swapped concurrently. Any future protected
 host execution requires separate root/ACL custody, retained directory-FD
 observation, and terminal generation binding. Production host mode remains
 hard-disabled and all authority flags remain false.
+
+## Negative-path and sys.path authority (source-only successor)
+
+The earlier `absence_record()` checked `target.exists()` and located a
+nearest parent by ordinary pathnames without validating intermediate symlinks.
+A direct call could therefore claim that a file is absent **outside** the
+inventory root when `root/alias` points to an outside directory containing a
+real child. The existing root-tree inventory happens to reject outside links
+when fully scanned first, but the standalone absence helper was not safe for
+future reuse by a host adapter.
+
+The repaired helper now checks each component with the existing bounded
+`_contained_resolve()` **before** any pathname-based existence query. It
+rejects outside hops, noncanonical negative paths, and even internal symlink
+aliases on a supposedly missing-path chain (so the nearest parent is
+unambiguous). An absence record is still **not** proof of live host custody:
+directory generations and effective ACL must be checked by a separate
+source-authenticated host collector.
+
+`build_manifest()` also now rejects a `sys.path` entry which is not
+represented as either an actually inventoried directory/regular file or an
+**explicit** missing-path record. Symlink entries cannot become import
+authority merely because they are included as a manifest object. `sys.path`
+and the logical display root must use canonical absolute POSIX spellings;
+the collector rejects redundant `..`, `.`, duplicate separators and
+trailing slashes. Existing ordered root entries and explicitly absent roots
+still qualify in the disposable synthetic fixture.
+
+These are conservative source-only coverage checks. They do **not** enumerate
+real Python/Git import roots on Precision, qualify root/ACL ancestry, or
+provide complete descriptor-based host path confinement. `HOST_EXECUTION_ENABLED`
+remains `False`, with no new live observer, installer, signer, transaction,
+payment or presale mode.
