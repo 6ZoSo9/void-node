@@ -291,8 +291,10 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
 def absence_record(real_root:Path,display_root:str,display_path:str)->dict[str,object]:
     # An absence is an authority claim too. Check *every* path component
     # before the first pathname-based existence query can follow an alias.
-    if (not display_root.startswith("/") or display_root=="/"
+    if (not isinstance(display_root,str) or chr(0) in display_root
+        or not display_root.startswith("/") or display_root=="/"
         or posixpath.normpath(display_root)!=display_root
+        or not isinstance(display_path,str) or chr(0) in display_path
         or not display_path.startswith(display_root+"/")
         or posixpath.normpath(display_path)!=display_path):
         raise Hold("absence_path_not_canonical_or_outside_root")
@@ -374,8 +376,9 @@ def build_manifest(
     accessed_paths:list[str],
 )->dict[str,object]:
     require_manifest_input_budget(sys_path,declared_absent,accessed_paths)
-    if (not isinstance(display_root,str) or not display_root.startswith("/")
-        or display_root=="/" or posixpath.normpath(display_root)!=display_root):
+    if (not isinstance(display_root,str) or chr(0) in display_root
+        or not display_root.startswith("/") or display_root=="/"
+        or posixpath.normpath(display_root)!=display_root):
         raise Hold("display_root_not_canonical")
     if not sys_path or any(
         not isinstance(p,str) or not p.startswith("/") or p.startswith("//")
@@ -383,6 +386,12 @@ def build_manifest(
         for p in sys_path
     ):
         raise Hold("sys_path_invalid_or_noncanonical")
+    if any(
+        not p.startswith("/") or p.startswith("//") or posixpath.normpath(p)!=p
+        or p.endswith("/")
+        for p in accessed_paths
+    ):
+        raise Hold("accessed_path_invalid_or_noncanonical")
     objects=collect_tree(real_root,display_root)
     absences={p:absence_record(real_root,display_root,p) for p in sorted(set(declared_absent))}
     for p in sys_path:
@@ -434,6 +443,30 @@ def fixture_self_test()->None:
         )
         require_terminal_equal(manifest,json.loads(canonical(manifest)))
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
+        # Entry arrays already reject NUL through the pre-traversal budget.
+        # The display root and standalone absence helper must do likewise.
+        non_posix_tests=(
+            ("display_root_nul",lambda:build_manifest(
+                root,"/fixture"+chr(0),sys_path,absent,[],
+            ),"display_root_not_canonical"),
+            ("accessed_noncanonical",lambda:build_manifest(
+                root,"/fixture",sys_path,absent,
+                ["/fixture/python/../etc/ld.so.preload"],
+            ),"accessed_path_invalid_or_noncanonical"),
+            ("absence_root_nul",lambda:absence_record(
+                root,"/fixture"+chr(0),"/fixture"+chr(0)+"/etc/ghost",
+            ),"absence_path_not_canonical_or_outside_root"),
+            ("absence_path_nul",lambda:absence_record(
+                root,"/fixture","/fixture/etc/ghost"+chr(0),
+            ),"absence_path_not_canonical_or_outside_root"),
+        )
+        for label,operation,expected_reason in non_posix_tests:
+            try:
+                operation()
+            except Hold as exc:
+                assert str(exc)==expected_reason,(label,str(exc))
+            else:
+                raise AssertionError("non_posix_identity_accepted:"+label)
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
 
         # Input cardinality/bytes are verified before inventory expansion.
@@ -668,6 +701,8 @@ def fixture_self_test()->None:
     print("census_input_cardinality_and_byte_budget_pretraversal=true")
     print("census_unbounded_generator_and_oversize_path_rejected=true")
     print("noncanonical_manifest_paths_rejected=true")
+    print("embedded_nul_and_non_posix_input_paths_rejected=true")
+    print("non_posix_path_negative_fixtures=4")
     print("symlink_missing_component_parent_reentry_rejected=true")
     print("contained_dangling_symlink_remains_absent=true")
     print("discovered_entry_budget_includes_queued_directories=true")
