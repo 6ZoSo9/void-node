@@ -127,7 +127,17 @@ def _display(display_root:str,rel:Path)->str:
         return display_root
     return display_root.rstrip("/")+"/"+rel.as_posix()
 
-def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
+def collect_tree(
+    real_root:Path,display_root:str,*,entry_limit:int=MAX_TREE_ENTRIES,
+)->dict[str,dict[str,object]]:
+    # A scanned or queued directory is as much an inventory object as a
+    # hashed leaf. Bound discovery BEFORE materializing/sorting directory
+    # entries, not merely the final manifest object count.
+    if (
+        not isinstance(entry_limit,int) or isinstance(entry_limit,bool)
+        or not 1<=entry_limit<=MAX_TREE_ENTRIES
+    ):
+        raise Hold("tree_entry_limit_invalid")
     real_root=Path(os.path.abspath(os.fspath(real_root)))
     if real_root.is_symlink():
         raise Hold("inventory_root_symlink")
@@ -145,12 +155,22 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
         before_dir=current.lstat()
         objects[display]=directory_record(current)
         directory_generations[current]=before_dir
-        if len(objects)>MAX_TREE_ENTRIES:
+        if len(objects)+len(stack)>entry_limit:
             raise Hold("tree_entry_bound_exceeded")
+        # Every child scanned will be added either to objects or to stack.
+        # Limit the iterator to remaining capacity + one sentinel; do not
+        # materialize an unbounded scandir iterator or queue unlimited dirs.
+        remaining_budget=entry_limit-len(objects)-len(stack)
+        entries=[]
         try:
-            entries=sorted(os.scandir(current),key=lambda e:e.name,reverse=True)
+            with os.scandir(current) as scan:
+                for entry in scan:
+                    if len(entries)>=remaining_budget:
+                        raise Hold("tree_entry_bound_exceeded")
+                    entries.append(entry)
         except OSError as exc:
             raise Hold("directory_scan_failed:"+display) from exc
+        entries.sort(key=lambda e:e.name,reverse=True)
         for entry in entries:
             path=Path(entry.path)
             rel=path.relative_to(real_root)
@@ -167,7 +187,7 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
                 objects[display]=symlink_record(path,display,real_root,display_root)
             else:
                 raise Hold("special_file_forbidden:"+display)
-            if len(objects)>MAX_TREE_ENTRIES:
+            if len(objects)+len(stack)>entry_limit:
                 raise Hold("tree_entry_bound_exceeded")
     for directory,before in directory_generations.items():
         after=directory.lstat()
@@ -251,6 +271,38 @@ def fixture_self_test()->None:
         require_terminal_equal(manifest,json.loads(canonical(manifest)))
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
+        # An overfull directory is rejected during *discovery*, before
+        # an unbounded scandir materialization or pending stack growth.
+        many_files=Path(td)/"bounded-many-files"
+        many_files.mkdir()
+        for i in range(3):
+            (many_files/("file-"+str(i))).write_bytes(b"x")
+        try:
+            collect_tree(many_files,"/fixture-many-files",entry_limit=2)
+        except Hold as exc:
+            assert str(exc)=="tree_entry_bound_exceeded"
+        else:
+            raise AssertionError("regular_fanout_exceeded_budget")
+        many_dirs=Path(td)/"bounded-all-directories"
+        many_dirs.mkdir()
+        for i in range(3):
+            (many_dirs/("child-"+str(i))).mkdir()
+        try:
+            collect_tree(many_dirs,"/fixture-many-directories",entry_limit=2)
+        except Hold as exc:
+            assert str(exc)=="tree_entry_bound_exceeded"
+        else:
+            raise AssertionError("directory_fanout_exceeded_budget")
+        # The root itself consumes one slot; a single leaf is permitted
+        # with the exact two-entry limit and exceeds an exact one-entry limit.
+        assert len(collect_tree(many_files,"/fixture-limit-four",entry_limit=4))==4
+        try:
+            collect_tree(many_files,"/fixture-limit-one",entry_limit=1)
+        except Hold as exc:
+            assert str(exc)=="tree_entry_bound_exceeded"
+        else:
+            raise AssertionError("root_was_not_counted_against_budget")
+
         outside=Path(td)/"outside";outside.write_text("x",encoding="utf-8")
         outside_link=root/"python"/"outside-link"
         outside_link.symlink_to(outside)
@@ -286,6 +338,9 @@ def fixture_self_test()->None:
 
     print(MARKER+"_SELF_TEST_GREEN")
     print("bounded_no_follow_regular_hashing=true")
+    print("scandir_discovery_and_pending_stack_budget_bounded=true")
+    print("regular_and_directory_fanout_overflow_rejected=true")
+    print("root_object_counted_against_tree_limit=true")
     print("complete_directory_regular_symlink_inventory=true")
     print("declared_absence_parent_identity_bound=true")
     print("special_files_rejected=true")
