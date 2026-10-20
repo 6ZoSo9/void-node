@@ -8,6 +8,118 @@ const vm = require("node:vm");
 const repositoryRoot = path.resolve(__dirname, "..");
 const target = path.join(repositoryRoot, "src/diag/datanet_receipts_persist_v1.cjs");
 const source = fs.readFileSync(target, "utf8");
+
+function makeMountHarness(app) {
+  let tick;
+  let clearCalls = 0;
+  const intervalId = 91;
+  const context = vm.createContext({
+    __void_http_app: app,
+    Buffer,
+    Date,
+    console: { error() {} },
+    process: { env: {} },
+    require(name) {
+      if (name === "fs") return fs;
+      if (name === "path") return path;
+      throw new Error(`unexpected require: ${name}`);
+    },
+    setInterval(callback, delay) {
+      assert.equal(delay, 250);
+      assert.equal(tick, undefined, "one mount retry interval expected");
+      tick = callback;
+      return intervalId;
+    },
+    clearInterval(id) {
+      assert.equal(id, intervalId);
+      clearCalls += 1;
+    },
+    setTimeout() {
+      throw new Error("mount-only proof must not scan");
+    },
+    clearTimeout() {},
+  });
+  new vm.Script(source, { filename: target }).runInContext(context);
+  assert.equal(typeof tick, "function");
+  return {
+    tick,
+    clearCalls() { return clearCalls; },
+  };
+}
+
+(function proveRegistrationRetryState() {
+  let attempts = 0;
+  const app = {
+    _router: { stack: [] },
+    get(routePath, handler) {
+      attempts += 1;
+      if (attempts === 1) throw new Error("synthetic_before_retain");
+      this._router.stack.push({
+        route: {
+          path: routePath,
+          methods: { get: true },
+          stack: [{ handle: handler }],
+        },
+      });
+    },
+  };
+  const harness = makeMountHarness(app);
+
+  assert.doesNotThrow(harness.tick, "registration exceptions must not escape the retry timer");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "idle");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mounted, undefined);
+  assert.equal(harness.clearCalls(), 0, "known unretained failure remains retryable");
+
+  assert.doesNotThrow(harness.tick);
+  assert.equal(attempts, 2);
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "bound");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mounted, true);
+  assert.equal(app._router.stack.length, 1, "successful retry retains exactly one route");
+  assert.equal(harness.clearCalls(), 1);
+})();
+
+(function proveRetainedThrowIsNotDuplicated() {
+  let attempts = 0;
+  const app = {
+    _router: { stack: [] },
+    get(routePath, handler) {
+      attempts += 1;
+      this._router.stack.push({
+        route: {
+          path: routePath,
+          methods: { get: true },
+          stack: [{ handle: handler }],
+        },
+      });
+      throw new Error("synthetic_after_retain");
+    },
+  };
+  const harness = makeMountHarness(app);
+
+  assert.doesNotThrow(harness.tick);
+  assert.equal(attempts, 1);
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "bound");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mounted, true);
+  assert.equal(app._router.stack.length, 1);
+  assert.equal(harness.clearCalls(), 1, "retained registration stops retries");
+})();
+
+(function proveUnknownRetentionFailsClosed() {
+  let attempts = 0;
+  const app = {
+    get() {
+      attempts += 1;
+      throw new Error("synthetic_unknown_retention");
+    },
+  };
+  const harness = makeMountHarness(app);
+
+  assert.doesNotThrow(harness.tick);
+  assert.equal(attempts, 1);
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "indeterminate");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mounted, undefined);
+  assert.equal(harness.clearCalls(), 1, "unknown retention must not duplicate the route");
+})();
 const MAX_SCAN_WINDOW_BYTES = 256 * 1024;
 const receiptBytes = Buffer.from(
   [
@@ -364,6 +476,9 @@ function metric(body, name) {
   assert.match(source, /rejectAndDestroy\("line_too_large"\)/u);
 
   console.log("VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN");
+  console.log("registration_throw_retry=true");
+  console.log("retained_throw_single_mount=true");
+  console.log("unknown_retention_fail_closed=true");
   console.log("failed_read_rollback=true");
   console.log("short_read_rollback=true");
   console.log("premature_close_rollback=true");
