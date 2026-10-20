@@ -15,11 +15,11 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="8f1c7bbbaefa150e1c3ee4a59527d3046142b994"
+SOURCE_BLOB="fb31838cc28303a3da9bd6e238edad704bffe3e2"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
-FRESHNESS_BLOB="66c1e4da7800de930804b195db6b56d8fe29b8f4"
+FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
-FRESHNESS_ID="voidbuye2v6r3pyclosurefreshness2_53653912534048b7be8b02aed429a28383edb9b419632e7e1d8fd32a19050414"
+FRESHNESS_ID="voidbuye2v6r3pyclosurefreshness2_5840ca9aaecbbef2b50783fe05d364161e66b19a79c793b71dd80d18d243c54b"
 LOCK=ROOT/"ops/security/buy-void-epoch2-v6r3-plan-first-entry-binary-candidate-lock-v2.json"
 LOCK_BLOB="14a3ff2eca0583d1355dc8b75bd54cc55115d946"
 LOCK_ID="voidbuye2v6r3planfirstentrybinlock2_b5e1bbca28ed7aad579ac7f37a7575ed90eadd44f73d24edac79df3cc74664c1"
@@ -71,6 +71,13 @@ assert fresh["parent"]["closure_contract_id"]==CONTRACT_ID
 assert fresh["parent"]["closure_contract_git_blob_sha1"]==CONTRACT_BLOB
 assert fresh["parent"]["native_first_entry_lock_id"]==LOCK_ID
 assert fresh["parent"]["native_first_entry_lock_git_blob_sha1"]==LOCK_BLOB
+for key in (
+    "parent_python_git_runtime_closure_bound",
+    "git_executable_loader_dso_and_helpers_current_required",
+    "git_config_and_repository_metadata_absence_current_required",
+    "git_runtime_file_accesses_subset_of_accepted_closure",
+):
+    assert fresh["mandatory_live_gate"][key] is True,key
 assert contract["authority"]["python_runtime_closure_accepted"] is False
 assert contract["authority"]["host_census_authorized"] is False
 assert contract["runtime_process"]["post_exec_dumpability_accepted"] is False
@@ -98,6 +105,7 @@ for required in (
     'FIRST_ENTRY_LOCK_ID="'+LOCK_ID+'"',
     'FIRST_ENTRY_LOCK_BLOB="'+LOCK_BLOB+'"',
     'SOURCE_V1_BLOB="'+SOURCE_V1_BLOB+'"',
+    "GIT_AWARE_FRESHNESS_REQUIRED=True",
     '"git_subprocess_runtime_closure_accepted":False',
     '"installed_first_entry_binary_identity_proven":False',
     "git_subprocess_runtime_closure_overclaim_rejected=true",
@@ -216,6 +224,7 @@ for mode,required_lines in (
         "freshness_gate_id="+FRESHNESS_ID,
         "contract_blob="+CONTRACT_BLOB,
         "freshness_gate_blob="+FRESHNESS_BLOB,
+        "git_aware_freshness_required=true",
         "first_entry_lock_id="+LOCK_ID,
         "first_entry_lock_blob="+LOCK_BLOB,
         "source_v1_blob="+SOURCE_V1_BLOB,
@@ -248,6 +257,7 @@ print(MARKER+"_PROOF_GREEN")
 print("source_blob="+SOURCE_BLOB)
 print("corrected_contract_bound=true")
 print("freshness_gate_bound=true")
+print("git_aware_v2_freshness_bound=true")
 print("v2_binary_identity_lock_bound=true")
 print("v1_substrate_source_lineage_bound=true")
 print("non_posix_and_nul_path_guard_proven=true")
