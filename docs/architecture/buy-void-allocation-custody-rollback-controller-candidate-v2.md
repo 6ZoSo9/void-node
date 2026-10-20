@@ -10,8 +10,8 @@ This candidate is stacked on the [V2 challenge plan #3556](https://github.com/6Z
 - V2 plan ID: `voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844`.
 - V2 plan Git blob: `1cdecf34117e4e890f67e62b412419d32870dfa0`.
 - Historical V1 controller source blob: `96d4ac3499d222841f1f7a3c53e14900b68ae8cf`; original V1 proof blob: `b196fcaa77a6bdc465baacb3387aa949f47bc956`.
-- New V2 controller source blob: `75551ac25f79513cd3c99db7327c7fdbfa35cf02`.
-- New V2 behavior proof blob: `5c3865010eefd8e24c898f0186c505e364aef151`.
+- New V2 controller source blob: `845dd5d0afbdc3ed35a852d0286886d1aa8b6c01`.
+- New V2 behavior proof blob: `ba21b81231f9b2bcac3250a95d729f4eaab63e7b`.
 - Accepted economic tree remains `71c67e62a2b21a98f3f5135ee6aa56e0ef97d262`.
 
 ## V2 authorization and replay boundary
@@ -70,6 +70,35 @@ and exclusive lease acquisition **atomically against a durable claim/lease
 store**. A standalone read-only preflight is insufficient against concurrent
 replays. This source-only V2 change does *not* establish durable lease
 exclusivity or customer/presale/payment authority.
+
+## Exact terminal checkpoint coherence
+
+The controller already rejects post-rollback high-water or witness decreases.
+However, its earlier `>=` sequence checks accepted a purported *newer*
+sequence with the old, unchanged tip hash, even when that new generation had
+no authenticated append/lineage evidence.
+
+This conservative successor requires the **exact** high-water sequence and
+SHA-256 that `advance_high_water` returned, and the **exact** witness
+sequence and SHA-256 that `append_external_witness` returned, when checking
+both `observe_after_rollback` and `reobserve_storage_and_policy`. A
+lower sequence still fails on the existing monotonicity HOLD. A higher
+sequence, even with the previously accepted digest, instead fails on a
+dedicated `*_unproven_advance` HOLD. This is deliberately stricter than
+simple non-decrease and thus preserves the V2 plan's non-decrease
+requirement for the exclusive-lease, noncustomer challenge.
+
+The disposable behavioral proof rejects four adversaries: high-water and
+external-witness sequence +1 with stale tip hashes at each of the
+post-rollback and terminal phases. Normal exact-observation fixtures still
+pass. If future operational policy admits independently advanced high-water
+or witness records during a challenge, that will require a distinct
+source-authenticated, append-linked, lease-aware generation proof rather
+than treating a newer sequence and old hash as coherent.
+
+This is **not** authentication of injected callbacks, proof of physical
+storage isolation, a real replay-resistant journal, or permission to attempt
+a protected rollback. The controller remains a source-only artifact.
 
 ## Source-only controller semantics
 
