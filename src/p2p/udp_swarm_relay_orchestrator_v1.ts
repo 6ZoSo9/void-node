@@ -394,7 +394,8 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
 
     const routeState = this.routeState;
     for (const route of routeState.routes) {
-      const runtime = routeState.runtime_by_route.get(routeKey(route));
+      try {
+        const runtime = routeState.runtime_by_route.get(routeKey(route));
       if (!runtime) {
         throw new Error("UDP swarm relay orchestration route state disappeared");
       }
@@ -473,6 +474,11 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
       );
       if (result.ok) this.upgradeRequests += 1;
       else this.upgradeRejects += 1;
+      } catch (error) {
+        // One failed route must not starve independent routes in this sweep.
+        void error;
+        this.sweepFailures += 1;
+      }
     }
   }
 
