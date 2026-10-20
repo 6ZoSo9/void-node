@@ -284,7 +284,7 @@ sum to pass and one byte less to HOLD, including a contained control-character
 symlink target. Invalid record budgets fail closed.
 
 ```text
-census_source_git_blob=8d7a61675c28a2dc7f00c21571fae870bee961ff
+census_source_git_blob=4bbb5d2296649893eba1ddeef71de2655b70709a
 parent_pr=3607
 MAX_TOTAL_HASH_BYTES=8589934592
 MAX_REPORT_BYTES=16777216
@@ -301,5 +301,39 @@ divergent manifests interchangeably. This is a synthetic source-only
 resource limit, not a bound on all Python object overhead or proof of a
 real protected-host census, Python/Git/loader closure, post-exec isolation,
 installed first entry, independent review, or customer-payment authority.
+
+PROTECT THE CORE.
+
+
+## Canonical declared-absence records — combined V2 source
+
+A declared **missing** pathname also has a canonical JSON key, parent
+metadata and potentially control characters requiring JSON escaping. These
+bytes must be charged against the *same* 16 MiB record budget as regular,
+directory and symlink objects, not merely the output-name budget.
+
+This source generation now passes `record_budget` into the source inventory,
+recalculates the accepted object's exact conservative canonical byte count,
+then charges `{declared_absent_path: absence_evidence}` for each declared
+absence **before inserting it into the absence map**. A one-byte-short
+budget HOLDS with `manifest_absence_record_budget_exceeded`, and a
+disposable control-character missing-path fixture proves escaped JSON names
+are counted. The shared 8 GiB ordinary/symlink file-read budget still
+applies, including pre-open exhaustion rejection.
+
+```text
+combined_source_blob=4bbb5d2296649893eba1ddeef71de2655b70709a
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+protected_install_authorized=false
+payment_acceptance=false
+funds_movement=false
+```
+
+The historical sibling #3608 is not automatically accepted or transitive
+CI evidence; this exact combined source/proof generation requires new
+focused/full Actions and a genuinely independent reviewer. No installed
+host observer, privileged tree scan, post-`fexecve` isolation, wallet,
+signer, customer payments or live presale authority follows.
 
 PROTECT THE CORE.
