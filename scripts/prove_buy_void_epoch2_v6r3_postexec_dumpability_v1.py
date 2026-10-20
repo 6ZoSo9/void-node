@@ -8,6 +8,7 @@ the dumpability of the next ordinary executable generation.
 from __future__ import annotations
 
 import ctypes
+import fcntl
 import hashlib
 import os
 from pathlib import Path
@@ -43,31 +44,69 @@ def libc():
 
 
 def preexec_fixture()->None:
-    if os.execve not in os.supports_fd:
-        raise RuntimeError("fexecve_by_fd_unavailable")
+    if (os.execve not in os.supports_fd or
+            not hasattr(os,"MFD_ALLOW_SEALING")):
+        raise RuntimeError("sealed_fexecve_primitives_unavailable")
     python=Path(os.path.realpath(sys.executable))
     st=python.lstat()
     if (not python.is_absolute() or not stat.S_ISREG(st.st_mode)
-            or st.st_mode & (stat.S_ISUID|stat.S_ISGID)):
+            or st.st_mode & (stat.S_ISUID|stat.S_ISGID)
+            or not 0<st.st_size<=128*1024*1024):
         raise RuntimeError("ordinary_python_elf_fixture_required")
-    flags=os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC
-    fd=os.open(python,flags)
+    source_fd=os.open(python,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
+    snapshot_fd=-1
     try:
-        opened=os.fstat(fd)
+        opened=os.fstat(source_fd)
         if (opened.st_dev!=st.st_dev or opened.st_ino!=st.st_ino
                 or opened.st_size!=st.st_size):
             raise RuntimeError("fixture_python_fd_mismatch")
+        snapshot_fd=os.memfd_create(
+            "void-e2-fexecve-dumpability-fixture",
+            os.MFD_CLOEXEC|os.MFD_ALLOW_SEALING,
+        )
+        remaining=opened.st_size
+        while remaining:
+            chunk=os.read(source_fd,min(65536,remaining))
+            if not chunk:
+                raise RuntimeError("fixture_source_short_read")
+            off=0
+            while off<len(chunk):
+                wrote=os.write(snapshot_fd,chunk[off:])
+                if wrote<=0:
+                    raise RuntimeError("fixture_sealed_source_write_failed")
+                off+=wrote
+            remaining-=len(chunk)
+        if os.read(source_fd,1):
+            raise RuntimeError("fixture_source_grew")
+        if os.fstat(snapshot_fd).st_size!=st.st_size:
+            raise RuntimeError("fixture_sealed_source_size_mismatch")
+        observed=os.fstat(source_fd)
+        if ((opened.st_dev,opened.st_ino,opened.st_size,opened.st_mtime_ns,
+             opened.st_ctime_ns)!=(observed.st_dev,observed.st_ino,
+             observed.st_size,observed.st_mtime_ns,observed.st_ctime_ns)):
+            raise RuntimeError("fixture_source_generation_changed")
+        os.fchmod(snapshot_fd,0o555)
+        seals=(fcntl.F_SEAL_WRITE|fcntl.F_SEAL_GROW|
+               fcntl.F_SEAL_SHRINK|fcntl.F_SEAL_SEAL)
+        fcntl.fcntl(snapshot_fd,fcntl.F_ADD_SEALS,seals)
+        if fcntl.fcntl(snapshot_fd,fcntl.F_GET_SEALS)&seals!=seals:
+            raise RuntimeError("fixture_memfd_seal_failure")
+        os.close(source_fd)
+        source_fd=-1
         lib=libc()
         if lib.prctl(PR_SET_DUMPABLE,0,0,0,0)!=0:
             raise RuntimeError("fixture_dumpability_set_failed")
         if lib.prctl(PR_GET_DUMPABLE,0,0,0,0)!=0:
             raise RuntimeError("fixture_preexec_dumpability_not_zero")
         print("pre_fexecve_dumpable=0",flush=True)
-        # Linux os.execve(fd,...) uses fexecve: run precisely the retained-FD
-        # executable transition and remove all editable env influences.
-        os.execve(fd,[str(python),"-I","-B","-S","-c",CHILD],CLEAN_ENV)
+        # The native first entry uses this same sealed-memfd fexecve
+        # boundary; neither fixture path nor checkout is execution authority.
+        os.execve(snapshot_fd,[str(python),"-I","-B","-S","-c",CHILD],CLEAN_ENV)
     finally:
-        os.close(fd)
+        if source_fd>=0:
+            os.close(source_fd)
+        if snapshot_fd>=0:
+            os.close(snapshot_fd)
 
 
 def source_gate()->None:
@@ -100,6 +139,7 @@ def self_test()->None:
     print(MARKER+"_PROOF_GREEN")
     print("pre_fexecve_dumpable=0")
     print("post_fexecve_dumpable=1")
+    print("sealed_memfd_python_fexecve_fixture=true")
     print("native_preexec_zero_does_not_prove_child_zero=true")
     print("production_host_plan_executed=false")
     print("installed_binary_executed=false")
