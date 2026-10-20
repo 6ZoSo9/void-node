@@ -16,7 +16,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs";
-const SOURCE_BLOB="bccb22f13324e66d4aef93a2d71a1a520e3ede2d";
+const SOURCE_BLOB="abf09c1ce5540b03e39d18184858b40dac6443f1";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json";
 const PLAN_BLOB="1cdecf34117e4e890f67e62b412419d32870dfa0";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -356,6 +356,15 @@ mustFailAtPhase("high-water sequence advance unchanged tip",(c,s,b)=>{
     ...original(args),high_water_sha256:b.high_water_sha256,
   });
 },/high_water_tip_not_advanced/,"high");
+mustFailAtPhase("high-water unjustified skip with fresh tip",(c)=>{
+  const original=c.advance_high_water;
+  c.advance_high_water=(args)=>({
+    ...original(args),
+    high_water_sequence:9,
+    // The fixture's original "high-after" digest is already fresh.
+    // A fresh digest alone cannot justify an unobserved skipped sequence.
+  });
+},/high_water_unproven_sequence_skip/,"high");
 mustFailAtPhase("external witness sequence advance unchanged tip",(c,s,b)=>{
   const original=c.append_external_witness;
   c.append_external_witness=(args)=>({
@@ -750,6 +759,8 @@ console.log("second_control_precedes_rollback=true");
 console.log("protected_high_water_non_decrease_required=true");
 console.log("journal_append_fresh_tip_required=true");
 console.log("high_water_advance_fresh_tip_required=true");
+console.log("high_water_minimal_required_sequence_enforced=true");
+console.log("high_water_skip_rejected_before_downstream_callbacks=true");
 console.log("external_witness_append_fresh_tip_required=true");
 console.log("unchanged_tip_rejected_before_downstream_callbacks=true");
 console.log("post_rollback_high_water_exact_checkpoint_required=true");
