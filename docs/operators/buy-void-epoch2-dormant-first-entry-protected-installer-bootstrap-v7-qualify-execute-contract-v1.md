@@ -341,3 +341,23 @@ consumer boundary: `/` alone is invalid, every path component must be nonempty,
 must not be `.` or `..`, and each UTF-8 component must be at most 255 bytes.
 The existing total UTF-8 path bound remains below 4096 bytes. Rehashed root-only
 and 256-byte-component fixtures must HOLD before a root-plan contract is emitted.
+
+
+## October 20 duplicated qualification JSON type-exact repair
+
+The current review found that the duplicated `qualification_contract_json` line
+was parsed and compared to the canonical planner-body contract with ordinary
+Python dictionary equality. That could treat `false` as equal to integer
+`0`, `true` as equal to integer `1`, or integer metadata `0` as equal to
+`false`, even though the bound planner cannot emit those typed substitutions.
+
+The contract now canonicalizes both parsed duplicated structured values and their
+validated planner-body counterparts before comparison. Canonical JSON preserves
+the distinction between booleans, integers, and floating-point values. The
+self-test independently changes only the duplicated qualification JSON line,
+without changing the canonical plan body or plan ID, and requires HOLD for both
+`root_execution_required=false -> 0` and interpreter `uid=0 -> false`.
+
+This strengthens transcript binding only. It adds no qualification execution,
+root-plan execution, service mutation, credential/signing, transaction/payment,
+activation, treasury/liquidity action, or funds movement authority.

@@ -709,11 +709,15 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
     try:
         emitted_argv = json.loads(values["bootstrap_argv_json"])
         emitted_contract = json.loads(values["qualification_contract_json"])
-    except (ValueError, RecursionError) as exc:
+        emitted_argv_canonical = canonical(emitted_argv)
+        expected_argv_canonical = canonical(argv)
+        emitted_contract_canonical = canonical(emitted_contract)
+        expected_contract_canonical = canonical(raw_contract)
+    except (ValueError, TypeError, RecursionError) as exc:
         raise ContractError("planner_structured_output_invalid") from exc
-    if emitted_argv != argv:
+    if emitted_argv_canonical != expected_argv_canonical:
         raise ContractError("planner_argv_line_mismatch")
-    if emitted_contract != raw_contract:
+    if emitted_contract_canonical != expected_contract_canonical:
         raise ContractError("planner_qualification_line_mismatch")
     if values["accepted_launcher_lock_id"] != LAUNCHER_LOCK_ID:
         raise ContractError("planner_launcher_lock_line_mismatch")
@@ -814,6 +818,7 @@ def source_plan() -> None:
     print("planner_body_closed_schema_required=true")
     print("qualification_contract_closed_schema_required=true")
     print("qualification_required_result_closed_schema_required=true")
+    print("duplicated_qualification_json_type_exact_required=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")
     print("root_boundary_implementation=separately_reviewed_operator_boundary_required")
     print("qualification_execution_performed=false")
@@ -1056,6 +1061,32 @@ def _raw_line_fixture(key: str, value: str) -> bytes:
     return ("\n".join(lines) + "\n").encode("ascii")
 
 
+def _duplicate_contract_line_fixture(mutator) -> bytes:
+    lines = _fixture_output().decode("ascii").splitlines()
+    prefix = "qualification_contract_json="
+    for index in range(1, len(lines)):
+        if lines[index].startswith(prefix):
+            contract = json.loads(lines[index][len(prefix):])
+            mutator(contract)
+            lines[index] = prefix + json.dumps(
+                contract,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            return ("\n".join(lines) + "\n").encode("ascii")
+    raise AssertionError("qualification_contract_line_missing")
+
+
+def _expect_duplicate_contract_line_rejected(mutator) -> None:
+    try:
+        validate_planner_output(_duplicate_contract_line_fixture(mutator))
+    except ContractError as exc:
+        if str(exc) != "planner_qualification_line_mismatch":
+            raise
+        return
+    raise AssertionError("typed_duplicate_qualification_line_accepted")
+
+
 def _tampered_fixture(mutator) -> bytes:
     lines = _fixture_output().decode("ascii").splitlines()
     values: dict[str, str] = {}
@@ -1242,6 +1273,12 @@ def self_test() -> None:
             body["bootstrap_argv"].__setitem__(3, "/"),
         )
     )
+    _expect_duplicate_contract_line_rejected(
+        lambda contract: contract.__setitem__("root_execution_required", 0)
+    )
+    _expect_duplicate_contract_line_rejected(
+        lambda contract: contract["interpreter"].__setitem__("uid", False)
+    )
     _expect_tamper_rejected(
         lambda body: (
             body["accepted_launcher"].__setitem__(
@@ -1373,6 +1410,7 @@ def self_test() -> None:
     print("qualification_state_body_fields_bound=true")
     print("qualification_required_result_boolean_types_bound=true")
     print("qualification_contract_boolean_types_bound=true")
+    print("duplicated_qualification_json_type_exact=true")
     print("planner_integer_fields_typed=true")
     print("executable_artifact_paths_nul_rejected=true")
     print("planner_body_canonicalization_failures_hold=true")

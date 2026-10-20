@@ -66,11 +66,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            cab90c5125c948dd3255522a7b69e5c71b194241
+            839ca9ff6b40859933375df533e5a16407376945
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            0b10d01315713177fc06648ef8aada548a93fd70
+            1107592afb2378f84891773dfd8975264c3b28bc
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-v7-qualify-execute-contract-v1.md)" = \
-            f91e7a27b1c646f1c2dd0558d9851273c66262ea
+            9ab1c45d26a73460e5519955130756aab9bff4cb
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
             597dd61923d349980cd30bcf190fee354ff1c1f2
@@ -119,6 +119,7 @@ jobs:
             'qualification_state_body_fields_bound=true'
             'qualification_required_result_boolean_types_bound=true'
             'qualification_contract_boolean_types_bound=true'
+            'duplicated_qualification_json_type_exact=true'
             'planner_integer_fields_typed=true'
             'executable_artifact_paths_nul_rejected=true'
             'planner_body_canonicalization_failures_hold=true'
@@ -169,6 +170,7 @@ jobs:
             'planner_body_closed_schema_required=true'
             'qualification_contract_closed_schema_required=true'
             'qualification_required_result_closed_schema_required=true'
+            'duplicated_qualification_json_type_exact_required=true'
             'unconsumed_tool_metadata_not_execution_authority=true'
             'root_boundary_implementation=separately_reviewed_operator_boundary_required'
             'qualification_execution_performed=false'

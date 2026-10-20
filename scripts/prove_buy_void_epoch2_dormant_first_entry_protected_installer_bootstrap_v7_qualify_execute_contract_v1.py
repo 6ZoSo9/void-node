@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "cab90c5125c948dd3255522a7b69e5c71b194241"
+TARGET_BLOB = "839ca9ff6b40859933375df533e5a16407376945"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -158,6 +158,8 @@ for required in (
     "launcher_historical_authority_overclaim",
     "bootstrap_argv_mismatch",
     "planner_qualification_line_mismatch",
+    "emitted_contract_canonical = canonical(emitted_contract)",
+    "expected_contract_canonical = canonical(raw_contract)",
     '_require_exact_keys(body, PLANNER_BODY_KEYS, "planner_body")',
     "planner_body_installed_qualification_performed_invalid",
     "planner_body_qualification_requirement_invalid",
@@ -240,6 +242,7 @@ for expected in (
     "qualification_state_body_fields_bound=true",
     "qualification_required_result_boolean_types_bound=true",
     "qualification_contract_boolean_types_bound=true",
+    "duplicated_qualification_json_type_exact=true",
     "planner_integer_fields_typed=true",
     "executable_artifact_paths_nul_rejected=true",
     "planner_body_canonicalization_failures_hold=true",
@@ -294,6 +297,7 @@ for expected in (
     "planner_body_closed_schema_required=true",
     "qualification_contract_closed_schema_required=true",
     "qualification_required_result_closed_schema_required=true",
+    "duplicated_qualification_json_type_exact_required=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
     "root_boundary_implementation=separately_reviewed_operator_boundary_required",
     "qualification_execution_performed=false",
@@ -322,6 +326,7 @@ print("rehashed_nested_tamper_rejected=true")
 print("qualification_state_body_fields_bound=true")
 print("qualification_required_result_boolean_types_bound=true")
 print("qualification_contract_boolean_types_bound=true")
+print("duplicated_qualification_json_type_exact=true")
 print("planner_integer_fields_typed=true")
 print("executable_artifact_paths_nul_rejected=true")
 print("planner_body_canonicalization_failures_hold=true")
