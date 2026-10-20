@@ -35,9 +35,11 @@ runs an isolated test with no secrets or protected host files:
 
 1. In an ordinary Python subprocess, `prctl(PR_SET_DUMPABLE,0)` verifies
    `PR_GET_DUMPABLE=0`.
-2. Opens an ordinary Python executable file descriptor and invokes
-   `os.execve(fd,...)` (Python's Linux `fexecve` support) with clean
-   `-I -B -S` arguments/environment.
+2. Copies the ordinary Python ELF into an anonymous Linux memory file,
+   seals it against writes, growth, shrinkage and seal changes, then invokes
+   `os.execve(sealed_fd,...)` (Python's Linux `fexecve` support) with clean
+   `-I -B -S` arguments/environment. This reproduces the native launcher's
+   **sealed-memory executable** transition rather than merely pathname exec.
 3. After the new Python executable has started, its
    `PR_GET_DUMPABLE` returns `1`.
 
@@ -46,6 +48,7 @@ Expected markers:
 ```text
 pre_fexecve_dumpable=0
 post_fexecve_dumpable=1
+sealed_memfd_python_fexecve_fixture=true
 native_preexec_zero_does_not_prove_child_zero=true
 runtime_dumpability_accepted=false
 host_plan_authorized=false
