@@ -82,9 +82,9 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c)" = \
             "53903d0cde07de302848fb67d9c23928cec96f20"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py)" = \
-            "ddb8c20714be8d6feee7eaf0f148fb1fd744491b"
+            "764a6ec4357cf3b69f14cb377e78acd1c5b93b52"
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.md)" = \
-            "b2e5d42741a15aaf6f7885487a54a861567197b9"
+            "7a8feada742835e0e8db86b1125b6cc35d1f0af4"
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -123,6 +123,7 @@ jobs:
           grep -Fx 'optimized_code_object_negative_fixtures=2' "$RUNNER_TEMP/proof.log"
           grep -Fx 'per_code_object_debug_required=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'isolated_no_site_python_proof_entry_required=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'pre_guard_future_import_poison_rejected=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_native_retained_root_fd_static_elf_guard_proven=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'host_execution=false' "$RUNNER_TEMP/proof.log"
           grep -Fx 'credential_access=false' "$RUNNER_TEMP/proof.log"
