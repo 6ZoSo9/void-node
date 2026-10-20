@@ -68,10 +68,13 @@ The verifier:
 3. proves current source differs from #3539 base only by the four compatibility files;
 4. proves the five runtime-sensitive dependencies are unchanged at all three generations;
 5. requires index/tree equality;
-6. hashes every tracked visible worktree file directly with no-follow retained descriptors and checks Git blob identity/mode/size;
-7. revalidates source generation terminally.
+6. requires isolated, unoptimized Python before the verifier can produce plan or verification authority;
+7. opens the checkout root and every traversed tracked-file ancestor as retained no-follow directory descriptors, then reads leaves descriptor-relative so pathname ancestor replacement cannot redirect the authenticated read;
+8. hashes every tracked visible worktree file directly with retained no-follow leaf descriptors and checks Git blob identity/mode/size;
+9. revalidates the raw index, every tracked leaf generation, and every retained ancestor-directory generation before and after terminal Git observations;
+10. normalizes ordinary filesystem drift plus Git timeout/exec failures into machine-readable HOLD rather than traceback.
 
-Untracked paths never receive source authority.
+Untracked paths never receive source authority. A renamed/replaced tracked ancestor directory also invalidates the generation even if a replacement tree contains byte-identical leaves.
 
 ## Authority
 
