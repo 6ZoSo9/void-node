@@ -70,7 +70,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c)" = \
             "cdd647e8ef49f234eea1e5fbd933148a31014eef"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py)" = \
-            "6ad27e00ee398e1e150c07b1e706a42579628775"
+            "a2121012ccec2933116900ca8760543ed2c51bcd"
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.md)" = \
             "96dbdaaf2ce6a8d0f2515d04a888510c05535f1d"
 
