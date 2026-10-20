@@ -188,7 +188,10 @@ authorized `--plan` run:
   hashing; no-follow/nonblocking regular-file FD checks and terminal
   generation revalidation guard against a regular-file-to-FIFO open race.
 - Protected child opens are nonblocking and require the retained generation
-  to be a regular file before reading.
+  to be a regular file before reading. Every native, Runner and policy leaf
+  also undergoes an effective runtime-UID descriptor-relative nonwritability
+  check before and after byte authentication. A writable leaf, missing file,
+  changed visible generation, or unavailable ACL check is a structured HOLD.
 
 This source/test/CI child does **not** correct #3546's separate retained-first-exec
 Runner finding, nor does it accept, merge, install, qualify or activate a
@@ -206,4 +209,21 @@ The `--self-test` fixture also directly executes the retained Git ELF via
 the hosted runner; it does not authenticate or inspect Precision's host
 binary, execute the production Runner, or authorize a host plan.
 
-Planner Git blob: `cb242059fa3966480b1573d9801f7f988d7c9554`.
+## Protected leaf effective-ACL custody refinement
+
+The leaf verifier requires Linux `os.access(..., dir_fd=root_fd,
+effective_ids=True, follow_symlinks=False)` under the exact UID/GID 1000
+host-plan identity. It samples and revalidates the same leaf generation
+around each check so missing/rebound paths cannot appear safely nonwritable.
+The check is repeated after reading and authenticating the protected child
+bytes; its failure does not trigger any filesystem mutation or retry.
+
+The hosted source self-test uses synthetic, non-writing effective-write and
+unsupported-ACL fixtures; both must produce a structured HOLD. The accepted
+V6R3 lock, installed Runner hash and nine-entry runtime-sensitive dependency
+identities remain unchanged. No host plan/installation, privileged first
+entry, credential access, signing, transaction/payment, presale/WC activation,
+or funds movement is authorized.
+
+Planner Git blob: `5ca236d0b583d8fcda74d019744a9b3033061faa`.
+Planner proof Git blob: `0a7336cd56fd77149911591905a0e56afeb152dc`.
