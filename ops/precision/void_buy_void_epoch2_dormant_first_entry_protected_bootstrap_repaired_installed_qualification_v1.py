@@ -362,7 +362,6 @@ def emit(result: dict[str, Any]) -> None:
     print("predecessor_manifest_sha256=" + OLD_MAN[1])
     for key, value in result["git_boundary_receipt"].items():
         print(key + "=" + (str(value).lower() if isinstance(value, bool) else str(value)))
-    print("filesystem_write=false")
     print("bootstrap_execution=false")
     print("inner_installer_execution=false")
     print("service_mutation=false")

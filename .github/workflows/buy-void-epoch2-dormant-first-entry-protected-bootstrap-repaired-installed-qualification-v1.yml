@@ -77,9 +77,9 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
-            d9650aff7af2cb9fc9a8d95a888d8dd52aef1970
+            fd6a6be74ae9ab6284bd493472f4d9e20a7f6051
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
-            02f51dc92f45571bb8a30df9f49a6ec9c8a54642
+            5e16b328c8ab7577c4c8f3ef4241c75dac1dd99a
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-repaired-installed-qualification-v1.md)" = \
             888ccf2c9096564d4db38392f4a4de78f9c45d34
 
@@ -140,6 +140,7 @@ jobs:
             'temporary_git_metadata_write_required=true'
             'qualification_git_callbacks_neutralized=true'
             'qualification_git_fsmonitor_callback_rejected=true'
+            'green_emit_filesystem_write_truth_bound=true'
             'repaired_plan_immutable_handoff_bound=true'
             'nonroot_run_required=true'
             'protected_filesystem_mutation=false'
