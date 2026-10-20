@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import pathlib
 import shutil
 import subprocess
@@ -12,10 +13,12 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs"
 PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c"
 
-BINDER_BLOB = "5c3f2f8f6d49e67017ad30e6c61bd8af6a11a3ab"
-BINDER_SHA256 = "a66dfc54a7cbaed0257119fb5f6ee0d4cd094c31ad0407358219601f466fcf11"
-BINDER_BYTES = 52936
-PREENTRY_BLOB = "87a2efeb8ba5ef3d07d79f665931d5ece9976f78"
+BINDER_BLOB = "42daad33b05f054d57486ada174b82e18e4ed115"
+BINDER_SHA256 = "39679b4b025a29f735af544b9cec49d4b060113ef03f2a5a5ee1b0bbbf5c716a"
+BINDER_BYTES = 56856
+PREENTRY_BLOB = "7e551be76ed5c774978558def29e91f15bfd8cd1"
+NATIVE_LOCK_V6R2_REL = "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
+NATIVE_LOCK_V6R2_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
 CANDIDATE_REL = "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json"
@@ -65,6 +68,19 @@ assert git_blob(binder_raw) == BINDER_BLOB
 assert hashlib.sha256(binder_raw).hexdigest() == BINDER_SHA256
 assert len(binder_raw) == BINDER_BYTES
 assert git_blob(preentry_raw) == PREENTRY_BLOB
+native_lock_raw = (ROOT / NATIVE_LOCK_V6R2_REL).read_bytes()
+assert git_blob(native_lock_raw) == NATIVE_LOCK_V6R2_BLOB
+native_lock = json.loads(native_lock_raw)
+assert native_lock["lock_id"] == (
+    "voidbuye2nativecandlock6r2_ab95f15c8f2731adf6bfd97dfd5467495c90bdb5ee267948efc6a522be74b417"
+)
+assert native_lock["native_binary_identity_accepted"] is True
+assert native_lock["protected_install_authorized"] is False
+assert native_lock["live_execution_authorized"] is False
+assert native_lock["candidate_report"]["native_binary_sha256"] == (
+    "85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8"
+)
+assert native_lock["candidate_report"]["native_binary_bytes"] == 726976
 binder = binder_raw.decode("ascii")
 preentry = preentry_raw.decode("ascii")
 
@@ -90,6 +106,17 @@ for forbidden in (
 # No root process may reopen a prechecked ELF pathname after it was qualified.
 # The only allowed first-exec transport is an inherited verified descriptor.
 for required in (
+    'function requirePinnedNativeExecutionClosure(t){',
+    'const st=fs.fstatSync(t.fd,{bigint:true});',
+    'const read=fs.readSync(t.fd,chunk,0,want,pos);',
+    'trusted_native_binary_sha256_not_accepted',
+    'trusted_native_dynamic_interpreter_forbidden',
+    'trusted_root_native_wrong_binary_self_test_failed',
+    'binder_native_retained_fd_sha256_and_size_required=true',
+    'binder_native_static_no_interp_elf_required=true',
+    'binder_wrong_root_owned_native_rejected_before_exec=true',
+    'ACCEPTED_NATIVE_LOCK_V6R2_ID',
+    'ACCEPTED_NATIVE_LOCK_V6R2_BLOB',
     'function openRetainedTrustedExecutable(',
     'requireRootOwnedExecutableAncestors(file,label);',
     'const st=fs.lstatSync(file,{bigint:true});',
@@ -166,8 +193,8 @@ for required in (
     'RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4',
     '#define BINDER_GIT_BLOB "' + BINDER_BLOB + '"',
     '#define BINDER_BYTES ' + str(BINDER_BYTES) + 'U',
-    '0xa6,0x6d,0xfc,0x54',
-    '0x82,0x19,0x60,0x1f',
+    '0x39,0x67,0x9b,0x4b',
+    '0x5e,0xe1,0xb0,0xbb',
     'void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs',
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V4',
     '(char*)"--source-head",source_head',
@@ -233,6 +260,9 @@ for mode in ("--self-test", "--plan"):
             "binder_retained_exec_path_rebind_rejected=true",
             "binder_configured_original_path_custody_required=true",
             "binder_configured_symlink_alias_rejected=true",
+            "binder_native_retained_fd_sha256_and_size_required=true",
+            "binder_native_static_no_interp_elf_required=true",
+            "binder_wrong_root_owned_native_rejected_before_exec=true",
             "transaction=false",
             "public_presale_activation=false",
             "funds_movement=false",
@@ -327,6 +357,8 @@ print("runtime_policy_sha256_compile_constant_absent=true")
 print("binder_retained_root_exec_source_bound=true")
 print("binder_ancestor_and_runtime_acl_guard_source_bound=true")
 print("binder_configured_original_path_symlink_guard_source_bound=true")
+print("binder_native_accepted_lock_v6r2_digest_bound=true")
+print("binder_native_retained_root_fd_static_elf_guard_proven=true")
 print("runtime_policy_authenticated_by_native_preentry=true")
 print("historical_generation_overclaim_absent=true")
 print("native_preentry_binds_exact_binder_bytes=true")
