@@ -6,6 +6,7 @@ from collections import deque
 import hashlib
 import json
 import os
+import posixpath
 from pathlib import Path
 import stat
 import tempfile
@@ -250,13 +251,26 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
     return dict(sorted(objects.items()))
 
 def absence_record(real_root:Path,display_root:str,display_path:str)->dict[str,object]:
-    prefix=display_root.rstrip("/")+"/"
-    if not display_path.startswith(prefix):
-        raise Hold("absence_outside_display_root")
-    rel=display_path[len(prefix):]
-    if not rel or rel.startswith("/") or ".." in Path(rel).parts:
+    # An absence is an authority claim too. Check *every* path component
+    # before the first pathname-based existence query can follow an alias.
+    if (not display_root.startswith("/") or display_root=="/"
+        or posixpath.normpath(display_root)!=display_root
+        or not display_path.startswith(display_root+"/")
+        or posixpath.normpath(display_path)!=display_path):
+        raise Hold("absence_path_not_canonical_or_outside_root")
+    rel=display_path[len(display_root)+1:]
+    if not rel or rel.startswith("/") or "." in rel.split("/") or ".." in rel.split("/"):
         raise Hold("absence_path_invalid")
+    real_root=Path(os.path.abspath(os.fspath(real_root)))
+    if (real_root.is_symlink() or not real_root.is_dir()
+        or real_root.resolve()!=real_root):
+        raise Hold("absence_inventory_root_not_canonical")
     target=real_root/rel
+    resolved=_contained_resolve(target,real_root,display_path)
+    if resolved!=target:
+        # Even an internal alias would make nearest-parent provenance
+        # ambiguous; a future host adapter must qualify it separately.
+        raise Hold("absence_intermediate_symlink_forbidden:"+display_path)
     if target.exists() or target.is_symlink():
         raise Hold("declared_absence_materialized:"+display_path)
     parent=target.parent
@@ -275,12 +289,23 @@ def build_manifest(
     real_root:Path,display_root:str,sys_path:list[str],declared_absent:list[str],
     accessed_paths:list[str],
 )->dict[str,object]:
-    if not sys_path or any(not p.startswith("/") or p=="" for p in sys_path):
-        raise Hold("sys_path_invalid")
-    if "" in sys_path or "." in sys_path:
-        raise Hold("sys_path_cwd_forbidden")
+    if (not isinstance(display_root,str) or not display_root.startswith("/")
+        or display_root=="/" or posixpath.normpath(display_root)!=display_root):
+        raise Hold("display_root_not_canonical")
+    if not sys_path or any(
+        not isinstance(p,str) or not p.startswith("/") or p.startswith("//")
+        or posixpath.normpath(p)!=p or p.endswith("/")
+        for p in sys_path
+    ):
+        raise Hold("sys_path_invalid_or_noncanonical")
     objects=collect_tree(real_root,display_root)
     absences={p:absence_record(real_root,display_root,p) for p in sorted(set(declared_absent))}
+    for p in sys_path:
+        if p in objects:
+            if objects[p]["kind"] not in ("directory","regular"):
+                raise Hold("sys_path_special_or_symlink_authority:"+p)
+        elif p not in absences or absences[p]["exists"] is not False:
+            raise Hold("sys_path_not_inventoried_or_absent:"+p)
     if not set(accessed_paths).issubset(objects):
         raise Hold("unaccepted_runtime_file_access")
     manifest={
@@ -325,6 +350,54 @@ def fixture_self_test()->None:
         require_terminal_equal(manifest,json.loads(canonical(manifest)))
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
+
+        # No sys.path entry is execution authority merely because it is
+        # absolute. An existing directory must be enumerated, or the path
+        # must be explicitly declared absent with parent metadata.
+        for bogus in ("/tmp/uncensused-runtime", "/fixture/python/alias.py",
+                      "/fixture/python/../etc", "/fixture//python"):
+            try:
+                build_manifest(root,"/fixture",[bogus],absent,[])
+            except Hold:
+                pass
+            else:
+                raise AssertionError("unverified_sys_path_accepted:"+bogus)
+        admitted=build_manifest(
+            root,"/fixture",["/fixture/python","/fixture/optional-stdlib"],
+            [*absent,"/fixture/optional-stdlib"],[],
+        )
+        assert admitted["absent"]["/fixture/optional-stdlib"]["exists"] is False
+        try:
+            build_manifest(root,"/fixture/../escape",sys_path,absent,[])
+        except Hold as exc:
+            assert "display_root_not_canonical" in str(exc)
+        else:
+            raise AssertionError("noncanonical_display_root_accepted")
+
+        # The isolated absence primitive previously allowed an unobserved
+        # intermediate symlink to escape into an outside directory and record
+        # its child as the missing path's parent.
+        external_parent=Path(td)/"outside-absence";external_parent.mkdir()
+        (external_parent/"nested").mkdir()
+        external_alias=root/"offroot-parent"
+        external_alias.symlink_to(external_parent,target_is_directory=True)
+        try:
+            absence_record(root,"/fixture","/fixture/offroot-parent/nested/missing")
+        except Hold as exc:
+            assert "symlink_target_outside_inventory_root" in str(exc)
+        else:
+            raise AssertionError("escaped_absence_parent_accepted")
+        external_alias.unlink()
+        contained_alias=root/"internal-absence-alias"
+        contained_alias.symlink_to("etc",target_is_directory=True)
+        try:
+            absence_record(root,"/fixture","/fixture/internal-absence-alias/missing")
+        except Hold as exc:
+            assert "absence_intermediate_symlink_forbidden" in str(exc)
+        else:
+            raise AssertionError("aliased_absence_parent_accepted")
+        contained_alias.unlink()
+
         outside=Path(td)/"outside";outside.write_text("x",encoding="utf-8")
         outside_link=root/"python"/"outside-link"
         outside_link.symlink_to(outside)
@@ -438,6 +511,10 @@ def fixture_self_test()->None:
     print("special_files_rejected=true")
     print("symlink_intermediate_outside_root_rejected=true")
     print("symlink_hop_limit_rejects_cycles=true")
+    print("absence_intermediate_symlink_escape_rejected=true")
+    print("absence_parent_symlink_alias_rejected=true")
+    print("sys_path_must_be_inventoried_or_explicitly_absent=true")
+    print("noncanonical_manifest_paths_rejected=true")
     print("discovered_entry_budget_includes_queued_directories=true")
     print("scandir_consumption_bounded_before_sort=true")
     print("over_budget_synthetic_scandir_rejected=true")
