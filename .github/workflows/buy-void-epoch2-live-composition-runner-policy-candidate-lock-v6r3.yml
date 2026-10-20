@@ -10,6 +10,7 @@ on:
       - 'scripts/prove_buy_void_epoch2_live_composition_runner_policy_candidate_v6r3.py'
       - '.github/workflows/buy-void-epoch2-live-composition-runner-policy-candidate-v6r3.yml'
       - 'ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs'
+      - 'scripts/void_buy_void_epoch2_credential_attestation_sealed_v3.mjs'
       - 'ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py'
       - 'scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py'
       - '.github/workflows/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.yml'
