@@ -84,7 +84,8 @@ def directory_record(path:Path)->dict[str,object]:
 
 def _contained_resolve(
     path:Path,real_root:Path,display_path:str,
-)->tuple[Path,Path|None]:
+    *,missing_component_out:list[Path]|None=None,
+)->Path:
     """Resolve each symlink hop inside the inventory root, never just the end.
 
     A final realpath/relative_to check falsely accepts root/link ->
@@ -121,6 +122,8 @@ def _contained_resolve(
             st=next_path.lstat()
         except FileNotFoundError:
             missing_component=next_path
+            if missing_component_out is not None:
+                missing_component_out.append(next_path)
             current=next_path
             continue
         if stat.S_ISLNK(st.st_mode):
@@ -144,7 +147,7 @@ def _contained_resolve(
             if pending and not stat.S_ISDIR(st.st_mode):
                 raise Hold("symlink_intermediate_not_directory:"+display_path)
             current=next_path
-    return current,missing_component
+    return current
 
 
 def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->dict[str,object]:
@@ -155,7 +158,12 @@ def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->
     after=path.lstat()
     if not _same_generation(before,after):
         raise Hold("symlink_generation_changed:"+os.fspath(path))
-    resolved,missing_component=_contained_resolve(path,real_root,display_path)
+    missing_components:list[Path]=[]
+    resolved=_contained_resolve(
+        path,real_root,display_path,
+        missing_component_out=missing_components,
+    )
+    missing_component=missing_components[0] if missing_components else None
     record={"kind":"symlink",**_meta(before),"target_text":text}
     try:
         resolved.relative_to(real_root)
@@ -295,7 +303,11 @@ def absence_record(real_root:Path,display_root:str,display_path:str)->dict[str,o
         or real_root.resolve()!=real_root):
         raise Hold("absence_inventory_root_not_canonical")
     target=real_root/rel
-    resolved,missing_component=_contained_resolve(target,real_root,display_path)
+    missing_components:list[Path]=[]
+    resolved=_contained_resolve(
+        target,real_root,display_path,missing_component_out=missing_components,
+    )
+    missing_component=missing_components[0] if missing_components else None
     if missing_component is not None:
         try:
             missing_component.lstat()
