@@ -4,6 +4,7 @@
 // Caller-supplied live receipts are never accepted.
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -210,23 +211,26 @@ function requireRootOwnedExecutableAncestors(real,label){
 function sameTrustedExecutableGeneration(a,b){
   return sameFileIdentity(a,b)&&a.mtimeNs===b.mtimeNs&&a.ctimeNs===b.ctimeNs;
 }
-function requirePinnedNativeExecutionClosure(t){
-  // Only the fixed privileged native child is eligible for this exact binary.
-  // Authenticate the already-retained descriptor, never reopen by pathname.
+function verifyRetainedNativeElfBytes(t,expectedBytes,expectedDigest){
+  // The source fixture tests this parser; root execution uses the constant
+  // pinned V6R2 wrapper below, never caller-selected ELF identities.
+  if(!Number.isSafeInteger(expectedBytes)||expectedBytes<120||
+     expectedBytes>16*1024*1024||!HEX64.test(expectedDigest))
+    throw new Error("trusted_native_expected_identity_invalid");
   const st=fs.fstatSync(t.fd,{bigint:true});
-  if(!st.isFile()||st.size!==BigInt(ACCEPTED_NATIVE_BINARY_BYTES))
+  if(!st.isFile()||st.size!==BigInt(expectedBytes))
     throw new Error("trusted_native_binary_size_not_accepted");
   const digest=crypto.createHash("sha256");
   const chunk=Buffer.allocUnsafe(64*1024);
   let pos=0;
-  while(pos<ACCEPTED_NATIVE_BINARY_BYTES){
-    const want=Math.min(chunk.length,ACCEPTED_NATIVE_BINARY_BYTES-pos);
+  while(pos<expectedBytes){
+    const want=Math.min(chunk.length,expectedBytes-pos);
     const read=fs.readSync(t.fd,chunk,0,want,pos);
     if(read<=0)throw new Error("trusted_native_binary_short_read");
     digest.update(chunk.subarray(0,read));
     pos+=read;
   }
-  if(digest.digest("hex")!==ACCEPTED_NATIVE_BINARY_SHA256)
+  if(digest.digest("hex")!==expectedDigest)
     throw new Error("trusted_native_binary_sha256_not_accepted");
   // ELF64 LE, System V x86-64 ET_EXEC and an exact PHDR shape, without a
   // dynamic interpreter or PT_DYNAMIC. Shebang/non-ELF execution is refused.
@@ -241,7 +245,7 @@ function requirePinnedNativeExecutionClosure(t){
   const phoff=hdr.readBigUInt64LE(32);
   const phnum=hdr.readUInt16LE(56);
   if(phnum<1||phnum>128||phoff<BigInt(64)||
-     phoff+BigInt(phnum)*56n>BigInt(ACCEPTED_NATIVE_BINARY_BYTES))
+     phoff+BigInt(phnum)*56n>BigInt(expectedBytes))
     throw new Error("trusted_native_program_header_bounds_invalid");
   const ph=Buffer.alloc(56);
   let loads=0;
@@ -252,7 +256,15 @@ function requirePinnedNativeExecutionClosure(t){
     const type=ph.readUInt32LE(0);
     if(type===3||type===2)
       throw new Error("trusted_native_dynamic_interpreter_forbidden");
-    if(type===1)loads++;
+    if(type===1){
+      const segmentOffset=ph.readBigUInt64LE(8);
+      const segmentFileSize=ph.readBigUInt64LE(32);
+      const segmentMemorySize=ph.readBigUInt64LE(40);
+      if(segmentMemorySize<segmentFileSize||
+         segmentOffset+segmentFileSize>BigInt(expectedBytes))
+        throw new Error("trusted_native_load_segment_bounds_invalid");
+      loads++;
+    }
   }
   if(loads<1)throw new Error("trusted_native_load_segments_missing");
   // Check all inode/custody fields again after reading from the retained FD.
@@ -261,6 +273,13 @@ function requirePinnedNativeExecutionClosure(t){
   if(!sameTrustedExecutableGeneration(st,after)||
      !sameTrustedExecutableGeneration(after,visible))
     throw new Error("trusted_native_binary_generation_changed_during_hash");
+}
+function requirePinnedNativeExecutionClosure(t){
+  if(!t||t.label!=="native")
+    throw new Error("trusted_native_label_invalid");
+  verifyRetainedNativeElfBytes(
+    t,ACCEPTED_NATIVE_BINARY_BYTES,ACCEPTED_NATIVE_BINARY_SHA256,
+  );
 }
 function revalidateRetainedTrustedExecutable(t){
   // A retained leaf FD alone cannot authenticate a configured symlink alias.
@@ -969,7 +988,83 @@ function plan(){
   console.log("production_host_evidence_authority=false");
   console.log("next_action=SEPARATELY_AUTHORIZE_EPOCH2_V3R_DORMANT_CANDIDATE_LIVE_BINDING_V4");
 }
+function proveRetainedNativeElfParserFixture(){
+  // Disposable nonexecuted ELF; never a privileged live native child.
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"void-native-parser-v4-"));
+  const file=path.join(dir,"nonexecuted-elf");
+  let fd=-1;
+  const sample=Buffer.alloc(120);
+  sample.set([0x7f,0x45,0x4c,0x46,2,1,1],0);
+  sample.writeUInt16LE(2,16);sample.writeUInt16LE(62,18);
+  sample.writeUInt32LE(1,20);sample.writeBigUInt64LE(64n,32);
+  sample.writeUInt16LE(64,52);sample.writeUInt16LE(56,54);
+  sample.writeUInt16LE(1,56);sample.writeUInt32LE(1,64);
+  const verify=(bytes,expected,shaOverride)=>{
+    fs.writeFileSync(file,bytes);
+    let reason="";
+    try{verifyRetainedNativeElfBytes(
+      {fd,real:file,label:"fixture"},bytes.length,shaOverride??sha256(bytes),
+    );}catch(error){reason=String(error?.message||error);}
+    if(reason!==expected)throw new Error(
+      "native_parser_negative_missing:"+expected+":"+reason,
+    );
+  };
+  try{
+    fs.writeFileSync(file,sample,{flag:"wx",mode:0o600});
+    fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+    verifyRetainedNativeElfBytes({fd,real:file},sample.length,sha256(sample));
+    const tampered=Buffer.from(sample);tampered[119]=0xff;
+    verify(tampered,"trusted_native_binary_sha256_not_accepted",sha256(sample));
+    const script=Buffer.from(sample);script[0]=0x23;
+    verify(script,"trusted_native_static_elf_identity_invalid");
+    const badPh=Buffer.from(sample);badPh.writeBigUInt64LE(100n,32);
+    verify(badPh,"trusted_native_program_header_bounds_invalid");
+    const interp=Buffer.from(sample);interp.writeUInt32LE(3,64);
+    verify(interp,"trusted_native_dynamic_interpreter_forbidden");
+    const dynamic=Buffer.from(sample);dynamic.writeUInt32LE(2,64);
+    verify(dynamic,"trusted_native_dynamic_interpreter_forbidden");
+    const noLoad=Buffer.from(sample);noLoad.writeUInt32LE(4,64);
+    verify(noLoad,"trusted_native_load_segments_missing");
+    const badSegment=Buffer.from(sample);
+    badSegment.writeBigUInt64LE(200n,64+32);
+    verify(badSegment,"trusted_native_load_segment_bounds_invalid");
+    fs.writeFileSync(file,sample);
+    const read=fs.readSync;
+    let shortInjected=false;
+    try{
+      fs.readSync=(n,...args)=>{
+        if(n===fd&&!shortInjected){shortInjected=true;return 0;}
+        return read(n,...args);
+      };
+      let held=false;
+      try{verifyRetainedNativeElfBytes({fd,real:file},sample.length,sha256(sample));}
+      catch(error){held=String(error?.message||"")==="trusted_native_binary_short_read";}
+      if(!held||!shortInjected)throw new Error("native_parser_short_read_not_rejected");
+    }finally{fs.readSync=read;}
+    let driftInjected=false;
+    try{
+      fs.readSync=(n,...args)=>{
+        const got=read(n,...args);
+        if(n===fd&&!driftInjected){
+          driftInjected=true;
+          fs.utimesSync(file,new Date(0),new Date(123456789000));
+        }
+        return got;
+      };
+      let held=false;
+      try{verifyRetainedNativeElfBytes({fd,real:file},sample.length,sha256(sample));}
+      catch(error){
+        held=String(error?.message||"")==="trusted_native_binary_generation_changed_during_hash";
+      }
+      if(!held||!driftInjected)throw new Error("native_parser_generation_drift_not_rejected");
+    }finally{fs.readSync=read;}
+  }finally{
+    if(fd>=0)fs.closeSync(fd);
+    fs.unlinkSync(file);fs.rmdirSync(dir);
+  }
+}
 function selfTest(){
+  proveRetainedNativeElfParserFixture();
   // The static public Git tool is safe to exercise under an unprivileged
   // Actions runner. No protected credentials or native live runtime execute.
   const selfGit=openRetainedTrustedExecutable(GIT,"git_self_test");
@@ -1214,6 +1309,9 @@ function selfTest(){
   console.log("binder_configured_symlink_alias_rejected=true");
   console.log("binder_native_retained_fd_sha256_and_size_required=true");
   console.log("binder_native_static_no_interp_elf_required=true");
+  console.log("binder_native_fake_elf_parser_positive_and_negatives_green=true");
+  console.log("binder_native_parser_short_read_and_generation_drift_rejected=true");
+  console.log("binder_native_load_segment_shape_bound=true");
   console.log("binder_wrong_root_owned_native_rejected_before_exec=true");
   console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
   console.log("runtime_native_receives_runtime_policy_head_only=true");
