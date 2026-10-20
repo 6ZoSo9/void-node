@@ -34,7 +34,7 @@ The future fixed root-custodied script is:
 ```
 
 It requires a trusted Python 3.12 root-owned executable at
-`/usr/bin/python3.12`, isolated Python interpreter flags `-I -B`, real and
+`/usr/bin/python3.12`, isolated/no-site Python interpreter flags `-I -B -S`, real and
 effective runtime UID/GID 1000:1000, and root-owned non-writable ancestors.
 The installed script leaf must be a root-owned, single-link regular file with
 mode 0444, and must not be writable to the running runtime UID via ACL.
@@ -51,7 +51,7 @@ generation metadata. The verified bytes are copied to an anonymous Linux
 `memfd_create` file and sealed against write, grow, shrink and further
 seal mutation. Only the sealed read-only FD is passed to a retained authenticated
 Python executable FD via `/proc/self/fd/<n>` with sanitized environment,
-`-I -B`, and `cwd=/`. An adversarial checkout edit after the source read cannot
+`-I -B -S` (no site import), and `cwd=/`. An adversarial checkout edit after the source read cannot
 change those executed bytes.
 
 The launcher also requires the child plan to return the expected accepted V8
