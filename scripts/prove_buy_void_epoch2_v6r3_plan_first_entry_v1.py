@@ -38,7 +38,6 @@ FIXED_POLICY = FIXED_ROOT / "policy-v1.conf"
 FIXED_PLANNER = FIXED_ROOT / "void_buy_void_epoch2_live_composition_runner_policy_upgrade_plan_v6r3.py"
 FIXED_PYTHON_LINK = Path("/usr/bin/python3")
 SUDO = "/usr/bin/sudo"
-SETPRIV = "/usr/bin/setpriv"
 ENV = "/usr/bin/env"
 CC = "/usr/bin/cc"
 READELF = "/usr/bin/readelf"
@@ -126,6 +125,12 @@ for required in (
     "#define PLANNER_BYTES 49025U",
     "#define REQUIRED_UID 1000U",
     "#define REQUIRED_GID 1000U",
+    "root_static_first_entry_required",
+    "setgroups(0,NULL)",
+    "setresgid((gid_t)REQUIRED_GID",
+    "setresuid((uid_t)REQUIRED_UID",
+    "PR_SET_DUMPABLE",
+    "revalidate_fixed_generation(",
     "O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK",
     '"/proc/self/fd/3"',
     "fexecve(python_fd,child_argv,child_env);",
@@ -163,7 +168,10 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         "planner_git_blob=" + PLANNER_GIT_BLOB,
         "planner_sha256=" + PLANNER_SHA256,
         "planner_bytes=49025",
+        "root_static_first_entry_required=true",
         "runtime_uid_gid_1000_required=true",
+        "permanent_uid_gid_drop_before_python=true",
+        "runtime_dumpable_disabled_before_python=true",
         "planner_retained_descriptor_required=true",
         "python_retained_descriptor_fexecve_required=true",
         "isolated_python_required=true",
@@ -178,7 +186,6 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
 
     cp = run([SUDO, "-n", "true"])
     require_success(cp, "passwordless_sudo_required")
-    assert Path(SETPRIV).is_file(), "setpriv_unavailable"
     assert FIXED_PYTHON_LINK.exists(), "fixed_python_link_missing"
 
     python_real = Path(os.path.realpath(FIXED_PYTHON_LINK))
@@ -285,7 +292,6 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         exec_argv = [
             SUDO, "-n", ENV,
             "PYTHONPATH=" + os.fspath(evil_dir), "PYTHONINSPECT=1",
-            SETPRIV, "--reuid=1000", "--regid=1000", "--clear-groups", "--",
             os.fspath(FIXED_SELF), "--plan",
         ]
         cp = run(exec_argv, input_bytes=attack_source, timeout=90)
@@ -299,8 +305,7 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         assert not evil_sentinel.exists(), "hostile PYTHONPATH imported by isolated child"
 
         cp = run([
-            SUDO, "-n", SETPRIV, "--reuid=1000", "--regid=1000", "--clear-groups", "--",
-            os.fspath(binary), "--plan",
+            SUDO, "-n", os.fspath(binary), "--plan",
         ])
         assert cp.returncode == 2
         assert b"reason=launcher_fixed_path_required" in cp.stderr
@@ -344,7 +349,11 @@ print("native_static_first_instruction=true")
 print("native_no_pt_interp=true")
 print("native_ld_preload_blocked_before_main=true")
 print("fixed_root_custody_required=true")
+print("root_static_first_entry_required=true")
 print("runtime_uid_gid_1000_required=true")
+print("permanent_uid_gid_drop_before_python=true")
+print("runtime_dumpable_disabled_before_python=true")
+print("protected_generations_revalidated_after_uid_drop=true")
 print("planner_root_owned_fixed_path_required=true")
 print("planner_sha256_and_size_bound_before_python=true")
 print("planner_retained_fd_execution=true")
