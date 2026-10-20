@@ -91,11 +91,11 @@ tree=ast.parse(planner_raw.decode("utf-8","strict"))
 imports=vetted_runtime_imports(tree)
 assert imports==EXPECTED_IMPORTS,(imports,EXPECTED_IMPORTS)
 for forbidden_import in (
-    "from __future__ import division\\n",
-    "from __future__ import annotations\\nfrom __future__ import division\\n",
-    "from __future__ import annotations as alias\\n",
-    "from __future__ import annotations\\nfrom __future__ import annotations\\n",
-    "from . import anything\\nfrom __future__ import annotations\\n",
+    "from __future__ import division\n",
+    "from __future__ import annotations\nfrom __future__ import division\n",
+    "from __future__ import annotations as alias\n",
+    "from __future__ import annotations\nfrom __future__ import annotations\n",
+    "from . import anything\nfrom __future__ import annotations\n",
 ):
     try:
         vetted_runtime_imports(ast.parse(forbidden_import))
