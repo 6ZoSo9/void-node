@@ -119,6 +119,12 @@ def require_success(cp: subprocess.CompletedProcess[bytes], label: str) -> None:
             + "\nstderr=" + cp.stderr.decode("utf-8", "replace")
         )
 
+def stat_generation(st: os.stat_result) -> tuple[int, ...]:
+    return (
+        st.st_dev, st.st_ino, st.st_mode, st.st_uid, st.st_gid, st.st_nlink,
+        st.st_size, st.st_mtime_ns, st.st_ctime_ns,
+    )
+
 planner_raw = stable_bytes(PLANNER, MAX_SOURCE_BYTES)
 assert len(planner_raw) == PLANNER_BYTES
 assert hashlib.sha256(planner_raw).hexdigest() == PLANNER_SHA256
@@ -225,6 +231,36 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
     assert Path(SETPRIV).is_file(), "setpriv_unavailable"
     assert FIXED_PYTHON_LINK.exists(), "fixed_python_link_missing"
 
+    run_root = Path("/run")
+    run_st = run_root.lstat()
+    assert stat.S_ISDIR(run_st.st_mode) and not stat.S_ISLNK(run_st.st_mode)
+    assert run_st.st_uid == 0 and run_st.st_gid == 0
+    assert (run_st.st_mode & 0o022) == 0
+
+    fixture_root = run_root / (
+        "void-epoch2-v6r3-plan-first-entry-ci-"
+        + str(os.getpid()) + "-" + hashlib.sha256(source_raw).hexdigest()[:12]
+    )
+    assert not fixture_root.exists() and not fixture_root.is_symlink(), "fixture_root_preexisting"
+
+    FIXED_ROOT = fixture_root
+    FIXED_SELF = FIXED_ROOT / "void_buy_void_epoch2_v6r3_plan_first_entry_v1"
+    FIXED_POLICY = FIXED_ROOT / "policy-v1.conf"
+    FIXED_PLANNER = FIXED_ROOT / "void_buy_void_epoch2_live_composition_runner_policy_upgrade_plan_v6r3.py"
+
+    fixture_binary = temp / "launcher-fixture"
+    root_define = '-DVOID_E2_V6R3_PLAN_FIRST_ENTRY_ROOT="' + os.fspath(FIXED_ROOT) + '"'
+    cp = run(
+        [CC, "-std=c11", "-Wall", "-Wextra", "-Werror", "-O2", "-static",
+         root_define, os.fspath(SOURCE), "-o", os.fspath(fixture_binary)],
+        timeout=120,
+    )
+    require_success(cp, "fixture_launcher_compile")
+
+    fixture_created = False
+    fixture_root_generation: tuple[int, ...] | None = None
+    installed_generations: dict[Path, tuple[int, ...]] = {}
+
     python_real = Path(os.path.realpath(FIXED_PYTHON_LINK))
     python_raw = stable_bytes(python_real, MAX_PYTHON_BYTES)
     python_sha = hashlib.sha256(python_raw).hexdigest()
@@ -246,12 +282,15 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         encoding="ascii",
     )
 
-    evil_dir = Path("/tmp/void-epoch2-v6r3-plan-first-entry-evil")
+    sentinel_root = temp / "sentinels"
+    sentinel_root.mkdir(mode=0o777)
+    sentinel_root.chmod(0o777)
+    evil_dir = temp / "evil-pythonpath"
     evil_module = evil_dir / "hashlib.py"
-    evil_sentinel = Path("/tmp/void-epoch2-v6r3-plan-first-entry-pythonpath-sentinel")
+    evil_sentinel = sentinel_root / "pythonpath-sentinel"
     preload_source = temp / "preload.c"
     preload_so = temp / "preload.so"
-    preload_sentinel = Path("/tmp/void-epoch2-v6r3-plan-first-entry-preload-sentinel")
+    preload_sentinel = sentinel_root / "preload-sentinel"
     dynamic_source = temp / "dynamic.c"
     dynamic_binary = temp / "dynamic"
 
