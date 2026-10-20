@@ -7,7 +7,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_postmerge_source_runtime_compat_v1.py"
-TARGET_BLOB = "a129e9645458a54417dff448703d7c314c1bdeff"
+TARGET_BLOB = "3e97d602b66d3f3ceaf5b249aaeca086403c4f17"
 MARKER = "VOID_BUY_VOID_V7_POSTMERGE_SOURCE_RUNTIME_COMPAT_V1_PROOF"
 
 
@@ -45,6 +45,12 @@ for required in (
     'terminal_index_generation_revalidation_required=true',
     'terminal_worktree_generation_revalidation_required=true',
     'worktree_filesystem_errors_normalized_to_hold=true',
+    'git_timeout_normalized_to_hold=true',
+    'git_exec_errors_normalized_to_hold=true',
+    'git_ancestor_timeout_normalized_to_hold=true',
+    'git_ancestor_exec_errors_normalized_to_hold=true',
+    'except subprocess.TimeoutExpired as exc:',
+    'except OSError as exc:',
     '_require_index_unchanged(raw_index, _run_git(root, *index_query))',
     '_terminal_revalidate_worktree(root, fingerprints)',
     'canonical_checkout_mutation_performed',
@@ -74,6 +80,10 @@ for line in (
     "terminal_index_generation_revalidation_required=true",
     "terminal_worktree_generation_revalidation_required=true",
     "worktree_filesystem_errors_normalized_to_hold=true",
+    "git_timeout_normalized_to_hold=true",
+    "git_exec_errors_normalized_to_hold=true",
+    "git_ancestor_timeout_normalized_to_hold=true",
+    "git_ancestor_exec_errors_normalized_to_hold=true",
     "canonical_checkout_mutation_authorized=false",
     "filesystem_write_authorized=false",
     "credential_access_authorized=false",
@@ -137,6 +147,7 @@ print("full_tracked_worktree_bytes_bound=true")
 print("terminal_index_generation_revalidation_bound=true")
 print("terminal_worktree_generation_revalidation_bound=true")
 print("worktree_filesystem_errors_normalized_to_hold=true")
+print("git_subprocess_failures_normalized_to_hold=true")
 print("canonical_checkout_mutation_performed=false")
 print("filesystem_write_performed=false")
 print("service_mutation=false")
