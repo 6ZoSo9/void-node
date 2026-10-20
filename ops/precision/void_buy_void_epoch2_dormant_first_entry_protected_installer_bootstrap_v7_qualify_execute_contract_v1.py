@@ -442,7 +442,12 @@ def _validate_qualification_contract(
         "descriptor_bound_source_execution_required": True,
     }
     for key, expected in exact.items():
-        if contract[key] != expected:
+        if isinstance(expected, bool):
+            if contract[key] is not expected:
+                raise ContractError(
+                    "qualification_contract_boolean_type_mismatch:" + key
+                )
+        elif contract[key] != expected:
             raise ContractError("qualification_contract_mismatch:" + key)
 
     _validate_tool_identity(
@@ -1108,6 +1113,16 @@ def self_test() -> None:
         )
     )
     _expect_tamper_rejected(
+        lambda body: body["qualification_contract"].__setitem__(
+            "root_execution_required", 0
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: body["qualification_contract"].__setitem__(
+            "nonroot_execution_required", 1
+        )
+    )
+    _expect_tamper_rejected(
         lambda body: body["qualification_contract"]["required_result"].__setitem__(
             "unexpected_result_authority", True
         )
@@ -1233,6 +1248,7 @@ def self_test() -> None:
     print("rehashed_nested_tamper_rejected=true")
     print("qualification_state_body_fields_bound=true")
     print("qualification_required_result_boolean_types_bound=true")
+    print("qualification_contract_boolean_types_bound=true")
     print("planner_output_race_oserror_holds=true")
     print("planner_json_parser_failures_hold=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")

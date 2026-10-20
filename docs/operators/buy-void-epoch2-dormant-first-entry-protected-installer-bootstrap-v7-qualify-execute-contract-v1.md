@@ -287,3 +287,16 @@ with `1`; both must fail closed.
 This does not expand authority. Qualification execution, root-plan execution,
 service mutation, credentials/signing, transaction/payment, activation,
 treasury/liquidity action, and funds movement remain false.
+
+
+## Exact boolean typing for qualification contracts
+
+The qualification contract is a typed closed schema, not only a value-equality
+schema. Every expected boolean in the outer `qualification_contract` and its
+nested `required_result` must be an actual JSON/Python boolean with the exact
+required identity. Numeric substitutes such as `0` for `false` or `1` for
+`true` are rejected even when the planner body is rehashed consistently.
+
+The inert proof mutates outer fields including `root_execution_required` and
+`nonroot_execution_required` to numeric substitutes and requires deterministic
+HOLD. This adds no execution, privilege, payment, activation, or funds authority.

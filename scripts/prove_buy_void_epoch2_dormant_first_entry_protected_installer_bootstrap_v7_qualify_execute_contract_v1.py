@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "7d191705897cc3d9e68db336d68245abac5fb838"
+TARGET_BLOB = "eba50a052a51e38e34bf6d6bad726751132c84c7"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -172,6 +172,7 @@ for required in (
     "qualification_contract_mismatch:",
     "qualification_required_result_mismatch:",
     "qualification_required_result_boolean_type_mismatch:",
+    "qualification_contract_boolean_type_mismatch:",
     "if isinstance(expected, bool):",
     "QUALIFICATION_CONTRACT_KEYS",
     '"qualification_contract"',
@@ -224,6 +225,7 @@ for expected in (
     "rehashed_nested_tamper_rejected=true",
     "qualification_state_body_fields_bound=true",
     "qualification_required_result_boolean_types_bound=true",
+    "qualification_contract_boolean_types_bound=true",
     "planner_output_race_oserror_holds=true",
     "planner_json_parser_failures_hold=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
@@ -299,6 +301,7 @@ print("qualification_execution_identity_fields_validated=true")
 print("rehashed_nested_tamper_rejected=true")
 print("qualification_state_body_fields_bound=true")
 print("qualification_required_result_boolean_types_bound=true")
+print("qualification_contract_boolean_types_bound=true")
 print("planner_output_race_oserror_holds=true")
 print("planner_json_parser_failures_hold=true")
 print("unconsumed_tool_metadata_not_execution_authority=true")
