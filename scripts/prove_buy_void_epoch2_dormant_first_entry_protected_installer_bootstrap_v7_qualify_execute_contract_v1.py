@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "0d2bfd04069437f545085883b35a128f192a74f2"
+TARGET_BLOB = "7d191705897cc3d9e68db336d68245abac5fb838"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -160,6 +160,8 @@ for required in (
     '_require_exact_keys(body, PLANNER_BODY_KEYS, "planner_body")',
     "planner_body_installed_qualification_performed_invalid",
     "planner_body_qualification_requirement_invalid",
+    "qualification_required_result_boolean_type_mismatch:",
+    "if isinstance(expected, bool):",
     'except (ValueError, RecursionError) as exc:',
 ):
     assert required in validate_source, required
@@ -221,6 +223,7 @@ for expected in (
     "qualification_execution_identity_fields_validated=true",
     "rehashed_nested_tamper_rejected=true",
     "qualification_state_body_fields_bound=true",
+    "qualification_required_result_boolean_types_bound=true",
     "planner_output_race_oserror_holds=true",
     "planner_json_parser_failures_hold=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
@@ -295,6 +298,7 @@ print("qualification_required_result_closed_schema_required=true")
 print("qualification_execution_identity_fields_validated=true")
 print("rehashed_nested_tamper_rejected=true")
 print("qualification_state_body_fields_bound=true")
+print("qualification_required_result_boolean_types_bound=true")
 print("planner_output_race_oserror_holds=true")
 print("planner_json_parser_failures_hold=true")
 print("unconsumed_tool_metadata_not_execution_authority=true")

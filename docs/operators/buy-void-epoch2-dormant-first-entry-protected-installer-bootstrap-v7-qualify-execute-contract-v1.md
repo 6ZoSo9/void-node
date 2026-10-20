@@ -273,3 +273,17 @@ deep-nesting planner bodies plus an oversized structured-output value.
 This changes no execution authority: qualification execution, root-plan
 execution, service mutation, credentials/signing, transaction/payment,
 activation, treasury/liquidity action, and funds movement remain false.
+
+
+## October 20 qualification-result boolean type repair
+
+Exact-head review found that Python equality accepts numeric substitutes for
+booleans (`0 == False`, `1 == True`). The closed qualification
+`required_result` schema now uses identity/type checks for every expected
+boolean before accepting the rehashed planner body. Inert adversarial cases
+replace one false authority field with `0` and one true verification field
+with `1`; both must fail closed.
+
+This does not expand authority. Qualification execution, root-plan execution,
+service mutation, credentials/signing, transaction/payment, activation,
+treasury/liquidity action, and funds movement remain false.

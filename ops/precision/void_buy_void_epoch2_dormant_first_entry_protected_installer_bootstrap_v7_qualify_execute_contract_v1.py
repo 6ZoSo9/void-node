@@ -510,7 +510,12 @@ def _validate_qualification_contract(
         "production_host_evidence_authority": False,
     }
     for key, expected in expected_result.items():
-        if required[key] != expected:
+        if isinstance(expected, bool):
+            if required[key] is not expected:
+                raise ContractError(
+                    "qualification_required_result_boolean_type_mismatch:" + key
+                )
+        elif required[key] != expected:
             raise ContractError("qualification_required_result_mismatch:" + key)
 
     return {**exact, "required_result": dict(required)}
@@ -1118,6 +1123,16 @@ def self_test() -> None:
             "installed_qualification_required_before_bootstrap_plan", False
         )
     )
+    _expect_tamper_rejected(
+        lambda body: body["qualification_contract"]["required_result"].__setitem__(
+            "service_mutation", 0
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: body["qualification_contract"]["required_result"].__setitem__(
+            "repaired_fixed_root_verified", 1
+        )
+    )
 
     class _PlannerRaceStat:
         st_mode = stat.S_IFREG | 0o600
@@ -1217,6 +1232,7 @@ def self_test() -> None:
     print("qualification_execution_identity_fields_validated=true")
     print("rehashed_nested_tamper_rejected=true")
     print("qualification_state_body_fields_bound=true")
+    print("qualification_required_result_boolean_types_bound=true")
     print("planner_output_race_oserror_holds=true")
     print("planner_json_parser_failures_hold=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")
