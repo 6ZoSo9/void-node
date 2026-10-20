@@ -28,22 +28,27 @@ Exact reviewed planner source:
 - path:
   `ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py`;
 - Git blob:
-  `9ea4a7d34a66f81ed568adaed693755ebca37b66`.
+  `597dd61923d349980cd30bcf190fee354ff1c1f2`.
 
 Exact reviewed planner proof:
 
 - path:
   `scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py`;
 - Git blob:
-  `66263ef1beb35d5611683f456f95cafd5e0007ec`.
+  `656075f1941e9cca302ebfd40efad09d979b4f25`.
 
 The captured planner output must contain canonical
 `plan_body_json` and a matching
 `voidbuye2protectedbootstrapplan7_<sha256>` ID.
 
-The contract rejects noncanonical JSON, duplicate output keys, a mismatched plan
-ID, changed authority fields, changed artifact identities or an altered
-qualification contract.
+The contract rejects noncanonical JSON, duplicate or unexpected output/body
+keys, a mismatched plan ID, changed authority fields, changed artifact
+identities, unexpected nested fields, or an altered qualification contract.
+
+Planner body, installed-bootstrap identity, launcher/native artifact identity,
+qualification contract, and qualification required-result objects are
+closed-schema. Dynamic planner tool metadata is validated for safe shape and
+fixed aliases but is deliberately not carried forward as execution authority.
 
 ## Phase 1 — repaired qualification
 
@@ -53,7 +58,7 @@ The phase-1 source is exactly:
 
 Git blob:
 
-`d9650aff7af2cb9fc9a8d95a888d8dd52aef1970`.
+`132e03eaea440f3f8c59aeaca879596c677c6bcf`.
 
 The execution contract records:
 
@@ -61,7 +66,10 @@ The execution contract records:
 - fixed interpreter `/usr/bin/python3`;
 - descriptor-bound exact-Git-object source execution;
 - `--run --expected-head <exact planner head>`;
-- exact V7 `qualification_contract`;
+- exact reviewed qualification source/upgrader/plan blobs;
+- closed qualification requirement/result schemas;
+- preliminary local-config isolation, no-lazy-fetch, protocol-deny and
+  object-alternate rejection requirements;
 - GREEN is required before phase 2.
 
 The qualification may truthfully create and remove its private temporary Git
@@ -200,14 +208,32 @@ installed bootstrap or repaired qualifier against a real host.
 ## Final V7 dependency generation
 
 This contract is reviewed against exact parent #3518
-`f226bb5f4c938a8b51fe8bdfbef3b6985ac0e7ac`.
+`81e4b587b63a88e599630bedfbc31c6b2722dd5e`.
 
 Bound dependency blobs:
-- V7 planner: `9ea4a7d34a66f81ed568adaed693755ebca37b66`;
-- V7 planner proof: `66263ef1beb35d5611683f456f95cafd5e0007ec`;
-- repaired installed qualifier: `d9650aff7af2cb9fc9a8d95a888d8dd52aef1970`.
+- V7 planner: `597dd61923d349980cd30bcf190fee354ff1c1f2`;
+- V7 planner proof: `656075f1941e9cca302ebfd40efad09d979b4f25`;
+- repaired installed qualifier: `132e03eaea440f3f8c59aeaca879596c677c6bcf`.
 
 The parent-relative review surface is exactly this contract's four ADD-only files.
 The qualification-helper static proof is checked against
 `_validate_qualification_contract()` itself; qualification labels are no
 longer incorrectly searched inside `validate_planner_output()`.
+
+
+## October 20 closed-schema repair
+
+Current exact parent #3518:
+`81e4b587b63a88e599630bedfbc31c6b2722dd5e`.
+
+This generation closes the open-schema review finding. Recomputing the planner
+plan ID no longer legitimizes altered nested identities or extra authority-like
+fields. Exact key sets are required for the planner body, installed bootstrap,
+artifacts, qualification contract and required result. Previously ignored
+qualifier source/upgrader/plan and fixed tool aliases are validated; dynamic
+tool metadata is not propagated as execution authority.
+
+The inert self-test mutates and rehashes the qualifier source path, upgrader
+blob, upgrade-plan blob, interpreter alias, Git-tool alias, unexpected
+qualification key, unexpected required-result key and unexpected top-level
+planner key. Every case must HOLD.

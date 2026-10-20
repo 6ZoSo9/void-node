@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import hashlib
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -27,7 +29,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-TARGET_BLOB = "d9650aff7af2cb9fc9a8d95a888d8dd52aef1970"
+TARGET_BLOB = "132e03eaea440f3f8c59aeaca879596c677c6bcf"
 
 UPGRADER_REL = (
     "ops/precision/"
@@ -133,6 +135,10 @@ for required in (
     '"upgrade_stage_absent_verified": True',
     '"temporary_git_metadata_write_required": True',
     '"qualification_git_callbacks_neutralized": True',
+    '"preliminary_git_local_config_isolated": True',
+    '"preliminary_git_lazy_fetch_disabled": True',
+    '"preliminary_git_protocols_denied": True',
+    '"preliminary_git_object_alternates_rejected": True',
     '"filesystem_write": True',
     '"protected_filesystem_mutation": False',
     "nonroot_required_for_repaired_qualification",
@@ -174,18 +180,84 @@ module = types.ModuleType("void_repaired_qualification_callback_fixture")
 module.__file__ = str(ROOT / TARGET_REL)
 module.__package__ = ""
 exec(compile(source, TARGET_REL, "exec", dont_inherit=True), module.__dict__)
+
+synthetic_emit_result = {
+    "expected_head": "a" * 40,
+    "protected_state": GREEN_STATE,
+    "git_boundary_receipt": {
+        "temporary_git_metadata_write_performed": True,
+        "temporary_git_metadata_cleanup_completed": True,
+        "source_repository_mutation": False,
+        "source_object_fetch": False,
+        "repository_config_loaded": False,
+        "repository_callback_execution": False,
+        "native_parent_authority_claimed": False,
+    },
+}
+emit_buffer = io.StringIO()
+with contextlib.redirect_stdout(emit_buffer):
+    module.emit(synthetic_emit_result)
+emit_lines = emit_buffer.getvalue().splitlines()
+assert emit_lines.count("filesystem_write=true") == 1
+assert emit_lines.count("filesystem_write=false") == 0
+assert emit_lines.count("temporary_git_metadata_write_required=true") == 1
+assert emit_lines.count("temporary_git_metadata_write_performed=true") == 1
+assert emit_lines.count("temporary_git_metadata_cleanup_completed=true") == 1
+assert emit_lines.count("protected_filesystem_mutation=false") == 1
 with tempfile.TemporaryDirectory(prefix="void-e2-qualification-fsmonitor-") as td:
     temp = Path(td)
     repo = temp / "repo"
     sentinel = temp / "fsmonitor-executed"
+    env_sentinel = temp / "git-env-boundary-failed"
+    invoked_sentinel = temp / "git-invoked"
     subprocess.run(
-        ["/usr/bin/git", "init", "-q", str(repo)],
+        ["/usr/bin/git", "init", "-q", "-b", "main", str(repo)],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=True,
         timeout=20,
     )
+    fixture = b"fixture\n"
+    (repo / "fixture.txt").write_bytes(fixture)
+    subprocess.run(
+        ["/usr/bin/git", "-C", str(repo), "add", "fixture.txt"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+        timeout=20,
+    )
+    subprocess.run(
+        [
+            "/usr/bin/git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=VOID Proof",
+            "-c",
+            "user.email=void-proof.invalid@example.invalid",
+            "commit",
+            "-q",
+            "-m",
+            "fixture",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+        timeout=20,
+    )
+    head = subprocess.run(
+        ["/usr/bin/git", "-C", str(repo), "rev-parse", "HEAD"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=True,
+        timeout=20,
+    ).stdout.strip()
+
     callback = temp / "fsmonitor.sh"
     callback.write_text(
         "#!/bin/sh\n"
@@ -204,10 +276,70 @@ with tempfile.TemporaryDirectory(prefix="void-e2-qualification-fsmonitor-") as t
         check=True,
         timeout=20,
     )
+    subprocess.run(
+        [
+            "/usr/bin/git",
+            "-C",
+            str(repo),
+            "config",
+            "remote.origin.url",
+            "https://example.invalid/should-not-load",
+        ],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+        timeout=20,
+    )
+
+    wrapper = temp / "git-wrapper.sh"
+    wrapper.write_text(
+        "#!/bin/sh\n"
+        + "if [ \"$GIT_NO_LAZY_FETCH\" != 1 ]; then /usr/bin/touch "
+        + str(env_sentinel)
+        + "; exit 96; fi\n"
+        + "if [ \"$GIT_CONFIG_VALUE_5\" != never ]; then /usr/bin/touch "
+        + str(env_sentinel)
+        + "; exit 97; fi\n"
+        + "/usr/bin/touch "
+        + str(invoked_sentinel)
+        + "\n"
+        + "exec /usr/bin/git \"$@\"\n",
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o755)
+
     module.FIXED_CHECKOUT = repo
-    observed = module._git(["status", "--porcelain=v1", "--untracked-files=all"])
-    assert observed == b""
+    module.FIXED_GIT = wrapper
+    snapshot = module.checkout_snapshot(head)
+    assert snapshot["branch"] == "main"
+    assert snapshot["clean"] is True
+    assert snapshot["preliminary_git_local_config_isolated"] is True
+    assert snapshot["preliminary_git_lazy_fetch_disabled"] is True
+    assert snapshot["preliminary_git_protocols_denied"] is True
+
+    local_config = module._git(["config", "--local", "--list"], head).decode("utf-8")
+    assert "fsmonitor" not in local_config
+    assert "remote.origin.url" not in local_config
+    observed = module.exact_git_object(head, "fixture.txt", git_blob(fixture))
+    assert observed == fixture
     assert not sentinel.exists(), "qualification_git_fsmonitor_callback_executed"
+    assert not env_sentinel.exists(), "qualification_git_env_boundary_failed"
+    assert invoked_sentinel.exists(), "qualification_git_wrapper_not_exercised"
+
+    info_dir = repo / ".git/objects/info"
+    for redirect_name in ("alternates", "http-alternates"):
+        redirect = info_dir / redirect_name
+        redirect.write_text(str(temp / "external-objects") + "\n", encoding="utf-8")
+        invoked_sentinel.unlink(missing_ok=True)
+        try:
+            module.checkout_snapshot(head)
+        except module.QualificationError as exc:
+            assert str(exc) == "git_object_alternates_forbidden"
+        else:
+            raise AssertionError("qualification_git_object_alternate_accepted")
+        assert not invoked_sentinel.exists(), "git_invoked_before_alternates_rejection"
+        redirect.unlink()
 
 tree = ast.parse(source)
 functions = {
@@ -216,6 +348,8 @@ functions = {
     if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
 }
 for name in (
+    "_read_regular_bytes",
+    "_verified_git_dir_and_index",
     "_git",
     "checkout_snapshot",
     "exact_git_object",
@@ -281,6 +415,10 @@ for mode, expected_lines in (
             "upgrader_apply_not_called=true",
             "temporary_git_metadata_write_required=true",
             "qualification_git_callbacks_neutralized=true",
+            "preliminary_git_local_config_isolation_required=true",
+            "preliminary_git_lazy_fetch_disabled_required=true",
+            "preliminary_git_protocols_denied_required=true",
+            "preliminary_git_object_alternates_rejection_required=true",
             "nonroot_run_required=true",
             "protected_filesystem_mutation=false",
             "bootstrap_execution=false",
@@ -309,6 +447,10 @@ for mode, expected_lines in (
             "temporary_git_metadata_boundary_explicit=true",
             "temporary_git_metadata_write_required=true",
             "qualification_git_callbacks_neutralized=true",
+            "preliminary_git_local_config_isolation_required=true",
+            "preliminary_git_lazy_fetch_disabled_required=true",
+            "preliminary_git_protocols_denied_required=true",
+            "preliminary_git_object_alternates_rejection_required=true",
             "nonroot_run_required=true",
             "protected_filesystem_mutation=false",
             "bootstrap_execution=false",
@@ -354,6 +496,11 @@ print("upgrader_apply_absent=true")
 print("temporary_git_metadata_write_required=true")
 print("qualification_git_callbacks_neutralized=true")
 print("qualification_git_fsmonitor_callback_rejected=true")
+print("preliminary_git_local_config_isolated=true")
+print("preliminary_git_lazy_fetch_disabled=true")
+print("preliminary_git_protocols_denied=true")
+print("preliminary_git_object_alternates_rejected=true")
+print("green_emit_filesystem_write_truth_bound=true")
 print("repaired_plan_immutable_handoff_bound=true")
 print("nonroot_run_required=true")
 print("protected_filesystem_mutation=false")

@@ -115,12 +115,21 @@ native_parent_authority_claimed=false
 
 No persistent repository mutation is authorized.
 
-The qualifier's own preliminary Git observation also neutralizes callback-capable
-repository configuration before `status`, `show`, or `rev-parse`. In
-particular, `core.fsmonitor` is forced off and `core.hooksPath` is forced to
-`/dev/null`; credential helpers/interactivity and SSH command execution are
-disabled. The focused proof creates a hostile local fsmonitor callback and
-requires that callback not to execute.
+The qualifier's preliminary Git observation is isolated from the checkout's
+local Git configuration. It verifies the real `.git/HEAD`, main ref, object
+directory and bounded index as data, then copies the index into a private
+temporary Git directory. Git commands run with that private directory as
+`GIT_DIR`, the checkout only as `GIT_WORK_TREE`, and the real object store
+only as `GIT_OBJECT_DIRECTORY`. The real `.git/config` is therefore not the
+command's local configuration source. `GIT_NO_LAZY_FETCH=1` is mandatory and
+`protocol.allow=never` denies Git transport fallback. Command-scope
+`core.fsmonitor=false`, `core.hooksPath=/dev/null`, disabled credential
+helpers/interactivity and disabled SSH remain defense in depth.
+
+The focused proof creates a hostile local `core.fsmonitor` callback and remote
+URL, verifies the scratch Git view does not expose either local-config entry,
+requires the callback not to execute, and uses a Git wrapper to require the
+no-lazy-fetch and protocol-deny environment on every preliminary command.
 
 The bound #3509 planner generation is the repaired immutable-handoff generation:
 it records `future_apply_source_inline=true`,
@@ -189,3 +198,38 @@ monotonic publication evidence even if a later layout observation is already
 READY. The parent planner also binds its exact reviewed parent despite stale
 pull-request event metadata and watches the correct upgrader-proof dependency
 path in both PR and push triggers.
+
+
+## October 20 preliminary Git config/fetch repair
+
+Exact-head review of downstream V7 planning found that the earlier preliminary
+observer still invoked Git with the real checkout as its repository. Although
+known callbacks were overridden, Git could still parse `.git/config`; a
+partial clone could also attempt promisor lazy fetch before the later hardened
+receipt.
+
+This generation closes that gap by making the preliminary observer use a
+private scratch Git directory with a copied index, fixed detached HEAD, explicit
+worktree/object-store bindings, `GIT_NO_LAZY_FETCH=1`, and
+`protocol.allow=never`. Repository-local configuration is not command
+authority, and missing promisor objects fail closed instead of fetching.
+
+This remains source/CI-only and does not authorize host execution or mutation.
+
+
+## October 20 object-alternate repair
+
+A downstream rereview identified one remaining preliminary-object-store escape:
+Git honors `.git/objects/info/alternates` and `http-alternates` even when
+`GIT_OBJECT_DIRECTORY` is explicitly set. A local alternate can therefore
+redirect object reads before the later hardened repository snapshot rejects the
+layout.
+
+The preliminary qualifier now inspects the physical `.git/objects/info`
+directory before any Git subprocess. Presence of either redirect file is an
+immediate HOLD with `git_object_alternates_forbidden`. The adversarial proof
+creates each redirect in turn and requires rejection before the Git wrapper is
+invoked.
+
+This closes only preliminary object-store redirect authority; it adds no host or
+economic authority.

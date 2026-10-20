@@ -19,25 +19,25 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "904fa78c8d21ce03082151a738c0c53099f20ff7"
+TARGET_BLOB = "efd54eafce11e3689d4da07e2ff053cd438af473"
 
 PLANNER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_BLOB = "9ea4a7d34a66f81ed568adaed693755ebca37b66"
+PLANNER_BLOB = "597dd61923d349980cd30bcf190fee354ff1c1f2"
 PLANNER_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_PROOF_BLOB = "66263ef1beb35d5611683f456f95cafd5e0007ec"
+PLANNER_PROOF_BLOB = "656075f1941e9cca302ebfd40efad09d979b4f25"
 QUALIFIER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "d9650aff7af2cb9fc9a8d95a888d8dd52aef1970"
+QUALIFIER_BLOB = "132e03eaea440f3f8c59aeaca879596c677c6bcf"
 
 
 def git_blob(raw: bytes) -> str:
@@ -70,7 +70,14 @@ for required in (
     '"source_execution_mode": "descriptor_bound_exact_git_object"',
     '"qualification_git_callbacks_neutralized_required": True',
     '"qualification_git_callbacks_neutralized": True',
+    '"preliminary_git_local_config_isolated": True',
+    '"preliminary_git_lazy_fetch_disabled": True',
+    '"preliminary_git_protocols_denied": True',
+    '"preliminary_git_object_alternates_rejected": True',
     '"git_callbacks_neutralized_required": True',
+    '"planner_body_keys_invalid"',
+    '"qualification_contract_keys_invalid"',
+    '"qualification_required_result_keys_invalid"',
     '"run_as": "nonroot"',
     '"run_as": "root"',
     '"green_required_before_phase_2": True',
@@ -144,6 +151,9 @@ for required in (
     "launcher_historical_authority_overclaim",
     "bootstrap_argv_mismatch",
     "planner_qualification_line_mismatch",
+    "planner_body_keys_invalid",
+    "qualification_contract_keys_invalid",
+    "qualification_required_result_keys_invalid",
 ):
     assert required in validate_source, required
 
@@ -154,6 +164,8 @@ qualification_source = (
 for required in (
     "qualification_contract_mismatch:",
     "qualification_required_result_mismatch:",
+    "qualification_contract_keys_invalid",
+    "qualification_required_result_keys_invalid",
 ):
     assert required in qualification_source, required
 
@@ -188,7 +200,13 @@ for expected in (
     "planner_v7_generation_bound=true",
     "planner_plan_id_recomputed=true",
     "planner_body_canonical_required=true",
+    "planner_body_closed_schema_required=true",
     "qualification_contract_exact=true",
+    "qualification_contract_closed_schema_required=true",
+    "qualification_required_result_closed_schema_required=true",
+    "qualification_execution_identity_fields_validated=true",
+    "rehashed_nested_tamper_rejected=true",
+    "unconsumed_tool_metadata_not_execution_authority=true",
     "qualification_nonroot_required=true",
     "qualification_descriptor_bound_git_object_required=true",
     "qualification_git_callbacks_neutralized_required=true",
@@ -227,6 +245,14 @@ for expected in (
     "phase_order=nonroot_qualification_then_root_bootstrap_plan",
     "qualification_source_execution_mode=descriptor_bound_exact_git_object",
     "qualification_git_callbacks_neutralized_required=true",
+    "qualification_preliminary_git_local_config_isolation_required=true",
+    "qualification_preliminary_git_lazy_fetch_disabled_required=true",
+    "qualification_preliminary_git_protocols_denied_required=true",
+    "qualification_preliminary_git_object_alternates_rejection_required=true",
+    "planner_body_closed_schema_required=true",
+    "qualification_contract_closed_schema_required=true",
+    "qualification_required_result_closed_schema_required=true",
+    "unconsumed_tool_metadata_not_execution_authority=true",
     "root_boundary_implementation=separately_reviewed_operator_boundary_required",
     "qualification_execution_performed=false",
     "bootstrap_execution_performed=false",
@@ -246,6 +272,12 @@ print("planner_output_descriptor_read_only=true")
 print("canonical_planner_body_required=true")
 print("planner_plan_id_recomputed=true")
 print("exact_qualification_contract_required=true")
+print("planner_body_closed_schema_required=true")
+print("qualification_contract_closed_schema_required=true")
+print("qualification_required_result_closed_schema_required=true")
+print("qualification_execution_identity_fields_validated=true")
+print("rehashed_nested_tamper_rejected=true")
+print("unconsumed_tool_metadata_not_execution_authority=true")
 print("nonroot_qualification_phase_required=true")
 print("descriptor_bound_qualification_source_required=true")
 print("qualification_git_callbacks_neutralized_required=true")

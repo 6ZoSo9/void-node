@@ -46,9 +46,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
           case "$EVENT_NAME" in
-            pull_request) base="f226bb5f4c938a8b51fe8bdfbef3b6985ac0e7ac" ;;
+            pull_request) base="81e4b587b63a88e599630bedfbc31c6b2722dd5e" ;;
             push) base="$PUSH_BEFORE" ;;
-            workflow_dispatch) base="f226bb5f4c938a8b51fe8bdfbef3b6985ac0e7ac" ;;
+            workflow_dispatch) base="81e4b587b63a88e599630bedfbc31c6b2722dd5e" ;;
             *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
           esac
           test -n "$base"
@@ -66,18 +66,18 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            904fa78c8d21ce03082151a738c0c53099f20ff7
+            efd54eafce11e3689d4da07e2ff053cd438af473
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            4c8d86fea5af335faf81a2a6643277de3c2d02b0
+            1eede15042f42cf617244bfac9473a939d7dd0a9
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-v7-qualify-execute-contract-v1.md)" = \
-            3912de9211b5ffca96a4946d4ca1a57024ad6469
+            52ad582ed7c61fb0e57aad4fb55bfaf8f7e04b19
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            9ea4a7d34a66f81ed568adaed693755ebca37b66
+            597dd61923d349980cd30bcf190fee354ff1c1f2
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            66263ef1beb35d5611683f456f95cafd5e0007ec
+            656075f1941e9cca302ebfd40efad09d979b4f25
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
-            d9650aff7af2cb9fc9a8d95a888d8dd52aef1970
+            132e03eaea440f3f8c59aeaca879596c677c6bcf
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -111,6 +111,12 @@ jobs:
             'canonical_planner_body_required=true'
             'planner_plan_id_recomputed=true'
             'exact_qualification_contract_required=true'
+            'planner_body_closed_schema_required=true'
+            'qualification_contract_closed_schema_required=true'
+            'qualification_required_result_closed_schema_required=true'
+            'qualification_execution_identity_fields_validated=true'
+            'rehashed_nested_tamper_rejected=true'
+            'unconsumed_tool_metadata_not_execution_authority=true'
             'nonroot_qualification_phase_required=true'
             'descriptor_bound_qualification_source_required=true'
             'qualification_git_callbacks_neutralized_required=true'
@@ -145,6 +151,14 @@ jobs:
             'phase_order=nonroot_qualification_then_root_bootstrap_plan'
             'qualification_source_execution_mode=descriptor_bound_exact_git_object'
             'qualification_git_callbacks_neutralized_required=true'
+            'qualification_preliminary_git_local_config_isolation_required=true'
+            'qualification_preliminary_git_lazy_fetch_disabled_required=true'
+            'qualification_preliminary_git_protocols_denied_required=true'
+            'qualification_preliminary_git_object_alternates_rejection_required=true'
+            'planner_body_closed_schema_required=true'
+            'qualification_contract_closed_schema_required=true'
+            'qualification_required_result_closed_schema_required=true'
+            'unconsumed_tool_metadata_not_execution_authority=true'
             'root_boundary_implementation=separately_reviewed_operator_boundary_required'
             'qualification_execution_performed=false'
             'bootstrap_execution_performed=false'

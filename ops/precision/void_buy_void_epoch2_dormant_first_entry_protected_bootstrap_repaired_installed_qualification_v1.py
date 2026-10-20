@@ -7,7 +7,9 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
+import tempfile
 import types
 from typing import Any
 
@@ -92,7 +94,8 @@ GIT_ENV = {
     "GIT_NO_REPLACE_OBJECTS": "1",
     "GIT_OPTIONAL_LOCKS": "0",
     "GIT_TERMINAL_PROMPT": "0",
-    "GIT_CONFIG_COUNT": "5",
+    "GIT_NO_LAZY_FETCH": "1",
+    "GIT_CONFIG_COUNT": "6",
     "GIT_CONFIG_KEY_0": "core.fsmonitor",
     "GIT_CONFIG_VALUE_0": "false",
     "GIT_CONFIG_KEY_1": "core.hooksPath",
@@ -103,6 +106,8 @@ GIT_ENV = {
     "GIT_CONFIG_VALUE_3": "never",
     "GIT_CONFIG_KEY_4": "core.sshCommand",
     "GIT_CONFIG_VALUE_4": "/bin/false",
+    "GIT_CONFIG_KEY_5": "protocol.allow",
+    "GIT_CONFIG_VALUE_5": "never",
 }
 
 
@@ -116,24 +121,164 @@ def git_blob(raw: bytes) -> str:
     ).hexdigest()
 
 
-def _git(args: list[str]) -> bytes:
-    cp = subprocess.run(
-        [
-            str(FIXED_GIT),
-            "--no-replace-objects",
-            "-C",
-            str(FIXED_CHECKOUT),
-            "-c",
-            "safe.directory=" + str(FIXED_CHECKOUT),
-            *args,
-        ],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=GIT_ENV,
-        timeout=20,
-        check=False,
+MAX_GIT_METADATA_BYTES = 64 * 1024 * 1024
+
+
+def _read_regular_bytes(path: Path, maximum: int, label: str) -> bytes:
+    try:
+        fd = os.open(
+            os.fspath(path),
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+        )
+    except OSError as exc:
+        raise QualificationError(label + "_open_failed") from exc
+    try:
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode):
+            raise QualificationError(label + "_not_regular")
+        if before.st_size < 0 or before.st_size > maximum:
+            raise QualificationError(label + "_size_invalid")
+        remaining = before.st_size
+        chunks: list[bytes] = []
+        while remaining:
+            chunk = os.read(fd, min(1024 * 1024, remaining))
+            if not chunk:
+                raise QualificationError(label + "_short_read")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        after = os.fstat(fd)
+        identity_before = (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+            before.st_ctime_ns,
+        )
+        identity_after = (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+            after.st_ctime_ns,
+        )
+        if identity_before != identity_after:
+            raise QualificationError(label + "_generation_changed")
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+
+def _verified_git_dir_and_index(expected_head: str) -> tuple[Path, bytes]:
+    git_dir = FIXED_CHECKOUT / ".git"
+    try:
+        git_dir_stat = git_dir.lstat()
+    except OSError as exc:
+        raise QualificationError("git_dir_metadata_failed") from exc
+    if not stat.S_ISDIR(git_dir_stat.st_mode):
+        raise QualificationError("git_dir_real_directory_required")
+
+    head_raw = _read_regular_bytes(git_dir / "HEAD", 4096, "git_head")
+    if head_raw != b"ref: refs/heads/main\n":
+        raise QualificationError("checkout_branch_not_main")
+
+    main_ref = git_dir / "refs/heads/main"
+    try:
+        main_ref.lstat()
+        ref_raw = _read_regular_bytes(main_ref, 4096, "git_main_ref")
+        observed_head = ref_raw.decode("ascii", "strict").strip()
+    except FileNotFoundError:
+        packed = _read_regular_bytes(
+            git_dir / "packed-refs",
+            16 * 1024 * 1024,
+            "git_packed_refs",
+        )
+        matches: list[bytes] = []
+        for line in packed.splitlines():
+            if not line or line.startswith((b"#", b"^")):
+                continue
+            fields = line.split(b" ")
+            if len(fields) == 2 and fields[1] == b"refs/heads/main":
+                matches.append(fields[0])
+        if len(matches) != 1:
+            raise QualificationError("git_main_packed_ref_invalid")
+        observed_head = matches[0].decode("ascii", "strict")
+
+    if HEX40.fullmatch(observed_head) is None:
+        raise QualificationError("checkout_head_invalid")
+    if observed_head != expected_head:
+        raise QualificationError("checkout_head_mismatch")
+
+    objects_dir = git_dir / "objects"
+    try:
+        objects_stat = objects_dir.lstat()
+    except OSError as exc:
+        raise QualificationError("git_objects_metadata_failed") from exc
+    if not stat.S_ISDIR(objects_stat.st_mode):
+        raise QualificationError("git_objects_real_directory_required")
+
+    info_dir = objects_dir / "info"
+    try:
+        info_stat = info_dir.lstat()
+    except FileNotFoundError:
+        info_stat = None
+    except OSError as exc:
+        raise QualificationError("git_objects_info_metadata_failed") from exc
+    if info_stat is not None:
+        if not stat.S_ISDIR(info_stat.st_mode):
+            raise QualificationError("git_objects_info_real_directory_required")
+        for redirect_name in ("alternates", "http-alternates"):
+            redirect = info_dir / redirect_name
+            try:
+                redirect.lstat()
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise QualificationError(
+                    "git_object_alternates_metadata_failed"
+                ) from exc
+            raise QualificationError("git_object_alternates_forbidden")
+
+    index_raw = _read_regular_bytes(
+        git_dir / "index",
+        MAX_GIT_METADATA_BYTES,
+        "git_index",
     )
+    return git_dir, index_raw
+
+
+def _git(args: list[str], expected_head: str) -> bytes:
+    git_dir, index_raw = _verified_git_dir_and_index(expected_head)
+    with tempfile.TemporaryDirectory(
+        prefix="void-e2-repaired-qualification-git-"
+    ) as td:
+        view = Path(td)
+        (view / "refs").mkdir(mode=0o700)
+        (view / "config").write_text(
+            "[core]\n\trepositoryformatversion = 0\n\tbare = false\n",
+            encoding="utf-8",
+        )
+        (view / "HEAD").write_text(expected_head + "\n", encoding="ascii")
+        (view / "index").write_bytes(index_raw)
+
+        env = dict(GIT_ENV)
+        env.update(
+            {
+                "GIT_DIR": str(view),
+                "GIT_WORK_TREE": str(FIXED_CHECKOUT),
+                "GIT_OBJECT_DIRECTORY": str(git_dir / "objects"),
+                "GIT_INDEX_FILE": str(view / "index"),
+            }
+        )
+        cp = subprocess.run(
+            [str(FIXED_GIT), "--no-replace-objects", *args],
+            cwd=str(FIXED_CHECKOUT),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            timeout=20,
+            check=False,
+        )
     if cp.returncode != 0:
         raise QualificationError(
             "git_command_failed:"
@@ -149,14 +294,21 @@ def _git(args: list[str]) -> bytes:
 def checkout_snapshot(expected_head: str) -> dict[str, Any]:
     if HEX40.fullmatch(expected_head) is None:
         raise QualificationError("expected_head_invalid")
-    head = _git(["rev-parse", "--verify", "HEAD^{commit}"]).decode().strip()
-    tree = _git(["rev-parse", "--verify", "HEAD^{tree}"]).decode().strip()
-    branch = _git(["symbolic-ref", "--short", "-q", "HEAD"]).decode().strip()
-    status = _git(["status", "--porcelain=v1", "--untracked-files=all"])
+    git_dir, _ = _verified_git_dir_and_index(expected_head)
+    head = _git(
+        ["rev-parse", "--verify", expected_head + "^{commit}"],
+        expected_head,
+    ).decode().strip()
+    tree = _git(
+        ["rev-parse", "--verify", expected_head + "^{tree}"],
+        expected_head,
+    ).decode().strip()
+    status = _git(
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+        expected_head,
+    )
     if head != expected_head:
         raise QualificationError("checkout_head_mismatch")
-    if branch != "main":
-        raise QualificationError("checkout_branch_not_main")
     if status != b"":
         raise QualificationError("checkout_not_clean")
     if HEX40.fullmatch(tree) is None:
@@ -164,20 +316,29 @@ def checkout_snapshot(expected_head: str) -> dict[str, Any]:
     return {
         "head": head,
         "tree": tree,
-        "branch": branch,
+        "branch": "main",
         "clean": True,
+        "preliminary_git_local_config_isolated": True,
+        "preliminary_git_lazy_fetch_disabled": True,
+        "preliminary_git_protocols_denied": True,
+        "git_dir": str(git_dir),
     }
 
 
 def exact_git_object(expected_head: str, relative: str, expected_blob: str) -> bytes:
-    raw = _git(["show", expected_head + ":" + relative])
+    raw = _git(
+        ["cat-file", "blob", expected_head + ":" + relative],
+        expected_head,
+    )
     if git_blob(raw) != expected_blob:
         raise QualificationError("git_object_blob_mismatch:" + relative)
-    actual = _git(["rev-parse", expected_head + ":" + relative]).decode().strip()
+    actual = _git(
+        ["rev-parse", expected_head + ":" + relative],
+        expected_head,
+    ).decode().strip()
     if actual != expected_blob:
         raise QualificationError("git_tree_blob_mismatch:" + relative)
     return raw
-
 
 def load_upgrader(expected_head: str) -> types.ModuleType:
     raw = exact_git_object(expected_head, UPGRADER_REL, UPGRADER_BLOB)
@@ -285,6 +446,10 @@ def collect(expected_head: str) -> dict[str, Any]:
         "upgrade_stage_absent_verified": True,
         "temporary_git_metadata_write_required": True,
         "qualification_git_callbacks_neutralized": True,
+        "preliminary_git_local_config_isolated": True,
+        "preliminary_git_lazy_fetch_disabled": True,
+        "preliminary_git_protocols_denied": True,
+        "preliminary_git_object_alternates_rejected": True,
         "filesystem_write": True,
         "protected_filesystem_mutation": False,
         "bootstrap_execution": False,
@@ -321,6 +486,10 @@ def source_plan() -> None:
     print("temporary_git_metadata_boundary_explicit=true")
     print("temporary_git_metadata_write_required=true")
     print("qualification_git_callbacks_neutralized=true")
+    print("preliminary_git_local_config_isolation_required=true")
+    print("preliminary_git_lazy_fetch_disabled_required=true")
+    print("preliminary_git_protocols_denied_required=true")
+    print("preliminary_git_object_alternates_rejection_required=true")
     print("nonroot_run_required=true")
     print("protected_filesystem_mutation=false")
     print("bootstrap_execution=false")
@@ -354,6 +523,10 @@ def emit(result: dict[str, Any]) -> None:
     print("nonroot_run_required=true")
     print("temporary_git_metadata_write_required=true")
     print("qualification_git_callbacks_neutralized=true")
+    print("preliminary_git_local_config_isolated=true")
+    print("preliminary_git_lazy_fetch_disabled=true")
+    print("preliminary_git_protocols_denied=true")
+    print("preliminary_git_object_alternates_rejected=true")
     print("filesystem_write=true")
     print("protected_filesystem_mutation=false")
     print("repaired_bootstrap_sha256=" + NEW_BOOT[1])
@@ -362,7 +535,6 @@ def emit(result: dict[str, Any]) -> None:
     print("predecessor_manifest_sha256=" + OLD_MAN[1])
     for key, value in result["git_boundary_receipt"].items():
         print(key + "=" + (str(value).lower() if isinstance(value, bool) else str(value)))
-    print("filesystem_write=false")
     print("bootstrap_execution=false")
     print("inner_installer_execution=false")
     print("service_mutation=false")
@@ -401,6 +573,10 @@ def self_test() -> None:
     print("temporary_git_metadata_cleanup_required=true")
     print("temporary_git_metadata_write_required=true")
     print("qualification_git_callbacks_neutralized=true")
+    print("preliminary_git_local_config_isolation_required=true")
+    print("preliminary_git_lazy_fetch_disabled_required=true")
+    print("preliminary_git_protocols_denied_required=true")
+    print("preliminary_git_object_alternates_rejection_required=true")
     print("nonroot_run_required=true")
     print("upgrader_apply_not_called=true")
     print("protected_filesystem_mutation=false")

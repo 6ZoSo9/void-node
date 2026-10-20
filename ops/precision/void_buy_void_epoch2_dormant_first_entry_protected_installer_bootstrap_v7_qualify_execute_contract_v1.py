@@ -34,20 +34,24 @@ PLANNER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_BLOB = "9ea4a7d34a66f81ed568adaed693755ebca37b66"
+PLANNER_BLOB = "597dd61923d349980cd30bcf190fee354ff1c1f2"
 PLANNER_PROOF_REL = (
     "scripts/prove_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-PLANNER_PROOF_BLOB = "66263ef1beb35d5611683f456f95cafd5e0007ec"
+PLANNER_PROOF_BLOB = "656075f1941e9cca302ebfd40efad09d979b4f25"
 
 QUALIFIER_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "d9650aff7af2cb9fc9a8d95a888d8dd52aef1970"
+QUALIFIER_BLOB = "132e03eaea440f3f8c59aeaca879596c677c6bcf"
+QUALIFIER_UPGRADER_BLOB = "d4b298dea73a4970987bf22435be3e76a5e7a02d"
+QUALIFIER_UPGRADE_PLAN_BLOB = "9ba10aac284da9e44db0ad258348425cfa3c2e2c"
 FIXED_PYTHON = "/usr/bin/python3"
+FIXED_GIT = "/usr/bin/git"
+ROOT = Path(__file__).resolve().parents[2]
 
 BOOTSTRAP_PATH = (
     "/opt/void-buy-void-epoch2-dormant-first-entry-"
@@ -99,6 +103,8 @@ QUALIFICATION_NEW_BOOTSTRAP_SHA256 = BOOTSTRAP_SHA256
 QUALIFICATION_NEW_MANIFEST_SHA256 = (
     "8de1a4ebdfb16d31c7ca2891d074b47631540304d71f803353030c31ab355ca9"
 )
+BOOTSTRAP_MANIFEST_BYTES = 2_382
+BOOTSTRAP_MANIFEST_GIT_BLOB = "de56bacb30bea0adc418e240cf3fb8d900b061ef"
 QUALIFICATION_OLD_BOOTSTRAP_SHA256 = (
     "c0121a4d50443dac1c6e42a03fcdee77ec55c867acd6aea04cbbce3ae424a21b"
 )
@@ -109,6 +115,103 @@ QUALIFICATION_OLD_MANIFEST_SHA256 = (
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 MAX_PLANNER_OUTPUT_BYTES = 2 * 1024 * 1024
+
+PLANNER_BODY_KEYS = frozenset({
+    "schema", "version", "checkout", "expected_head",
+    "qualifier_git_blob_sha1", "qualification_contract",
+    "installed_qualification_performed",
+    "installed_qualification_required_before_bootstrap_plan",
+    "expected_installed_bootstrap", "accepted_launcher",
+    "accepted_launcher_lock_id", "accepted_launcher_candidate_id",
+    "launcher_runtime_head_contract_accepted",
+    "launcher_superseded_v1_lock_install_authority",
+    "accepted_native", "bootstrap_argv",
+    "bootstrap_execution_performed", "protected_installer_apply_performed",
+    "filesystem_write", "protected_filesystem_mutation",
+    "service_mutation", "systemd_mutation", "credential_access",
+    "private_key_access", "signing", "transaction", "rpc_call",
+    "payment_acceptance", "public_presale_activation",
+    "wc_void_market_activation", "treasury_liquidity_action",
+    "funds_movement", "production_host_evidence_authority",
+})
+CHECKOUT_KEYS = frozenset({"head", "tree", "branch", "generation_sha256"})
+INSTALLED_BOOTSTRAP_KEYS = frozenset({
+    "lock_id", "candidate_id", "bytes", "sha256", "git_blob_sha1",
+    "manifest_bytes", "manifest_sha256", "manifest_git_blob_sha1",
+})
+ARTIFACT_KEYS = frozenset({
+    "path", "bytes", "sha256", "git_blob_sha1", "mode",
+    "uid", "gid", "dev", "ino",
+})
+TOOL_IDENTITY_KEYS = frozenset({
+    "path", "resolved_path", "bytes", "sha256", "mode",
+    "uid", "gid", "dev", "ino",
+})
+QUALIFICATION_CONTRACT_KEYS = frozenset({
+    "qualifier_source_path", "qualifier_git_blob_sha1",
+    "qualifier_upgrader_git_blob_sha1", "qualifier_upgrade_plan_git_blob_sha1",
+    "expected_head", "root_execution_required", "nonroot_execution_required",
+    "protected_state_read_only_required", "temporary_git_metadata_write_required",
+    "temporary_git_metadata_cleanup_required",
+    "qualification_git_callbacks_neutralized_required",
+    "preliminary_git_local_config_isolation_required",
+    "preliminary_git_lazy_fetch_disabled_required",
+    "preliminary_git_protocols_denied_required",
+    "preliminary_git_object_alternates_rejection_required",
+    "descriptor_bound_source_execution_required",
+    "interpreter", "git_tool", "required_result",
+})
+QUALIFICATION_REQUIRED_RESULT_KEYS = frozenset({
+    "expected_head", "protected_state", "old_lock_id", "new_lock_id",
+    "new_candidate_id", "repaired_fixed_root_verified",
+    "predecessor_retained_verified", "upgrade_stage_absent_verified",
+    "repaired_bootstrap_sha256", "repaired_manifest_sha256",
+    "predecessor_bootstrap_sha256", "predecessor_manifest_sha256",
+    "temporary_git_metadata_write_required",
+    "temporary_git_metadata_write_performed",
+    "temporary_git_metadata_cleanup_completed",
+    "qualification_git_callbacks_neutralized",
+    "preliminary_git_local_config_isolated",
+    "preliminary_git_lazy_fetch_disabled",
+    "preliminary_git_protocols_denied",
+    "preliminary_git_object_alternates_rejected",
+    "source_repository_mutation", "source_object_fetch",
+    "repository_config_loaded", "repository_callback_execution",
+    "native_parent_authority_claimed", "filesystem_write",
+    "protected_filesystem_mutation", "bootstrap_execution",
+    "inner_installer_execution", "service_mutation", "credential_access",
+    "private_key_access", "signing", "transaction", "rpc_call",
+    "payment_acceptance", "public_presale_activation",
+    "wc_void_market_activation", "treasury_liquidity_action",
+    "funds_movement", "production_host_evidence_authority",
+})
+PLANNER_OUTPUT_KEYS = frozenset({
+    "mode", "read_only", "nonroot_required", "plan_id", "plan_body_json",
+    "expected_head", "qualifier_git_blob_sha1",
+    "installed_qualification_performed",
+    "installed_qualification_required_before_bootstrap_plan",
+    "qualification_nonroot_execution_required",
+    "qualification_protected_state_read_only_required",
+    "qualification_temporary_git_metadata_write_required",
+    "qualification_git_callbacks_neutralized_required",
+    "qualification_preliminary_git_local_config_isolation_required",
+    "qualification_preliminary_git_lazy_fetch_disabled_required",
+    "qualification_preliminary_git_protocols_denied_required",
+    "qualification_preliminary_git_object_alternates_rejection_required",
+    "qualification_descriptor_bound_source_execution_required",
+    "expected_installed_bootstrap_identity_bound",
+    "accepted_launcher_identity_green", "accepted_launcher_lock_id",
+    "accepted_launcher_candidate_id", "launcher_runtime_head_contract_accepted",
+    "launcher_superseded_v1_lock_install_authority",
+    "accepted_native_identity_green", "bootstrap_execution_performed",
+    "protected_installer_apply_performed", "filesystem_write",
+    "service_mutation", "systemd_mutation", "credential_access",
+    "private_key_access", "signing", "transaction", "rpc_call",
+    "payment_acceptance", "public_presale_activation",
+    "wc_void_market_activation", "treasury_liquidity_action",
+    "funds_movement", "production_host_evidence_authority",
+    "bootstrap_argv_json", "qualification_contract_json", "next_action",
+})
 
 AUTHORITY_FALSE_KEYS = (
     "bootstrap_execution_performed",
@@ -230,14 +333,95 @@ def _require_false_authority(body: dict[str, Any]) -> None:
             raise ContractError("planner_authority_overclaim:" + key)
 
 
+def _require_exact_keys(
+    value: dict[str, Any],
+    expected: frozenset[str],
+    label: str,
+) -> None:
+    if frozenset(value.keys()) != expected:
+        raise ContractError(label + "_keys_invalid")
+
+
+def _plain_int(value: object, minimum: int = 0) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
+
+
+def _normalized_absolute(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and value.startswith("/")
+        and "\n" not in value
+        and "\r" not in value
+        and os.path.normpath(value) == value
+    )
+
+
+def _validate_checkout(value: object, expected_head: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ContractError("planner_checkout_invalid")
+    _require_exact_keys(value, CHECKOUT_KEYS, "planner_checkout")
+    if value["head"] != expected_head:
+        raise ContractError("planner_checkout_head_mismatch")
+    if not isinstance(value["tree"], str) or HEX40.fullmatch(value["tree"]) is None:
+        raise ContractError("planner_checkout_tree_invalid")
+    if value["branch"] != "main":
+        raise ContractError("planner_checkout_branch_invalid")
+    if (
+        not isinstance(value["generation_sha256"], str)
+        or HEX64.fullmatch(value["generation_sha256"]) is None
+    ):
+        raise ContractError("planner_checkout_generation_invalid")
+    return value
+
+
+def _validate_tool_identity(
+    value: object,
+    *,
+    label: str,
+    expected_path: str,
+    maximum: int,
+) -> None:
+    if not isinstance(value, dict):
+        raise ContractError(label + "_identity_invalid")
+    _require_exact_keys(value, TOOL_IDENTITY_KEYS, label + "_identity")
+    if value["path"] != expected_path:
+        raise ContractError(label + "_path_mismatch")
+    if not _normalized_absolute(value["resolved_path"]):
+        raise ContractError(label + "_resolved_path_invalid")
+    if not _plain_int(value["bytes"], 1) or value["bytes"] > maximum:
+        raise ContractError(label + "_bytes_invalid")
+    if not isinstance(value["sha256"], str) or HEX64.fullmatch(value["sha256"]) is None:
+        raise ContractError(label + "_sha256_invalid")
+    mode = value["mode"]
+    if (
+        not isinstance(mode, str)
+        or re.fullmatch(r"[0-7]{4}", mode) is None
+        or int(mode, 8) & 0o022
+    ):
+        raise ContractError(label + "_mode_invalid")
+    if value["uid"] != 0:
+        raise ContractError(label + "_uid_invalid")
+    for key in ("gid", "dev", "ino"):
+        if not _plain_int(value[key], 0 if key != "ino" else 1):
+            raise ContractError(label + "_" + key + "_invalid")
+
+
 def _validate_qualification_contract(
     contract: object,
     expected_head: str,
 ) -> dict[str, Any]:
     if not isinstance(contract, dict):
         raise ContractError("qualification_contract_invalid")
+    _require_exact_keys(contract, QUALIFICATION_CONTRACT_KEYS, "qualification_contract")
+
+    expected_source = str(ROOT / QUALIFIER_REL)
+    if contract["qualifier_source_path"] != expected_source:
+        raise ContractError("qualification_contract_mismatch:qualifier_source_path")
+
     exact = {
         "qualifier_git_blob_sha1": QUALIFIER_BLOB,
+        "qualifier_upgrader_git_blob_sha1": QUALIFIER_UPGRADER_BLOB,
+        "qualifier_upgrade_plan_git_blob_sha1": QUALIFIER_UPGRADE_PLAN_BLOB,
         "expected_head": expected_head,
         "root_execution_required": False,
         "nonroot_execution_required": True,
@@ -245,15 +429,37 @@ def _validate_qualification_contract(
         "temporary_git_metadata_write_required": True,
         "temporary_git_metadata_cleanup_required": True,
         "qualification_git_callbacks_neutralized_required": True,
+        "preliminary_git_local_config_isolation_required": True,
+        "preliminary_git_lazy_fetch_disabled_required": True,
+        "preliminary_git_protocols_denied_required": True,
+        "preliminary_git_object_alternates_rejection_required": True,
         "descriptor_bound_source_execution_required": True,
     }
     for key, expected in exact.items():
-        if contract.get(key) != expected:
+        if contract[key] != expected:
             raise ContractError("qualification_contract_mismatch:" + key)
 
-    required = contract.get("required_result")
+    _validate_tool_identity(
+        contract["interpreter"],
+        label="qualification_interpreter",
+        expected_path=FIXED_PYTHON,
+        maximum=512 * 1024 * 1024,
+    )
+    _validate_tool_identity(
+        contract["git_tool"],
+        label="qualification_git_tool",
+        expected_path=FIXED_GIT,
+        maximum=64 * 1024 * 1024,
+    )
+
+    required = contract["required_result"]
     if not isinstance(required, dict):
         raise ContractError("qualification_required_result_invalid")
+    _require_exact_keys(
+        required,
+        QUALIFICATION_REQUIRED_RESULT_KEYS,
+        "qualification_required_result",
+    )
     expected_result = {
         "expected_head": expected_head,
         "protected_state": BOOTSTRAP_GREEN_STATE,
@@ -271,11 +477,16 @@ def _validate_qualification_contract(
         "temporary_git_metadata_write_performed": True,
         "temporary_git_metadata_cleanup_completed": True,
         "qualification_git_callbacks_neutralized": True,
+        "preliminary_git_local_config_isolated": True,
+        "preliminary_git_lazy_fetch_disabled": True,
+        "preliminary_git_protocols_denied": True,
+        "preliminary_git_object_alternates_rejected": True,
         "source_repository_mutation": False,
         "source_object_fetch": False,
         "repository_config_loaded": False,
         "repository_callback_execution": False,
         "native_parent_authority_claimed": False,
+        "filesystem_write": True,
         "protected_filesystem_mutation": False,
         "bootstrap_execution": False,
         "inner_installer_execution": False,
@@ -293,13 +504,10 @@ def _validate_qualification_contract(
         "production_host_evidence_authority": False,
     }
     for key, expected in expected_result.items():
-        if required.get(key) != expected:
+        if required[key] != expected:
             raise ContractError("qualification_required_result_mismatch:" + key)
-    # The qualifier truthfully uses a private temporary Git directory.
-    if required.get("filesystem_write") is not True:
-        raise ContractError("qualification_temporary_write_truth_missing")
-    return contract
 
+    return {**exact, "required_result": dict(required)}
 
 def _artifact(
     value: object,
@@ -311,21 +519,31 @@ def _artifact(
 ) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ContractError(label + "_invalid")
-    if value.get("bytes") != expected_bytes:
-        raise ContractError(label + "_bytes_mismatch")
-    if value.get("sha256") != expected_sha256:
-        raise ContractError(label + "_sha256_mismatch")
-    if expected_git_blob is not None and value.get("git_blob_sha1") != expected_git_blob:
-        raise ContractError(label + "_git_blob_mismatch")
-    path_value = value.get("path")
-    if not isinstance(path_value, str) or not path_value.startswith("/"):
+    _require_exact_keys(value, ARTIFACT_KEYS, label)
+    if not _normalized_absolute(value["path"]):
         raise ContractError(label + "_path_invalid")
-    return value
-
+    if value["bytes"] != expected_bytes:
+        raise ContractError(label + "_bytes_mismatch")
+    if value["sha256"] != expected_sha256:
+        raise ContractError(label + "_sha256_mismatch")
+    git_blob_value = value["git_blob_sha1"]
+    if expected_git_blob is not None:
+        if git_blob_value != expected_git_blob:
+            raise ContractError(label + "_git_blob_mismatch")
+    elif not isinstance(git_blob_value, str) or HEX40.fullmatch(git_blob_value) is None:
+        raise ContractError(label + "_git_blob_invalid")
+    if value["mode"] != "0555":
+        raise ContractError(label + "_mode_invalid")
+    for key in ("uid", "gid", "dev", "ino"):
+        if not _plain_int(value[key], 0 if key != "ino" else 1):
+            raise ContractError(label + "_" + key + "_invalid")
+    return dict(value)
 
 def validate_planner_output(raw: bytes) -> dict[str, Any]:
     values = _planner_lines(raw)
-    if values.get("mode") != "plan":
+    if frozenset(values.keys()) != PLANNER_OUTPUT_KEYS:
+        raise ContractError("planner_output_keys_invalid")
+    if values["mode"] != "plan":
         raise ContractError("planner_mode_invalid")
     _require_bool_line(values, "read_only", True)
     _require_bool_line(values, "nonroot_required", True)
@@ -335,6 +553,10 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
     _require_bool_line(values, "qualification_protected_state_read_only_required", True)
     _require_bool_line(values, "qualification_temporary_git_metadata_write_required", True)
     _require_bool_line(values, "qualification_git_callbacks_neutralized_required", True)
+    _require_bool_line(values, "qualification_preliminary_git_local_config_isolation_required", True)
+    _require_bool_line(values, "qualification_preliminary_git_lazy_fetch_disabled_required", True)
+    _require_bool_line(values, "qualification_preliminary_git_protocols_denied_required", True)
+    _require_bool_line(values, "qualification_preliminary_git_object_alternates_rejection_required", True)
     _require_bool_line(values, "qualification_descriptor_bound_source_execution_required", True)
     _require_bool_line(values, "expected_installed_bootstrap_identity_bound", True)
     _require_bool_line(values, "accepted_launcher_identity_green", True)
@@ -342,26 +564,16 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
     _require_bool_line(values, "launcher_superseded_v1_lock_install_authority", False)
     _require_bool_line(values, "accepted_native_identity_green", True)
     for key in (
-        "bootstrap_execution_performed",
-        "protected_installer_apply_performed",
-        "filesystem_write",
-        "service_mutation",
-        "systemd_mutation",
-        "credential_access",
-        "private_key_access",
-        "signing",
-        "transaction",
-        "rpc_call",
-        "payment_acceptance",
-        "public_presale_activation",
-        "wc_void_market_activation",
-        "treasury_liquidity_action",
-        "funds_movement",
-        "production_host_evidence_authority",
+        "bootstrap_execution_performed", "protected_installer_apply_performed",
+        "filesystem_write", "service_mutation", "systemd_mutation",
+        "credential_access", "private_key_access", "signing", "transaction",
+        "rpc_call", "payment_acceptance", "public_presale_activation",
+        "wc_void_market_activation", "treasury_liquidity_action",
+        "funds_movement", "production_host_evidence_authority",
     ):
         _require_bool_line(values, key, False)
 
-    plan_id = values.get("plan_id", "")
+    plan_id = values["plan_id"]
     if (
         not plan_id.startswith(PLANNER_PREFIX)
         or len(plan_id) != len(PLANNER_PREFIX) + 64
@@ -371,111 +583,102 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
 
     try:
         body = json.loads(values["plan_body_json"])
-    except (KeyError, json.JSONDecodeError) as exc:
+    except json.JSONDecodeError as exc:
         raise ContractError("planner_body_invalid") from exc
     if not isinstance(body, dict):
         raise ContractError("planner_body_not_object")
+    _require_exact_keys(body, PLANNER_BODY_KEYS, "planner_body")
     if canonical(body).decode("ascii") != values["plan_body_json"]:
         raise ContractError("planner_body_not_canonical")
     if plan_id != PLANNER_PREFIX + sha256(canonical(body)):
         raise ContractError("planner_plan_id_body_mismatch")
-    if body.get("schema") != PLANNER_SCHEMA or body.get("version") != 7:
+    if body["schema"] != PLANNER_SCHEMA or body["version"] != 7:
         raise ContractError("planner_schema_invalid")
 
-    expected_head = body.get("expected_head")
+    expected_head = body["expected_head"]
     if not isinstance(expected_head, str) or HEX40.fullmatch(expected_head) is None:
         raise ContractError("planner_expected_head_invalid")
-    if values.get("expected_head") != expected_head:
+    if values["expected_head"] != expected_head:
         raise ContractError("planner_expected_head_line_mismatch")
-    if body.get("qualifier_git_blob_sha1") != QUALIFIER_BLOB:
+    _validate_checkout(body["checkout"], expected_head)
+    if body["qualifier_git_blob_sha1"] != QUALIFIER_BLOB:
         raise ContractError("planner_qualifier_blob_mismatch")
-    if values.get("qualifier_git_blob_sha1") != QUALIFIER_BLOB:
+    if values["qualifier_git_blob_sha1"] != QUALIFIER_BLOB:
         raise ContractError("planner_qualifier_line_mismatch")
     _require_false_authority(body)
 
-    installed = body.get("expected_installed_bootstrap")
+    installed = body["expected_installed_bootstrap"]
     if not isinstance(installed, dict):
         raise ContractError("installed_bootstrap_identity_invalid")
+    _require_exact_keys(installed, INSTALLED_BOOTSTRAP_KEYS, "installed_bootstrap_identity")
     expected_installed = {
         "lock_id": BOOTSTRAP_LOCK_ID,
         "candidate_id": BOOTSTRAP_CANDIDATE_ID,
         "bytes": BOOTSTRAP_BYTES,
         "sha256": BOOTSTRAP_SHA256,
         "git_blob_sha1": BOOTSTRAP_GIT_BLOB,
+        "manifest_bytes": BOOTSTRAP_MANIFEST_BYTES,
+        "manifest_sha256": QUALIFICATION_NEW_MANIFEST_SHA256,
+        "manifest_git_blob_sha1": BOOTSTRAP_MANIFEST_GIT_BLOB,
     }
     for key, expected in expected_installed.items():
-        if installed.get(key) != expected:
+        if installed[key] != expected:
             raise ContractError("installed_bootstrap_identity_mismatch:" + key)
 
-    if body.get("accepted_launcher_lock_id") != LAUNCHER_LOCK_ID:
+    if body["accepted_launcher_lock_id"] != LAUNCHER_LOCK_ID:
         raise ContractError("launcher_lock_id_mismatch")
-    if body.get("accepted_launcher_candidate_id") != LAUNCHER_CANDIDATE_ID:
+    if body["accepted_launcher_candidate_id"] != LAUNCHER_CANDIDATE_ID:
         raise ContractError("launcher_candidate_id_mismatch")
-    if body.get("launcher_runtime_head_contract_accepted") is not True:
+    if body["launcher_runtime_head_contract_accepted"] is not True:
         raise ContractError("launcher_runtime_head_contract_missing")
-    if body.get("launcher_superseded_v1_lock_install_authority") is not False:
+    if body["launcher_superseded_v1_lock_install_authority"] is not False:
         raise ContractError("launcher_historical_authority_overclaim")
 
     launcher = _artifact(
-        body.get("accepted_launcher"),
-        label="accepted_launcher",
-        expected_bytes=LAUNCHER_BYTES,
-        expected_sha256=LAUNCHER_SHA256,
+        body["accepted_launcher"], label="accepted_launcher",
+        expected_bytes=LAUNCHER_BYTES, expected_sha256=LAUNCHER_SHA256,
         expected_git_blob=LAUNCHER_GIT_BLOB,
     )
     native = _artifact(
-        body.get("accepted_native"),
-        label="accepted_native",
-        expected_bytes=NATIVE_BYTES,
-        expected_sha256=NATIVE_SHA256,
+        body["accepted_native"], label="accepted_native",
+        expected_bytes=NATIVE_BYTES, expected_sha256=NATIVE_SHA256,
         expected_git_blob=None,
     )
-    contract = _validate_qualification_contract(
-        body.get("qualification_contract"),
-        expected_head,
-    )
+    raw_contract = body["qualification_contract"]
+    execution_requirements = _validate_qualification_contract(raw_contract, expected_head)
 
-    argv = body.get("bootstrap_argv")
-    if not isinstance(argv, list) or len(argv) != 8 or not all(
-        isinstance(item, str) for item in argv
-    ):
+    argv = body["bootstrap_argv"]
+    if not isinstance(argv, list) or len(argv) != 8 or not all(isinstance(item, str) for item in argv):
         raise ContractError("bootstrap_argv_invalid")
     expected_argv = [
-        BOOTSTRAP_PATH,
-        "--installer-plan",
-        "--launcher",
-        str(launcher["path"]),
-        "--native",
-        str(native["path"]),
-        "--expected-head",
-        expected_head,
+        BOOTSTRAP_PATH, "--installer-plan", "--launcher", str(launcher["path"]),
+        "--native", str(native["path"]), "--expected-head", expected_head,
     ]
     if argv != expected_argv:
         raise ContractError("bootstrap_argv_mismatch")
     try:
         emitted_argv = json.loads(values["bootstrap_argv_json"])
         emitted_contract = json.loads(values["qualification_contract_json"])
-    except (KeyError, json.JSONDecodeError) as exc:
+    except json.JSONDecodeError as exc:
         raise ContractError("planner_structured_output_invalid") from exc
     if emitted_argv != argv:
         raise ContractError("planner_argv_line_mismatch")
-    if emitted_contract != contract:
+    if emitted_contract != raw_contract:
         raise ContractError("planner_qualification_line_mismatch")
-    if values.get("accepted_launcher_lock_id") != LAUNCHER_LOCK_ID:
+    if values["accepted_launcher_lock_id"] != LAUNCHER_LOCK_ID:
         raise ContractError("planner_launcher_lock_line_mismatch")
-    if values.get("accepted_launcher_candidate_id") != LAUNCHER_CANDIDATE_ID:
+    if values["accepted_launcher_candidate_id"] != LAUNCHER_CANDIDATE_ID:
         raise ContractError("planner_launcher_candidate_line_mismatch")
 
     return {
         "planner_plan_id": plan_id,
         "planner_body": body,
         "expected_head": expected_head,
-        "qualification_contract": contract,
+        "qualification_contract": execution_requirements,
         "bootstrap_argv": argv,
         "launcher": launcher,
         "native": native,
     }
-
 
 def execution_contract(validated: dict[str, Any]) -> dict[str, Any]:
     expected_head = validated["expected_head"]
@@ -496,7 +699,12 @@ def execution_contract(validated: dict[str, Any]) -> dict[str, Any]:
             "source_git_blob_sha1": QUALIFIER_BLOB,
             "source_execution_mode": "descriptor_bound_exact_git_object",
             "git_callbacks_neutralized_required": True,
+            "preliminary_git_local_config_isolation_required": True,
+            "preliminary_git_lazy_fetch_disabled_required": True,
+            "preliminary_git_protocols_denied_required": True,
+            "preliminary_git_object_alternates_rejection_required": True,
             "interpreter": FIXED_PYTHON,
+            "git_tool": FIXED_GIT,
             "argv_suffix": ["--run", "--expected-head", expected_head],
             "required_contract": validated["qualification_contract"],
             "green_required_before_phase_2": True,
@@ -549,6 +757,14 @@ def source_plan() -> None:
     print("phase_order=nonroot_qualification_then_root_bootstrap_plan")
     print("qualification_source_execution_mode=descriptor_bound_exact_git_object")
     print("qualification_git_callbacks_neutralized_required=true")
+    print("qualification_preliminary_git_local_config_isolation_required=true")
+    print("qualification_preliminary_git_lazy_fetch_disabled_required=true")
+    print("qualification_preliminary_git_protocols_denied_required=true")
+    print("qualification_preliminary_git_object_alternates_rejection_required=true")
+    print("planner_body_closed_schema_required=true")
+    print("qualification_contract_closed_schema_required=true")
+    print("qualification_required_result_closed_schema_required=true")
+    print("unconsumed_tool_metadata_not_execution_authority=true")
     print("root_boundary_implementation=separately_reviewed_operator_boundary_required")
     print("qualification_execution_performed=false")
     print("bootstrap_execution_performed=false")
@@ -586,6 +802,14 @@ def emit_plan(result: dict[str, Any]) -> None:
     print("qualification_source_git_blob_sha1=" + QUALIFIER_BLOB)
     print("qualification_source_execution_mode=descriptor_bound_exact_git_object")
     print("qualification_git_callbacks_neutralized_required=true")
+    print("qualification_preliminary_git_local_config_isolation_required=true")
+    print("qualification_preliminary_git_lazy_fetch_disabled_required=true")
+    print("qualification_preliminary_git_protocols_denied_required=true")
+    print("qualification_preliminary_git_object_alternates_rejection_required=true")
+    print("planner_body_closed_schema_required=true")
+    print("qualification_contract_closed_schema_required=true")
+    print("qualification_required_result_closed_schema_required=true")
+    print("unconsumed_tool_metadata_not_execution_authority=true")
     print("qualification_green_required_before_phase_2=true")
     print("root_boundary_implementation=separately_reviewed_operator_boundary_required")
     print(
@@ -621,21 +845,30 @@ def emit_plan(result: dict[str, Any]) -> None:
 def _fixture_output() -> bytes:
     head = "a" * 40
     launcher = {
-        "path": "/tmp/accepted-launcher",
-        "bytes": LAUNCHER_BYTES,
-        "sha256": LAUNCHER_SHA256,
-        "git_blob_sha1": LAUNCHER_GIT_BLOB,
+        "path": "/tmp/accepted-launcher", "bytes": LAUNCHER_BYTES,
+        "sha256": LAUNCHER_SHA256, "git_blob_sha1": LAUNCHER_GIT_BLOB,
+        "mode": "0555", "uid": 1000, "gid": 1000, "dev": 1, "ino": 11,
     }
     native = {
-        "path": "/tmp/accepted-native",
-        "bytes": NATIVE_BYTES,
-        "sha256": NATIVE_SHA256,
+        "path": "/tmp/accepted-native", "bytes": NATIVE_BYTES,
+        "sha256": NATIVE_SHA256, "git_blob_sha1": "f" * 40,
+        "mode": "0555", "uid": 1000, "gid": 1000, "dev": 1, "ino": 12,
+    }
+    interpreter = {
+        "path": FIXED_PYTHON, "resolved_path": FIXED_PYTHON,
+        "bytes": 12345, "sha256": "3" * 64, "mode": "0755",
+        "uid": 0, "gid": 0, "dev": 2, "ino": 21,
+    }
+    git_tool = {
+        "path": FIXED_GIT, "resolved_path": FIXED_GIT,
+        "bytes": 23456, "sha256": "4" * 64, "mode": "0755",
+        "uid": 0, "gid": 0, "dev": 2, "ino": 22,
     }
     qcontract = {
-        "qualifier_source_path": "/fixture/" + QUALIFIER_REL,
+        "qualifier_source_path": str(ROOT / QUALIFIER_REL),
         "qualifier_git_blob_sha1": QUALIFIER_BLOB,
-        "qualifier_upgrader_git_blob_sha1": "1" * 40,
-        "qualifier_upgrade_plan_git_blob_sha1": "2" * 40,
+        "qualifier_upgrader_git_blob_sha1": QUALIFIER_UPGRADER_BLOB,
+        "qualifier_upgrade_plan_git_blob_sha1": QUALIFIER_UPGRADE_PLAN_BLOB,
         "expected_head": head,
         "root_execution_required": False,
         "nonroot_execution_required": True,
@@ -643,12 +876,15 @@ def _fixture_output() -> bytes:
         "temporary_git_metadata_write_required": True,
         "temporary_git_metadata_cleanup_required": True,
         "qualification_git_callbacks_neutralized_required": True,
+        "preliminary_git_local_config_isolation_required": True,
+        "preliminary_git_lazy_fetch_disabled_required": True,
+        "preliminary_git_protocols_denied_required": True,
+        "preliminary_git_object_alternates_rejection_required": True,
         "descriptor_bound_source_execution_required": True,
-        "interpreter": {"path": FIXED_PYTHON},
-        "git_tool": {"path": "/usr/bin/git"},
+        "interpreter": interpreter,
+        "git_tool": git_tool,
         "required_result": {
-            "expected_head": head,
-            "protected_state": BOOTSTRAP_GREEN_STATE,
+            "expected_head": head, "protected_state": BOOTSTRAP_GREEN_STATE,
             "old_lock_id": QUALIFICATION_OLD_LOCK,
             "new_lock_id": QUALIFICATION_NEW_LOCK,
             "new_candidate_id": QUALIFICATION_NEW_CAND,
@@ -663,99 +899,75 @@ def _fixture_output() -> bytes:
             "temporary_git_metadata_write_performed": True,
             "temporary_git_metadata_cleanup_completed": True,
             "qualification_git_callbacks_neutralized": True,
-            "source_repository_mutation": False,
-            "source_object_fetch": False,
-            "repository_config_loaded": False,
-            "repository_callback_execution": False,
-            "native_parent_authority_claimed": False,
-            "filesystem_write": True,
-            "protected_filesystem_mutation": False,
-            "bootstrap_execution": False,
-            "inner_installer_execution": False,
-            "service_mutation": False,
-            "credential_access": False,
-            "private_key_access": False,
-            "signing": False,
-            "transaction": False,
-            "rpc_call": False,
-            "payment_acceptance": False,
-            "public_presale_activation": False,
-            "wc_void_market_activation": False,
-            "treasury_liquidity_action": False,
-            "funds_movement": False,
-            "production_host_evidence_authority": False,
+            "preliminary_git_local_config_isolated": True,
+            "preliminary_git_lazy_fetch_disabled": True,
+            "preliminary_git_protocols_denied": True,
+            "preliminary_git_object_alternates_rejected": True,
+            "source_repository_mutation": False, "source_object_fetch": False,
+            "repository_config_loaded": False, "repository_callback_execution": False,
+            "native_parent_authority_claimed": False, "filesystem_write": True,
+            "protected_filesystem_mutation": False, "bootstrap_execution": False,
+            "inner_installer_execution": False, "service_mutation": False,
+            "credential_access": False, "private_key_access": False,
+            "signing": False, "transaction": False, "rpc_call": False,
+            "payment_acceptance": False, "public_presale_activation": False,
+            "wc_void_market_activation": False, "treasury_liquidity_action": False,
+            "funds_movement": False, "production_host_evidence_authority": False,
         },
     }
     argv = [
-        BOOTSTRAP_PATH,
-        "--installer-plan",
-        "--launcher",
-        launcher["path"],
-        "--native",
-        native["path"],
-        "--expected-head",
-        head,
+        BOOTSTRAP_PATH, "--installer-plan", "--launcher", launcher["path"],
+        "--native", native["path"], "--expected-head", head,
     ]
     body = {
-        "schema": PLANNER_SCHEMA,
-        "version": 7,
-        "checkout": {"head": head},
-        "expected_head": head,
-        "qualifier_git_blob_sha1": QUALIFIER_BLOB,
+        "schema": PLANNER_SCHEMA, "version": 7,
+        "checkout": {
+            "head": head, "tree": "b" * 40, "branch": "main",
+            "generation_sha256": "c" * 64,
+        },
+        "expected_head": head, "qualifier_git_blob_sha1": QUALIFIER_BLOB,
         "qualification_contract": qcontract,
         "installed_qualification_performed": False,
         "installed_qualification_required_before_bootstrap_plan": True,
         "expected_installed_bootstrap": {
-            "lock_id": BOOTSTRAP_LOCK_ID,
-            "candidate_id": BOOTSTRAP_CANDIDATE_ID,
-            "bytes": BOOTSTRAP_BYTES,
-            "sha256": BOOTSTRAP_SHA256,
+            "lock_id": BOOTSTRAP_LOCK_ID, "candidate_id": BOOTSTRAP_CANDIDATE_ID,
+            "bytes": BOOTSTRAP_BYTES, "sha256": BOOTSTRAP_SHA256,
             "git_blob_sha1": BOOTSTRAP_GIT_BLOB,
-            "manifest_bytes": 2382,
+            "manifest_bytes": BOOTSTRAP_MANIFEST_BYTES,
             "manifest_sha256": QUALIFICATION_NEW_MANIFEST_SHA256,
-            "manifest_git_blob_sha1": "de56bacb30bea0adc418e240cf3fb8d900b061ef",
+            "manifest_git_blob_sha1": BOOTSTRAP_MANIFEST_GIT_BLOB,
         },
-        "accepted_launcher": launcher,
-        "accepted_launcher_lock_id": LAUNCHER_LOCK_ID,
+        "accepted_launcher": launcher, "accepted_launcher_lock_id": LAUNCHER_LOCK_ID,
         "accepted_launcher_candidate_id": LAUNCHER_CANDIDATE_ID,
         "launcher_runtime_head_contract_accepted": True,
         "launcher_superseded_v1_lock_install_authority": False,
-        "accepted_native": native,
-        "bootstrap_argv": argv,
+        "accepted_native": native, "bootstrap_argv": argv,
         "bootstrap_execution_performed": False,
         "protected_installer_apply_performed": False,
-        "filesystem_write": False,
-        "protected_filesystem_mutation": False,
-        "service_mutation": False,
-        "systemd_mutation": False,
-        "credential_access": False,
-        "private_key_access": False,
-        "signing": False,
-        "transaction": False,
-        "rpc_call": False,
-        "payment_acceptance": False,
-        "public_presale_activation": False,
-        "wc_void_market_activation": False,
-        "treasury_liquidity_action": False,
-        "funds_movement": False,
-        "production_host_evidence_authority": False,
+        "filesystem_write": False, "protected_filesystem_mutation": False,
+        "service_mutation": False, "systemd_mutation": False,
+        "credential_access": False, "private_key_access": False,
+        "signing": False, "transaction": False, "rpc_call": False,
+        "payment_acceptance": False, "public_presale_activation": False,
+        "wc_void_market_activation": False, "treasury_liquidity_action": False,
+        "funds_movement": False, "production_host_evidence_authority": False,
     }
     plan_id = PLANNER_PREFIX + sha256(canonical(body))
     lines = [
-        PLANNER_MARKER,
-        "mode=plan",
-        "read_only=true",
-        "nonroot_required=true",
+        PLANNER_MARKER, "mode=plan", "read_only=true", "nonroot_required=true",
         "plan_id=" + plan_id,
         "plan_body_json=" + canonical(body).decode("ascii"),
-        "expected_head=" + head,
-        "qualifier_git_blob_sha1=" + QUALIFIER_BLOB,
+        "expected_head=" + head, "qualifier_git_blob_sha1=" + QUALIFIER_BLOB,
         "installed_qualification_performed=false",
         "installed_qualification_required_before_bootstrap_plan=true",
         "qualification_nonroot_execution_required=true",
         "qualification_protected_state_read_only_required=true",
         "qualification_temporary_git_metadata_write_required=true",
         "qualification_git_callbacks_neutralized_required=true",
+        "qualification_preliminary_git_local_config_isolation_required=true",
+        "qualification_preliminary_git_lazy_fetch_disabled_required=true",
+        "qualification_preliminary_git_protocols_denied_required=true",
+        "qualification_preliminary_git_object_alternates_rejection_required=true",
         "qualification_descriptor_bound_source_execution_required=true",
         "expected_installed_bootstrap_identity_bound=true",
         "accepted_launcher_identity_green=true",
@@ -763,22 +975,13 @@ def _fixture_output() -> bytes:
         "accepted_launcher_candidate_id=" + LAUNCHER_CANDIDATE_ID,
         "launcher_runtime_head_contract_accepted=true",
         "launcher_superseded_v1_lock_install_authority=false",
-        "accepted_native_identity_green=true",
-        "bootstrap_execution_performed=false",
-        "protected_installer_apply_performed=false",
-        "filesystem_write=false",
-        "service_mutation=false",
-        "systemd_mutation=false",
-        "credential_access=false",
-        "private_key_access=false",
-        "signing=false",
-        "transaction=false",
-        "rpc_call=false",
-        "payment_acceptance=false",
-        "public_presale_activation=false",
-        "wc_void_market_activation=false",
-        "treasury_liquidity_action=false",
-        "funds_movement=false",
+        "accepted_native_identity_green=true", "bootstrap_execution_performed=false",
+        "protected_installer_apply_performed=false", "filesystem_write=false",
+        "service_mutation=false", "systemd_mutation=false",
+        "credential_access=false", "private_key_access=false", "signing=false",
+        "transaction=false", "rpc_call=false", "payment_acceptance=false",
+        "public_presale_activation=false", "wc_void_market_activation=false",
+        "treasury_liquidity_action=false", "funds_movement=false",
         "production_host_evidence_authority=false",
         "bootstrap_argv_json=" + json.dumps(argv, separators=(",", ":")),
         "qualification_contract_json="
@@ -789,6 +992,32 @@ def _fixture_output() -> bytes:
     return ("\n".join(lines) + "\n").encode("ascii")
 
 
+def _tampered_fixture(mutator) -> bytes:
+    lines = _fixture_output().decode("ascii").splitlines()
+    values: dict[str, str] = {}
+    order: list[str] = []
+    for line in lines[1:]:
+        key, value = line.split("=", 1)
+        values[key] = value
+        order.append(key)
+    body = json.loads(values["plan_body_json"])
+    mutator(body)
+    values["plan_id"] = PLANNER_PREFIX + sha256(canonical(body))
+    values["plan_body_json"] = canonical(body).decode("ascii")
+    values["bootstrap_argv_json"] = json.dumps(body["bootstrap_argv"], separators=(",", ":"))
+    values["qualification_contract_json"] = json.dumps(
+        body["qualification_contract"], sort_keys=True, separators=(",", ":")
+    )
+    return ("\n".join([PLANNER_MARKER] + [key + "=" + values[key] for key in order]) + "\n").encode("ascii")
+
+
+def _expect_tamper_rejected(mutator) -> None:
+    try:
+        validate_planner_output(_tampered_fixture(mutator))
+    except ContractError:
+        return
+    raise AssertionError("rehashed_planner_tamper_accepted")
+
 def self_test() -> None:
     valid = validate_planner_output(_fixture_output())
     result = execution_contract(valid)
@@ -796,41 +1025,89 @@ def self_test() -> None:
         raise AssertionError("contract_prefix_invalid")
     if result["body"]["phase_order_exact"] is not True:
         raise AssertionError("phase_order_missing")
-    if (
-        result["body"]["qualification_phase"]["run_as"] != "nonroot"
-        or result["body"]["root_bootstrap_plan_phase"]["run_as"] != "root"
-    ):
+    phase = result["body"]["qualification_phase"]
+    if phase["run_as"] != "nonroot" or result["body"]["root_bootstrap_plan_phase"]["run_as"] != "root":
         raise AssertionError("privilege_split_invalid")
-    if (
-        result["body"]["qualification_phase"]["source_execution_mode"]
-        != "descriptor_bound_exact_git_object"
-    ):
+    if phase["source_execution_mode"] != "descriptor_bound_exact_git_object":
         raise AssertionError("qualification_source_mode_invalid")
-    if result["body"]["qualification_phase"]["git_callbacks_neutralized_required"] is not True:
+    if phase["git_callbacks_neutralized_required"] is not True:
         raise AssertionError("qualification_callback_neutralization_missing")
-    tampered = json.loads(canonical(valid["planner_body"]))
-    tampered["funds_movement"] = True
-    try:
-        _require_false_authority(tampered)
-    except ContractError:
-        pass
-    else:
-        raise AssertionError("authority_tamper_accepted")
+    for key in (
+        "preliminary_git_local_config_isolation_required",
+        "preliminary_git_lazy_fetch_disabled_required",
+        "preliminary_git_protocols_denied_required",
+        "preliminary_git_object_alternates_rejection_required",
+    ):
+        if phase[key] is not True:
+            raise AssertionError("qualification_preliminary_git_requirement_missing:" + key)
+    if phase["interpreter"] != FIXED_PYTHON or phase["git_tool"] != FIXED_GIT:
+        raise AssertionError("qualification_fixed_tool_alias_missing")
+    if any(
+        key in phase["required_contract"]
+        for key in ("interpreter", "git_tool", "qualifier_source_path")
+    ):
+        raise AssertionError("dynamic_metadata_carried_as_execution_authority")
+
+    _expect_tamper_rejected(
+        lambda body: body["qualification_contract"].__setitem__(
+            "qualifier_source_path", "/tmp/unreviewed-qualifier.py"
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: body["qualification_contract"].__setitem__(
+            "qualifier_upgrader_git_blob_sha1", "5" * 40
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: body["qualification_contract"].__setitem__(
+            "qualifier_upgrade_plan_git_blob_sha1", "6" * 40
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: body["qualification_contract"]["interpreter"].__setitem__(
+            "path", "/tmp/python"
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: body["qualification_contract"]["git_tool"].__setitem__(
+            "path", "/tmp/git"
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: body["qualification_contract"].__setitem__(
+            "unexpected_nested_authority", True
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: body["qualification_contract"]["required_result"].__setitem__(
+            "unexpected_result_authority", True
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: body.__setitem__("unexpected_planner_authority", True)
+    )
+
     print(MARKER + "_SELF_TEST_GREEN")
     print("planner_v7_generation_bound=true")
     print("planner_plan_id_recomputed=true")
     print("planner_body_canonical_required=true")
+    print("planner_body_closed_schema_required=true")
     print("qualification_contract_exact=true")
+    print("qualification_contract_closed_schema_required=true")
+    print("qualification_required_result_closed_schema_required=true")
+    print("qualification_execution_identity_fields_validated=true")
+    print("rehashed_nested_tamper_rejected=true")
+    print("unconsumed_tool_metadata_not_execution_authority=true")
     print("qualification_nonroot_required=true")
     print("qualification_descriptor_bound_git_object_required=true")
     print("qualification_git_callbacks_neutralized_required=true")
+    print("qualification_preliminary_git_boundary_required=true")
     print("qualification_green_required_before_root_plan=true")
     print("root_bootstrap_plan_phase_required=true")
     print("root_boundary_implementation_separate=true")
     print("phase_order_exact=true")
     print("execution_not_performed=true")
     print("funds_movement=false")
-
 
 def main() -> int:
     parser = argparse.ArgumentParser()

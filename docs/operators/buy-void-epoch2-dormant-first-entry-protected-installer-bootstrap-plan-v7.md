@@ -23,7 +23,7 @@ Exact qualifier:
 
 Git blob:
 
-`d9650aff7af2cb9fc9a8d95a888d8dd52aef1970`
+`132e03eaea440f3f8c59aeaca879596c677c6bcf`
 
 Its contract requires:
 
@@ -34,6 +34,10 @@ protected_state_read_only_required=true
 temporary_git_metadata_write_required=true
 temporary_git_metadata_cleanup_required=true
 qualification_git_callbacks_neutralized_required=true
+preliminary_git_local_config_isolation_required=true
+preliminary_git_lazy_fetch_disabled_required=true
+preliminary_git_protocols_denied_required=true
+preliminary_git_object_alternates_rejection_required=true
 descriptor_bound_source_execution_required=true
 ```
 
@@ -44,6 +48,9 @@ A GREEN result must prove:
 - repaired lock/candidate exact;
 - temporary private Git metadata write performed and cleaned;
 - qualifier preliminary Git callbacks explicitly neutralized before repository observation;
+- preliminary Git local configuration isolated from the real checkout;
+- preliminary promisor lazy fetch disabled and Git protocols denied;
+- preliminary local/HTTP object alternates rejected before Git execution;
 - source repository mutation/fetch/config/callback authority false;
 - protected filesystem mutation false;
 - bootstrap execution false;
@@ -154,10 +161,10 @@ production_host_evidence_authority=false
 ```
 
 The later qualification contract truthfully permits temporary private Git
-metadata writes but no protected/source-repository mutation. It also requires
-the repaired qualifier's explicit callback-neutralized Git boundary, including
-`core.fsmonitor=false` and `core.hooksPath=/dev/null`, before that
-qualification may satisfy V7.
+metadata writes but no protected/source-repository mutation. It requires the
+repaired qualifier's callback-neutralized Git boundary plus scratch-local-config
+isolation, no promisor lazy fetch, denied Git protocols, and pre-Git rejection
+of local/HTTP object alternates before that qualification may satisfy V7.
 
 **PROTECT THE CORE.**
 
@@ -165,8 +172,19 @@ qualification may satisfy V7.
 ## Repaired qualification parent
 
 This V7 planner generation is reviewed directly against repaired qualification
-head `190fae8c410d7fe3ae4af5551ea78a5523bcd7fb`.
+head `45f7d0c26f9cbc9d85fb0bf811145cf9c85c8ce2`.
 
 The qualifier is itself bound to the monotonic-publication atomic upgrader and
 the trigger-corrected non-executing upgrade planner. V7 therefore does not
 inherit the superseded pre-repair parent identities.
+
+
+## October 20 hardened preliminary-Git qualifier rebind
+
+This generation binds #3517 head `45f7d0c26f9cbc9d85fb0bf811145cf9c85c8ce2` and qualifier blob
+`132e03eaea440f3f8c59aeaca879596c677c6bcf`. V7 now treats local-config isolation, no-lazy-fetch,
+protocol denial, and pre-Git object-alternate rejection as explicit
+qualification requirements and required GREEN results rather than implied
+properties.
+
+No execution or economic authority is added by this rebind.
