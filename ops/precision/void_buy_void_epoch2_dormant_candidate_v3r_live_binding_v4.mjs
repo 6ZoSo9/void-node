@@ -1025,9 +1025,21 @@ function proveRetainedNativeElfParserFixture(){
     verify(dynamic,"trusted_native_dynamic_interpreter_forbidden");
     const noLoad=Buffer.from(sample);noLoad.writeUInt32LE(4,64);
     verify(noLoad,"trusted_native_load_segments_missing");
-    const badSegment=Buffer.from(sample);
-    badSegment.writeBigUInt64LE(200n,64+32);
-    verify(badSegment,"trusted_native_load_segment_bounds_invalid");
+    // Each branch of the PT_LOAD extent OR must fail on its own.
+    // If only one branch were present, these two negatives would not HOLD.
+    const badMemoryOnly=Buffer.from(sample);
+    badMemoryOnly.writeBigUInt64LE(1n,64+32); // p_filesz, inside file
+    badMemoryOnly.writeBigUInt64LE(0n,64+40); // p_memsz < p_filesz
+    verify(badMemoryOnly,"trusted_native_load_segment_bounds_invalid");
+    const badFileOnly=Buffer.from(sample);
+    badFileOnly.writeBigUInt64LE(200n,64+32); // p_filesz beyond ELF end
+    badFileOnly.writeBigUInt64LE(200n,64+40); // p_memsz >= p_filesz
+    verify(badFileOnly,"trusted_native_load_segment_bounds_invalid");
+    const badOffsetFileOnly=Buffer.from(sample);
+    badOffsetFileOnly.writeBigUInt64LE(110n,64+8); // p_offset
+    badOffsetFileOnly.writeBigUInt64LE(20n,64+32); // p_filesz
+    badOffsetFileOnly.writeBigUInt64LE(20n,64+40); // p_memsz
+    verify(badOffsetFileOnly,"trusted_native_load_segment_bounds_invalid");
     fs.writeFileSync(file,sample);
     const read=fs.readSync;
     let shortInjected=false;
@@ -1312,6 +1324,9 @@ function selfTest(){
   console.log("binder_native_fake_elf_parser_positive_and_negatives_green=true");
   console.log("binder_native_parser_short_read_and_generation_drift_rejected=true");
   console.log("binder_native_load_segment_shape_bound=true");
+  console.log("binder_native_ptload_mem_extent_independent_negative=true");
+  console.log("binder_native_ptload_file_extent_independent_negative=true");
+  console.log("binder_native_ptload_offset_plus_file_extent_negative=true");
   console.log("binder_wrong_root_owned_native_rejected_before_exec=true");
   console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
   console.log("runtime_native_receives_runtime_policy_head_only=true");
