@@ -138,27 +138,24 @@ credentials or private keys, sign/broadcast transactions, accept payments, activ
 the presale/WC market, mutate services, or move funds.
 
 
-## Nonblocking sealed-V3 accepted-lock repair
+## Historical nonblocking sealed-V3 accepted-lock repair
 
-Current repaired source identities:
+Historical source identities preceding the retained-first-exec successor:
 
 ```text
-candidate_id=voidbuye2runnerpolcand6r3_0a3bfc00032b0feeb253fb0f295b4dacc1e3e66af35013676351ed11e3c119e1
-accepted_lock_id=voidbuye2runnerpollock6r3_0633e059bfdfb1209b80b090adacddae61795ca610a6bf7f79059cc997148f52
-accepted_lock_blob=d28ebbd3fe1d89a1940b039af64e10a6cb96065e
-runner_git_blob=2fa028824d71a22f4d228cdb7fcda738bce7b409
-runner_sha256=9b8497c813fc3899b745736da01929380b5f28f988f70790def1e0a98b35a261
+candidate_id=voidbuye2runnerpolcand6r3_aaa50e1bbfe2303045336c03be2bacd504a736a0fd04f97d4f38be7e76fbba7d
+accepted_lock_id=voidbuye2runnerpollock6r3_72ecfe7a0d5aa87237520290cdf63cf0faef821931ef094ac0ec5dd1858e496f
+accepted_lock_blob=a9565f1dbe49e694ee07eb0cfdddb42d591d856b
+runner_git_blob=11a147d565bd0ee3ff48c4e3cb75d608b59e87b1
+runner_sha256=9302bcbdf70c3d4fd46be5deb0a2101ab09d51bf84171e43f2b5fb6e6b4f92a8
 runner_bytes=82972
 planner_blob=185e409aab47c8d391025decec1e58f9288fb5e2
 ```
 
-The Runner digest is the exact value emitted by hosted candidate run 39344747264,
-job 118374543666, and exported by identity job 118374985297. The accepted lock
-retains the nonblocking sealed-V3/FIFO-race requirements and all negative authority.
-
-The planner remains non-executing and has no apply mode. No protected filesystem
-mutation, credential/key access, signing, transaction/payment, presale/WC activation,
-service mutation, treasury/liquidity action, or funds movement is authorized.
+That historical generation used compatibility run 39344749462 and candidate run
+39344747264. It preserved the nonblocking sealed-V3/FIFO-race requirements but is
+superseded by the retained-first-exec source, V8 lock, and planner generation recorded
+below. It has no current install authority.
 
 ## Host-plan custody / first-exec repair — Draft child of #3562
 
