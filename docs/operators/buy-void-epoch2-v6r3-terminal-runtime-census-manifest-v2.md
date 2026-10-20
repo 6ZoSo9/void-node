@@ -256,3 +256,26 @@ separate controls. Nothing in this source-only fixture authorizes a live
 Precision census, installed observer, signing, service or presale payment.
 
 PROTECT THE CORE.
+
+## Early declared-absence canonical record budgeting
+
+The existing collector checked exact canonical JSON bytes for each ordinary
+inventory object before adding it. It then built **all** declared-absence
+records through a dictionary comprehension and tested the 16 MiB report limit
+only after populating that dictionary. A large number of otherwise valid
+negative-path records could therefore accumulate extra metadata and JSON-
+escaped text outside the admitted object-record payload.
+
+The updated `build_manifest()` charges canonical JSON bytes for each
+`{absence_path: evidence}` pair against the *same* `record_budget` as
+`collect_tree()` before inserting an absence record. Overruns HOLD as
+`manifest_absence_record_budget_exceeded`. The final complete-manifest
+bound still checks remaining sys.path, IDs and fixed fields.
+
+Disposable fixture tests verify exact-bound acceptance, one-byte-less HOLD
+and JSON escaping of legal control characters in declared absence names.
+The source-only fixture **does not** establish total Python heap bounds,
+host ancestor/ACL or retained-directory-descriptor safety, actual Python/Git
+ELF/loader observation, post-exec process isolation or payment readiness.
+`HOST_EXECUTION_ENABLED=False`; signer, protected installation, service,
+presale and funds permissions remain false.
