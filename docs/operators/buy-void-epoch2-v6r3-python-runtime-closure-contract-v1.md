@@ -8,7 +8,7 @@ installation, or host plan.
 Contract ID:
 
 ```text
-voidbuye2v6r3pyruntimecontract1_80553976a9a5a241991a827f2b6913c08b22c27865136216dd66b21b07790df5
+voidbuye2v6r3pyruntimecontract1_cdb98f511f04a3c798200e304481ec14d94373fdbdf6ec30cf88b0e281b0eb4f
 ```
 
 ## Why this gate exists
@@ -83,11 +83,69 @@ lock reviews the exact host report.
 
 ## Loader and Python environment
 
+## Bound post-exec dumpability diagnostic
+
+The contract now binds the exact source-only diagnostic that established the reset:
+
+```text
+diagnostic_pr=3579
+diagnostic_head=bc59170b211c3bd2490446b0e1cd045b5d9d5925
+diagnostic_script_blob=a946e81549fe12f61b61d17cad76a7eda40501ff
+diagnostic_workflow_blob=e27aa4a81fbfe4ae122db5fa5cf906fbe1848e28
+diagnostic_run=39360364319
+diagnostic_job=118424883505
+native_source_blob=ae26706a117025893496901d4bde8cee87cadfba
+pre_fexecve_dumpable=0
+post_fexecve_dumpable=1
+```
+
+This evidence tuple is content-addressed into the contract. The verifier rejects changes
+to the diagnostic commit/blob identities, hosted run/job, conclusion, native source,
+observed values, or proof marker. It remains source evidence only; it does not accept
+post-exec dumpability.
+
 The bound launcher executes Python under numeric UID/GID 1000, empty supplementary
-groups, `no_new_privs`, `PR_SET_DUMPABLE=0`, isolated `-I -B -S`, clean stdin, and
-a newly constructed environment. Ambient loader/Python controls such as
+groups, `no_new_privs`, a **pre-exec-only** `PR_SET_DUMPABLE=0`, isolated
+`-I -B -S`, clean stdin, and a newly constructed environment. The native
+pre-exec attribute alone does **not** establish nondumpable Python after
+`fexecve()`. Ambient loader/Python controls such as
 `LD_PRELOAD`, `LD_LIBRARY_PATH`, `LD_AUDIT`, `GLIBC_TUNABLES`, `PYTHONPATH`,
 `PYTHONHOME`, and `PYTHONSTARTUP` are not accepted as authority.
+
+## Post-exec dumpability trust boundary — explicit HOLD
+
+The static native first entry disables dumpability **before** `fexecve()`
+of a sealed-memory Python executable. Linux `execve(2)` normally resets the
+new ordinary executable's dumpability to `1`. A protected runtime process
+must therefore **not** inherit `dumpable=false` as an accepted fact from
+the native pre-exec proof marker.
+
+[PR #3579](https://github.com/6ZoSo9/void-node/pull/3579) provides an
+isolated unprivileged **actual sealed-memfd `fexecve`** fixture:
+`pre_fexecve_dumpable=0` → `post_fexecve_dumpable=1`, focused hosted
+run `39360364319` / job `118424883505` SUCCESS. It does not run any
+VOID production binary or qualify Precision's process isolation.
+See [Linux execve(2)](https://man7.org/linux/man-pages/man2/execve.2.html).
+
+The revised source contract states:
+```text
+pre_exec_dumpability_zero_required=true
+ordinary_sealed_python_fexecve_reset_observed_in_fixture=true
+post_exec_dumpability_verified=false
+post_exec_dumpability_accepted=false
+post_exec_pr_get_dumpable_observation_required=true
+post_exec_ptrace_procfs_policy_evidence_required=true
+python_loader_startup_exposure_must_be_reviewed=true
+post_exec_dumpability_protection_or_isolation_gate_required=true
+```
+
+Any future host census must report the **actual post-exec** `PR_GET_DUMPABLE`
+result and relevant ptrace/procfs policy, or separately validate another
+independently reviewed process-isolation mechanism and account for the
+interpreter/loader initialization interval. Do not reclassify a pre-exec
+zero as an observed child-process zero. This correction changes no
+runtime code, grants no host census authority, and does not imply an
+installed-host vulnerability was exploited.
 
 ## Authority
 

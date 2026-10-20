@@ -40,7 +40,6 @@
     "gid": 1000,
     "supplementary_groups_empty": true,
     "no_new_privileges": true,
-    "dumpable": false,
     "caller_stdin_authority": false,
     "clean_environment": [
       "PATH=/usr/bin:/bin",
@@ -62,7 +61,27 @@
       "PYTHONHOME",
       "PYTHONINSPECT",
       "PYTHONSTARTUP"
-    ]
+    ],
+    "pre_exec_dumpability_zero_required": true,
+    "post_exec_dumpability_verified": false,
+    "post_exec_dumpability_accepted": false,
+    "ordinary_sealed_python_fexecve_reset_observed_in_fixture": true,
+    "post_exec_dumpability_diagnostic_evidence": {
+      "pr": 3579,
+      "head": "bc59170b211c3bd2490446b0e1cd045b5d9d5925",
+      "script_path": "scripts/prove_buy_void_epoch2_v6r3_postexec_dumpability_v1.py",
+      "script_git_blob_sha1": "a946e81549fe12f61b61d17cad76a7eda40501ff",
+      "workflow_path": ".github/workflows/buy-void-epoch2-v6r3-postexec-dumpability-v1.yml",
+      "workflow_git_blob_sha1": "e27aa4a81fbfe4ae122db5fa5cf906fbe1848e28",
+      "workflow": "Buy VOID Epoch-2 V6R3 post-exec dumpability V1",
+      "run_id": 39360364319,
+      "job_id": 118424883505,
+      "conclusion": "success",
+      "native_source_git_blob_sha1": "ae26706a117025893496901d4bde8cee87cadfba",
+      "pre_fexecve_dumpable": 0,
+      "post_fexecve_dumpable": 1,
+      "proof_marker": "VOID_BUY_VOID_EPOCH2_V6R3_POSTEXEC_DUMPABILITY_V1_PROOF_GREEN"
+    }
   },
   "host_census_requirements": {
     "python_link_path": "/usr/bin/python3",
@@ -111,7 +130,11 @@
     "exact_import_probe_file_access_closure_required": true,
     "exact_import_probe_mapped_elf_closure_required": true,
     "native_dlopen_plugin_and_config_closure_required": true,
-    "observed_runtime_files_must_be_manifest_subset": true
+    "observed_runtime_files_must_be_manifest_subset": true,
+    "post_exec_pr_get_dumpable_observation_required": true,
+    "post_exec_ptrace_procfs_policy_evidence_required": true,
+    "pre_exec_dumpability_not_post_exec_authority": true,
+    "python_loader_startup_exposure_must_be_reviewed": true
   },
   "acceptance_requirements": {
     "host_specific_report_required": true,
@@ -121,7 +144,8 @@
     "separate_content_addressed_acceptance_lock_required": true,
     "installed_qualification_required_after_install": true,
     "independent_review_required": true,
-    "report_must_bind_git_subprocess_runtime_closure": true
+    "report_must_bind_git_subprocess_runtime_closure": true,
+    "post_exec_dumpability_protection_or_isolation_gate_required": true
   },
   "authority": {
     "source_contract_only": true,
@@ -144,7 +168,7 @@
     "funds_movement": false
   },
   "next_gate": "void_buy_void_epoch2_v6r3_python_runtime_closure_census_v1",
-  "contract_id": "voidbuye2v6r3pyruntimecontract1_80553976a9a5a241991a827f2b6913c08b22c27865136216dd66b21b07790df5",
+  "contract_id": "voidbuye2v6r3pyruntimecontract1_cdb98f511f04a3c798200e304481ec14d94373fdbdf6ec30cf88b0e281b0eb4f",
   "planner_subprocess_closure": {
     "git": {
       "requested_path": "/usr/bin/git",
