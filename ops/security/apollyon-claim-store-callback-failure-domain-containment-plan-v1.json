@@ -66,7 +66,9 @@
     "terminal_callback_source_identity_revalidation_required": true,
     "terminal_checks_after_worker_tree_quiescence_before_ack_required": true,
     "supervisor_bounded_canonical_receipt_frame_and_eof_required": true,
-    "supervisor_bounded_stdout_stderr_diagnostic_capture_required": true
+    "supervisor_bounded_stdout_stderr_diagnostic_capture_required": true,
+    "supervisor_preexec_kernel_memory_pid_cpu_fd_quotas_required": true,
+    "supervisor_quota_breach_unknown_mutation_indeterminate_required": true
   },
   "authority": {
     "protected_host_execution_authorized": false,
@@ -82,5 +84,5 @@
     "funds_movement_authorized": false
   },
   "next_gate": "DISTINCT_REVIEW_FAILURE_DOMAIN_PLAN_THEN_BUILD_ISOLATED_RUNTIME_CANDIDATE_V1",
-  "plan_id": "voidapollyonclaimcallbackcontain1_7f9cfdb254519f951589367877a9ad28e1fe376cb813504ee4ded40b84efdae8"
+  "plan_id": "voidapollyonclaimcallbackcontain1_23da91144e3da950951f871aba23166aedd6acbf13db061f4623728a8d1d656a"
 }

@@ -50,9 +50,9 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = 848a061a0b246e138ec8ed775ed8a87f159476f6
 
           # Current content-addressed plan, proof and security doc: fail on drift.
-          test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = 9804ab23cee15d0c2db2dde63b49b6e7804be017
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = fbff8280adf2d5d8d9ee89e5e41e7a1f167d0d24
-          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 7f5b6f04cca45dda1fac88675ed15746df3af469
+          test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = 04fdaefab375e62111952a20a4d14912e638fa13
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = ac1cd98b91b7bd3b4e7b654f80b7b6634daa2d3b
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 5656dcce66445d288d2beefabd3c766ec24ef68a
 
           git diff --check "$PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -72,8 +72,8 @@ jobs:
           set -euo pipefail
           out="$RUNNER_TEMP/apollyon-callback-containment-plan-selftest.log"
           python3 -I -B scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py --self-test | tee "$out"
-          grep -Fx 'runtime_contract_requirements=26' "$out"
-          grep -Fx 'rejected_adversaries=46' "$out"
+          grep -Fx 'runtime_contract_requirements=28' "$out"
+          grep -Fx 'rejected_adversaries=48' "$out"
           grep -Fx 'negative_cases_failed_at_semantic_gate=true' "$out"
           grep -Fx 'bound_source_role_identities_enforced=true' "$out"
           grep -Fx 'failure_domain_containment_proven=false' "$out"

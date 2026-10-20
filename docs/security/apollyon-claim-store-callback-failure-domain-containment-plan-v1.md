@@ -45,7 +45,7 @@ receipt but before an actual trusted event-loop checkpoint, create a detached
 grandchild/worker thread that survives the first child's exit, or schedule a
 late write between a pre-exit revalidation and the apparent clean exit.
 
-The **future** supervisor must therefore prove all nine additional properties:
+The **future** supervisor must therefore prove all eleven additional properties:
 
 1. The completion/checkpoint marker originates from a supervisor-custodied
    control plane unavailable for forgery by arbitrary callback code.
@@ -76,11 +76,28 @@ The **future** supervisor must therefore prove all nine additional properties:
    and the fencing lease through terminal post-exit revalidation. No diagnostic
    flood can authorize success or trigger an automatic replay.
 
+10. **Kernel resource limits must apply before callback execution.** The
+    supervisor owns an enforced, non-escapable per-request containment envelope
+    covering memory and swap use, process/worker creation, CPU consumption and
+    open file descriptors (e.g. reviewed cgroup-v2 `memory.max`,
+    `memory.swap.max`, `pids.max`, `cpu.max` and `RLIMIT_NOFILE`).
+    The supervisor lives outside these worker limits. Workers/descendants
+    cannot relax their limits or migrate outside the contained process group.
+    Separate PIDs and a deadline do not prevent a callback from exhausting
+    the host before the timeout.
+11. **Quota/OOM events cannot authorize success or automatic replay.** The
+    supervisor observes cgroup and kernel quota/kill evidence; exhausted
+    workers/descendants are terminated and reaped. Any unknown post-mutation
+    effects are classified indeterminate and fenced through post-quiescence
+    source/store/peer checks. A forged clean exit or buffered success frame
+    cannot obscure a breached quota.
+
 These are testable requirements for a subsequent implementation, **not**
 existing installed safeguards. Plan/proof CI only checks that omitting or
 reversing any of these requirements fails the content-addressed schema.
 Any future integration needs executable early-exit, inherited-descendant,
-timeout/kill/reap, fencing-loss and post-exit-race adversaries. Nothing in this
+timeout/kill/reap, fencing-loss, post-exit-race, kernel quota exhaustion
+and OOM/error-classification adversaries. Nothing in this
 V1 plan authorizes host runtime execution, claim publication, credentials,
 training or funds movement.
 
@@ -95,7 +112,7 @@ training or funds movement.
 
 Content-addressed plan ID (successor to historical `voidapollyonclaimcallbackcontain1_0e0794baead1aa6571c8f0820a32d5951e24dfefb164445c0591c1d94bc5166c`):
 
-`voidapollyonclaimcallbackcontain1_7f9cfdb254519f951589367877a9ad28e1fe376cb813504ee4ded40b84efdae8`
+`voidapollyonclaimcallbackcontain1_23da91144e3da950951f871aba23166aedd6acbf13db061f4623728a8d1d656a`
 
 ## October 20 — semantic negative-proof and source-role binding
 
@@ -112,7 +129,7 @@ cannot be substituted for `core`, `transaction_lease`, `native_bridge`
 or the two proofs. Two new negative cases swap core/lease roles and
 duplicate the bridge record under the core role; both must fail at
 `bound_source_role_invalid:core`, **not** at the final content hash.
-The source-only adversary count increases from 44 to **46**, with explicit
+The source-only adversary count increases from 44 to **48**, with explicit
 proof output `negative_cases_failed_at_semantic_gate=true` and
 `bound_source_role_identities_enforced=true`.
 
@@ -128,6 +145,7 @@ The plan requires a separate OS-process failure domain, one request per isolated
 custody, inherited-FD allowlisting, minimal environment, a post-callback event-loop
 checkpoint, clean-exit gating before success acknowledgement, abnormal-exit HOLD,
 **bounded canonical IPC receipt framing and independent stdout/stderr/log capture budgets**,
+pre-exec kernel memory/PID/CPU/FD quotas and quota/OOM-event fencing,
 post-mutation indeterminate handling without automatic replay, and terminal revalidation of
 store generation, peer identity, and callback source identity.
 
