@@ -133,8 +133,9 @@ folding `..` after a missing hop and then `lstat`-ing the resulting
 existing file would misreport `resolved_exists=true` and attach that
 file's hash to a link whose target cannot be reached.
 
-The resolver now returns both the contained lexical destination and the
-first missing component. Attempting to cancel a missing component via `..`
+The resolver keeps its existing Path return type for compatibility with
+other census helpers, while an optional output parameter records the first
+missing component for the symlink reporter. Attempting to cancel a missing component via `..`
 is a structured `Hold("symlink_missing_component_parent_reentry:...")`,
 never a present-target report. For an ordinary contained dangling link,
 `resolved_exists=false` is emitted without probing a lexically rejoined
@@ -146,8 +147,8 @@ The synthetic self-test constructs both a missing-parent reentry link
 remain explicitly absent). No protected host paths are inspected.
 
 ```text
-source_git_blob=3b6b0c6eae0c386b7a5a9ce4c47166fffc8ae2eb
-proof_git_blob=165f9674a9bc49eb58cf1f472c3ee57ee20424f8
+source_git_blob=8e4949bc8e87987dec85319f9b7b7526763aee3d
+proof_git_blob=5ceebb9cf4d19c067cbc8cb8b4d5aff30a8c831e
 HOST_EXECUTION_ENABLED=False
 host_census_authorized=false
 host_plan_authorized=false
