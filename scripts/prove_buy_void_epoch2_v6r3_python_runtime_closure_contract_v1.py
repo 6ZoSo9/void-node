@@ -73,6 +73,8 @@ for node in tree.body:
     elif isinstance(node,ast.ImportFrom):
         assert node.level==0,"relative_import_forbidden"
         assert node.module is not None
+        if node.module=="__future__":
+            continue
         imports.add(node.module.split(".",1)[0])
 assert imports==EXPECTED_IMPORTS,(imports,EXPECTED_IMPORTS)
 
@@ -153,6 +155,7 @@ print(MARKER+"_PROOF_GREEN")
 print("contract_id="+CONTRACT_ID)
 print("first_entry_binary_lock_bound=true")
 print("planner_exact_import_set_bound=true")
+print("future_directive_not_runtime_import=true")
 print("python_flags_i_b_s_bound=true")
 print("dynamic_loader_transitive_closure_required=true")
 print("complete_python_sys_path_tree_inventory_required=true")
