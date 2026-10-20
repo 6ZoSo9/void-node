@@ -29,7 +29,8 @@ source-authenticated observer:
 - symlink text plus resolved-target facts;
 - explicit absent-path records bound to their nearest existing parent;
 - rejection of FIFOs/devices/sockets and other special files;
-- 100,000-entry, 512 MiB/file and 16 MiB/report bounds;
+- **bounded directory discovery**, accounting for current objects and queued directories *before* materializing and sorting `scandir` entries, with a total 100,000-entry census budget;
+- 512 MiB/file and 16 MiB/report bounds;
 - exact accessed-path subset validation;
 - canonical JSON terminal-manifest equality;
 - explicit refusal to promote post-exec dumpability to verified/accepted.
@@ -37,6 +38,32 @@ source-authenticated observer:
 The self-test uses only a temporary synthetic tree. It exercises content drift, a
 materialized declared absence, symlink identity, special-file rejection, and a false
 post-exec dumpability promotion.
+
+### Fan-out denial-of-service negative tests
+
+The original candidate used `sorted(os.scandir(current))`, which could
+allocate an arbitrarily large list *before* the 100,000-entry bound was
+checked. It also left child directory paths on a pending `stack` before they
+counted against that limit.
+
+The corrected source loops through `os.scandir` with a context manager and
+collects at most the remaining `entry_limit - len(objects) - len(stack)`
+entries. Encountering one excess entry immediately raises
+`Hold("tree_entry_bound_exceeded")`; sorting occurs **only after** this
+bounded discovery. Queued directories consume budget like hashed leaves.
+The runtime maximum remains 100,000; a smaller `entry_limit` is available
+exclusively for synthetic fixture testing.
+
+The source fixture checks both a 3-file fan-out and a 3-directory fan-out
+with limit 2, plus the root-counting boundary with limits 1 and 4. These
+are all disposable filesystem objects; no protected host is read.
+
+```text
+bounded_scandir_source_blob=1299540e8a48a30d429a31580139dea28abccf23
+bounded_scandir_source_proof_blob=130cf67728d670a6b27f036ddfbbb95376dfd6ab
+host_execution_enabled=false
+host_census_authorized=false
+```
 
 ## Deliberate execution HOLD
 
