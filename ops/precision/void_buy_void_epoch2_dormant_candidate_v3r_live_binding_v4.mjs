@@ -447,19 +447,31 @@ function requireBinderPreentry(sourceHead,runtimeHead){
 }
 
 function runAsRuntimeUser(command,args,options={}){
-  return run(SETPRIV,[
+  const tools=requireActiveRootExecutionTools();
+  if(command!==GIT)throw new Error("runtime_command_not_retained");
+  const childCommandFd=tools.setpriv.fd===3?4:3;
+  const maxFd=Math.max(tools.setpriv.fd,childCommandFd);
+  const stdio=["pipe","pipe","pipe"];
+  while(stdio.length<=maxFd)stdio.push("ignore");
+  stdio[tools.setpriv.fd]=tools.setpriv.fd;
+  stdio[childCommandFd]=tools.git.fd;
+  tools.revalidate();
+  const r=spawnSync("/proc/self/fd/"+String(tools.setpriv.fd),[
     "--no-new-privs",
     "--reuid="+String(RUNTIME_UID),
-    "--regid="+String(RUNTIME_UID),
+    "--regid="+String(RUNTIME_GID),
     "--clear-groups",
-    command,
+    "/proc/self/fd/"+String(childCommandFd),
     ...args,
   ],{
-    cwd:options.cwd??ROOT,
-    env:options.env??cleanGitEnv(),
-    input:options.input,
-    timeout:options.timeout??30_000,
+    cwd:options.cwd??ROOT,env:options.env??cleanGitEnv(),
+    input:options.input,encoding:"utf8",stdio,
+    timeout:options.timeout??30_000,maxBuffer:MAX_OUTPUT,
   });
+  try{
+    if(r.error)throw new Error("spawn_error:"+safeReason(r.error.message));
+    return r;
+  }finally{tools.revalidate();}
 }
 function git(args){
   const r=runAsRuntimeUser(GIT,[
@@ -688,7 +700,8 @@ function validateChildReceipt(receipt,expectedHead,compatibility){
   }
 }
 function runNativeLive(runtimeHead,compatibility){
-  const r=run(FIXED_NATIVE,[
+  const tools=requireActiveRootExecutionTools();
+  const r=runRetainedTrustedExecutable(tools.native,[
     "--run","--confirm",NATIVE_CONFIRM,"--expected-head",runtimeHead,
   ],{
     env:cleanRootEnv(),
@@ -1064,22 +1077,27 @@ function live(sourceHead,runtimeHead,confirm){
   if(typeof process.geteuid!=="function"||process.geteuid()!==0){
     throw new Error("root_required_for_live_binding");
   }
-  assertTrustedExecutable(GIT);
-  assertTrustedExecutable(SETPRIV);
-  assertTrustedExecutable(FIXED_NATIVE);
-  const before=sourceCompatibility(runtimeHead);
-  if(before.source_head!==sourceHead){
-    throw new Error("binder_preentry_source_head_not_current");
+  const tools=openRootExecutionTools();
+  activeRootExecutionTools=tools;
+  try{
+    const before=sourceCompatibility(runtimeHead);
+    if(before.source_head!==sourceHead){
+      throw new Error("binder_preentry_source_head_not_current");
+    }
+    const candidate=loadCandidate(before.source_head);
+    const child=runNativeLive(runtimeHead,before);
+    const after=sourceCompatibility(runtimeHead);
+    if(canonical(before)!==canonical(after)){
+      throw new Error("source_generation_changed_across_sensitive_sequence");
+    }
+    revalidateBinderPreentry(binderProof,before.source_head,runtimeHead);
+    tools.revalidate();
+    const receipt=buildBindingReceipt(before,candidate,child);
+    console.log(JSON.stringify(receipt,null,2));
+  }finally{
+    activeRootExecutionTools=null;
+    tools.close();
   }
-  const candidate=loadCandidate(before.source_head);
-  const child=runNativeLive(runtimeHead,before);
-  const after=sourceCompatibility(runtimeHead);
-  if(canonical(before)!==canonical(after)){
-    throw new Error("source_generation_changed_across_sensitive_sequence");
-  }
-  revalidateBinderPreentry(binderProof,before.source_head,runtimeHead);
-  const receipt=buildBindingReceipt(before,candidate,child);
-  console.log(JSON.stringify(receipt,null,2));
 }
 function main(){
   const args=process.argv.slice(2);
