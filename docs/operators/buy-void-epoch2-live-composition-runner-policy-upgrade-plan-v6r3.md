@@ -195,4 +195,9 @@ Runner finding, nor does it accept, merge, install, qualify or activate a
 production generation. No host `--plan` was invoked, and all payment/credential/
 signing, presale/WC activation and funds authority remain **false**.
 
-Planner Git blob: `76daf342ec779a039a91d1f7cf98f3a0ecf77f14`.
+The planner also reobserves the host Node digest and protected READY/GREEN
+state before returning a plan. Synthetic self-tests force late Node and
+protected-state drift and require HOLD, preventing an earlier valid snapshot
+from being treated as terminal authority.
+
+Planner Git blob: `1ba1bdaf6a8664e5c3e4f3ebc41e951fc186946e`.
