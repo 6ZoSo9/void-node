@@ -188,7 +188,9 @@ authorized `--plan` run:
   hashing; no-follow/nonblocking regular-file FD checks and terminal
   generation revalidation guard against a regular-file-to-FIFO open race.
 - Protected child opens are nonblocking and require the retained generation
-  to be a regular file before reading.
+  to be a regular file before reading. Each native/Runner/policy leaf,
+  including the V4 predecessor, also requires effective UID1000 write denial
+  on the same descriptor-relative pathname before and after authentication.
 
 This source/test/CI child is bound to the accepted V8 retained-first-exec lock from
 #3567 and therefore requires the #3566 Runner descriptor-first-exec repair. It does
@@ -219,9 +221,47 @@ candidate_id=voidbuye2runnerpolcand6r3_0a3bfc00032b0feeb253fb0f295b4dacc1e3e66af
 runner_git_blob=2fa028824d71a22f4d228cdb7fcda738bce7b409
 runner_sha256=9b8497c813fc3899b745736da01929380b5f28f988f70790def1e0a98b35a261
 runner_bytes=84928
-planner_git_blob=9eeadd69546cf0eb5793a744b273319bec757d39
+planner_git_blob=fb12d0f8f96382094ae904b6bfe1d1b29c24b365
 ```
 
 The planner rejects any lock that does not explicitly accept the retained-first-exec
 identity and all descriptor/procfd source-compatibility properties. It also requires every
 runtime/economic authority field in the accepted lock to remain false.
+
+## V8 protected child-leaf effective write-access proof
+
+This source-only V8 successor inherits the retained-first-exec lock and
+authenticated Git/Node/ancestor/descriptor-bound root checks without changing
+any accepted Runner, native or credential source identity.
+
+Each protected native, Runner and policy leaf is audited with Linux
+`os.access(name, W_OK, dir_fd=root_fd, effective_ids=True,
+follow_symlinks=False)`, before and after byte-exact verification. The
+visible leaf's generation is checked around the ACL audit; missing,
+rebound, write-authorized or unavailable-audit conditions produce
+structured HOLD rather than GREEN.
+
+The inert self-test models effective denial, a writable leaf, and
+an unavailable ACL check without opening any protected host file.
+The new source and exact proof identities are:
+
+```text
+planner_git_blob=fb12d0f8f96382094ae904b6bfe1d1b29c24b365
+planner_proof_git_blob=9baf7e94d985b69e9f3af480b0e82e26254c7dea
+accepted_lock_git_blob=d28ebbd3fe1d89a1940b039af64e10a6cb96065e
+accepted_runner_git_blob=2fa028824d71a22f4d228cdb7fcda738bce7b409
+runtime_head=4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
+protected_install_authorized=false
+credential_access_authorized=false
+signing_authorized=false
+transaction_authorized=false
+payment_acceptance_authorized=false
+public_presale_activation_authorized=false
+wc_void_market_activation_authorized=false
+funds_movement_authorized=false
+```
+
+Neither source CI nor this document authorizes host `--plan`, service or
+filesystem mutation, privileged first-entry execution, receipt publication,
+payment acceptance, or presale activation. Independent review and separately
+authorized host qualification remain required. PROTECT THE CORE.
