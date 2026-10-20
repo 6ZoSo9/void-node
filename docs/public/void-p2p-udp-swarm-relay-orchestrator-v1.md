@@ -19,9 +19,19 @@ This orchestrator is the first production caller for the existing sequence:
 
 The incoming relay endpoint never races the outgoing endpoint by initiating a
 second upgrade. Pending and active exact-stream upgrades suppress duplicates.
-Accepted local requests and rejected upgrades retry only after a bounded
-backoff. An attempt that could not be sent before relay authentication retries
-on the next one-second sweep. Relay retirement is outside this lane.
+Accepted local requests, rejected upgrades, and **thrown/uncertain emission
+outcomes** use the 15-second bounded backoff. The reservation and connect
+adapters return `undefined` when no request was dispatched; only that
+explicit nonthrowing no-request outcome retains the next one-second sweep
+retry. A generic exception does not prove a request was unsent, even if the
+exception happens before emission in a particular fixture. This avoids
+amplifying duplicate requests while preserving a fast no-send retry.
+A route-local adapter exception increments the failure counter but does not
+prevent later independent routes from advancing in the same sweep. A synchronous stop or verified-discovery route replacement
+invalidates the current sweep before any further outbound adapter request.
+The scheduler installs its single timer handle before the immediate first sweep:
+synchronous route replacement during start cannot recursively create a nested
+initial sweep or an orphan interval. Relay retirement is outside this lane.
 
 ## Exact field-test configuration
 
