@@ -190,6 +190,81 @@ orchestrator.stop();
 orchestrator.runOnce(90_000);
 assert.equal(reservationCalls.length, 2);
 
+const failingRelayNodeId = "e".repeat(32);
+const healthyRelayNodeId = "f".repeat(32);
+const isolatedReservationCalls: string[] = [];
+const failureIsolationNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
+  ...node,
+  relaySnapshot: () => ({
+    client_reservations: [],
+    streams: [],
+  }),
+  udpSwarmControlSnapshot: () => ({
+    pending_requests: [],
+    active_routes: [],
+  }),
+  requestRelayReservation: (relay) => {
+    isolatedReservationCalls.push(relay);
+    if (relay === failingRelayNodeId) {
+      throw new Error("synthetic route-local adapter failure");
+    }
+    return "4".repeat(32);
+  },
+};
+const failureIsolation = new VoidUdpSwarmRelayOrchestratorV1(
+  failureIsolationNode,
+  {
+    enabled: true,
+    routes: [
+      {
+        relay_node_id: failingRelayNodeId,
+        target_node_id: targetNodeId,
+      },
+      {
+        relay_node_id: healthyRelayNodeId,
+        target_node_id: relayNodeId,
+      },
+    ],
+  },
+);
+assert.doesNotThrow(() => failureIsolation.runOnce(0));
+assert.deepEqual(isolatedReservationCalls, [
+  failingRelayNodeId,
+  healthyRelayNodeId,
+]);
+const failureIsolationStatus = failureIsolation.status();
+assert.equal(
+  (failureIsolationStatus.counters as Record<string, number>).sweep_failures,
+  1,
+);
+assert.equal(
+  (failureIsolationStatus.counters as Record<string, number>)
+    .reservation_attempts,
+  2,
+);
+assert.equal(
+  (failureIsolationStatus.counters as Record<string, number>)
+    .reservation_requests,
+  1,
+);
+failureIsolation.runOnce(1_000);
+assert.deepEqual(isolatedReservationCalls, [
+  failingRelayNodeId,
+  healthyRelayNodeId,
+  failingRelayNodeId,
+]);
+failureIsolation.runOnce(
+  VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1,
+);
+assert.deepEqual(isolatedReservationCalls, [
+  failingRelayNodeId,
+  healthyRelayNodeId,
+  failingRelayNodeId,
+  failingRelayNodeId,
+  healthyRelayNodeId,
+]);
+failureIsolation.stop();
+
 console.log(JSON.stringify({
   marker: "VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_V1_PROOF",
   status: "green",
@@ -201,6 +276,8 @@ console.log(JSON.stringify({
     started_outgoing_stream_before_upgrade: true,
     pending_and_active_upgrade_suppression: true,
     bounded_upgrade_retry: true,
+    route_local_adapter_failure_isolated: true,
+    later_routes_advance_after_failure: true,
     incoming_stream_not_initiated: true,
     sanitized_status: true,
     stop_is_terminal: true,
