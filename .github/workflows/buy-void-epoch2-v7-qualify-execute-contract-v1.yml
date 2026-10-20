@@ -66,11 +66,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            25f4c06a3fb49a9df850688524a767af3b38342e
+            9a4f795d9c3271f3498840e61b34a28265ab9519
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            991091e910127f36f8e166bd0026d1d73a118b36
+            db844b910ea7d8f0b641c233411d14c38c9b971f
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-v7-qualify-execute-contract-v1.md)" = \
-            dcfaa5be8a4c3ca799e43b09749f669484b86fb5
+            8829a72fba760b2d08f49e0a9a07b39a10969e28
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
             597dd61923d349980cd30bcf190fee354ff1c1f2
@@ -122,6 +122,8 @@ jobs:
             'planner_integer_fields_typed=true'
             'executable_artifact_paths_nul_rejected=true'
             'planner_body_canonicalization_failures_hold=true'
+            'planner_output_open_nonblocking=true'
+            'executable_artifact_paths_canonical_utf8_bounded=true'
             'planner_output_race_oserror_holds=true'
             'planner_json_parser_failures_hold=true'
             'unconsumed_tool_metadata_not_execution_authority=true'

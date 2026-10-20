@@ -319,3 +319,16 @@ Inert proof fixtures exercise canonicalization failure, `version: 7.0`,
 floating installed/artifact byte counts, and a launcher path containing an
 escaped NUL with a consistently modified argv. All must HOLD. These checks add no
 execution, privilege, payment, activation, or funds authority.
+
+
+## Nonblocking observation and executable-path canonicality
+
+The planner-output descriptor is opened with `O_NONBLOCK` in addition to
+read-only, close-on-exec and no-follow flags so a regular-file-to-FIFO race cannot
+turn validation into an unbounded blocking open. Descriptor identity checks still
+reject any rebound object.
+
+Executable artifact paths are restricted to one-root, normalized, strict UTF-8,
+sub-4096-byte absolute paths with no NUL/CR/LF. Rehashed double-root,
+unencodable-surrogate and overlong paths must HOLD. These checks constrain only
+source evidence; they do not execute any artifact.

@@ -268,7 +268,10 @@ def _read_stable(path: Path) -> bytes:
     ):
         raise ContractError("planner_output_metadata_invalid")
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        fd = os.open(
+            path,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+        )
     except OSError as exc:
         raise ContractError("planner_output_open_failed") from exc
     try:
@@ -353,9 +356,16 @@ def _plain_int(value: object, minimum: int = 0) -> bool:
 
 
 def _normalized_absolute(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        encoded = value.encode("utf-8", "strict")
+    except UnicodeEncodeError:
+        return False
     return (
-        isinstance(value, str)
-        and value.startswith("/")
+        value.startswith("/")
+        and not value.startswith("//")
+        and 0 < len(encoded) < 4096
         and "\n" not in value
         and "\r" not in value
         and "\0" not in value
@@ -1188,6 +1198,36 @@ def self_test() -> None:
             ),
         )
     )
+    _expect_tamper_rejected(
+        lambda body: (
+            body["accepted_launcher"].__setitem__(
+                "path", "//tmp/accepted-launcher-v2"
+            ),
+            body["bootstrap_argv"].__setitem__(
+                3, "//tmp/accepted-launcher-v2"
+            ),
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: (
+            body["accepted_launcher"].__setitem__(
+                "path", "/tmp/accepted-launcher-" + "\ud800"
+            ),
+            body["bootstrap_argv"].__setitem__(
+                3, "/tmp/accepted-launcher-" + "\ud800"
+            ),
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: (
+            body["accepted_launcher"].__setitem__(
+                "path", "/tmp/" + ("a" * 4096)
+            ),
+            body["bootstrap_argv"].__setitem__(
+                3, "/tmp/" + ("a" * 4096)
+            ),
+        )
+    )
 
     canonical_fixture = _fixture_output()
     original_canonical = canonical
@@ -1234,7 +1274,10 @@ def self_test() -> None:
 
     original_open = os.open
     try:
-        def _open_race(*_args, **_kwargs):
+        def _open_race(*args, **_kwargs):
+            flags = args[1] if len(args) > 1 else _kwargs.get("flags", 0)
+            if not flags & os.O_NONBLOCK:
+                raise AssertionError("planner_output_open_not_nonblocking")
             raise FileNotFoundError("fixture_open_race")
 
         os.open = _open_race
@@ -1309,6 +1352,8 @@ def self_test() -> None:
     print("planner_integer_fields_typed=true")
     print("executable_artifact_paths_nul_rejected=true")
     print("planner_body_canonicalization_failures_hold=true")
+    print("planner_output_open_nonblocking=true")
+    print("executable_artifact_paths_canonical_utf8_bounded=true")
     print("planner_output_race_oserror_holds=true")
     print("planner_json_parser_failures_hold=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")
