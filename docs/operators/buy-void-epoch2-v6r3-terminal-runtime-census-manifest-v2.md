@@ -75,3 +75,18 @@ funds_movement=false
 ```
 
 **PROTECT THE CORE.**
+
+## Non-POSIX pathname truth repair (source-only exact successor)
+
+The pre-traversal budget already rejected NUL in input arrays, but the
+logical display root and directly callable absence helper still required
+their own checks. This source update refuses embedded NUL in the logical root
+and in either standalone absence-record identity **before** touching the
+filesystem; it also rejects noncanonical accessed-path spellings before tree
+enumeration. Four disposable negative fixture cases cover the direct helper
+and manifest entrypoints. The proof pins the new V2 source blob
+`f42458ff4c9d2de7d879e7501ab3964e6a48c61b` and checks the new fixture markers.
+
+**These fixture checks are not live host custody.** All protected observer,
+postexec isolation, host-plan, signing, payment, public presale and funds
+authority flags remain false.
