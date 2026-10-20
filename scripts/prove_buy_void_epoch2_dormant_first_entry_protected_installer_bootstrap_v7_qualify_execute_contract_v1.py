@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "eba50a052a51e38e34bf6d6bad726751132c84c7"
+TARGET_BLOB = "0edcf2e29c74e161ac46cca5132fef2e90cbdc2e"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -160,6 +160,8 @@ for required in (
     '_require_exact_keys(body, PLANNER_BODY_KEYS, "planner_body")',
     "planner_body_installed_qualification_performed_invalid",
     "planner_body_qualification_requirement_invalid",
+    "canonical_body = canonical(body)",
+    'not _plain_int(body["version"], 0)',
     'except (ValueError, RecursionError) as exc:',
 ):
     assert required in validate_source, required
@@ -185,6 +187,10 @@ key_helper_source = (
     ast.get_source_segment(source, functions["_require_exact_keys"]) or ""
 )
 assert 'label + "_keys_invalid"' in key_helper_source
+normalized_source = ast.get_source_segment(source, functions["_normalized_absolute"]) or ""
+assert '"\\0" not in value' in normalized_source
+artifact_source = ast.get_source_segment(source, functions["_artifact"]) or ""
+assert 'not _plain_int(value["bytes"], 1)' in artifact_source
 
 contract_source = ast.get_source_segment(source, functions["execution_contract"]) or ""
 assert '"ordinal": 1' in contract_source
@@ -226,6 +232,9 @@ for expected in (
     "qualification_state_body_fields_bound=true",
     "qualification_required_result_boolean_types_bound=true",
     "qualification_contract_boolean_types_bound=true",
+    "planner_integer_fields_typed=true",
+    "executable_artifact_paths_nul_rejected=true",
+    "planner_body_canonicalization_failures_hold=true",
     "planner_output_race_oserror_holds=true",
     "planner_json_parser_failures_hold=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
@@ -302,6 +311,9 @@ print("rehashed_nested_tamper_rejected=true")
 print("qualification_state_body_fields_bound=true")
 print("qualification_required_result_boolean_types_bound=true")
 print("qualification_contract_boolean_types_bound=true")
+print("planner_integer_fields_typed=true")
+print("executable_artifact_paths_nul_rejected=true")
+print("planner_body_canonicalization_failures_hold=true")
 print("planner_output_race_oserror_holds=true")
 print("planner_json_parser_failures_hold=true")
 print("unconsumed_tool_metadata_not_execution_authority=true")

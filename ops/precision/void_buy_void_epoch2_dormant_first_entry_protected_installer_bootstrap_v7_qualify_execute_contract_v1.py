@@ -358,6 +358,7 @@ def _normalized_absolute(value: object) -> bool:
         and value.startswith("/")
         and "\n" not in value
         and "\r" not in value
+        and "\0" not in value
         and os.path.normpath(value) == value
     )
 
@@ -538,7 +539,7 @@ def _artifact(
     _require_exact_keys(value, ARTIFACT_KEYS, label)
     if not _normalized_absolute(value["path"]):
         raise ContractError(label + "_path_invalid")
-    if value["bytes"] != expected_bytes:
+    if not _plain_int(value["bytes"], 1) or value["bytes"] != expected_bytes:
         raise ContractError(label + "_bytes_mismatch")
     if value["sha256"] != expected_sha256:
         raise ContractError(label + "_sha256_mismatch")
@@ -604,11 +605,19 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
     if not isinstance(body, dict):
         raise ContractError("planner_body_not_object")
     _require_exact_keys(body, PLANNER_BODY_KEYS, "planner_body")
-    if canonical(body).decode("ascii") != values["plan_body_json"]:
+    try:
+        canonical_body = canonical(body)
+    except (ValueError, RecursionError) as exc:
+        raise ContractError("planner_body_invalid") from exc
+    if canonical_body.decode("ascii") != values["plan_body_json"]:
         raise ContractError("planner_body_not_canonical")
-    if plan_id != PLANNER_PREFIX + sha256(canonical(body)):
+    if plan_id != PLANNER_PREFIX + sha256(canonical_body):
         raise ContractError("planner_plan_id_body_mismatch")
-    if body["schema"] != PLANNER_SCHEMA or body["version"] != 7:
+    if (
+        body["schema"] != PLANNER_SCHEMA
+        or not _plain_int(body["version"], 0)
+        or body["version"] != 7
+    ):
         raise ContractError("planner_schema_invalid")
     if body["installed_qualification_performed"] is not False:
         raise ContractError("planner_body_installed_qualification_performed_invalid")
@@ -642,7 +651,10 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
         "manifest_git_blob_sha1": BOOTSTRAP_MANIFEST_GIT_BLOB,
     }
     for key, expected in expected_installed.items():
-        if installed[key] != expected:
+        if isinstance(expected, int) and not isinstance(expected, bool):
+            if not _plain_int(installed[key], 0) or installed[key] != expected:
+                raise ContractError("installed_bootstrap_identity_mismatch:" + key)
+        elif installed[key] != expected:
             raise ContractError("installed_bootstrap_identity_mismatch:" + key)
 
     if body["accepted_launcher_lock_id"] != LAUNCHER_LOCK_ID:
@@ -1148,6 +1160,46 @@ def self_test() -> None:
             "repaired_fixed_root_verified", 1
         )
     )
+    _expect_tamper_rejected(
+        lambda body: body.__setitem__("version", 7.0)
+    )
+    _expect_tamper_rejected(
+        lambda body: body["expected_installed_bootstrap"].__setitem__(
+            "bytes", float(BOOTSTRAP_BYTES)
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: body["accepted_launcher"].__setitem__(
+            "bytes", float(LAUNCHER_BYTES)
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: (
+            body["accepted_launcher"].__setitem__(
+                "path", "/tmp/accepted-launcher-v2\0suffix"
+            ),
+            body["bootstrap_argv"].__setitem__(
+                3, "/tmp/accepted-launcher-v2\0suffix"
+            ),
+        )
+    )
+
+    canonical_fixture = _fixture_output()
+    original_canonical = canonical
+    try:
+        def _canonical_recursion(_value):
+            raise RecursionError("fixture_canonical_recursion")
+
+        globals()["canonical"] = _canonical_recursion
+        try:
+            validate_planner_output(canonical_fixture)
+        except ContractError as exc:
+            if str(exc) != "planner_body_invalid":
+                raise
+        else:
+            raise AssertionError("planner_body_canonicalization_failure_not_held")
+    finally:
+        globals()["canonical"] = original_canonical
 
     class _PlannerRaceStat:
         st_mode = stat.S_IFREG | 0o600
@@ -1249,6 +1301,9 @@ def self_test() -> None:
     print("qualification_state_body_fields_bound=true")
     print("qualification_required_result_boolean_types_bound=true")
     print("qualification_contract_boolean_types_bound=true")
+    print("planner_integer_fields_typed=true")
+    print("executable_artifact_paths_nul_rejected=true")
+    print("planner_body_canonicalization_failures_hold=true")
     print("planner_output_race_oserror_holds=true")
     print("planner_json_parser_failures_hold=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")

@@ -300,3 +300,22 @@ required identity. Numeric substitutes such as `0` for `false` or `1` for
 The inert proof mutates outer fields including `root_execution_required` and
 `nonroot_execution_required` to numeric substitutes and requires deterministic
 HOLD. This adds no execution, privilege, payment, activation, or funds authority.
+
+
+## Parser and exact-type fail-closed boundaries
+
+The planner handoff rejects malformed-but-rehashed inputs before emitting an
+execution contract:
+
+- planner-body canonicalization is inside the same machine-readable HOLD boundary
+  as JSON parsing, including recursion failures;
+- protocol integer fields are actual integers, not equal-valued floats or
+  booleans;
+- accepted executable artifact byte counts are exact integers; and
+- normalized executable paths reject embedded NUL bytes before they can enter the
+  structured root argv.
+
+Inert proof fixtures exercise canonicalization failure, `version: 7.0`,
+floating installed/artifact byte counts, and a launcher path containing an
+escaped NUL with a consistently modified argv. All must HOLD. These checks add no
+execution, privilege, payment, activation, or funds authority.
