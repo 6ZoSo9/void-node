@@ -668,7 +668,7 @@ def fixture_self_test()->None:
         assert control_objects["/fixture/python/json-control-target"]["target_text"]==escaped_target
         assert len(canonical(escaped_target))>len(escaped_target.encode("utf-8"))*4
         escaped_payload=sum(
-            len(canonical({name,item})) for name,item in control_objects.items()
+            len(canonical({name:item})) for name,item in control_objects.items()
         )
         assert collect_tree(root,"/fixture",record_budget=escaped_payload)==control_objects
         try:
