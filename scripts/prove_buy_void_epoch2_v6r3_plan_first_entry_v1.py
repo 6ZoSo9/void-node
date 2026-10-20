@@ -169,6 +169,11 @@ for required in (
     "fexecve(python_fd,child_argv,child_env);",
     '"-I"', '"-B"', '"-S"', "PR_SET_NO_NEW_PRIVS",
     "caller_stdin_python_source_authority=false",
+    "SYS_close_range",
+    "CLOSE_RANGE_UNSHARE",
+    "assert_no_unneeded_fds",
+    "inherited_fd_survived_close_range",
+    'require_devnull_descriptor(STDIN_FILENO,"devnull_stdin_descriptor_invalid")',
 ):
     assert required in source, required
 for forbidden in ("system(", "popen(", "execvp(", "execlp("):
@@ -509,6 +514,8 @@ print("closed_stdin_first_entry_green=true")
 print("root_static_first_entry_required=true")
 print("standard_fds_reserved_before_trusted_opens=true")
 print("mapped_planner_fd3_revalidated=true")
+print("inherited_fds_ge5_closed_and_censused=true")
+print("devnull_stdin_descriptor_revalidated=true")
 print("runtime_uid_gid_1000_required=true")
 print("permanent_uid_gid_drop_before_python=true")
 print("planner_runtime_uid_gid_1000_proven=true")
