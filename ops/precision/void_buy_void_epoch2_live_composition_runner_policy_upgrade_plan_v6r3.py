@@ -115,6 +115,54 @@ def canonical(value:object)->bytes:
     ).encode("ascii")
 
 
+def _host_identity(st:os.stat_result)->tuple[int,...]:
+    return (
+        st.st_dev,st.st_ino,st.st_uid,st.st_gid,st.st_mode,
+        st.st_nlink,st.st_size,st.st_mtime_ns,st.st_ctime_ns,
+    )
+
+
+def revalidate_host_ancestors(
+    expected:tuple[tuple[Path,tuple[int,...]],...],label:str,
+)->None:
+    for current,identity in expected:
+        now=os.lstat(current)
+        if (
+            _host_identity(now)!=identity
+            or not stat.S_ISDIR(now.st_mode)
+            or stat.S_ISLNK(now.st_mode)
+            or now.st_uid!=0 or now.st_gid!=0
+            or (stat.S_IMODE(now.st_mode)&0o022)!=0
+            or os.access(current,os.W_OK,effective_ids=True)
+        ):
+            raise PlanError(label+"_ancestor_generation_or_acl_changed:"+str(current))
+
+
+def trusted_host_ancestors(
+    leaf:Path,label:str,
+)->tuple[tuple[Path,tuple[int,...]],...]:
+    if not leaf.is_absolute() or os.path.normpath(str(leaf))!=str(leaf):
+        raise PlanError(label+"_absolute_normalized_path_required")
+    current=leaf.parent
+    observed:list[tuple[Path,tuple[int,...]]]=[]
+    while True:
+        st=os.lstat(current)
+        if (
+            not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode)
+            or st.st_uid!=0 or st.st_gid!=0
+            or (stat.S_IMODE(st.st_mode)&0o022)!=0
+            or os.access(current,os.W_OK,effective_ids=True)
+        ):
+            raise PlanError(label+"_ancestor_not_custodied:"+str(current))
+        observed.append((current,_host_identity(st)))
+        if current==current.parent:
+            break
+        current=current.parent
+    result=tuple(observed)
+    revalidate_host_ancestors(result,label)
+    return result
+
+
 def clean_git_env()->dict[str,str]:
     return {
         "PATH":"/usr/bin:/bin",
@@ -312,6 +360,7 @@ def source_snapshot()->dict[str,Any]:
     }
 
 def snapshot_host_file(path:Path,*,executable:bool)->dict[str,Any]:
+    ancestors=trusted_host_ancestors(path,"host_tool")
     try:
         before=path.lstat()
     except OSError as exc:
@@ -327,13 +376,17 @@ def snapshot_host_file(path:Path,*,executable:bool)->dict[str,Any]:
     ):
         raise PlanError("host_file_metadata_invalid:"+str(path))
     try:
-        fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)
+        fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK)
     except OSError as exc:
         raise PlanError("host_file_open_failed:"+str(path)) from exc
     try:
         opened=os.fstat(fd)
-        if opened.st_dev!=before.st_dev or opened.st_ino!=before.st_ino:
-            raise PlanError("host_file_rebound:"+str(path))
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or _host_identity(opened)!=_host_identity(before)
+            or opened.st_size<1 or opened.st_size>MAX_FILE_BYTES
+        ):
+            raise PlanError("host_file_opened_generation_or_type_invalid:"+str(path))
         digest=hashlib.sha256(); remaining=opened.st_size
         while remaining:
             chunk=os.read(fd,min(1024*1024,remaining))
@@ -346,6 +399,7 @@ def snapshot_host_file(path:Path,*,executable:bool)->dict[str,Any]:
         for field in ("st_dev","st_ino","st_mode","st_uid","st_gid","st_nlink","st_size","st_mtime_ns","st_ctime_ns"):
             if getattr(opened,field)!=getattr(after,field) or getattr(after,field)!=getattr(visible,field):
                 raise PlanError("host_file_changed:"+str(path))
+        revalidate_host_ancestors(ancestors,"host_tool")
         return {
             "path":str(path),"dev":visible.st_dev,"ino":visible.st_ino,
             "uid":visible.st_uid,"gid":visible.st_gid,
@@ -374,7 +428,7 @@ def build_policy(
     ).encode("ascii")
 
 
-def require_root_dir(path:Path)->None:
+def require_root_dir(path:Path)->tuple[int,...]:
     try:
         st=path.lstat()
     except OSError as exc:
@@ -383,9 +437,10 @@ def require_root_dir(path:Path)->None:
         not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode)
         or st.st_uid!=0 or st.st_gid!=0
         or stat.S_IMODE(st.st_mode)!=0o755
+        or os.access(path,os.W_OK,effective_ids=True)
     ):
-        raise PlanError("protected_root_metadata_invalid:"+str(path))
-
+        raise PlanError("protected_root_metadata_or_acl_invalid:"+str(path))
+    return _host_identity(st)
 
 def verify_file(
     root_fd:int,name:str,*,expected_bytes:int,expected_sha256:str,expected_mode:int,
@@ -429,35 +484,49 @@ def verify_generation(
     root:Path,*,native_sha256:str,native_bytes:int,
     runner_sha256:str,runner_bytes:int,policy:bytes,
 )->None:
-    require_root_dir(root)
-    try:
-        entries=sorted(os.listdir(root))
-    except OSError as exc:
-        raise PlanError("protected_root_list_failed:"+str(root)) from exc
-    if entries!=sorted((NATIVE_NAME,RUNNER_NAME,POLICY_NAME)):
-        raise PlanError("protected_root_entries_invalid:"+str(root))
+    ancestors=trusted_host_ancestors(root,"protected_root")
+    admitted=require_root_dir(root)
     root_fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
     try:
+        if _host_identity(os.fstat(root_fd))!=admitted:
+            raise PlanError("protected_root_descriptor_generation_mismatch:"+str(root))
+        entries=sorted(os.listdir(root_fd))
+        if entries!=sorted((NATIVE_NAME,RUNNER_NAME,POLICY_NAME)):
+            raise PlanError("protected_root_entries_invalid:"+str(root))
         verify_file(root_fd,NATIVE_NAME,expected_bytes=native_bytes,expected_sha256=native_sha256,expected_mode=0o555)
         verify_file(root_fd,RUNNER_NAME,expected_bytes=runner_bytes,expected_sha256=runner_sha256,expected_mode=0o444)
         verify_file(root_fd,POLICY_NAME,expected_bytes=len(policy),expected_sha256=sha256(policy),expected_mode=0o444)
+        if (
+            _host_identity(os.fstat(root_fd))!=admitted
+            or _host_identity(root.lstat())!=admitted
+        ):
+            raise PlanError("protected_root_descriptor_or_path_changed:"+str(root))
+        revalidate_host_ancestors(ancestors,"protected_root")
     finally:
         os.close(root_fd)
 
 
 def verify_v4_predecessor()->None:
-    require_root_dir(PREDECESSOR_V4_ROOT)
+    ancestors=trusted_host_ancestors(PREDECESSOR_V4_ROOT,"v4_predecessor")
+    admitted=require_root_dir(PREDECESSOR_V4_ROOT)
     root_fd=os.open(PREDECESSOR_V4_ROOT,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
     try:
-        entries=sorted(os.listdir(PREDECESSOR_V4_ROOT))
+        if _host_identity(os.fstat(root_fd))!=admitted:
+            raise PlanError("v4_predecessor_descriptor_generation_mismatch")
+        entries=sorted(os.listdir(root_fd))
         if entries!=sorted((NATIVE_NAME,RUNNER_NAME,POLICY_NAME)):
             raise PlanError("v4_predecessor_entries_invalid")
         verify_file(root_fd,NATIVE_NAME,expected_bytes=V4_NATIVE_BYTES,expected_sha256=V4_NATIVE_SHA256,expected_mode=0o555)
         verify_file(root_fd,RUNNER_NAME,expected_bytes=V4_RUNNER_BYTES,expected_sha256=V4_RUNNER_SHA256,expected_mode=0o444)
         verify_file(root_fd,POLICY_NAME,expected_bytes=V4_POLICY_BYTES,expected_sha256=V4_POLICY_SHA256,expected_mode=0o444)
+        if (
+            _host_identity(os.fstat(root_fd))!=admitted
+            or _host_identity(PREDECESSOR_V4_ROOT.lstat())!=admitted
+        ):
+            raise PlanError("v4_predecessor_descriptor_or_path_changed")
+        revalidate_host_ancestors(ancestors,"v4_predecessor")
     finally:
         os.close(root_fd)
-
 
 def classify_state(old_policy:bytes,new_policy:bytes)->str:
     if STAGE_ROOT.exists() or STAGE_ROOT.is_symlink():
@@ -514,6 +583,12 @@ def _collect_plan_with_observers(
     if old_policy==new_policy or sha256(old_policy)==sha256(new_policy):
         raise PlanError("new_policy_not_distinct")
     state=classify_state_fn(old_policy,new_policy)
+    node_after=snapshot_host_file_fn(FIXED_NODE,executable=True)
+    if node_after!=node:
+        raise PlanError("host_node_generation_changed_during_plan")
+    state_after=classify_state_fn(old_policy,new_policy)
+    if state_after!=state:
+        raise PlanError("protected_state_changed_during_plan")
     source_after=source_snapshot_fn()
     if source_after!=source_before:
         raise PlanError("source_generation_changed_during_plan")
@@ -525,6 +600,11 @@ def _collect_plan_with_observers(
         "runtime_source_dependency_count":len(SOURCE_RUNTIME_DEPENDENCY_SPECS),
         "runtime_source_complete_dependency_set_bound":True,
         "source_terminal_revalidated":True,
+        "host_node_terminal_revalidated":True,
+        "protected_state_terminal_revalidated":True,
+        "host_ancestor_acl_nonwritability_required":True,
+        "host_root_descriptor_identity_required":True,
+        "host_nonblocking_regular_file_open_required":True,
         "runtime_head":RUNTIME_HEAD,
         "runtime_tree":RUNTIME_TREE,
         "node":node,
@@ -608,6 +688,10 @@ def source_plan()->None:
     print("runtime_source_complete_dependency_set_bound=true")
     print("source_runtime_actual_object_ancestry_required=true")
     print("terminal_source_revalidation_required=true")
+    print("host_ancestor_acl_nonwritability_required=true")
+    print("host_root_descriptor_identity_required=true")
+    print("host_nonblocking_regular_file_open_required=true")
+    print("host_node_and_state_terminal_revalidation_required=true")
     print("full_root_stage_required=true")
     print("atomic_root_exchange_required=true")
     print("predecessor_v6r2_retention_required=true")
@@ -680,6 +764,45 @@ def self_test()->None:
     assert stable["body"]["source_terminal_revalidated"] is True
     assert stable["body"]["runtime_source_dependency_count"]==9
     assert stable["body"]["runtime_source_complete_dependency_set_bound"] is True
+    assert stable["body"]["host_node_terminal_revalidated"] is True
+    assert stable["body"]["protected_state_terminal_revalidated"] is True
+
+    node_calls=0
+    def drifting_host(_path,*,executable):
+        nonlocal node_calls
+        node_calls+=1
+        value=dict(node)
+        if node_calls==2:
+            value["sha256"]="b"*64
+        return value
+    try:
+        _collect_plan_with_observers(
+            source_snapshot_fn=lambda:dict(source_base),
+            snapshot_host_file_fn=drifting_host,
+            classify_state_fn=lambda _old,_new:READY_STATE,
+        )
+    except PlanError as exc:
+        assert str(exc)=="host_node_generation_changed_during_plan"
+    else:
+        raise AssertionError("host_node_terminal_drift_not_rejected")
+    print("host_node_terminal_drift_rejected=true")
+
+    state_calls=0
+    def drifting_state(_old,_new):
+        nonlocal state_calls
+        state_calls+=1
+        return READY_STATE if state_calls==1 else GREEN_STATE
+    try:
+        _collect_plan_with_observers(
+            source_snapshot_fn=lambda:dict(source_base),
+            snapshot_host_file_fn=lambda _path,executable:dict(node),
+            classify_state_fn=drifting_state,
+        )
+    except PlanError as exc:
+        assert str(exc)=="protected_state_changed_during_plan"
+    else:
+        raise AssertionError("protected_state_terminal_drift_not_rejected")
+    print("protected_state_terminal_drift_rejected=true")
 
     drift_calls=0
     def drifting_source():
@@ -754,6 +877,10 @@ def self_test()->None:
     print("source_runtime_actual_object_ancestry_required=true")
     print("runtime_source_dependency_count=9")
     print("terminal_source_revalidation_required=true")
+    print("host_ancestor_acl_nonwritability_required=true")
+    print("host_root_descriptor_identity_required=true")
+    print("host_nonblocking_regular_file_open_required=true")
+    print("host_node_and_state_terminal_revalidation_required=true")
     print("late_source_drift_rejected=true")
     print("source_runtime_graft_ancestry_rejected=true")
     print("full_root_atomic_exchange_required=true")
@@ -794,6 +921,11 @@ def emit_plan()->None:
     print("runtime_source_complete_dependency_set_bound=true")
     print("source_runtime_actual_object_ancestry_required=true")
     print("source_terminal_revalidated=true")
+    print("host_node_terminal_revalidated=true")
+    print("protected_state_terminal_revalidated=true")
+    print("host_ancestor_acl_nonwritability_required=true")
+    print("host_root_descriptor_identity_required=true")
+    print("host_nonblocking_regular_file_open_required=true")
     print("full_root_stage_required=true")
     print("atomic_root_exchange_required=true")
     print("rename_exchange_required=true")
