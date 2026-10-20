@@ -17,16 +17,17 @@ records a separate **temporal** gate for installed read-only qualification.
 
 ## Bound source
 
+- Parent corrected contract head: `c674df2fb523803f27b7ae886f4a043ffffde27e`.
 - Parent Python closure contract Git blob:
-  `d3f1deeaf82c49c11353cebbb4c72466be9d2472`.
+  `c70dfd9da29c75b348a3619f6df7329381e939cf`.
 - Parent contract ID:
-  `voidbuye2v6r3pyruntimecontract1_80553976a9a5a241991a827f2b6913c08b22c27865136216dd66b21b07790df5`.
+  `voidbuye2v6r3pyruntimecontract1_cdb98f511f04a3c798200e304481ec14d94373fdbdf6ec30cf88b0e281b0eb4f`.
 - Accepted static first-entry binary lock Git blob:
   `66bf48fd6477e0335b1eea6e2b7e8a7f297f8c57`.
 - First-entry binary lock ID:
   `voidbuye2v6r3planfirstentrybinlock1_f6b452bb75542809454a0b68bae2f0049a4f2af6329e0b13075de1491bbbbc61`.
 - This gate ID:
-  `voidbuye2v6r3pyclosurefreshness1_28fafff8e9cb508c9de7db9b32fcb7bc23766ad2eb9ecb86621aeba429d6bc11`.
+  `voidbuye2v6r3pyclosurefreshness1_66f0fc4c608ab2874e75620e0e4037c9a672369fbd460b12a35a0b0600398a66`.
 
 ## Required future live boundary
 
@@ -38,7 +39,7 @@ symlink target graphs, existing and missing paths, and effective runtime-UID
 writability of every source, ancestor, directory and loader-authority path.
 
 This gate must be repeated **after the permanent UID/GID 1000 drop** and
-**before Python first exec**. New/deleted files, loader-cache or preload drift,
+**before Python first exec**. It is strictly a **pre-exec freshness** gate: it does not prove the child remains nondumpable after `fexecve()`. The corrected parent binds the observed `pre=0 → post=1` diagnostic, and a separate post-exec protection/isolation plus actual `PR_GET_DUMPABLE` observation remains mandatory before host-plan authority. New/deleted files, loader-cache or preload drift,
 new path roots, absent-path materialization, link swaps, ambiguous dependencies,
 ACL write grants, or unmapped runtime file accesses must HOLD. A future observer
 must produce source-authenticated, host-bound evidence and reject stale manifests.
@@ -69,6 +70,7 @@ enforcement mechanism and qualify them on the exact designated host.
 ```text
 host_census_authorized=false
 installed_enforcement_source_proven=false
+installed_post_exec_dumpability_enforcement_source_proven=false
 host_manifest_accepted=false
 host_plan_authorized=false
 protected_install_authorized=false
