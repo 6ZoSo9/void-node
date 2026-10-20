@@ -312,6 +312,9 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         assert cp.returncode == 2, combined.decode("utf-8", "replace")
         assert (PLANNER_MARKER + "\n").encode("ascii") in cp.stdout
         assert b"status=HOLD" in cp.stdout
+        assert b"reason=git_failed:rev-parse" in cp.stdout
+        assert b"reason=nonroot_required_for_plan" not in cp.stdout
+        assert b"reason=exact_runtime_identity_required_for_host_plan" not in cp.stdout
         assert b"CALLER_STDIN_EXECUTED" not in combined
         assert (MARKER + "_HOLD").encode("ascii") not in cp.stderr
         assert b"planner_python_started=false" not in cp.stderr
@@ -377,6 +380,7 @@ print("hosted_opt_ancestry_normalized_for_fixture=true")
 print("root_static_first_entry_required=true")
 print("runtime_uid_gid_1000_required=true")
 print("permanent_uid_gid_drop_before_python=true")
+print("planner_runtime_uid_gid_1000_proven=true")
 print("runtime_dumpable_disabled_before_python=true")
 print("protected_generations_revalidated_after_uid_drop=true")
 print("planner_root_owned_fixed_path_required=true")
