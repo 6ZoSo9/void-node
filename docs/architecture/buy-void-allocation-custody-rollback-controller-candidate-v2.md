@@ -10,8 +10,8 @@ This candidate is stacked on the [V2 challenge plan #3556](https://github.com/6Z
 - V2 plan ID: `voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844`.
 - V2 plan Git blob: `1cdecf34117e4e890f67e62b412419d32870dfa0`.
 - Historical V1 controller source blob: `96d4ac3499d222841f1f7a3c53e14900b68ae8cf`; original V1 proof blob: `b196fcaa77a6bdc465baacb3387aa949f47bc956`.
-- New V2 controller source blob: `bccb22f13324e66d4aef93a2d71a1a520e3ede2d`.
-- New V2 behavior proof blob: `8e8f0ca8b2d377520520b75adfea14b502f9ae3d`.
+- New V2 controller source blob: `abf09c1ce5540b03e39d18184858b40dac6443f1`.
+- New V2 behavior proof blob: `98a0b21510e889bc2dae10d113bfd22bda4a24f1`.
 - Accepted economic tree remains `71c67e62a2b21a98f3f5135ee6aa56e0ef97d262`.
 
 ## V2 authorization and replay boundary
@@ -125,6 +125,30 @@ adapter must independently authenticate append/hash-chain provenance,
 sync/close/reopen durable readback, storage isolation and claim/lease
 atomicity. Source-only fixture success does not authorize a rollback or
 customer/presale payments.
+
+## Minimal high-water generation advance
+
+During this **single noncustomer canary append** under the exclusive lease,
+the high-water controller must advance to the exact smallest sequence that
+covers both the canary journal append and the prior high-water position:
+`Math.max(before.high_water_sequence + 1, append.journal_sequence)`.
+The prior source accepted **any** larger safe integer, although the
+challenge supplies no intermediate high-water append/hash-chain evidence
+for skipped generations. Even an arbitrary new SHA would then be accepted
+at post-rollback and terminal reobservation.
+
+The revised V2 source preserves the original `high_water_not_advanced`
+HOLD for malformed/nonadvanced numbers and adds
+`high_water_unproven_sequence_skip` for a reported jump beyond that
+minimal sequence. A fixture returning sequence 9 instead of the required
+8—with a valid, fresh digest—must HOLD at `advance_high_water` before
+any later callback runs.
+
+This conservative exclusive-lease rule is **not** an actual high-water
+append proof. Future audited catch-up through multiple genuine high-water
+generations requires a separate source-authenticated sequence/hash-lineage
+protocol and independently reviewed protected adapter. Nothing here grants
+host execution, storage mutation or customer-facing payment authority.
 
 ## Source-only controller semantics
 
