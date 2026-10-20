@@ -46,7 +46,7 @@ const V6_LOCK_REL="ops/security/buy-void-user-manager-query-elf-lock-v6.json";
 const V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748";
 const V4_PARSER_REL="tools/void-buy-allocation-custody-host-evidence-v4.mjs";
 const V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6";
-const SEALED_BLOB="ad19417c7d25bfab532af3ea92f4a627d4cc857a";
+const SEALED_BLOB="ad4df07e9875e3c92eb8da01d6fd735d68417a45";
 const SEALED_RUNTIME_PREDECESSOR_BLOB=
   "14cbe81e27d04fee77cbe75225ce308bf8561a7b";
 const SEALED_CONFIRM=
@@ -316,10 +316,15 @@ function openRetainedTrustedExecutable(file,label){
     throw new Error("trusted_executable_invalid:"+label);
   }
   const noFollow=fs.constants.O_NOFOLLOW;
-  if(!Number.isInteger(noFollow)||noFollow===0){
-    throw new Error("trusted_executable_nofollow_unavailable");
+  const nonblock=fs.constants.O_NONBLOCK;
+  if(!Number.isInteger(noFollow)||noFollow===0||
+     !Number.isInteger(nonblock)||nonblock===0){
+    throw new Error("trusted_executable_open_flags_unavailable");
   }
-  const fd=fs.openSync(real,fs.constants.O_RDONLY|noFollow);
+  const fd=fs.openSync(
+    real,
+    fs.constants.O_RDONLY|noFollow|nonblock,
+  );
   let success=false;
   try{
     const opened=fs.fstatSync(fd,{bigint:true});
@@ -344,7 +349,10 @@ function closeRetainedTrustedExecutable(tool){
 
 function runRetainedTrustedExecutable(tool,args,options={}){
   revalidateRetainedTrustedExecutable(tool);
-  const executable=tool.real;
+  const executable="/proc/self/fd/"+String(tool.fd);
+  const stdio=["pipe","pipe","pipe"];
+  while(stdio.length<=tool.fd)stdio.push("ignore");
+  stdio[tool.fd]=tool.fd;
   const beforeSpawn=options.beforeSpawn;
   if(typeof beforeSpawn==="function")beforeSpawn();
   revalidateRetainedTrustedExecutable(tool);
@@ -353,7 +361,7 @@ function runRetainedTrustedExecutable(tool,args,options={}){
     env:options.env??cleanRootEnv(),
     encoding:"utf8",
     input:options.input,
-    stdio:["pipe","pipe","pipe"],
+    stdio,
     timeout:options.timeout??60_000,
     maxBuffer:MAX_OUTPUT,
   });
@@ -605,8 +613,13 @@ function runAsRuntimeUser(command,args,options={}){
     throw new Error("runtime_user_command_not_retained");
   }
   tools.revalidate();
-  const setprivExecutable=tools.setpriv.real;
-  const commandChildFd=4;
+  const setprivExecutable="/proc/self/fd/"+String(tools.setpriv.fd);
+  const commandChildFd=tools.setpriv.fd===4 ? 3 : 4;
+  const maxFd=Math.max(tools.setpriv.fd,commandChildFd);
+  const stdio=["pipe","pipe","pipe"];
+  while(stdio.length<=maxFd)stdio.push("ignore");
+  stdio[tools.setpriv.fd]=tools.setpriv.fd;
+  stdio[commandChildFd]=commandTool.fd;
   const result=spawnSync(setprivExecutable,[
     "--no-new-privs",
     "--reuid="+String(RUNTIME_UID),
@@ -615,11 +628,11 @@ function runAsRuntimeUser(command,args,options={}){
     "/proc/self/fd/"+String(commandChildFd),
     ...args,
   ],{
-    cwd:options.cwd??ROOT,
+    cwd:options.cwd??"/",
     env:options.env??cleanGitEnv(),
     encoding:"utf8",
     input:options.input,
-    stdio:["pipe","pipe","pipe","ignore",commandTool.fd],
+    stdio,
     timeout:options.timeout??60_000,
     maxBuffer:MAX_OUTPUT,
   });
@@ -1410,16 +1423,18 @@ function plan(){
   console.log("canonical_git_dir_worktree_pinned=true");
   console.log("sealed_probe_runtime_release_cwd_required=true");
   console.log("runtime_release_root_custody_required=true");
-  console.log("retained_setpriv_generation_revalidated_path_execution=true");
-  console.log("retained_python_generation_revalidated_path_execution=true");
+  console.log("retained_setpriv_generation_revalidated_descriptor_execution=true");
+  console.log("retained_python_generation_revalidated_descriptor_execution=true");
   console.log("retained_git_descriptor_execution=true");
   console.log("retained_node_descriptor_binding_contract=true");
   console.log("trusted_root_tool_path_rebind_rejected=true");
   console.log("trusted_root_tool_writable_ancestor_rejected=true");
   console.log("runtime_uid_effective_tool_nonwritability_contract=true");
+  console.log("retained_procfd_portable_cwd_required=true");
+  console.log("retained_procfd_missing_cwd_errno_distinguished=true");
   console.log("runtime_release="+RUNTIME_RELEASE);
-  console.log("retained_setpriv_generation_revalidated_path_execution_required=true");
-  console.log("retained_python_generation_revalidated_path_execution_required=true");
+  console.log("retained_setpriv_generation_revalidated_descriptor_execution_required=true");
+  console.log("retained_python_generation_revalidated_descriptor_execution_required=true");
   console.log("retained_git_descriptor_execution_required=true");
   console.log("retained_node_descriptor_execution_required=true");
   console.log("root_tool_ancestor_custody_required=true");
@@ -1766,23 +1781,52 @@ function selfTest(){
     if(sp.status!==0||String(sp.stderr||"")!==""){
       throw new Error("retained_setpriv_self_test_failed");
     }
-    const gitViaSetpriv=spawnSync(selfSetpriv.real,[
-      "--no-new-privs",
-      "/proc/self/fd/4",
-      "--version",
-    ],{
-      cwd:"/",
-      env:cleanGitEnv(),
-      encoding:"utf8",
-      stdio:["pipe","pipe","pipe","ignore",selfGit.fd],
-      timeout:10_000,
-      maxBuffer:MAX_OUTPUT,
-    });
+    const commandChildFd=selfSetpriv.fd===4 ? 3 : 4;
+    const maxSelfFd=Math.max(selfSetpriv.fd,commandChildFd);
+    const selfStdio=["pipe","pipe","pipe"];
+    while(selfStdio.length<=maxSelfFd)selfStdio.push("ignore");
+    selfStdio[selfSetpriv.fd]=selfSetpriv.fd;
+    selfStdio[commandChildFd]=selfGit.fd;
+    const gitViaSetpriv=spawnSync(
+      "/proc/self/fd/"+String(selfSetpriv.fd),
+      [
+        "--no-new-privs",
+        "/proc/self/fd/"+String(commandChildFd),
+        "--version",
+      ],
+      {
+        cwd:"/",
+        env:cleanGitEnv(),
+        encoding:"utf8",
+        stdio:selfStdio,
+        timeout:10_000,
+        maxBuffer:MAX_OUTPUT,
+      },
+    );
     revalidateRetainedTrustedExecutable(selfSetpriv);
     revalidateRetainedTrustedExecutable(selfGit);
     if(gitViaSetpriv.error||gitViaSetpriv.status!==0||
        !String(gitViaSetpriv.stdout||"").startsWith("git version ")){
       throw new Error("retained_setpriv_command_fd_self_test_failed");
+    }
+    const cwdProbeStdio=["ignore","pipe","pipe"];
+    while(cwdProbeStdio.length<=selfPython.fd)cwdProbeStdio.push("ignore");
+    cwdProbeStdio[selfPython.fd]=selfPython.fd;
+    const missingCwd=spawnSync(
+      "/proc/self/fd/"+String(selfPython.fd),
+      ["--version"],
+      {
+        cwd:"/__void_missing_retained_exec_cwd_v1__",
+        env:cleanRootEnv(),
+        encoding:"utf8",
+        stdio:cwdProbeStdio,
+        timeout:10_000,
+        maxBuffer:MAX_OUTPUT,
+      },
+    );
+    revalidateRetainedTrustedExecutable(selfPython);
+    if(missingCwd.error?.code!=="ENOENT"){
+      throw new Error("retained_procfd_missing_cwd_errno_not_distinguished");
     }
     let ancestorHeld=false;
     try{
@@ -2006,6 +2050,10 @@ function selfTest(){
   console.log("unexpected_qualification_exit_not_reclassified_as_hold=true");
   console.log("runner_parent_credential_content_access=false");
   console.log("runtime_policy_head_preserved=true");
+  console.log("retained_setpriv_generation_revalidated_descriptor_execution=true");
+  console.log("retained_python_generation_revalidated_descriptor_execution=true");
+  console.log("retained_procfd_portable_cwd_required=true");
+  console.log("retained_procfd_missing_cwd_errno_distinguished=true");
   console.log("source_checkout_head_runtime_observed=true");
   console.log("source_runtime_ancestry_required=true");
   console.log("source_runtime_actual_object_ancestry_required=true");
