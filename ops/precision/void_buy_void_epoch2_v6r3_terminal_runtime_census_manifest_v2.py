@@ -300,6 +300,14 @@ def collect_tree(
                     discovered_count+=1
                     if discovered_count>MAX_TREE_ENTRIES:
                         raise Hold("tree_entry_bound_exceeded")
+                    # Count each rendered name while consuming scandir;
+                    # a completed unsorted entry list must never evade the
+                    # aggregate display-name budget.
+                    child_display=_display(display_root,rel/entry.name)
+                    display_bytes=len(child_display.encode("utf-8","strict"))
+                    if display_bytes_total+display_bytes>display_budget:
+                        raise Hold("manifest_display_path_budget_exceeded")
+                    display_bytes_total+=display_bytes
                     entries.append(entry)
         except OSError as exc:
             raise Hold("directory_scan_failed:"+display) from exc
@@ -308,13 +316,7 @@ def collect_tree(
             path=Path(entry.path)
             rel=path.relative_to(real_root)
             display=_display(display_root,rel)
-            try:
-                display_bytes=len(display.encode("utf-8","strict"))
-            except UnicodeError as exc:
-                raise Hold("manifest_display_path_encoding_invalid") from exc
-            if display_bytes_total+display_bytes>display_budget:
-                raise Hold("manifest_display_path_budget_exceeded")
-            display_bytes_total+=display_bytes
+            # The key was already charged in the bounded scandir iterator.
             st=path.lstat()
             if stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode):
                 stack.append(path)
@@ -520,8 +522,7 @@ def fixture_self_test()->None:
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
 
-        # With only inventory-key bytes counted, the old collector allowed
-        # this limit despite also allocating the symlink's two strings.
+        # The key-only guard must not admit unbudgeted symlink target text.
         key_only_budget=sum(
             len(name.encode("utf-8","strict")) for name in manifest["objects"]
         )
@@ -813,6 +814,8 @@ def fixture_self_test()->None:
         # remaining-budget + one sentinel from an iterator.  No filesystem
         # mutation or privileged host path is involved in this fake iterator.
         observed=[0]
+        class _SyntheticEntry:
+            name="one"
         class _BudgetSentinel:
             def __enter__(self):return self
             def __exit__(self,*_exc):return False
@@ -821,7 +824,7 @@ def fixture_self_test()->None:
                 observed[0]+=1
                 if observed[0]>2:
                     raise AssertionError("unbounded_scandir_consumption")
-                return object()
+                return _SyntheticEntry()
         original_scan=os.scandir
         def _synthetic_scan(_path):
             assert Path(_path)==fanout
@@ -839,6 +842,36 @@ def fixture_self_test()->None:
         finally:
             os.scandir=original_scan
             globals()["MAX_TREE_ENTRIES"]=original_limit
+
+        # This adversary must not request a second scandir element after
+        # the first displayed key exceeds the tiny byte budget.
+        observed_key_budget=[0]
+        class _NameBudgetSentinel:
+            def __enter__(self): return self
+            def __exit__(self,*_exc): return False
+            def __iter__(self): return self
+            def __next__(self):
+                observed_key_budget[0]+=1
+                if observed_key_budget[0]>1:
+                    raise AssertionError("display_budget_scandir_overscan")
+                return _SyntheticEntry()
+        def _display_budget_scan(_path):
+            assert Path(_path)==fanout
+            return _NameBudgetSentinel()
+        try:
+            os.scandir=_display_budget_scan
+            try:
+                collect_tree(
+                    fanout,"/fixture-fanout",
+                    display_budget=len("/fixture-fanout")+1,
+                )
+            except Hold as exc:
+                assert str(exc)=="manifest_display_path_budget_exceeded"
+            else:
+                raise AssertionError("display_budget_late_rejection_accepted")
+            assert observed_key_budget[0]==1,observed_key_budget
+        finally:
+            os.scandir=original_scan
 
         (root/"etc"/"ld.so.preload").write_text("hostile",encoding="utf-8")
         try: absence_record(root,"/fixture","/fixture/etc/ld.so.preload")
@@ -868,6 +901,7 @@ def fixture_self_test()->None:
     print("contained_dangling_symlink_remains_absent=true")
     print("discovered_entry_budget_includes_queued_directories=true")
     print("scandir_consumption_bounded_before_sort=true")
+    print("display_name_budget_checked_during_scandir=true")
     print("over_budget_synthetic_scandir_rejected=true")
     print("terminal_manifest_drift_rejected=true")
     print("post_exec_dumpability_overclaim_rejected=true")

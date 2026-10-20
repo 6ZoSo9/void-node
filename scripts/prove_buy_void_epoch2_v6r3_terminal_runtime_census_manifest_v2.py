@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="ee2857adcea1fe0aae5fe3094be3adfeb476eaec"
+SOURCE_BLOB="4ce879f1be9581d65759e64e185621fcbe57f8a7"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -118,6 +118,8 @@ for required in (
     'raise Hold("manifest_display_path_budget_exceeded")',
     'raise Hold("manifest_display_path_encoding_invalid")',
     "display_bytes_total+=display_bytes",
+    "display_name_budget_checked_during_scandir=true",
+    "observed_key_budget[0]==1",
     "display_budget:int=MAX_REPORT_BYTES",
     "census_display_root_length_utf8_and_path_budget_bound=true",
     "census_individual_display_path_bound=true",
@@ -192,6 +194,8 @@ assert "missing_component_out=missing_components" in source
 # The over-budget sentinel must be rejected before any queued/stat/read work.
 body=source[source.index("with os.scandir(current) as iterator:"):source.index("for entry in entries:")]
 assert body.index("if discovered_count>MAX_TREE_ENTRIES:") < body.index("entries.append(entry)")
+assert body.index("display_bytes_total+=display_bytes") < body.index("entries.append(entry)")
+assert body.index('raise Hold("manifest_display_path_budget_exceeded")') < body.index("entries.append(entry)")
 assert body.index("entries.append(entry)") < body.index("entries.sort(")
 
 for forbidden in (
@@ -231,6 +235,7 @@ for mode,required_lines in (
         "non_posix_path_negative_fixtures=9",
         "discovered_entry_budget_includes_queued_directories=true",
         "scandir_consumption_bounded_before_sort=true",
+        "display_name_budget_checked_during_scandir=true",
         "over_budget_synthetic_scandir_rejected=true",
         "terminal_manifest_drift_rejected=true",
         "post_exec_dumpability_overclaim_rejected=true",
@@ -293,6 +298,7 @@ print("symlink_missing_parent_reentry_hold_proven=true")
 print("absence_parent_and_sys_path_coverage_proven=true")
 print("census_input_budget_pretraversal_proven=true")
 print("census_display_root_and_path_key_budget_proven=true")
+print("display_name_budget_pre_materialization_proven=true")
 print("census_individual_display_key_bound_proven=true")
 print("census_symlink_record_string_budget_proven=true")
 print("host_execution_enabled=false")
