@@ -136,3 +136,92 @@ the native V3 identity remains reused, and policy Node identity remains protecte
 The planner still has no apply mode and does not execute the Runner/native path, access
 credentials or private keys, sign/broadcast transactions, accept payments, activate
 the presale/WC market, mutate services, or move funds.
+
+
+## Nonblocking sealed-V3 accepted-lock repair
+
+Current repaired source identities:
+
+```text
+candidate_id=voidbuye2runnerpolcand6r3_0a3bfc00032b0feeb253fb0f295b4dacc1e3e66af35013676351ed11e3c119e1
+accepted_lock_id=voidbuye2runnerpollock6r3_0633e059bfdfb1209b80b090adacddae61795ca610a6bf7f79059cc997148f52
+accepted_lock_blob=d28ebbd3fe1d89a1940b039af64e10a6cb96065e
+runner_git_blob=2fa028824d71a22f4d228cdb7fcda738bce7b409
+runner_sha256=9b8497c813fc3899b745736da01929380b5f28f988f70790def1e0a98b35a261
+runner_bytes=82972
+planner_blob=185e409aab47c8d391025decec1e58f9288fb5e2
+```
+
+The Runner digest is the exact value emitted by hosted candidate run 39344747264,
+job 118374543666, and exported by identity job 118374985297. The accepted lock
+retains the nonblocking sealed-V3/FIFO-race requirements and all negative authority.
+
+The planner remains non-executing and has no apply mode. No protected filesystem
+mutation, credential/key access, signing, transaction/payment, presale/WC activation,
+service mutation, treasury/liquidity action, or funds movement is authorized.
+
+## Host-plan custody / first-exec repair — Draft child of #3562
+
+The prior planner audited only the mode and ownership of a protected root, listed a
+directory by pathname before opening it, and executed the host Git binary by
+pathname. This admitted a plan-time directory generation / ACL race and left the
+source-authenticating Git first-exec image unbound. A root-owned leaf with a named
+runtime-UID write ACL was not rejected by the previous metadata-only test.
+
+The source-only repair requires all of the following for a future separately
+authorized `--plan` run:
+
+- Real/effective UID and GID **1000/1000**, because checks use that exact
+  identity's effective-credential POSIX ACL access. Any other host-plan
+  identity must HOLD rather than silently audit the wrong user.
+- Root-owned, nonsymlink, group/world-nonwritable directory **ancestors** down
+  to each protected root, with effective runtime-UID nonwritability and
+  metadata generation snapshots. `/opt` is audited before any stage/current
+  predecessor pathname probes.
+- A retained, no-follow, nonblocking directory FD, proven to be the admitted
+  root generation, drives `os.listdir(fd)` and all child reads; the visible
+  ancestor/root generation is revalidated before returning READY/GREEN.
+- `/usr/bin/git` and its ancestors are custody checked; the Git child executes
+  its **retained executable FD** via `/proc/self/fd/<n>` and `pass_fds`,
+  with terminal FD/path/ancestor revalidation instead of pathname first exec.
+- `/usr/bin/node` receives the same ancestor/ACL custody barrier before
+  hashing; no-follow/nonblocking regular-file FD checks and terminal
+  generation revalidation guard against a regular-file-to-FIFO open race.
+- Protected child opens are nonblocking and require the retained generation
+  to be a regular file before reading.
+
+This source/test/CI child is bound to the accepted V8 retained-first-exec lock from
+#3567 and therefore requires the #3566 Runner descriptor-first-exec repair. It does
+not merge, install, qualify or activate a production generation. No host `--plan`
+was invoked, and all payment/credential/signing, presale/WC activation and funds
+authority remain **false**.
+
+The planner also reobserves the host Node digest and protected READY/GREEN
+state before returning a plan. Synthetic self-tests force late Node and
+protected-state drift and require HOLD, preventing an earlier valid snapshot
+from being treated as terminal authority.
+
+The `--self-test` fixture also directly executes the retained Git ELF via
+`/proc/self/fd/<n>` and inherited `pass_fds` with `cwd=/`, requesting
+`--version` only. This tests the critical retained-first-exec mechanism on
+the hosted runner; it does not authenticate or inspect Precision's host
+binary, execute the production Runner, or authorize a host plan.
+
+Planner Git blob: `9eeadd69546cf0eb5793a744b273319bec757d39`.
+
+
+## Retained-first-exec V8 lock rebind
+
+```text
+lock_blob=d28ebbd3fe1d89a1940b039af64e10a6cb96065e
+lock_id=voidbuye2runnerpollock6r3_0633e059bfdfb1209b80b090adacddae61795ca610a6bf7f79059cc997148f52
+candidate_id=voidbuye2runnerpolcand6r3_0a3bfc00032b0feeb253fb0f295b4dacc1e3e66af35013676351ed11e3c119e1
+runner_git_blob=2fa028824d71a22f4d228cdb7fcda738bce7b409
+runner_sha256=9b8497c813fc3899b745736da01929380b5f28f988f70790def1e0a98b35a261
+runner_bytes=84928
+planner_git_blob=9eeadd69546cf0eb5793a744b273319bec757d39
+```
+
+The planner rejects any lock that does not explicitly accept the retained-first-exec
+identity and all descriptor/procfd source-compatibility properties. It also requires every
+runtime/economic authority field in the accepted lock to remain false.
