@@ -134,19 +134,30 @@ def _git_args(root: Path, *args: str) -> list[str]:
 
 
 def _run_git(root: Path, *args: str, allowed: tuple[int, ...] = (0,)) -> bytes:
-    cp = subprocess.run(
-        _git_args(root, *args),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=_git_env(),
-        timeout=30,
-        check=False,
-    )
+    label = args[0] if args else "unknown"
+    try:
+        cp = subprocess.run(
+            _git_args(root, *args),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=_git_env(),
+            timeout=30,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CompatError("git_timeout:" + label) from exc
+    except OSError as exc:
+        raise CompatError(
+            "git_exec_failed:"
+            + label
+            + ":errno_"
+            + str(exc.errno if exc.errno is not None else "unknown")
+        ) from exc
     if cp.returncode not in allowed:
-        raise CompatError("git_failed:" + (args[0] if args else "unknown"))
+        raise CompatError("git_failed:" + label)
     if cp.stderr:
-        raise CompatError("git_stderr:" + (args[0] if args else "unknown"))
+        raise CompatError("git_stderr:" + label)
     if len(cp.stdout) > MAX_GIT_OUTPUT:
         raise CompatError("git_output_too_large")
     return cp.stdout
@@ -160,15 +171,23 @@ def _git_text(root: Path, *args: str) -> str:
 
 
 def _is_ancestor(root: Path, base: str, head: str) -> bool:
-    cp = subprocess.run(
-        _git_args(root, "merge-base", "--is-ancestor", base, head),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=_git_env(),
-        timeout=20,
-        check=False,
-    )
+    try:
+        cp = subprocess.run(
+            _git_args(root, "merge-base", "--is-ancestor", base, head),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=_git_env(),
+            timeout=20,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CompatError("git_ancestor_probe_timeout") from exc
+    except OSError as exc:
+        raise CompatError(
+            "git_ancestor_probe_exec_failed:errno_"
+            + str(exc.errno if exc.errno is not None else "unknown")
+        ) from exc
     if cp.returncode not in (0, 1) or cp.stdout or cp.stderr:
         raise CompatError("git_ancestor_probe_failed")
     return cp.returncode == 0
@@ -569,6 +588,42 @@ def self_test() -> None:
         else:
             raise AssertionError("index_generation_drift_not_rejected")
 
+        original_subprocess_run = subprocess.run
+        try:
+            def _timeout_run(*_args: object, **_kwargs: object) -> object:
+                raise subprocess.TimeoutExpired(cmd=["git"], timeout=1)
+            subprocess.run = _timeout_run  # type: ignore[assignment]
+            try:
+                _run_git(Path("/tmp"), "status")
+            except CompatError as exc:
+                assert str(exc) == "git_timeout:status"
+            else:
+                raise AssertionError("git_timeout_not_normalized_to_hold")
+            try:
+                _is_ancestor(Path("/tmp"), "a" * 40, "b" * 40)
+            except CompatError as exc:
+                assert str(exc) == "git_ancestor_probe_timeout"
+            else:
+                raise AssertionError("git_ancestor_timeout_not_normalized_to_hold")
+
+            def _oserror_run(*_args: object, **_kwargs: object) -> object:
+                raise OSError(5, "self-test git exec failure")
+            subprocess.run = _oserror_run  # type: ignore[assignment]
+            try:
+                _run_git(Path("/tmp"), "status")
+            except CompatError as exc:
+                assert str(exc) == "git_exec_failed:status:errno_5"
+            else:
+                raise AssertionError("git_exec_error_not_normalized_to_hold")
+            try:
+                _is_ancestor(Path("/tmp"), "a" * 40, "b" * 40)
+            except CompatError as exc:
+                assert str(exc) == "git_ancestor_probe_exec_failed:errno_5"
+            else:
+                raise AssertionError("git_ancestor_exec_error_not_normalized_to_hold")
+        finally:
+            subprocess.run = original_subprocess_run  # type: ignore[assignment]
+
         import tempfile
         with tempfile.TemporaryDirectory(prefix="void-v7-postmerge-worktree-") as td:
             fixture_root = Path(td)
@@ -612,6 +667,10 @@ def self_test() -> None:
     print("terminal_index_generation_revalidation_required=true")
     print("terminal_worktree_generation_revalidation_required=true")
     print("worktree_filesystem_errors_normalized_to_hold=true")
+    print("git_timeout_normalized_to_hold=true")
+    print("git_exec_errors_normalized_to_hold=true")
+    print("git_ancestor_timeout_normalized_to_hold=true")
+    print("git_ancestor_exec_errors_normalized_to_hold=true")
     print("canonical_checkout_mutation_authorized=false")
     print("filesystem_write_authorized=false")
     print("service_mutation_authorized=false")
