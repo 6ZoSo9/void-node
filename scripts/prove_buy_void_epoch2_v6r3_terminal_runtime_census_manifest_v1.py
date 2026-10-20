@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v1.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v1.json"
 
-SOURCE_BLOB="e48bb69ec04f21f19c3b98bbd2596a55ce84a979"
+SOURCE_BLOB="05458587b5743da09ed2f752e971ca67938cceac"
 CONTRACT_BLOB="c70dfd9da29c75b348a3619f6df7329381e939cf"
 FRESHNESS_BLOB="9657fff243e44135e1f992b1ef5b8e0d977b8b65"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_cdb98f511f04a3c798200e304481ec14d94373fdbdf6ec30cf88b0e281b0eb4f"
@@ -78,6 +78,15 @@ for required in (
     'CONTRACT_BLOB="'+CONTRACT_BLOB+'"',
     'FRESHNESS_GATE_BLOB="'+FRESHNESS_BLOB+'"',
     "MAX_TREE_ENTRIES=100_000",
+    "MAX_INPUT_PATH_BYTES=4096",
+    "def require_manifest_input_budget(",
+    "require_manifest_input_budget(sys_path,declared_absent,accessed_paths)",
+    'raise Hold("manifest_input_path_count_exceeded")',
+    'raise Hold("manifest_input_byte_budget_exceeded")',
+    'raise Hold("manifest_input_path_length_exceeded")',
+    'raise Hold("manifest_input_sequence_invalid")',
+    'raise Hold("manifest_input_path_invalid")',
+    "census_input_cardinality_and_byte_budget_pretraversal=true",
     "posixpath.normpath(display_path)!=display_path",
     "resolved=_contained_resolve(",
     'raise Hold("absence_intermediate_symlink_forbidden:"',
@@ -153,6 +162,8 @@ for mode,required_lines in (
         "absence_intermediate_symlink_escape_rejected=true",
         "absence_parent_symlink_alias_rejected=true",
         "sys_path_must_be_inventoried_or_explicitly_absent=true",
+        "census_input_cardinality_and_byte_budget_pretraversal=true",
+        "census_unbounded_generator_and_oversize_path_rejected=true",
         "noncanonical_manifest_paths_rejected=true",
         "discovered_entry_budget_includes_queued_directories=true",
         "scandir_consumption_bounded_before_sort=true",
@@ -204,6 +215,7 @@ print("queued_directory_budget_proven=true")
 print("symlink_hop_confinement_proven=true")
 print("symlink_missing_parent_reentry_hold_proven=true")
 print("absence_parent_and_sys_path_coverage_proven=true")
+print("census_input_budget_pretraversal_proven=true")
 print("host_execution_enabled=false")
 print("host_census_authorized=false")
 print("protected_install_authorized=false")
