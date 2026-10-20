@@ -30,9 +30,13 @@ No production installation is performed or authorized by this source PR.
 
 For the future host `--plan` path, the launcher requires:
 
-- exact real/effective UID and GID `1000:1000`;
-- fixed self path plus root-owned, group/world-nonwritable and effective-runtime-UID
-  nonwritable ancestors and leaves;
+- a fixed root-owned **static first instruction**; Python is never entered as root;
+- root authentication of the fixed self/policy/planner/Python generations;
+- `PR_SET_NO_NEW_PRIVS`, supplementary-group removal, permanent real/effective/saved
+  UID/GID drop to `1000:1000`, and `PR_SET_DUMPABLE=0` before Python;
+- fixed self path plus root-owned, group/world-nonwritable ancestors and leaves;
+- a second custody/ACL revalidation of self, policy, planner and Python **after** the
+  privilege drop under the actual runtime identity;
 - exact root-owned planner mode `0444`;
 - planner SHA-256 and byte length matching the constants above **before Python starts**;
 - a root-custodied policy that repeats the exact planner Git/SHA/size identity and binds
@@ -55,7 +59,8 @@ Hosted CI:
 2. demonstrates a dynamic `LD_PRELOAD` positive control, then proves the static launcher
    does not execute the preload constructor before `main()`;
 3. installs only a disposable root-owned fixture at the exact fixed `/opt` path;
-4. invokes the real launcher as numeric UID/GID `1000:1000`;
+4. invokes the real launcher through its fixed path as root, requiring the launcher itself
+   to perform the irreversible drop to numeric UID/GID `1000:1000` before Python;
 5. supplies caller stdin Python and hostile `PYTHONPATH`, requiring neither to execute;
 6. requires the authenticated planner marker to appear, proving Python reached the exact
    retained planner bytes;
@@ -83,6 +88,10 @@ runtime_gid=1000
 
 The host-specific Python identity must be derived and accepted in a separate protected
 candidate/install lane.
+
+The launcher is deliberately privilege-reducing: root exists only to authenticate the
+protected first-entry chain and perform the irreversible identity transition. The planner
+and all Python code execute only after the process is permanently non-root.
 
 ## Required lifecycle
 
