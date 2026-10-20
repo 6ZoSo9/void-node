@@ -23,10 +23,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs"
 PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c"
 
-BINDER_BLOB = "be4a40954e5541168ab3403ad5b9b74207dc5ddd"
-BINDER_SHA256 = "31309bffffc09dbb7ced849feb61f3b61c5226f6ec66cdcdba3e315bc08cedbd"
-BINDER_BYTES = 62308
-PREENTRY_BLOB = "78b2264a46adfc457c648dd2c57838c246c3ca71"
+BINDER_BLOB = "6571c401af4f83c59dd5c47491247fd1d5cda01a"
+BINDER_SHA256 = "d83353349564fd54a826a96baa3c81a6741764754ff68d3f40bb54eeb1568e01"
+BINDER_BYTES = 66508
+PREENTRY_BLOB = "87d05f03ecb0bd6f3d3bce7a0b18d66cf87fc9c8"
 NATIVE_LOCK_V6R2_REL = "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
 NATIVE_LOCK_V6R2_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
@@ -141,6 +141,15 @@ for required in (
     'binder_native_retained_fd_sha256_and_size_required=true',
     'binder_native_static_no_interp_elf_required=true',
     'binder_wrong_root_owned_native_rejected_before_exec=true',
+    'function requireCurrentInstalledBinderBytes(fd,installedPath,expectedBytes,expectedSha){',
+    'binder_preentry_installed_source_digest_not_accepted',
+    'binder_preentry_installed_source_generation_changed',
+    'requireCurrentInstalledBinderBytes(',
+    'binderFd,FIXED_BINDER_SOURCE,proof.binder_bytes,proof.binder_sha256,',
+    'binder_receipt_same_inode_content_mutation_accepted',
+    'binder_receipt_visible_path_rebind_accepted',
+    'binder_terminal_retained_fd_sha256_rechecked=true',
+    'binder_same_inode_size_inplace_mutation_receipt_rejected=true',
     'ACCEPTED_NATIVE_LOCK_V6R2_ID',
     'ACCEPTED_NATIVE_LOCK_V6R2_BLOB',
     'function openRetainedTrustedExecutable(',
@@ -219,8 +228,8 @@ for required in (
     'RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4',
     '#define BINDER_GIT_BLOB "' + BINDER_BLOB + '"',
     '#define BINDER_BYTES ' + str(BINDER_BYTES) + 'U',
-    '0x31,0x30,0x9b,0xff',
-    '0xba,0x3e,0x31,0x5b',
+    '0xd8,0x33,0x53,0x34',
+    '0x40,0xbb,0x54,0xee',
     'void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs',
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V4',
     'MFD_CLOEXEC|MFD_ALLOW_SEALING',
@@ -233,6 +242,10 @@ for required in (
     'O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK',
     'self_test_fifo_replacement_nonblocking()',
     'trusted_fifo_swap_open_nonblocking=true',
+    'binder_parent_proof_contains_accepted_source_digest=true',
+    'binder_hex[64]=',
+    'binder_bytes',
+    'binder_sha256',
     '(char*)"--source-head",source_head',
     '(char*)"--runtime-head",policy.expected_head',
 ):
@@ -305,6 +318,10 @@ for mode in ("--self-test", "--plan"):
             "binder_native_ptload_file_extent_independent_negative=true",
             "binder_native_ptload_offset_plus_file_extent_negative=true",
             "binder_wrong_root_owned_native_rejected_before_exec=true",
+            "binder_native_parent_digest_binds_final_installed_source=true",
+            "binder_terminal_retained_fd_sha256_rechecked=true",
+            "binder_same_inode_size_inplace_mutation_receipt_rejected=true",
+            "binder_visible_source_path_rebind_receipt_rejected=true",
             "transaction=false",
             "public_presale_activation=false",
             "funds_movement=false",
@@ -368,6 +385,7 @@ with tempfile.TemporaryDirectory(prefix="void-dormant-binding-v4-proof-") as td:
         "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V4_SELF_TEST_GREEN",
         "binder_exact_sha256_bound=true",
         "binder_git_blob_provenance_bound=true",
+        "binder_parent_proof_contains_accepted_source_digest=true",
         "private_parent_proof_channel=true",
         "binder_verified_sealed_memfd_source=true",
         "binder_same_inode_mutation_streams_only_accepted_bytes=true",
@@ -482,6 +500,9 @@ print("native_preentry_binds_exact_binder_bytes=true")
 print("binder_sealed_memfd_source_verified_before_root_fork=true")
 print("binder_inplace_mutation_cannot_change_streamed_js=true")
 print("binder_native_trusted_open_fifo_swap_nonblocking=true")
+print("binder_terminal_installed_source_digest_proven=true")
+print("binder_same_inode_size_mutation_receipt_rejection_proven=true")
+print("binder_parent_private_proof_accepted_digest_bound=true")
 print("host_execution=false")
 print("credential_access=false")
 print("signing=false")
