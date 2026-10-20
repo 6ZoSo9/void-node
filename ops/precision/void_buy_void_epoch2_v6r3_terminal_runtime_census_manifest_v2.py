@@ -297,7 +297,8 @@ def absence_record(real_root:Path,display_root:str,display_path:str)->dict[str,o
     # An absence is an authority claim too. Check *every* path component
     # before the first pathname-based existence query can follow an alias.
     if (not isinstance(display_root,str) or chr(0) in display_root
-        or not display_root.startswith("/") or display_root=="/"
+        or not display_root.startswith("/") or display_root.startswith("//")
+        or display_root=="/"
         or posixpath.normpath(display_root)!=display_root
         or not isinstance(display_path,str) or chr(0) in display_path
         or not display_path.startswith(display_root+"/")
@@ -382,7 +383,8 @@ def build_manifest(
 )->dict[str,object]:
     require_manifest_input_budget(sys_path,declared_absent,accessed_paths)
     if (not isinstance(display_root,str) or chr(0) in display_root
-        or not display_root.startswith("/") or display_root=="/"
+        or not display_root.startswith("/") or display_root.startswith("//")
+        or display_root=="/"
         or posixpath.normpath(display_root)!=display_root):
         raise Hold("display_root_not_canonical")
     if not isinstance(sys_path,list) or not sys_path or any(
@@ -479,6 +481,12 @@ def fixture_self_test()->None:
              "/fixture"+nul+"/etc/ghost"),"absence_path_not_canonical_or_outside_root"),
             ("absence_leaf",lambda:absence_record(root,"/fixture",
              "/fixture/etc/ghost"+nul),"absence_path_not_canonical_or_outside_root"),
+            # Exactly two leading slashes are implementation-defined by POSIX.
+            ("display_root_double_slash",lambda:build_manifest(
+                root,"//fixture",sys_path,absent,[]),"display_root_not_canonical"),
+            ("absence_root_double_slash",lambda:absence_record(
+                root,"//fixture","//fixture/etc/ghost",
+            ),"absence_path_not_canonical_or_outside_root"),
         )
         for label,case,expected in identity_cases:
             try: case()
@@ -718,7 +726,7 @@ def fixture_self_test()->None:
     print("census_unbounded_generator_and_oversize_path_rejected=true")
     print("noncanonical_manifest_paths_rejected=true")
     print("embedded_nul_and_non_posix_input_paths_rejected=true")
-    print("non_posix_path_negative_fixtures=7")
+    print("non_posix_path_negative_fixtures=9")
     print("symlink_missing_component_parent_reentry_rejected=true")
     print("contained_dangling_symlink_remains_absent=true")
     print("discovered_entry_budget_includes_queued_directories=true")
