@@ -37,6 +37,43 @@ If the child fails after store mutation may have occurred, the supervisor must r
 claim/authorization semantics and terminal generation/peer/source revalidation remain
 mandatory.
 
+## Terminal supervisor and process-tree closure (October 19)
+
+A single request per child is not enough to establish one failure domain. A
+callback could request `process.exit(0)` after buffering an apparently valid
+receipt but before an actual trusted event-loop checkpoint, create a detached
+grandchild/worker thread that survives the first child's exit, or schedule a
+late write between a pre-exit revalidation and the apparent clean exit.
+
+The **future** supervisor must therefore prove all seven additional properties:
+
+1. The completion/checkpoint marker originates from a supervisor-custodied
+   control plane unavailable for forgery by arbitrary callback code.
+2. Callback-requested early process exit cannot count as an authenticated
+   clean success, even when the exit code is zero and a receipt was buffered.
+3. Child runtime is bounded. Timeout forces containment plus termination and
+   *reaping of the entire request-owned process tree*, then HOLD.
+4. Every descendant process and worker thread is absent or joined and
+   quiescent before any success acknowledgment; merely observing the original
+   child PID exit is insufficient.
+5. A **supervisor-held fencing lease** remains owned across worker-tree exit,
+   the final protected generation/claim/peer/source checks, and the irreversible
+   success decision. No lease-loss/reacquire ABA is accepted.
+6. When an abnormal exit or timeout leaves mutation state unknown, classify
+   **indeterminate** even if the worker did not send an explicit mutation flag;
+   never retry automatically or infer no effect from missing receipt bytes.
+7. Terminal source/store/peer revalidation occurs *after* worker-tree
+   quiescence and *before* acknowledging success, while the supervisor still
+   owns the applicable fencing capability.
+
+These are testable requirements for a subsequent implementation, **not**
+existing installed safeguards. Plan/proof CI only checks that omitting or
+reversing any of these requirements fails the content-addressed schema.
+Any future integration needs executable early-exit, inherited-descendant,
+timeout/kill/reap, fencing-loss and post-exit-race adversaries. Nothing in this
+V1 plan authorizes host runtime execution, claim publication, credentials,
+training or funds movement.
+
 ## Exact bound generation
 
 - #3549 head: `187a4da4992b7d81330b9474e535b8af631de0d4`
@@ -46,9 +83,9 @@ mandatory.
 - core proof blob: `bed4c6fe3896ff48dfbc873d078fac943528fa5f`
 - native proof blob: `848a061a0b246e138ec8ed775ed8a87f159476f6`
 
-Content-addressed plan ID:
+Content-addressed plan ID (successor to historical `voidapollyonclaimcallbackcontain1_0e0794baead1aa6571c8f0820a32d5951e24dfefb164445c0591c1d94bc5166c`):
 
-`voidapollyonclaimcallbackcontain1_0e0794baead1aa6571c8f0820a32d5951e24dfefb164445c0591c1d94bc5166c`
+`voidapollyonclaimcallbackcontain1_0a011e3e70b08a343b506d6410e9880d6919407194174bb713911209fac566c4`
 
 ## Required future runtime properties
 

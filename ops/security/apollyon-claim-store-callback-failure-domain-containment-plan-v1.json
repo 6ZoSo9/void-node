@@ -51,13 +51,20 @@
     "no_success_ack_before_child_clean_exit_required": true,
     "canonical_success_receipt_required_before_clean_exit": true,
     "post_callback_event_loop_checkpoint_required": true,
+    "trusted_supervisor_completion_checkpoint_unforgeable_required": true,
+    "callback_initiated_clean_exit_cannot_authorize_success_required": true,
     "nonzero_or_signal_exit_maps_to_hold_required": true,
+    "bounded_worker_deadline_and_process_tree_reap_required": true,
+    "all_descendant_processes_and_worker_threads_quiescent_before_ack_required": true,
     "post_mutation_child_failure_maps_to_indeterminate_required": true,
     "automatic_replay_after_indeterminate_forbidden": true,
     "parent_must_ignore_buffered_success_after_abnormal_exit": true,
+    "supervisor_held_fencing_lease_through_child_exit_and_terminal_checks_required": true,
+    "unknown_mutation_after_abnormal_exit_maps_to_indeterminate_required": true,
     "terminal_store_generation_revalidation_required": true,
     "terminal_peer_identity_revalidation_required": true,
-    "terminal_callback_source_identity_revalidation_required": true
+    "terminal_callback_source_identity_revalidation_required": true,
+    "terminal_checks_after_worker_tree_quiescence_before_ack_required": true
   },
   "authority": {
     "protected_host_execution_authorized": false,
@@ -73,5 +80,5 @@
     "funds_movement_authorized": false
   },
   "next_gate": "DISTINCT_REVIEW_FAILURE_DOMAIN_PLAN_THEN_BUILD_ISOLATED_RUNTIME_CANDIDATE_V1",
-  "plan_id": "voidapollyonclaimcallbackcontain1_0e0794baead1aa6571c8f0820a32d5951e24dfefb164445c0591c1d94bc5166c"
+  "plan_id": "voidapollyonclaimcallbackcontain1_0a011e3e70b08a343b506d6410e9880d6919407194174bb713911209fac566c4"
 }

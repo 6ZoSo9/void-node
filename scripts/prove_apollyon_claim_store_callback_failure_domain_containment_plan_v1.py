@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json"
 MARKER = "VOID_APOLLYON_CLAIM_STORE_CALLBACK_FAILURE_DOMAIN_CONTAINMENT_PLAN_V1_PROOF"
 PARENT = "187a4da4992b7d81330b9474e535b8af631de0d4"
-PLAN_ID = "voidapollyonclaimcallbackcontain1_0e0794baead1aa6571c8f0820a32d5951e24dfefb164445c0591c1d94bc5166c"
+PLAN_ID = "voidapollyonclaimcallbackcontain1_0a011e3e70b08a343b506d6410e9880d6919407194174bb713911209fac566c4"
 
 PINS = {
     "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs":
@@ -45,13 +45,20 @@ REQUIREMENTS = [
     "no_success_ack_before_child_clean_exit_required",
     "canonical_success_receipt_required_before_clean_exit",
     "post_callback_event_loop_checkpoint_required",
+    "trusted_supervisor_completion_checkpoint_unforgeable_required",
+    "callback_initiated_clean_exit_cannot_authorize_success_required",
     "nonzero_or_signal_exit_maps_to_hold_required",
+    "bounded_worker_deadline_and_process_tree_reap_required",
+    "all_descendant_processes_and_worker_threads_quiescent_before_ack_required",
     "post_mutation_child_failure_maps_to_indeterminate_required",
     "automatic_replay_after_indeterminate_forbidden",
     "parent_must_ignore_buffered_success_after_abnormal_exit",
+    "supervisor_held_fencing_lease_through_child_exit_and_terminal_checks_required",
+    "unknown_mutation_after_abnormal_exit_maps_to_indeterminate_required",
     "terminal_store_generation_revalidation_required",
     "terminal_peer_identity_revalidation_required",
     "terminal_callback_source_identity_revalidation_required",
+    "terminal_checks_after_worker_tree_quiescence_before_ack_required",
 ]
 AUTHORITY = [
     "protected_host_execution_authorized",
