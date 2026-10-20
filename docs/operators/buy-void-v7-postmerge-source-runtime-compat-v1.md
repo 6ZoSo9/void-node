@@ -73,8 +73,10 @@ The verifier:
 8. hashes every tracked visible worktree file directly with retained no-follow leaf descriptors and checks Git blob identity/mode/size;
 9. requires sanitized Git discovery to report a `--show-toplevel` that resolves exactly to the supplied checkout root, rejecting nested copies that would otherwise inherit an ancestor repository;
 10. when `--require-main` is requested, revalidates symbolic branch `main` at the terminal Git barriers so a same-commit branch switch cannot survive as GREEN;
-11. revalidates the raw index, every tracked leaf generation, and every retained ancestor-directory generation before and after terminal Git observations;
-12. normalizes ordinary filesystem drift plus Git timeout/exec failures into machine-readable HOLD rather than traceback.
+11. revalidates the exact expected HEAD in the final terminal Git pass, so a same-tree ref move to a different commit cannot survive as GREEN;
+12. follows the last pathname-based Git probes with retained checkout-root, ancestor-directory, and tracked-worktree generation barriers, so a root replacement during those Git observations cannot combine Git authority from one path generation with bytes from another;
+13. revalidates the raw index, every tracked leaf generation, and every retained ancestor-directory generation across the terminal sequence;
+14. normalizes ordinary filesystem drift plus Git timeout/exec failures into machine-readable HOLD rather than traceback.
 
 Untracked paths never receive source authority. A renamed/replaced tracked ancestor directory invalidates the generation even if a replacement tree contains byte-identical leaves, and a nested filesystem copy cannot borrow Git authority from an ancestor checkout.
 
