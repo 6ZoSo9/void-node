@@ -159,3 +159,40 @@ retains the nonblocking sealed-V3/FIFO-race requirements and all negative author
 The planner remains non-executing and has no apply mode. No protected filesystem
 mutation, credential/key access, signing, transaction/payment, presale/WC activation,
 service mutation, treasury/liquidity action, or funds movement is authorized.
+
+## Host-plan custody / first-exec repair — Draft child of #3562
+
+The prior planner audited only the mode and ownership of a protected root, listed a
+directory by pathname before opening it, and executed the host Git binary by
+pathname. This admitted a plan-time directory generation / ACL race and left the
+source-authenticating Git first-exec image unbound. A root-owned leaf with a named
+runtime-UID write ACL was not rejected by the previous metadata-only test.
+
+The source-only repair requires all of the following for a future separately
+authorized `--plan` run:
+
+- Real/effective UID and GID **1000/1000**, because checks use that exact
+  identity's effective-credential POSIX ACL access. Any other host-plan
+  identity must HOLD rather than silently audit the wrong user.
+- Root-owned, nonsymlink, group/world-nonwritable directory **ancestors** down
+  to each protected root, with effective runtime-UID nonwritability and
+  metadata generation snapshots. `/opt` is audited before any stage/current
+  predecessor pathname probes.
+- A retained, no-follow, nonblocking directory FD, proven to be the admitted
+  root generation, drives `os.listdir(fd)` and all child reads; the visible
+  ancestor/root generation is revalidated before returning READY/GREEN.
+- `/usr/bin/git` and its ancestors are custody checked; the Git child executes
+  its **retained executable FD** via `/proc/self/fd/<n>` and `pass_fds`,
+  with terminal FD/path/ancestor revalidation instead of pathname first exec.
+- `/usr/bin/node` receives the same ancestor/ACL custody barrier before
+  hashing; no-follow/nonblocking regular-file FD checks and terminal
+  generation revalidation guard against a regular-file-to-FIFO open race.
+- Protected child opens are nonblocking and require the retained generation
+  to be a regular file before reading.
+
+This source/test/CI child does **not** correct #3546's separate retained-first-exec
+Runner finding, nor does it accept, merge, install, qualify or activate a
+production generation. No host `--plan` was invoked, and all payment/credential/
+signing, presale/WC activation and funds authority remain **false**.
+
+Planner Git blob: `76daf342ec779a039a91d1f7cf98f3a0ecf77f14`.
