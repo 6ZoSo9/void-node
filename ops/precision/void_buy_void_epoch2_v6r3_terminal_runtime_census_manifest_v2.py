@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import annotations
 
 # Python initialization precedes this script: this accidental-entry guard
 # is NOT a trusted privileged first-instruction authorization.
