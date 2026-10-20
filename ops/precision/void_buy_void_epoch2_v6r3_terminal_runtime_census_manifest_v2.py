@@ -6,9 +6,11 @@ from __future__ import annotations
 import sys
 if not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):
     raise SystemExit("HOLD=isolated_no_site_python_required")
-# -O/-OO strip assertions which are part of the synthetic evidence policy.
-# Reject optimization before any non-builtin imports or fixture execution.
-if sys.flags.optimize != 0:
+# -O/-OO or a code object compiled with optimize=1/2 strips assertions.
+# sys.flags.optimize alone is insufficient: compile(..., optimize=1) leaves
+# that process flag zero but binds __debug__ to False in this code object.
+# Reject both forms before any non-builtin imports or fixture execution.
+if sys.flags.optimize != 0 or not __debug__:
     raise SystemExit("HOLD=optimized_python_forbidden")
 
 import argparse
