@@ -255,6 +255,42 @@ export function buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV2(
   return contentId("voidbuycustodychallengeauth2_",a);
 }
 
+const SECOND_CONTROL_APPROVAL_BODY_KEYS=Object.freeze([
+  "marker","version","plan_id","authorization_id","operation_id",
+  "authorization_claim_id","challenge_id","operation_lease_id","host_id",
+  "rollback_target_journal_tip_sha256","protected_high_water_sha256",
+  "external_witness_sequence","external_witness_tip_sha256",
+]);
+
+// Pure source-only identity builder, NOT an authenticator or a signature.
+// An independent protected approver must later authenticate these exact
+// fields; this hash prevents one approval identifier from aliasing another
+// operation, claim, lease, checkpoint, host or witness context.
+export function buildBuyVoidAllocationCustodySecondControlApprovalIdV2(input){
+  const a=dataObject(input,SECOND_CONTROL_APPROVAL_BODY_KEYS,
+    "second_control_approval_body_invalid");
+  if(a.marker!=="VOID_BUY_VOID_CUSTODY_SECOND_CONTROL_APPROVAL_V2"||
+     a.version!==2||
+     a.plan_id!==VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_PLAN_ID_V2)
+    fail("second_control_approval_body_domain_invalid");
+  string(a.authorization_id,AUTH_ID,"second_control_authorization_id_invalid");
+  string(a.operation_id,OP_ID,"second_control_operation_id_invalid");
+  string(a.authorization_claim_id,CLAIM_ID,"second_control_claim_id_invalid");
+  string(a.challenge_id,/^voidbuycustodychallenge2_[0-9a-f]{64}$/u,
+    "second_control_challenge_id_invalid");
+  string(a.operation_lease_id,LEASE_ID,"second_control_lease_id_invalid");
+  if(typeof a.host_id!=="string"||a.host_id.length<1||a.host_id.length>128)
+    fail("second_control_host_invalid");
+  string(a.rollback_target_journal_tip_sha256,SHA,
+    "second_control_rollback_tip_invalid");
+  string(a.protected_high_water_sha256,SHA,
+    "second_control_high_water_tip_invalid");
+  safeInt(a.external_witness_sequence,"second_control_witness_sequence_invalid",0);
+  string(a.external_witness_tip_sha256,SHA,
+    "second_control_witness_tip_invalid");
+  return contentId("voidbuycustodysecondcontrol2_",a);
+}
+
 export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(input){
   const top=dataObject(input,["authorization","capabilities"],"controller_input_invalid");
   const authorization=normalizeAuthorization(top.authorization);
@@ -423,11 +459,25 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
   if(witness.external_witness_tip_sha256===before.external_witness_tip_sha256)
     fail("external_witness_tip_not_advanced");
 
+  const approvalContext=Object.freeze({
+    marker:"VOID_BUY_VOID_CUSTODY_SECOND_CONTROL_APPROVAL_V2",
+    version:2,
+    plan_id:authorization.plan_id,
+    authorization_id:authorization.authorization_id,
+    operation_id:authorization.operation_id,
+    authorization_claim_id:claim.claim_id,
+    challenge_id:challengeId,
+    operation_lease_id:lease.lease_id,
+    host_id:before.host_id,
+    rollback_target_journal_tip_sha256:before.journal_tip_sha256,
+    protected_high_water_sha256:high.high_water_sha256,
+    external_witness_sequence:witness.external_witness_sequence,
+    external_witness_tip_sha256:witness.external_witness_tip_sha256,
+  });
+  const expectedApprovalId=
+    buildBuyVoidAllocationCustodySecondControlApprovalIdV2(approvalContext);
   const approval=exactResult(callSync(caps.obtain_second_control_approval,
-    Object.freeze({challenge_id:challengeId,
-      rollback_target_journal_tip_sha256:before.journal_tip_sha256,
-      protected_high_water_sha256:high.high_water_sha256,
-      operation_lease_id:lease.lease_id}),
+    approvalContext,
     "second_control"),
     ["approved","approval_id","challenge_id","rollback_target_journal_tip_sha256",
      "protected_high_water_sha256","operation_lease_id"],
@@ -440,6 +490,8 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
   if(typeof approval.approval_id!=="string"||
      !/^voidbuycustodysecondcontrol2_[0-9a-f]{64}$/u.test(approval.approval_id))
     fail("second_control_approval_id_invalid");
+  if(approval.approval_id!==expectedApprovalId)
+    fail("second_control_approval_context_digest_mismatch");
 
   const rollback=exactResult(callSync(caps.attempt_controlled_journal_rollback,
     Object.freeze({challenge_id:challengeId,approval_id:approval.approval_id,
