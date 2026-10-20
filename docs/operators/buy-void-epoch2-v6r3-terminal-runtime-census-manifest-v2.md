@@ -337,3 +337,28 @@ host observer, privileged tree scan, post-`fexecve` isolation, wallet,
 signer, customer payments or live presale authority follows.
 
 PROTECT THE CORE.
+
+## Source-only isolated Python pre-import guard (security successor)
+
+The fixture script and its proof previously imported `argparse`, `ast` and
+other stdlib modules before checking interpreter flags. In an accidental
+non-isolated invocation, Python's script-directory or environment-controlled
+import paths could therefore shadow these modules **before** the fixture
+rejected the unsupported execution mode.
+
+Both files now import only built-in `sys` and check `sys.flags.isolated`,
+`sys.flags.dont_write_bytecode`, and `sys.flags.no_site` before any
+other import. The required source/proof invocation is
+`python3 -I -B -S ...`; missing any one flag produces
+`HOLD=isolated_no_site_python_required`. The proof asserts this guard is
+the first non-future statement in the source AST and tests three missing-flag
+invocations in a sanitized disposable CI environment.
+
+**Trust boundary:** this check runs only *after Python interpreter startup*.
+It cannot prevent pre-script execution through malicious interpreter,
+environment, loader, `sitecustomize`, or an unauthenticated executable. It
+does **not** qualify a privileged first entry or host census. Protected
+runtime source authentication, root/ACL/retained FD custody, actual
+Python/Git/ELF dependency closure, post-exec isolation, independent review,
+payments, presale and funds authority all remain HOLD. `HOST_EXECUTION_ENABLED`
+stays `False`.
