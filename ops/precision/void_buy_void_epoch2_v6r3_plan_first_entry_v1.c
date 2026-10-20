@@ -5,6 +5,8 @@
 #include <grp.h>
 #include <limits.h>
 #include <linux/close_range.h>
+#include <linux/capability.h>
+#include <linux/securebits.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -452,6 +454,25 @@ static void require_devnull_descriptor(int fd,const char *reason){
        major(st.st_rdev)!=1U||minor(st.st_rdev)!=3U)hold(reason);
 }
 
+/* Root-opened regular stdout/stderr descriptors retain write authority after
+ * setresuid().  Reject an untrusted destination before any HOLD can print. */
+static void require_safe_output_sinks(bool allow_missing){
+    for(int fd=STDOUT_FILENO;fd<=STDERR_FILENO;fd++){
+        errno=0;
+        const int fdflags=fcntl(fd,F_GETFD);
+        if(fdflags<0&&errno==EBADF&&allow_missing)continue;
+        if(fdflags<0||(fdflags&FD_CLOEXEC)!=0)_exit(2);
+        const int access=fcntl(fd,F_GETFL);
+        struct stat st;
+        if(access<0||(access&O_ACCMODE)==O_RDONLY||fstat(fd,&st)!=0)_exit(2);
+        if(S_ISFIFO(st.st_mode))continue;
+        if(S_ISCHR(st.st_mode) &&
+            (isatty(fd)||(major(st.st_rdev)==1U&&minor(st.st_rdev)==3U)))continue;
+        /* Unsafe regular/socket/block/directory fd: no diagnostic write. */
+        _exit(2);
+    }
+}
+
 static void reserve_standard_fds(void){
     for(int target=STDIN_FILENO;target<=STDERR_FILENO;target++){
         errno=0;
@@ -473,9 +494,42 @@ static void reserve_standard_fds(void){
     }
 }
 
+static void require_no_live_capabilities(void){
+    struct __user_cap_header_struct header={0};
+    struct __user_cap_data_struct caps[2]={{0},{0}};
+    header.version=_LINUX_CAPABILITY_VERSION_3;
+    header.pid=0;
+    if(syscall(SYS_capget,&header,caps)!=0){
+        hold("postdrop_capability_query_failed");
+    }
+    for(size_t i=0;i<2U;i++){
+        if(caps[i].effective!=0U||caps[i].permitted!=0U||
+           caps[i].inheritable!=0U){
+            hold("postdrop_capabilities_not_empty");
+        }
+    }
+    for(int cap=0;cap<64;cap++){
+        errno=0;
+        const int active=prctl(PR_CAP_AMBIENT,PR_CAP_AMBIENT_IS_SET,cap,0,0);
+        if(active==1||(active<0&&errno!=EINVAL)){
+            hold("postdrop_ambient_capability_not_empty");
+        }
+    }
+}
+
 static void drop_to_runtime(void){
     if(getuid()!=0U||geteuid()!=0U||getgid()!=0U||getegid()!=0U){
         hold("root_static_first_entry_required");
+    }
+    /* Nondefault securebits can suppress UID-drop capability fixups. */
+    if(prctl(PR_GET_SECUREBITS,0,0,0,0)!=0){
+        hold("inherited_securebits_rejected");
+    }
+    if(prctl(PR_GET_KEEPCAPS,0,0,0,0)!=0){
+        hold("inherited_keepcaps_rejected");
+    }
+    if(prctl(PR_CAP_AMBIENT,PR_CAP_AMBIENT_CLEAR_ALL,0,0,0)!=0){
+        hold("ambient_capability_clear_failed");
     }
     if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)!=0)hold("no_new_privs_failed");
     if(setgroups(0,NULL)!=0)hold("supplementary_group_clear_failed");
@@ -489,6 +543,9 @@ static void drop_to_runtime(void){
        getgid()!=REQUIRED_GID||getegid()!=REQUIRED_GID){
         hold("runtime_identity_drop_not_permanent");
     }
+    if(getgroups(0,NULL)!=0)hold("supplementary_groups_not_empty");
+    require_no_live_capabilities();
+    if(prctl(PR_GET_NO_NEW_PRIVS,0,0,0,0)!=1)hold("no_new_privs_not_retained");
     if(prctl(PR_SET_DUMPABLE,0,0,0,0)!=0)hold("runtime_dumpable_disable_failed");
 }
 
@@ -516,6 +573,8 @@ static int self_test(void){
     printf("planner_bytes=%u\n",(unsigned)PLANNER_BYTES);
     printf("root_static_first_entry_required=true\n");
     printf("standard_fds_reserved_before_trusted_opens=true\n");
+    printf("trusted_stdout_stderr_nonfile_sinks_required=true\n");
+    printf("securebits_and_capabilities_verified_after_drop=true\n");
     printf("mapped_planner_fd3_revalidated=true\n");
     printf("runtime_uid_gid_1000_required=true\n");
     printf("permanent_uid_gid_drop_before_python=true\n");
@@ -543,9 +602,12 @@ static void prepare_child_fd(int source,int target,const char *reason){
 }
 
 int main(int argc,char **argv){
+    /* Reject unsafe output fds before a HOLD could mutate a root file. */
+    require_safe_output_sinks(true);
+    reserve_standard_fds();
+    require_safe_output_sinks(false);
     if(argc==2&&strcmp(argv[1],"--self-test")==0)return self_test();
     if(argc!=2||strcmp(argv[1],"--plan")!=0)hold("launcher_arguments_invalid");
-    reserve_standard_fds();
 
     struct stat self_stat;
     require_self_identity(&self_stat);
@@ -644,6 +706,7 @@ int main(int argc,char **argv){
     char *const child_env[]={
         "PATH=/usr/bin:/bin","HOME=/home/zoso","LANG=C","LC_ALL=C","TZ=UTC","PYTHONNOUSERSITE=1",NULL
     };
+    require_no_live_capabilities();
     fexecve(python_fd,child_argv,child_env);
     hold("python_fexecve_failed");
     return 2;
