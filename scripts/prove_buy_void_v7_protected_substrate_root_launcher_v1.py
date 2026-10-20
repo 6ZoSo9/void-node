@@ -11,7 +11,7 @@ SOURCE = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_root_launche
 INSTALLER = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
 
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V1_PROOF"
-SOURCE_BLOB = "7d5645531fced8a114101285150ebdfdf7266907"
+SOURCE_BLOB = "c95f340e447af48a56c7bac82493a5b83405f4cc"
 INSTALLER_BLOB = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"
 INSTALLER_BYTES = 87048
 INSTALLER_SHA256 = "72bdf7325fd2b3f373ad3fd41e706d9961d293cf11178d06b72ab41ddc9f8cfc"
@@ -83,6 +83,9 @@ for required in (
     '#define MARKER "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V1"',
     '#define FIXED_SELF FIXED_ROOT "/bin/void_buy_void_v7_protected_substrate_root_launcher_v1"',
     '#define FIXED_POLICY FIXED_ROOT "/policy-v1.conf"',
+    '#define FIXED_PYTHON_ROOT "/opt/void-buy-void-v7-python-runtime-v1"',
+    '#define FIXED_PYTHON FIXED_PYTHON_BIN "/python3.12-static"',
+    '#define FIXED_STDLIB_ZIP FIXED_PYTHON_LIB "/python312.zip"',
     '#define FIXED_SOURCE_ROOT "/opt/void-buy-void-v7-installer-source-v1"',
     '#define INSTALLER_REL "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"',
     '#define INSTALLER_BYTES 87048U',
@@ -98,13 +101,17 @@ for required in (
     'runtime_identity_can_write_trusted_path_or_ancestor',
     'readlink("/proc/self/exe"',
     'running_self_generation_mismatch',
-    'realpath(policy.python_path,resolved_python)',
-    'python_path_not_canonical',
+    'require_exact_dir_entries(FIXED_PYTHON_ROOT,"bin","lib")',
+    'require_exact_dir_entries(FIXED_PYTHON_BIN,"python3.12-static",NULL)',
+    'require_exact_dir_entries(FIXED_PYTHON_LIB,"python312.zip",NULL)',
+    'require_static_python_elf(python_fd,policy.python_bytes)',
+    'dynamic_python_runtime_forbidden',
+    'stdlib_zip_content_mismatch',
     'args[n++]="-I"',
     'args[n++]="-B"',
     'args[n++]="-S"',
     'fexecve(python_fd,args,envp)',
-    'char *const envp[]={"PATH=/usr/bin:/bin","HOME=/nonexistent","LANG=C","LC_ALL=C","TZ=UTC",NULL}',
+    'char *const envp[]={"PATH=/usr/bin:/bin","HOME=/nonexistent","LANG=C","LC_ALL=C","TZ=UTC","OPENSSL_CONF=/dev/null",NULL}',
     'source_snapshot_install_authorized=false',
     'protected_install_performed=false',
     'public_presale_activation=false',
@@ -127,6 +134,8 @@ for forbidden in (
     "socket(",
     "connect(",
     "listen(",
+    '"/usr/bin/python3',
+    "lib-dynload",
 ):
     assert forbidden not in source_text, forbidden
 
@@ -197,6 +206,10 @@ with tempfile.TemporaryDirectory(prefix="void-v7-root-launcher-proof-") as td:
         "installer_sha256_compile_bound=true",
         "host_policy_root_custodied_required=true",
         "python_content_hash_policy_bound=true",
+        "static_python_runtime_required=true",
+        "stdlib_zip_content_hash_policy_bound=true",
+        "python_runtime_tree_exact_entries_required=true",
+        "dynamic_python_runtime_forbidden=true",
         "python_retained_descriptor_exec_required=true",
         "python_isolated_no_site_no_bytecode_required=true",
         "minimal_environment_required=true",
@@ -225,6 +238,10 @@ with tempfile.TemporaryDirectory(prefix="void-v7-root-launcher-proof-") as td:
     print("static_native_first_instruction_proven=true")
     print("fixed_root_source_snapshot_required=true")
     print("runtime_uid_acl_effective_nonwritability_required=true")
+    print("static_python_runtime_required=true")
+    print("stdlib_zip_content_hash_policy_bound=true")
+    print("python_runtime_tree_exact_entries_required=true")
+    print("dynamic_python_runtime_forbidden=true")
     print("python_retained_descriptor_exec_required=true")
     print("python_isolated_no_site_no_bytecode_required=true")
     print("minimal_environment_required=true")
