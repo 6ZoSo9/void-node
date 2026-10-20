@@ -383,7 +383,7 @@ print("isolated_before_checkout_stdlib_imports=true")
 with tempfile.TemporaryDirectory(prefix="void-e2-preimport-future-") as td:
     poisoned_dir=Path(td)
     (poisoned_dir/"__future__.py").write_text(
-        "print('POISON_PRE_GUARD')\\n",encoding="utf-8",
+        "print('POISON_PRE_GUARD')\n",encoding="utf-8",
     )
     for label,target,argv in (
         ("census_source",SOURCE,("--source-plan",)),
@@ -399,7 +399,7 @@ with tempfile.TemporaryDirectory(prefix="void-e2-preimport-future-") as td:
         )
         assert rejected.returncode!=0,(label,rejected.stdout,rejected.stderr)
         assert rejected.stdout=="",(label,rejected.stdout)
-        assert rejected.stderr=="HOLD=isolated_no_site_python_required\\n",(
+        assert rejected.stderr=="HOLD=isolated_no_site_python_required\n",(
             label,rejected.stderr,
         )
 print("pre_guard_future_import_poison_negative_fixtures=2")
