@@ -204,8 +204,20 @@ The `--self-test` fixture also directly executes the retained Git ELF via
 the hosted runner; it does not authenticate or inspect Precision's host
 binary, execute the production Runner, or authorize a host plan.
 
-Planner Git blob: `83ef44f0cacc3f0445ccdb23fb0c478d79f01f70`.
+Planner Git blob: `19c6e1cdf9f2361cedfba4ea8d650a63eb5061ff`.
 
+
+## Protected leaf effective-ACL custody refinement
+
+Every protected native, Runner, and policy leaf is now checked for effective runtime-UID
+write access using descriptor-relative `os.access(..., dir_fd=root_fd,
+effective_ids=True, follow_symlinks=False)` before and after byte authentication.
+Writable leaves, missing/rebound leaves, and unavailable ACL audits fail closed.
+
+The hosted self-test uses synthetic non-writing fixtures to require rejection of both a
+runtime-writable leaf and an unavailable ACL audit. This adds no host mutation,
+credential access, signing, transaction/payment, activation, service action, or funds
+movement authority.
 
 ## Retained-first-exec V8 lock rebind
 
@@ -216,7 +228,7 @@ candidate_id=voidbuye2runnerpolcand6r3_0a3bfc00032b0feeb253fb0f295b4dacc1e3e66af
 runner_git_blob=2fa028824d71a22f4d228cdb7fcda738bce7b409
 runner_sha256=9b8497c813fc3899b745736da01929380b5f28f988f70790def1e0a98b35a261
 runner_bytes=84928
-planner_git_blob=83ef44f0cacc3f0445ccdb23fb0c478d79f01f70
+planner_git_blob=19c6e1cdf9f2361cedfba4ea8d650a63eb5061ff
 ```
 
 The planner rejects any lock that does not explicitly accept the retained-first-exec
