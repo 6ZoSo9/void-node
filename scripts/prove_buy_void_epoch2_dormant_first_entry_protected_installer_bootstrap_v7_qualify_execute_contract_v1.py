@@ -75,9 +75,9 @@ for required in (
     '"preliminary_git_protocols_denied": True',
     '"preliminary_git_object_alternates_rejected": True',
     '"git_callbacks_neutralized_required": True',
-    '"planner_body_keys_invalid"',
-    '"qualification_contract_keys_invalid"',
-    '"qualification_required_result_keys_invalid"',
+    "PLANNER_BODY_KEYS = frozenset(",
+    "QUALIFICATION_CONTRACT_KEYS = frozenset(",
+    "QUALIFICATION_REQUIRED_RESULT_KEYS = frozenset(",
     '"run_as": "nonroot"',
     '"run_as": "root"',
     '"green_required_before_phase_2": True',
@@ -118,7 +118,11 @@ functions = {
 for name in (
     "_read_stable",
     "_planner_lines",
+    "_require_exact_keys",
+    "_validate_checkout",
+    "_validate_tool_identity",
     "_validate_qualification_contract",
+    "_artifact",
     "validate_planner_output",
     "execution_contract",
     "source_plan",
@@ -151,7 +155,7 @@ for required in (
     "launcher_historical_authority_overclaim",
     "bootstrap_argv_mismatch",
     "planner_qualification_line_mismatch",
-    "planner_body_keys_invalid",
+    '_require_exact_keys(body, PLANNER_BODY_KEYS, "planner_body")',
 ):
     assert required in validate_source, required
 
@@ -162,10 +166,17 @@ qualification_source = (
 for required in (
     "qualification_contract_mismatch:",
     "qualification_required_result_mismatch:",
-    "qualification_contract_keys_invalid",
-    "qualification_required_result_keys_invalid",
+    "QUALIFICATION_CONTRACT_KEYS",
+    '"qualification_contract"',
+    "QUALIFICATION_REQUIRED_RESULT_KEYS",
+    '"qualification_required_result"',
 ):
     assert required in qualification_source, required
+
+key_helper_source = (
+    ast.get_source_segment(source, functions["_require_exact_keys"]) or ""
+)
+assert 'label + "_keys_invalid"' in key_helper_source
 
 contract_source = ast.get_source_segment(source, functions["execution_contract"]) or ""
 assert '"ordinal": 1' in contract_source
