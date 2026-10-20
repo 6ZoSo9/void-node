@@ -23,7 +23,9 @@ Accepted local requests and rejected upgrades retry only after a bounded
 backoff. An attempt that could not be sent before relay authentication retries
 on the next one-second sweep. A route-local adapter exception increments the
 failure counter but does not prevent later independent routes from advancing in
-the same sweep. Relay retirement is outside this lane.
+the same sweep. A synchronous stop or verified-discovery route replacement
+invalidates the current sweep before any further outbound adapter request.
+Relay retirement is outside this lane.
 
 ## Exact field-test configuration
 

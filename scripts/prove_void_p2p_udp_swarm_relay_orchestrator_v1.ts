@@ -419,6 +419,80 @@ assert.deepEqual(isolatedUpgradeCalls, [
 ]);
 upgradeFailureIsolation.stop();
 
+
+const reentrantStopCalls: string[] = [];
+let stoppedInsideReservationAdapter: VoidUdpSwarmRelayOrchestratorV1;
+const reentrantStopNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
+  ...failureIsolationNode,
+  requestRelayReservation: (relay) => {
+    reentrantStopCalls.push(relay);
+    stoppedInsideReservationAdapter.stop();
+    return "8".repeat(32);
+  },
+};
+stoppedInsideReservationAdapter = new VoidUdpSwarmRelayOrchestratorV1(
+  reentrantStopNode,
+  {
+    enabled: true,
+    routes: [
+      { relay_node_id: failingRelayNodeId, target_node_id: targetNodeId },
+      { relay_node_id: healthyRelayNodeId, target_node_id: relayNodeId },
+    ],
+  },
+);
+assert.doesNotThrow(() => stoppedInsideReservationAdapter.runOnce(0));
+assert.equal(stoppedInsideReservationAdapter.status().stopped, true);
+assert.deepEqual(reentrantStopCalls, [failingRelayNodeId]);
+stoppedInsideReservationAdapter.runOnce(1_000);
+assert.deepEqual(reentrantStopCalls, [failingRelayNodeId]);
+
+// A synchronous discovery replacement must invalidate the stale route array
+// before either the current route upgrades or a later revoked route starts.
+const freshRelayNodeId = "9".repeat(32);
+const reentrantReplacementCalls: string[] = [];
+let replacementInsideReservationAdapter: VoidUdpSwarmRelayOrchestratorV1;
+const reentrantReplacementNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
+  ...upgradeFailureIsolationNode,
+  requestRelayReservation: (relay) => {
+    reentrantReplacementCalls.push(`reservation:${relay}`);
+    if (relay === failingRelayNodeId) {
+      replacementInsideReservationAdapter.replaceVerifiedDiscoveryRoutesV1([
+        { relay_node_id: freshRelayNodeId, target_node_id: targetNodeId },
+      ]);
+    }
+    return "8".repeat(32);
+  },
+  requestUdpSwarmUpgradeV1: (relay) => {
+    reentrantReplacementCalls.push(`upgrade:${relay}`);
+    return { ok: true as const, request_id: "7".repeat(32) };
+  },
+};
+replacementInsideReservationAdapter = new VoidUdpSwarmRelayOrchestratorV1(
+  reentrantReplacementNode,
+  {
+    enabled: true,
+    routes: [
+      { relay_node_id: failingRelayNodeId, target_node_id: targetNodeId },
+      { relay_node_id: healthyRelayNodeId, target_node_id: relayNodeId },
+    ],
+  },
+);
+assert.doesNotThrow(() => replacementInsideReservationAdapter.runOnce(95_000));
+assert.deepEqual(reentrantReplacementCalls, [
+  `reservation:${failingRelayNodeId}`,
+]);
+assert.equal(
+  replacementInsideReservationAdapter.status().route_source,
+  "verified_discovery",
+);
+assert.equal(replacementInsideReservationAdapter.status().route_count, 1);
+replacementInsideReservationAdapter.runOnce(95_001);
+assert.deepEqual(reentrantReplacementCalls, [
+  `reservation:${failingRelayNodeId}`,
+  `reservation:${freshRelayNodeId}`,
+]);
+replacementInsideReservationAdapter.stop();
+
 console.log(JSON.stringify({
   marker: "VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_V1_PROOF",
   status: "green",
@@ -432,6 +506,8 @@ console.log(JSON.stringify({
     bounded_upgrade_retry: true,
     route_local_adapter_failure_isolated: true,
     throwing_connect_route_isolated: true,
+    reentrant_stop_is_terminal_in_same_sweep: true,
+    reentrant_discovery_replacement_fences_stale_routes: true,
     later_routes_advance_after_failure: true,
     thrown_upgrade_retries_next_sweep: true,
     returned_upgrade_uses_bounded_backoff: true,

@@ -393,7 +393,12 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
     const control = this.node.udpSwarmControlSnapshot();
 
     const routeState = this.routeState;
+    // A synchronous adapter can stop the orchestrator or replace the route set.
+    // Never dispatch a later request from an invalidated sweep snapshot.
+    const sweepIsCurrent = (): boolean =>
+      !this.stopped && this.routeState === routeState;
     for (const route of routeState.routes) {
+      if (!sweepIsCurrent()) return;
       try {
         const runtime = routeState.runtime_by_route.get(routeKey(route));
         if (!runtime) {
@@ -410,6 +415,7 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
           now - runtime.last_reservation_attempt_ms >=
             VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1
         ) {
+          if (!sweepIsCurrent()) return;
           this.reservationAttempts += 1;
           const requestId = this.node.requestRelayReservation(
             route.relay_node_id,
@@ -433,6 +439,7 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
             now - runtime.last_connect_attempt_ms >=
             VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1
           ) {
+            if (!sweepIsCurrent()) return;
             this.connectAttempts += 1;
             const requestId = this.node.connectViaRelay(
               route.relay_node_id,
@@ -465,6 +472,7 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
           VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1
         ) continue;
 
+        if (!sweepIsCurrent()) return;
         this.upgradeAttempts += 1;
         const result = this.node.requestUdpSwarmUpgradeV1(
           route.relay_node_id,
