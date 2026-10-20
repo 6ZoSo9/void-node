@@ -15,7 +15,7 @@ PLANNER=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_runner_policy_
 
 MARKER="VOID_BUY_VOID_EPOCH2_V6R3_PYTHON_RUNTIME_CLOSURE_CONTRACT_V1"
 PREFIX="voidbuye2v6r3pyruntimecontract1_"
-CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_6b88925643319fd7724f4fd66d115fd5ec9598a3c59a57cbc0a8c51737c8bae8"
+CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_80553976a9a5a241991a827f2b6913c08b22c27865136216dd66b21b07790df5"
 BINARY_LOCK_BLOB="66bf48fd6477e0335b1eea6e2b7e8a7f297f8c57"
 PLANNER_BLOB="19c6e1cdf9f2361cedfba4ea8d650a63eb5061ff"
 PLANNER_SHA256="95d9dd865bc226a7436a67fff977215e43aad034ce40c2c9126ecc49c469d627"
@@ -64,19 +64,51 @@ for key in ("protected_install_authorized","installed_binary_identity_proven","h
 planner_raw=exact(PLANNER,4*1024*1024)
 assert git_blob(planner_raw)==PLANNER_BLOB
 assert sha256(planner_raw)==PLANNER_SHA256 and len(planner_raw)==PLANNER_BYTES
-tree=ast.parse(planner_raw.decode("utf-8","strict"))
-imports=set()
-for node in tree.body:
-    if isinstance(node,ast.Import):
-        for alias in node.names:
-            imports.add(alias.name.split(".",1)[0])
-    elif isinstance(node,ast.ImportFrom):
-        assert node.level==0,"relative_import_forbidden"
-        assert node.module is not None
-        if node.module=="__future__":
-            continue
-        imports.add(node.module.split(".",1)[0])
+def exact_import_contract(source:str)->set[str]:
+    tree=ast.parse(source)
+    imports:set[str]=set()
+    future_nodes:list[ast.ImportFrom]=[]
+    for node in tree.body:
+        if isinstance(node,ast.Import):
+            for alias in node.names:
+                imports.add(alias.name.split(".",1)[0])
+        elif isinstance(node,ast.ImportFrom):
+            assert node.level==0,"relative_import_forbidden"
+            assert node.module is not None
+            if node.module=="__future__":
+                future_nodes.append(node)
+                continue
+            imports.add(node.module.split(".",1)[0])
+    assert len(future_nodes)==1,"future_directive_count_invalid"
+    future=future_nodes[0]
+    assert len(future.names)==1,"future_directive_feature_count_invalid"
+    assert future.names[0].name=="annotations","future_directive_feature_invalid"
+    assert future.names[0].asname is None,"future_directive_alias_invalid"
+    return imports
+
+planner_text=planner_raw.decode("utf-8","strict")
+imports=exact_import_contract(planner_text)
 assert imports==EXPECTED_IMPORTS,(imports,EXPECTED_IMPORTS)
+try:
+    exact_import_contract("from __future__ import division\nimport argparse\n")
+except AssertionError as exc:
+    assert str(exc)=="future_directive_feature_invalid"
+else:
+    raise AssertionError("alternate_future_directive_accepted")
+
+for required in (
+    'FIXED_GIT=Path("/usr/bin/git")',
+    '"GIT_CONFIG_NOSYSTEM":"1"',
+    '"GIT_CONFIG_GLOBAL":"/dev/null',
+    '"GIT_CONFIG_SYSTEM":"/dev/null',
+    '"GIT_NO_REPLACE_OBJECTS":"1"',
+    '"GIT_NO_LAZY_FETCH":"1"',
+    '"GIT_TERMINAL_PROMPT":"0"',
+    '"GIT_ASKPASS":"/bin/false',
+    '"GIT_ALLOW_PROTOCOL":""',
+    'pass_fds=(tool_fd,)',
+):
+    assert required in planner_text,required
 
 raw=exact(CONTRACT,128*1024)
 value=json.loads(raw)
@@ -139,6 +171,29 @@ assert h["tree_object_types_allowed"]==["directory","regular","symlink"]
 assert h["max_tree_entries"]==100000
 assert h["max_regular_file_bytes"]==536870912
 assert h["census_report_max_bytes"]==16777216
+g=value["planner_subprocess_closure"]["git"]
+assert g["requested_path"]=="/usr/bin/git"
+for key in (
+    "retained_fd_execution_required",
+    "realpath_sha256_and_size_required",
+    "root_custody_and_runtime_uid_nonwritability_required",
+    "pt_interp_and_transitive_dt_needed_closure_required",
+    "rpath_runpath_records_required",
+    "runtime_helpers_plugins_and_config_file_access_closure_required",
+    "mapped_elf_closure_required",
+    "terminal_generation_revalidation_required",
+    "adversarial_dependency_or_helper_substitution_must_hold",
+):
+    assert g[key] is True,key
+assert g["observed_builtin_commands"]==["branch","cat-file","rev-parse","show","status"]
+assert all(v is True for v in g["repository_metadata_closure_required"].values())
+assert g["clean_environment"]=={
+    "PATH":"/usr/bin:/bin","HOME":"/home/zoso","LANG":"C","LC_ALL":"C","TZ":"UTC",
+    "GIT_CONFIG_NOSYSTEM":"1","GIT_CONFIG_GLOBAL":"/dev/null","GIT_CONFIG_SYSTEM":"/dev/null",
+    "GIT_NO_REPLACE_OBJECTS":"1","GIT_OPTIONAL_LOCKS":"0","GIT_NO_LAZY_FETCH":"1",
+    "GIT_TERMINAL_PROMPT":"0","GIT_ASKPASS":"/bin/false","GIT_PROTOCOL_FROM_USER":"0",
+    "GIT_ALLOW_PROTOCOL":"","GIT_PAGER":"",
+}
 a=value["acceptance_requirements"]
 assert all(v is True for v in a.values())
 authority=value["authority"]
@@ -155,7 +210,8 @@ print(MARKER+"_PROOF_GREEN")
 print("contract_id="+CONTRACT_ID)
 print("first_entry_binary_lock_bound=true")
 print("planner_exact_import_set_bound=true")
-print("future_directive_not_runtime_import=true")
+print("future_directive_annotations_exact=true")
+print("alternate_future_directive_rejected=true")
 print("python_flags_i_b_s_bound=true")
 print("dynamic_loader_transitive_closure_required=true")
 print("complete_python_sys_path_tree_inventory_required=true")
@@ -164,6 +220,9 @@ print("nonexistent_sys_path_absence_bound=true")
 print("exact_import_probe_file_access_closure_required=true")
 print("exact_import_probe_mapped_elf_closure_required=true")
 print("native_dlopen_plugin_and_config_closure_required=true")
+print("git_subprocess_runtime_closure_required=true")
+print("git_repository_metadata_closure_required=true")
+print("git_dependency_or_helper_substitution_must_hold=true")
 print("host_census_authorized=false")
 print("python_runtime_closure_accepted=false")
 print("protected_install_authorized=false")
