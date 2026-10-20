@@ -12,10 +12,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs"
 PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c"
 
-BINDER_BLOB = "b51a5bf1de438af97e69ed0be3612779e5359b3b"
-BINDER_SHA256 = "391728ce72e3803d231198ba991ebfdf8dfd4c4f86b56cb9e92ba2f1da472b15"
-BINDER_BYTES = 43554
-PREENTRY_BLOB = "92b476f395348e5ac447404906b01c53dfb4cefc"
+BINDER_BLOB = "6159eb6f79c0dfccafd31484415b92eefaa06662"
+BINDER_SHA256 = "f1b6cd8235641cc51bbf682526774abadf814da2066e0e6b7035ca9d58277cd2"
+BINDER_BYTES = 50894
+PREENTRY_BLOB = "cdd647e8ef49f234eea1e5fbd933148a31014eef"
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
 CANDIDATE_REL = "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json"
@@ -82,7 +82,28 @@ for forbidden in (
     'RUNTIME_POLICY_SHA256',
     'protected_v6r2_generation_verified:true',
     'retained_v4_predecessor_verified:true',
+    'function assertTrustedExecutable(',
+    'return run(SETPRIV,',
+    'const r=run(FIXED_NATIVE,',
 ):
+    assert forbidden not in binder, forbidden
+# No root process may reopen a prechecked ELF pathname after it was qualified.
+# The only allowed first-exec transport is an inherited verified descriptor.
+for required in (
+    'function openRetainedTrustedExecutable(',
+    'function requireRootOwnedExecutableAncestors(',
+    'function requireRuntimeUidNonwritable(',
+    'function runRetainedTrustedExecutable(',
+    'function revalidateRetainedTrustedExecutable(',
+    'function requireActiveRootExecutionTools(',
+    'activeRootExecutionTools=tools;',
+    'spawnSync("/proc/self/fd/"+String(tools.setpriv.fd)',
+    '"/proc/self/fd/"+String(childCommandFd)',
+    'runRetainedTrustedExecutable(tools.native,[',
+    'stdio[tools.setpriv.fd]=tools.setpriv.fd;',
+):
+    assert required in binder, required
+
     assert forbidden not in binder, forbidden
 
 for required in (
@@ -127,6 +148,8 @@ for required in (
     'runtime_policy_authenticated_by_native_preentry_required=true',
     'native_parent_installed_generation_bound:true',
     'runner_v4_source_checkout_bound:true',
+    '0xf1,0xb6,0xcd,0x82',
+    '0x70,0x35,0xca,0x9d',
 ):
     assert required in binder, required
 
@@ -139,7 +162,7 @@ for required in (
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V4',
     'RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4',
     '#define BINDER_GIT_BLOB "' + BINDER_BLOB + '"',
-    '#define BINDER_BYTES 43554U',
+    '#define BINDER_BYTES 50894U',
     'void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs',
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V4',
     '(char*)"--source-head",source_head',
@@ -198,6 +221,11 @@ for mode in ("--self-test", "--plan"):
             "runner_v4_child_receipt_required=true",
             "runner_v4_child_source_checkout_crosscheck=true",
             "runner_v4_child_source_checkout_drift_rejected=true",
+            "binder_root_setpriv_retained_first_exec=true",
+            "binder_native_child_retained_first_exec=true",
+            "binder_root_executable_ancestor_custody_required=true",
+            "binder_runtime_uid_acl_custody_required=true",
+            "binder_retained_exec_path_rebind_rejected=true",
             "transaction=false",
             "public_presale_activation=false",
             "funds_movement=false",
@@ -220,6 +248,8 @@ for mode in ("--self-test", "--plan"):
             "runner_v4_child_source_checkout_crosscheck_required=true",
             "runtime_policy_sha256_compile_constant_absent=true",
             "runtime_policy_authenticated_by_native_preentry_required=true",
+            "root_setpriv_git_native_retained_first_exec_required=true",
+            "trusted_executable_ancestor_and_runtime_acl_custody_required=true",
             "credential_content_access=false",
             "signing=false",
             "transaction=false",
@@ -287,6 +317,8 @@ print("runner_v4_child_receipt_required=true")
 print("runner_v4_child_source_checkout_crosscheck_bound=true")
 print("runner_v4_child_source_checkout_drift_rejected=true")
 print("runtime_policy_sha256_compile_constant_absent=true")
+print("binder_retained_root_exec_source_bound=true")
+print("binder_ancestor_and_runtime_acl_guard_source_bound=true")
 print("runtime_policy_authenticated_by_native_preentry=true")
 print("historical_generation_overclaim_absent=true")
 print("native_preentry_binds_exact_binder_bytes=true")
