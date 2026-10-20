@@ -6,6 +6,10 @@ from __future__ import annotations
 import sys
 if not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):
     raise SystemExit("HOLD=isolated_no_site_python_required")
+# -O/-OO strip assertions which are part of the synthetic evidence policy.
+# Reject optimization before any non-builtin imports or fixture execution.
+if sys.flags.optimize != 0:
+    raise SystemExit("HOLD=optimized_python_forbidden")
 
 import argparse
 from collections import deque

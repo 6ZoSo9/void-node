@@ -414,3 +414,50 @@ host census, first-entry install, independent security acceptance,
 private-key/signing, transaction, payment, presale/WC or funds authority.
 
 PROTECT THE CORE.
+
+
+
+## Optimization-disabled Python evidence requirement — source-only P2 fix
+
+The previously required `python3 -I -B -S` options are **necessary but
+not sufficient** to qualify a source-only census proof. Python `-O` and
+`-OO` still allow all three flags while removing every `assert` expression
+used for immutable source blobs, custody, stable runtime fields and
+subprocess-result checks. An optimized verifier could otherwise claim GREEN
+without enforcing its proof contract.
+
+At the first script-level check after the built-in `sys` import, **both**
+the V2 census and the V2 verifier now reject any nonzero
+`sys.flags.optimize` with
+`HOLD=optimized_python_forbidden`. This check runs before other stdlib
+imports and before any synthetic fixture, independent of `assert`.
+
+The exact-source verifier checks the two early guard statements in the
+census AST/source prefix and runs **four actual negative invocations**:
+census source and verifier, each with `python3 -O -I -B -S` and
+`python3 -OO -I -B -S`. All must reject nonzero with empty stdout and a
+specific HOLD reason. Positive source-only checks continue with
+`python3 -I -B -S` (without optimization). Old green evidence from
+before this change must not be reused.
+
+```text
+source_git_blob=a349f5650b6439c4b88e1fad61370f1d886071c4
+proof_git_blob=11fa4a0235fa2799f61d710f2f4bdd0d0ea4e9b4
+optimized_python_negative_fixtures=4
+assertion_capable_interpreter_required=true
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+This guard is **after Python interpreter initialization**. It is not a
+substitute for source-authenticated native first entry, full installed
+Python/Git/loader/stdlib closure, protected root/ACL/retained-FD custody,
+post-`fexecve` isolation or genuinely distinct security review. The
+source remains a disposable CI fixture, not an installed host observer.
+No production host, credential/signing or funds/payment authority follows.
+
+**PROTECT THE CORE.**
