@@ -129,7 +129,8 @@
     "installed_qualification_required_after_install": true,
     "independent_review_required": true,
     "report_must_bind_git_subprocess_runtime_closure": true,
-    "post_exec_dumpability_protection_or_isolation_gate_required": true
+    "post_exec_dumpability_protection_or_isolation_gate_required": true,
+    "post_exec_diagnostic_exact_generation_and_observation_required": true
   },
   "authority": {
     "source_contract_only": true,
@@ -152,7 +153,7 @@
     "funds_movement": false
   },
   "next_gate": "void_buy_void_epoch2_v6r3_python_runtime_closure_census_v1",
-  "contract_id": "voidbuye2v6r3pyruntimecontract1_cbc63339c5b305679b85a4a229f5c61227fabbb83388f9d261920b51588dd19a",
+  "contract_id": "voidbuye2v6r3pyruntimecontract1_702512d9c813b4dd10f1e1ba4ae6bcbef300af6698cb102403a1e1d1ad2d1dc0",
   "planner_subprocess_closure": {
     "git": {
       "requested_path": "/usr/bin/git",
@@ -198,5 +199,22 @@
       },
       "adversarial_dependency_or_helper_substitution_must_hold": true
     }
+  },
+  "post_exec_diagnostic_evidence": {
+    "repository": "6ZoSo9/void-node",
+    "pull_request": 3579,
+    "exact_head": "bc59170b211c3bd2490446b0e1cd045b5d9d5925",
+    "fixture_path": "scripts/prove_buy_void_epoch2_v6r3_postexec_dumpability_v1.py",
+    "fixture_git_blob_sha1": "a946e81549fe12f61b61d17cad76a7eda40501ff",
+    "workflow_path": ".github/workflows/buy-void-epoch2-v6r3-postexec-dumpability-v1.yml",
+    "workflow_git_blob_sha1": "e27aa4a81fbfe4ae122db5fa5cf906fbe1848e28",
+    "run_id": 39360364319,
+    "job_id": 118424883505,
+    "conclusion": "success",
+    "actual_sealed_memfd_fexecve": true,
+    "observed_pre_exec_dumpable": 0,
+    "observed_post_exec_dumpable": 1,
+    "production_host_execution": false,
+    "runtime_dumpability_accepted": false
   }
 }
