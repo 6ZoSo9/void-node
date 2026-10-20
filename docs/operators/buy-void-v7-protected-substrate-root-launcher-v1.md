@@ -39,6 +39,10 @@ V1 requires these exact future paths:
   bin/void_buy_void_v7_protected_substrate_root_launcher_v1
   policy-v1.conf
 
+/opt/void-buy-void-v7-python-runtime-v1/
+  bin/python3.12-static
+  lib/python312.zip
+
 /opt/void-buy-void-v7-installer-source-v1/
   .git/
   ops/precision/void_buy_void_v7_protected_substrate_install_v4.py
@@ -51,28 +55,38 @@ Required fixed metadata at launcher entry:
 
 - launcher root and `bin`: root:root `0755`;
 - installed launcher ELF: root:root `0555`, one link;
+- hermetic Python runtime root, `bin`, and `lib`: root:root `0555`;
+- static Python executable: root:root `0555`, one link;
+- stdlib zip: root:root `0444`, one link;
 - source snapshot root: root:root `0555`;
 - policy: root:root `0444`, one link;
 - installer file in the snapshot: root:root `0444`, one link.
+
+The Python runtime directories are closed: the runtime root contains exactly `bin` and `lib`, `bin` contains exactly `python3.12-static`, and `lib` contains exactly `python312.zip`. The launcher rejects a Python ELF with `PT_INTERP` or `PT_DYNAMIC`, so the accepted interpreter cannot fall back to a host dynamic-loader/shared-library closure.
 
 Every trusted path and every ancestor is additionally checked for effective writability by runtime UID/GID `1000:1000` after clearing supplementary groups. Mode bits alone are not treated as sufficient ACL evidence.
 
 ## Host policy
 
-The future root-custodied policy is a closed eight-row LF-terminated file:
+The future root-custodied policy is a closed eleven-row LF-terminated file:
 
 ```text
 schema=VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_POLICY_V1
-python_path=/usr/bin/python3.<minor>
+python_root=/opt/void-buy-void-v7-python-runtime-v1
 python_bytes=<decimal>
 python_sha256=<64 lowercase hex>
+stdlib_zip=/opt/void-buy-void-v7-python-runtime-v1/lib/python312.zip
+stdlib_bytes=<decimal>
+stdlib_sha256=<64 lowercase hex>
 source_root=/opt/void-buy-void-v7-installer-source-v1
 installer_rel=ops/precision/void_buy_void_v7_protected_substrate_install_v4.py
 installer_bytes=87048
 installer_sha256=72bdf7325fd2b3f373ad3fd41e706d9961d293cf11178d06b72ab41ddc9f8cfc
 ```
 
-The Python path must be its canonical real path under `/usr/bin/python3.<minor>`. The launcher retains a no-follow/nonblocking descriptor for that exact executable, hashes the retained descriptor, revalidates descriptor/path generation, and executes **that descriptor** with `fexecve`.
+The policy does not admit an arbitrary host interpreter tree. The launcher opens the fixed `bin/python3.12-static` and `lib/python312.zip` leaves no-follow/nonblocking, verifies exact size + SHA-256 from the root-custodied policy, revalidates descriptor/path generation, and requires the Python executable itself to be static ELF64 x86-64 `ET_EXEC` with `PT_LOAD` and with no `PT_INTERP` or `PT_DYNAMIC`.
+
+The later host-policy/runtime installation lane must therefore accept one exact static Python executable and one exact stdlib zip as a closed runtime generation. This source PR defines that boundary but does not install or accept those future host bytes.
 
 ## First-exec boundary
 
@@ -82,9 +96,11 @@ Before Python starts, the native launcher requires:
 2. root-owned, non-group/world-writable trusted ancestry;
 3. exact policy and installer file generations;
 4. exact installer SHA-256;
-5. canonical Python path, size and SHA-256 from the policy;
-6. runtime UID/GID 1000 with empty supplementary groups to be unable to write every trusted path or ancestor;
-7. terminal descriptor/path generation revalidation.
+5. the closed hermetic Python directory shape;
+6. exact policy-bound static Python size + SHA-256 and static-ELF admission;
+7. exact policy-bound stdlib-zip size + SHA-256;
+8. runtime UID/GID 1000 with empty supplementary groups to be unable to write every trusted runtime/source/launcher path or ancestor;
+9. terminal descriptor/path generation revalidation before `fexecve`.
 
 Python receives only:
 
@@ -100,9 +116,10 @@ HOME=/nonexistent
 LANG=C
 LC_ALL=C
 TZ=UTC
+OPENSSL_CONF=/dev/null
 ```
 
-No inherited Python, loader, Git, shell, or tool environment is forwarded.
+No inherited Python, loader, Git, shell, or tool environment is forwarded. The contract deliberately excludes the host `/usr/lib/python3.<minor>` import tree that triggered the independent P1 finding.
 
 ## Operation contract
 
@@ -134,6 +151,7 @@ The focused proof:
 - parses the ELF64 program headers directly;
 - requires x86-64 `ET_EXEC`, at least one `PT_LOAD`, and **no** `PT_INTERP` or `PT_DYNAMIC`;
 - runs the launcher `--self-test`;
+- requires the self-test to bind static-Python, exact stdlib-zip, closed runtime-tree, retained-descriptor exec, and false host/economic authority markers;
 - rejects source use of write/create filesystem primitives, network primitives, ambient environment reads, or PATH-resolved execution.
 
 Hosted CI proves only the source/native construction contract. It does not prove the future installed host generations.
@@ -141,8 +159,8 @@ Hosted CI proves only the source/native construction contract. It does not prove
 ## Lifecycle
 
 1. Review and land this source generation.
-2. Separately derive the exact Precision Python host policy and a content-addressed root-owned full source snapshot from canonical landed `main`.
-3. Separately install/qualify the static launcher + policy + source snapshot.
+2. Separately derive and review one exact static Python executable + stdlib zip, the corresponding host policy, and a content-addressed root-owned full source snapshot from canonical landed `main`.
+3. Separately install/qualify the static launcher + closed Python runtime + policy + source snapshot.
 4. Run the launcher in **plan** mode and review the exact V4 `plan_id` and installed state.
 5. Only under separate protected-host authorization may the exact reviewed plan be replayed in `--apply` mode with the explicit V4 confirmation.
 6. Run installed qualification V3 only through its separately reviewed exact-landed-source launch context.
