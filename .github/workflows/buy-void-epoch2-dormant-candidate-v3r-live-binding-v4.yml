@@ -36,7 +36,7 @@ jobs:
           case "$EVENT_NAME" in
             pull_request)
               case "$BASE_REF" in
-                ren/epoch2-v6r3-main-integration-v1-20261019|ren/epoch2-dormant-v3r-live-binding-v4-current-source-20261019|ren/epoch2-dormant-v4-retained-root-exec-v1-20261020|ren/epoch2-dormant-v4-canonical-configured-root-exec-v1-20261020)
+                ren/epoch2-v6r3-main-integration-v1-20261019|ren/epoch2-dormant-v3r-live-binding-v4-current-source-20261019|ren/epoch2-dormant-v4-retained-root-exec-v1-20261020|ren/epoch2-dormant-v4-canonical-configured-root-exec-v1-20261020|ren/epoch2-dormant-native-byte-firstexec-guard-v1-20261020)
                   base="$PR_BASE"
                   ;;
                 *)
@@ -66,13 +66,13 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs)" = \
-            "42daad33b05f054d57486ada174b82e18e4ed115"
+            "0577da295cc86fd03a4d02fcedc3e8f8ad2e3546"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c)" = \
-            "7e551be76ed5c774978558def29e91f15bfd8cd1"
+            "53903d0cde07de302848fb67d9c23928cec96f20"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py)" = \
-            "e9276283f45ecba35a3af71487c55c5221a3dda8"
+            "d639588b9fade6ea46941e6ddeae21917d18550b"
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.md)" = \
-            "d43db9acb3d99536a58b3cda65bab253b3ffc391"
+            "0dab24801102ce7744f75ce1ef0e57bc90eb0ede"
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -105,6 +105,8 @@ jobs:
           grep -Fx 'binder_ancestor_and_runtime_acl_guard_source_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_configured_original_path_symlink_guard_source_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_native_accepted_lock_v6r2_digest_bound=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'binder_native_exact_fd_elf_parser_fixture_proven=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'binder_native_short_read_and_generation_drift_negative_proven=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_native_retained_root_fd_static_elf_guard_proven=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'host_execution=false' "$RUNNER_TEMP/proof.log"
           grep -Fx 'credential_access=false' "$RUNNER_TEMP/proof.log"

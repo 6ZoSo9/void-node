@@ -237,3 +237,62 @@ A source test is not permission to invoke installed root services, credentials,
 wallets, signing, RPC, payments, public presale/WC or treasury/funds operations.
 
 PROTECT THE CORE.
+
+## Privileged root-child ELF parser adversarial evidence — current Draft successor
+
+This **supersedes only the historical binder source identity in the preceding
+section**, without changing the accepted V6R2 native child lock or any
+production release authority.
+
+The prior negative self-test treated `/usr/bin/git` as a fake native ELF:
+its actual size usually failed the fixed 726,976-byte V6R2 gate, leaving the
+SHA-256, ELF header, program-header, PT_INTERP, PT_DYNAMIC, PT_LOAD bounds,
+short-read and retained descriptor generation checks **untested**.
+
+In this source-only successor, `verifyRetainedNativeElfBytes()` contains the
+existing retained-FD byte SHA-256 check and full native ELF parser. The
+privileged wrapper `requirePinnedNativeExecutionClosure()` still passes
+**only** the immutable accepted V6R2 SHA-256 and 726,976-byte count.
+No runtime caller receives a parameter allowing arbitrary ELF acceptance.
+
+An unprivileged `--self-test` creates a unique 0600 disposable, synthetic
+120-byte static ELF64/ET_EXEC buffer. It does **not execute these bytes**.
+The positive case confirms digest/header/program-header acceptance. Recomputed
+digest **negative** cases independently reach forbidden PT_INTERP, PT_DYNAMIC,
+missing PT_LOAD, malformed PT header, invalid PT_LOAD segment bounds, and a
+non-ELF script header. Same-size different content must fail SHA-256. An
+isolated positional read fault and simulated in-place generation drift must
+hold before producing a trusted child receipt. The fixture uses only its
+private temporary leaf, restores any patched `fs.readSync`, and performs
+create-only bounded cleanup.
+
+Current source-generation binding:
+
+```text
+parent_pr=3625
+parent_head=e4950e1351ea82a8a16e24dacdcd08b193f5d6ea
+binder_git_blob=0577da295cc86fd03a4d02fcedc3e8f8ad2e3546
+binder_sha256=8da01f816940b2ed1328fab4e9a1f198ccb42cfb6678a3d3d01f1e955473462e
+binder_bytes=61268
+binder_native_preentry_git_blob=53903d0cde07de302848fb67d9c23928cec96f20
+binder_proof_git_blob=d639588b9fade6ea46941e6ddeae21917d18550b
+native_lock_v6r2_git_blob=bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b
+native_accepted_elf_sha256=85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8
+native_accepted_elf_bytes=726976
+production_host_execution=false
+protected_install_authorized=false
+credential_access=false
+signing=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+This is a **source CI contract**, not proof that the installed native/Node
+generation on Precision matches the pinned ELF or that customer payments are
+safe. Distinct independent security review, protected host installation and
+qualification, verified runtime closure and operation-specific payment/custody
+canary remain mandatory. No source merge, protected host access or financial
+activation follows from this proof.
+
+PROTECT THE CORE.
