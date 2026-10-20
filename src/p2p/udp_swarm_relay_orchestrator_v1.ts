@@ -396,84 +396,84 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
     for (const route of routeState.routes) {
       try {
         const runtime = routeState.runtime_by_route.get(routeKey(route));
-      if (!runtime) {
-        throw new Error("UDP swarm relay orchestration route state disappeared");
-      }
-
-      const reservation = relay.client_reservations.find(
-        (entry) => entry.relay_node_id === route.relay_node_id,
-      );
-      if (
-        (!reservation ||
-          reservation.expires_at_ms - now <=
-            VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_REFRESH_WINDOW_MS_V1) &&
-        now - runtime.last_reservation_attempt_ms >=
-          VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1
-      ) {
-        this.reservationAttempts += 1;
-        const requestId = this.node.requestRelayReservation(
-          route.relay_node_id,
-          VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RESERVATION_TTL_MS_V1,
-        );
-        if (requestId) {
-          runtime.last_reservation_attempt_ms = now;
-          this.reservationRequests += 1;
+        if (!runtime) {
+          throw new Error("UDP swarm relay orchestration route state disappeared");
         }
-      }
-      if (!reservation || reservation.expires_at_ms <= now) continue;
 
-      const stream = relay.streams.find(
-        (entry) =>
-          entry.relay_node_id === route.relay_node_id &&
-          entry.remote_node_id === route.target_node_id &&
-          entry.outgoing,
-      );
-      if (!stream) {
+        const reservation = relay.client_reservations.find(
+          (entry) => entry.relay_node_id === route.relay_node_id,
+        );
         if (
-          now - runtime.last_connect_attempt_ms >=
-          VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1
+          (!reservation ||
+            reservation.expires_at_ms - now <=
+              VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_REFRESH_WINDOW_MS_V1) &&
+          now - runtime.last_reservation_attempt_ms >=
+            VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1
         ) {
-          this.connectAttempts += 1;
-          const requestId = this.node.connectViaRelay(
+          this.reservationAttempts += 1;
+          const requestId = this.node.requestRelayReservation(
             route.relay_node_id,
-            route.target_node_id,
+            VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RESERVATION_TTL_MS_V1,
           );
           if (requestId) {
-            runtime.last_connect_attempt_ms = now;
-            this.connectRequests += 1;
+            runtime.last_reservation_attempt_ms = now;
+            this.reservationRequests += 1;
           }
         }
-        continue;
-      }
-      if (!stream.started) continue;
+        if (!reservation || reservation.expires_at_ms <= now) continue;
 
-      const requestExists = control.pending_requests.some(
-        (entry) =>
-          entry.relay_node_id === route.relay_node_id &&
-          entry.target_node_id === route.target_node_id &&
-          entry.stream_id === stream.stream_id,
-      );
-      const routeExists = control.active_routes.some(
-        (entry) =>
-          entry.relay_node_id === route.relay_node_id &&
-          entry.peer_node_id === route.target_node_id &&
-          entry.stream_id === stream.stream_id,
-      );
-      if (requestExists || routeExists) continue;
-      if (
-        now - runtime.last_upgrade_attempt_ms <
-        VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1
-      ) continue;
+        const stream = relay.streams.find(
+          (entry) =>
+            entry.relay_node_id === route.relay_node_id &&
+            entry.remote_node_id === route.target_node_id &&
+            entry.outgoing,
+        );
+        if (!stream) {
+          if (
+            now - runtime.last_connect_attempt_ms >=
+            VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1
+          ) {
+            this.connectAttempts += 1;
+            const requestId = this.node.connectViaRelay(
+              route.relay_node_id,
+              route.target_node_id,
+            );
+            if (requestId) {
+              runtime.last_connect_attempt_ms = now;
+              this.connectRequests += 1;
+            }
+          }
+          continue;
+        }
+        if (!stream.started) continue;
 
-      runtime.last_upgrade_attempt_ms = now;
-      this.upgradeAttempts += 1;
-      const result = this.node.requestUdpSwarmUpgradeV1(
-        route.relay_node_id,
-        route.target_node_id,
-        stream.stream_id,
-      );
-      if (result.ok) this.upgradeRequests += 1;
-      else this.upgradeRejects += 1;
+        const requestExists = control.pending_requests.some(
+          (entry) =>
+            entry.relay_node_id === route.relay_node_id &&
+            entry.target_node_id === route.target_node_id &&
+            entry.stream_id === stream.stream_id,
+        );
+        const routeExists = control.active_routes.some(
+          (entry) =>
+            entry.relay_node_id === route.relay_node_id &&
+            entry.peer_node_id === route.target_node_id &&
+            entry.stream_id === stream.stream_id,
+        );
+        if (requestExists || routeExists) continue;
+        if (
+          now - runtime.last_upgrade_attempt_ms <
+          VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1
+        ) continue;
+
+        runtime.last_upgrade_attempt_ms = now;
+        this.upgradeAttempts += 1;
+        const result = this.node.requestUdpSwarmUpgradeV1(
+          route.relay_node_id,
+          route.target_node_id,
+          stream.stream_id,
+        );
+        if (result.ok) this.upgradeRequests += 1;
+        else this.upgradeRejects += 1;
       } catch (error) {
         // One failed route must not starve independent routes in this sweep.
         void error;
