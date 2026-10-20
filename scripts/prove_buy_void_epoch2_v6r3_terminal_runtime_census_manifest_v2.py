@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="70727eb4a46890574fc3336e3f0931947b247257"
+SOURCE_BLOB="8f1c7bbbaefa150e1c3ee4a59527d3046142b994"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="66c1e4da7800de930804b195db6b56d8fe29b8f4"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -104,6 +104,11 @@ for required in (
     "installed_first_entry_binary_overclaim_rejected=true",
     "MAX_TREE_ENTRIES=100_000",
     "MAX_INPUT_PATH_BYTES=4096",
+    'chr(0) in display_root',
+    'chr(0) in display_path',
+    'raise Hold("declared_absence_path_invalid")',
+    'raise Hold("accessed_path_invalid_or_noncanonical")',
+    "non_posix_path_negative_fixtures=7",
     "def require_manifest_input_budget(",
     "require_manifest_input_budget(sys_path,declared_absent,accessed_paths)",
     'raise Hold("manifest_input_path_count_exceeded")',
@@ -190,6 +195,8 @@ for mode,required_lines in (
         "census_input_cardinality_and_byte_budget_pretraversal=true",
         "census_unbounded_generator_and_oversize_path_rejected=true",
         "noncanonical_manifest_paths_rejected=true",
+        "embedded_nul_and_non_posix_input_paths_rejected=true",
+        "non_posix_path_negative_fixtures=7",
         "discovered_entry_budget_includes_queued_directories=true",
         "scandir_consumption_bounded_before_sort=true",
         "over_budget_synthetic_scandir_rejected=true",
@@ -243,6 +250,7 @@ print("corrected_contract_bound=true")
 print("freshness_gate_bound=true")
 print("v2_binary_identity_lock_bound=true")
 print("v1_substrate_source_lineage_bound=true")
+print("non_posix_and_nul_path_guard_proven=true")
 print("fixture_only_inventory_proven=true")
 print("scandir_entry_bound_before_materialization_proven=true")
 print("queued_directory_budget_proven=true")
