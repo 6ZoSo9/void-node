@@ -8,7 +8,7 @@ installation, or host plan.
 Contract ID:
 
 ```text
-voidbuye2v6r3pyruntimecontract1_e8f3211a483cf12a77f5c66e4a625da5d4f95b1f669cefa2a09711dcc6e6ee01
+voidbuye2v6r3pyruntimecontract1_6b88925643319fd7724f4fd66d115fd5ec9598a3c59a57cbc0a8c51737c8bae8
 ```
 
 ## Why this gate exists
@@ -57,6 +57,11 @@ A later separately reviewed read-only census must bind all of these:
 - a complete recursive inventory of every existing import root, including regular-file
   SHA-256/metadata, symlink text plus resolved target identity, directory custody, zip
   import roots, and rejection of special files;
+- every nonexistent `sys.path` entry as an explicit absence claim plus custody of the
+  nearest existing parent, so a later-created path cannot silently become import authority;
+- an exact isolated import-probe file-access and mapped-ELF closure for the planner's
+  reviewed imports, including native `dlopen` plugins and configuration files not visible
+  in static `DT_NEEDED` metadata; every observed runtime file must be in the manifest;
 - root-owned/non-writable ancestry and effective runtime-UID nonwritability for all
   execution-authority paths.
 
