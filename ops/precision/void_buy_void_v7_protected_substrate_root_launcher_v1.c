@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <dirent.h>
 #include <elf.h>
+#include <linux/fsverity.h>
 #include <fcntl.h>
 #include <grp.h>
 #include <limits.h>
@@ -10,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -133,6 +135,21 @@ static int open_regular_mode(const char *path,size_t max,mode_t exact_mode,bool 
     *id=fid(opened);return fd;
 }
 static void revalidate_file(const char *path,int fd,struct file_id expected){ struct stat a,b;if(fstat(fd,&a)||lstat(path,&b)||!same_id(fid(a),expected)||!same_id(fid(b),expected))hold("trusted_file_generation_changed"); }
+static void require_fsverity_sha256(int fd,const char *reason){
+    size_t bytes=sizeof(struct fsverity_digest)+32U;
+    struct fsverity_digest *digest=calloc(1,bytes);
+    if(!digest)hold("fsverity_digest_allocation_failed");
+    digest->digest_size=32U;
+    if(ioctl(fd,FS_IOC_MEASURE_VERITY,digest)){
+        free(digest);
+        hold(reason);
+    }
+    if(digest->digest_algorithm!=FS_VERITY_HASH_ALG_SHA256||digest->digest_size!=32U){
+        free(digest);
+        hold("fsverity_sha256_digest_required");
+    }
+    free(digest);
+}
 static void require_running_self(struct file_id expected){
     char observed[PATH_MAX];
     ssize_t n=readlink("/proc/self/exe",observed,sizeof(observed)-1);
@@ -259,6 +276,12 @@ static int selftest(void){
     puts("python_isolated_no_site_no_bytecode_required=true");
     puts("minimal_environment_required=true");
     puts("runtime_uid_nonwritability_required=true");
+    puts("fsverity_sha256_kernel_seal_required=true");
+    puts("launcher_self_fsverity_required=true");
+    puts("launcher_policy_fsverity_required=true");
+    puts("installer_fsverity_required=true");
+    puts("python_fsverity_required=true");
+    puts("stdlib_zip_fsverity_required=true");
     puts("fresh_operation_bound_plan_confirmation_required=true");
     puts("source_snapshot_install_authorized=false");
     puts("protected_install_performed=false");
@@ -283,16 +306,21 @@ int main(int argc,char **argv){
     require_dir(FIXED_SOURCE_ROOT,0555,true);
     struct file_id self_id,policy_id,installer_id,python_id,stdlib_id;
     int self_fd=open_regular_mode(FIXED_SELF,16U*1024U*1024U,0555,true,&self_id);
+    require_fsverity_sha256(self_fd,"launcher_self_fsverity_required");
     require_running_self(self_id);
     int policy_fd=open_regular_mode(FIXED_POLICY,MAX_POLICY_BYTES,0444,false,&policy_id);
+    require_fsverity_sha256(policy_fd,"launcher_policy_fsverity_required");
     int installer_fd=open_regular_mode(FIXED_INSTALLER,INSTALLER_BYTES,0444,false,&installer_id);
+    require_fsverity_sha256(installer_fd,"installer_fsverity_required");
     char installer_hash[65];hash_exact_fd(installer_fd,INSTALLER_BYTES,installer_hash);if(strcmp(installer_hash,INSTALLER_SHA256))hold("installer_content_mismatch");revalidate_file(FIXED_INSTALLER,installer_fd,installer_id);
     char *policy_raw=read_policy_bytes(policy_fd,(size_t)policy_id.size);policy_v1 policy=parse_policy(policy_raw,(size_t)policy_id.size);free(policy_raw);revalidate_file(FIXED_POLICY,policy_fd,policy_id);
     int python_fd=open_regular_mode(FIXED_PYTHON,MAX_PYTHON_BYTES,0555,true,&python_id);
+    require_fsverity_sha256(python_fd,"python_fsverity_required");
     if((size_t)python_id.size!=policy.python_bytes)hold("python_size_mismatch");
     require_static_python_elf(python_fd,policy.python_bytes);
     char python_hash[65];hash_exact_fd(python_fd,policy.python_bytes,python_hash);if(strcmp(python_hash,policy.python_sha256))hold("python_content_mismatch");revalidate_file(FIXED_PYTHON,python_fd,python_id);
     int stdlib_fd=open_regular_mode(FIXED_STDLIB_ZIP,MAX_STDLIB_BYTES,0444,false,&stdlib_id);
+    require_fsverity_sha256(stdlib_fd,"stdlib_zip_fsverity_required");
     if((size_t)stdlib_id.size!=policy.stdlib_bytes)hold("stdlib_zip_size_mismatch");
     char stdlib_hash[65];hash_exact_fd(stdlib_fd,policy.stdlib_bytes,stdlib_hash);if(strcmp(stdlib_hash,policy.stdlib_sha256))hold("stdlib_zip_content_mismatch");revalidate_file(FIXED_STDLIB_ZIP,stdlib_fd,stdlib_id);
     char *audit_paths[]={ (char*)FIXED_SELF,(char*)FIXED_POLICY,(char*)FIXED_PYTHON_ROOT,(char*)FIXED_PYTHON,(char*)FIXED_STDLIB_ZIP,(char*)FIXED_SOURCE_ROOT,(char*)FIXED_INSTALLER };
