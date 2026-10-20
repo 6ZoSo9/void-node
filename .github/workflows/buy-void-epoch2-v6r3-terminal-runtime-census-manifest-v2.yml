@@ -47,8 +47,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 -I -B -S scripts/prove_buy_void_epoch2_v6r3_terminal_runtime_census_manifest_v2.py
-      - name: Diff and source-only hygiene
+      - name: Exact-head diff and source-only hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          git diff --check
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            BASE="$(git rev-parse "$HEAD^")"
+          fi
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
