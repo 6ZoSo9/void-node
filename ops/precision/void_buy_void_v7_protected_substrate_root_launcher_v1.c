@@ -1,5 +1,7 @@
 #define _GNU_SOURCE
 #include <errno.h>
+#include <dirent.h>
+#include <elf.h>
 #include <fcntl.h>
 #include <grp.h>
 #include <limits.h>
@@ -19,6 +21,11 @@
 #define FIXED_SELF FIXED_ROOT "/bin/void_buy_void_v7_protected_substrate_root_launcher_v1"
 #define FIXED_BIN FIXED_ROOT "/bin"
 #define FIXED_POLICY FIXED_ROOT "/policy-v1.conf"
+#define FIXED_PYTHON_ROOT "/opt/void-buy-void-v7-python-runtime-v1"
+#define FIXED_PYTHON_BIN FIXED_PYTHON_ROOT "/bin"
+#define FIXED_PYTHON_LIB FIXED_PYTHON_ROOT "/lib"
+#define FIXED_PYTHON FIXED_PYTHON_BIN "/python3.12-static"
+#define FIXED_STDLIB_ZIP FIXED_PYTHON_LIB "/python312.zip"
 #define FIXED_SOURCE_ROOT "/opt/void-buy-void-v7-installer-source-v1"
 #define INSTALLER_REL "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
 #define FIXED_INSTALLER FIXED_SOURCE_ROOT "/" INSTALLER_REL
@@ -30,6 +37,7 @@
 #define RUNTIME_GID 1000U
 #define MAX_POLICY_BYTES 4096U
 #define MAX_PYTHON_BYTES (512U * 1024U * 1024U)
+#define MAX_STDLIB_BYTES (512U * 1024U * 1024U)
 #define COPY_CHUNK 65536U
 
 struct file_id {
@@ -45,9 +53,10 @@ struct file_id {
 };
 
 typedef struct {
-    char python_path[PATH_MAX];
     size_t python_bytes;
     char python_sha256[65];
+    size_t stdlib_bytes;
+    char stdlib_sha256[65];
 } policy_v1;
 
 typedef struct {
@@ -133,6 +142,48 @@ static void require_running_self(struct file_id expected){
     struct stat st;
     if(stat("/proc/self/exe",&st)||!same_id(fid(st),expected)) hold("running_self_generation_mismatch");
 }
+static void require_exact_dir_entries(const char *path,const char *first,const char *second){
+    DIR *dir=opendir(path); if(!dir) hold("runtime_directory_open_failed");
+    bool seen_first=false,seen_second=(second==NULL); errno=0;
+    for(;;){
+        struct dirent *entry=readdir(dir);
+        if(!entry) break;
+        if(!strcmp(entry->d_name,".")||!strcmp(entry->d_name,"..")) continue;
+        if(!strcmp(entry->d_name,first)){ if(seen_first){closedir(dir);hold("runtime_directory_duplicate_entry");} seen_first=true; continue; }
+        if(second&&!strcmp(entry->d_name,second)){ if(seen_second){closedir(dir);hold("runtime_directory_duplicate_entry");} seen_second=true; continue; }
+        closedir(dir); hold("runtime_directory_extra_entry");
+    }
+    if(errno){closedir(dir);hold("runtime_directory_read_failed");}
+    if(closedir(dir)) hold("runtime_directory_close_failed");
+    if(!seen_first||!seen_second) hold("runtime_directory_required_entry_missing");
+}
+static void pread_exact_or_hold(int fd,void *buffer,size_t bytes,off_t offset,const char *reason){
+    unsigned char *out=buffer; size_t done=0;
+    while(done<bytes){
+        ssize_t n=pread(fd,out+done,bytes-done,offset+(off_t)done);
+        if(n<0&&errno==EINTR) continue;
+        if(n<=0) hold(reason);
+        done+=(size_t)n;
+    }
+}
+static void require_static_python_elf(int fd,size_t bytes){
+    Elf64_Ehdr eh;
+    if(bytes<sizeof(eh)) hold("python_elf_too_small");
+    pread_exact_or_hold(fd,&eh,sizeof(eh),0,"python_elf_header_read_failed");
+    if(memcmp(eh.e_ident,ELFMAG,SELFMAG)||eh.e_ident[EI_CLASS]!=ELFCLASS64||eh.e_ident[EI_DATA]!=ELFDATA2LSB||
+       eh.e_type!=ET_EXEC||eh.e_machine!=EM_X86_64||eh.e_phentsize!=sizeof(Elf64_Phdr)||eh.e_phnum==0)
+        hold("python_static_elf_identity_invalid");
+    uint64_t end=(uint64_t)eh.e_phoff+(uint64_t)eh.e_phentsize*(uint64_t)eh.e_phnum;
+    if(end>(uint64_t)bytes) hold("python_elf_program_headers_out_of_bounds");
+    bool load=false;
+    for(uint16_t i=0;i<eh.e_phnum;i++){
+        Elf64_Phdr ph;
+        pread_exact_or_hold(fd,&ph,sizeof(ph),(off_t)(eh.e_phoff+(uint64_t)i*sizeof(ph)),"python_elf_program_header_read_failed");
+        if(ph.p_type==PT_INTERP||ph.p_type==PT_DYNAMIC) hold("dynamic_python_runtime_forbidden");
+        if(ph.p_type==PT_LOAD) load=true;
+    }
+    if(!load) hold("python_elf_pt_load_required");
+}
 static void hash_exact_fd(int fd,size_t expected,char out[65]){
     if(lseek(fd,0,SEEK_SET)<0) hold("trusted_file_seek_failed");
     sha256_ctx c; sha256_init(&c);
@@ -152,16 +203,24 @@ static void hash_exact_fd(int fd,size_t expected,char out[65]){
 static char *read_policy_bytes(int fd,size_t size){ char *buf=calloc(size+1,1);if(!buf)hold("policy_allocation_failed");if(lseek(fd,0,SEEK_SET)<0)hold("policy_seek_failed");size_t off=0;while(off<size){ssize_t n=read(fd,buf+off,size-off);if(n<0&&errno==EINTR)continue;if(n<=0)hold("policy_short_read");off+=(size_t)n;}char extra;if(read(fd,&extra,1)!=0)hold("policy_grew");for(size_t i=0;i<size;i++)if(buf[i]=='\0'||buf[i]=='\r')hold("policy_noncanonical_bytes");return buf; }
 static policy_v1 parse_policy(char *raw,size_t size){
     if(!size||raw[size-1]!='\n')hold("policy_final_lf_required");
-    const char *keys[]={"schema","python_path","python_bytes","python_sha256","source_root","installer_rel","installer_bytes","installer_sha256"}; char *vals[8]={0};char *p=raw;
-    for(size_t i=0;i<8;i++){char *e=strchr(p,'\n');if(!e)hold("policy_row_missing");*e=0;if(!*p)hold("policy_blank_row");size_t kl=strlen(keys[i]);if(strncmp(p,keys[i],kl)||p[kl]!='=')hold("policy_key_or_order_invalid");vals[i]=p+kl+1;if(!*vals[i]||strchr(vals[i],'='))hold("policy_value_invalid");p=e+1;}
+    const char *keys[]={"schema","python_root","python_bytes","python_sha256","stdlib_zip","stdlib_bytes","stdlib_sha256","source_root","installer_rel","installer_bytes","installer_sha256"};
+    char *vals[11]={0};char *p=raw;
+    for(size_t i=0;i<11;i++){
+        char *e=strchr(p,'\n');if(!e)hold("policy_row_missing");*e=0;if(!*p)hold("policy_blank_row");
+        size_t kl=strlen(keys[i]);if(strncmp(p,keys[i],kl)||p[kl]!='=')hold("policy_key_or_order_invalid");
+        vals[i]=p+kl+1;if(!*vals[i]||strchr(vals[i],'='))hold("policy_value_invalid");p=e+1;
+    }
     if(*p)hold("policy_extra_rows");
-    if(strcmp(vals[0],POLICY_SCHEMA)||strcmp(vals[4],FIXED_SOURCE_ROOT)||strcmp(vals[5],INSTALLER_REL)||strcmp(vals[7],INSTALLER_SHA256))hold("policy_fixed_value_mismatch");
-    size_t pybytes=0,insbytes=0;if(!decsz(vals[2],MAX_PYTHON_BYTES,&pybytes)||!pybytes||!decsz(vals[6],INSTALLER_BYTES,&insbytes)||insbytes!=INSTALLER_BYTES||!hexn(vals[3],64))hold("policy_numeric_or_hash_invalid");
-    const char *prefix="/usr/bin/python3.";
-    if(strncmp(vals[1],prefix,strlen(prefix))||strlen(vals[1])>=PATH_MAX)hold("policy_python_path_invalid");
-    const char *minor=vals[1]+strlen(prefix); if(!*minor)hold("policy_python_path_invalid");
-    for(const char *q=minor;*q;q++) if(*q<'0'||*q>'9') hold("policy_python_path_invalid");
-    policy_v1 out={0};strcpy(out.python_path,vals[1]);out.python_bytes=pybytes;strcpy(out.python_sha256,vals[3]);return out;
+    if(strcmp(vals[0],POLICY_SCHEMA)||strcmp(vals[1],FIXED_PYTHON_ROOT)||strcmp(vals[4],FIXED_STDLIB_ZIP)||
+       strcmp(vals[7],FIXED_SOURCE_ROOT)||strcmp(vals[8],INSTALLER_REL)||strcmp(vals[10],INSTALLER_SHA256))
+        hold("policy_fixed_value_mismatch");
+    size_t pybytes=0,stdlibbytes=0,insbytes=0;
+    if(!decsz(vals[2],MAX_PYTHON_BYTES,&pybytes)||!pybytes||!hexn(vals[3],64)||
+       !decsz(vals[5],MAX_STDLIB_BYTES,&stdlibbytes)||!stdlibbytes||!hexn(vals[6],64)||
+       !decsz(vals[9],INSTALLER_BYTES,&insbytes)||insbytes!=INSTALLER_BYTES)
+        hold("policy_numeric_or_hash_invalid");
+    policy_v1 out={0};out.python_bytes=pybytes;strcpy(out.python_sha256,vals[3]);
+    out.stdlib_bytes=stdlibbytes;strcpy(out.stdlib_sha256,vals[6]);return out;
 }
 static request_v1 parse_request(int argc,char **argv){
     request_v1 r={0};int i=1;if(argc<2)hold("operation_required");if(!strcmp(argv[i],"--plan")){r.apply=false;i++;}else if(!strcmp(argv[i],"--apply")){r.apply=true;i++;}else hold("operation_invalid");
@@ -182,16 +241,20 @@ static int selftest(void){
     if(hexn("ABCDEF",6))return selftest_fail("uppercase_hex_accepted");
     if(!planid(PLAN_PREFIX "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))return selftest_fail("valid_plan_id_rejected");
     if(planid(PLAN_PREFIX "aa"))return selftest_fail("short_plan_id_accepted");
-    char policy[]="schema=" POLICY_SCHEMA "\npython_path=/usr/bin/python3.12\npython_bytes=6831736\npython_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsource_root=" FIXED_SOURCE_ROOT "\ninstaller_rel=" INSTALLER_REL "\ninstaller_bytes=87048\ninstaller_sha256=" INSTALLER_SHA256 "\n";
+    char policy[]="schema=" POLICY_SCHEMA "\npython_root=" FIXED_PYTHON_ROOT "\npython_bytes=6831736\npython_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nstdlib_zip=" FIXED_STDLIB_ZIP "\nstdlib_bytes=123456\nstdlib_sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nsource_root=" FIXED_SOURCE_ROOT "\ninstaller_rel=" INSTALLER_REL "\ninstaller_bytes=87048\ninstaller_sha256=" INSTALLER_SHA256 "\n";
     policy_v1 p=parse_policy(policy,strlen(policy));
-    if(strcmp(p.python_path,"/usr/bin/python3.12"))return selftest_fail("policy_python_path_mismatch");
     if(p.python_bytes!=6831736U)return selftest_fail("policy_python_bytes_mismatch");
+    if(p.stdlib_bytes!=123456U)return selftest_fail("policy_stdlib_bytes_mismatch");
     puts(MARKER "_SELF_TEST_GREEN");
     puts("static_native_first_instruction_required=true");
     puts("fixed_root_custodied_source_snapshot_required=true");
     puts("installer_sha256_compile_bound=true");
     puts("host_policy_root_custodied_required=true");
     puts("python_content_hash_policy_bound=true");
+    puts("static_python_runtime_required=true");
+    puts("stdlib_zip_content_hash_policy_bound=true");
+    puts("python_runtime_tree_exact_entries_required=true");
+    puts("dynamic_python_runtime_forbidden=true");
     puts("python_retained_descriptor_exec_required=true");
     puts("python_isolated_no_site_no_bytecode_required=true");
     puts("minimal_environment_required=true");
@@ -211,23 +274,32 @@ int main(int argc,char **argv){
     if(argc==2&&!strcmp(argv[1],"--self-test"))return selftest();
     if(getuid()!=0||geteuid()!=0)hold("root_required");
     request_v1 req=parse_request(argc,argv);
-    require_ancestors(FIXED_SELF);require_ancestors(FIXED_POLICY);require_ancestors(FIXED_SOURCE_ROOT);require_ancestors(FIXED_INSTALLER);
-    require_dir(FIXED_ROOT,0755,true);require_dir(FIXED_BIN,0755,true);require_dir(FIXED_SOURCE_ROOT,0555,true);
-    struct file_id self_id,policy_id,installer_id;
+    require_ancestors(FIXED_SELF);require_ancestors(FIXED_POLICY);require_ancestors(FIXED_PYTHON_ROOT);require_ancestors(FIXED_PYTHON);require_ancestors(FIXED_STDLIB_ZIP);require_ancestors(FIXED_SOURCE_ROOT);require_ancestors(FIXED_INSTALLER);
+    require_dir(FIXED_ROOT,0755,true);require_dir(FIXED_BIN,0755,true);
+    require_dir(FIXED_PYTHON_ROOT,0555,true);require_dir(FIXED_PYTHON_BIN,0555,true);require_dir(FIXED_PYTHON_LIB,0555,true);
+    require_exact_dir_entries(FIXED_PYTHON_ROOT,"bin","lib");
+    require_exact_dir_entries(FIXED_PYTHON_BIN,"python3.12-static",NULL);
+    require_exact_dir_entries(FIXED_PYTHON_LIB,"python312.zip",NULL);
+    require_dir(FIXED_SOURCE_ROOT,0555,true);
+    struct file_id self_id,policy_id,installer_id,python_id,stdlib_id;
     int self_fd=open_regular_mode(FIXED_SELF,16U*1024U*1024U,0555,true,&self_id);
     require_running_self(self_id);
     int policy_fd=open_regular_mode(FIXED_POLICY,MAX_POLICY_BYTES,0444,false,&policy_id);
     int installer_fd=open_regular_mode(FIXED_INSTALLER,INSTALLER_BYTES,0444,false,&installer_id);
     char installer_hash[65];hash_exact_fd(installer_fd,INSTALLER_BYTES,installer_hash);if(strcmp(installer_hash,INSTALLER_SHA256))hold("installer_content_mismatch");revalidate_file(FIXED_INSTALLER,installer_fd,installer_id);
     char *policy_raw=read_policy_bytes(policy_fd,(size_t)policy_id.size);policy_v1 policy=parse_policy(policy_raw,(size_t)policy_id.size);free(policy_raw);revalidate_file(FIXED_POLICY,policy_fd,policy_id);
-    require_ancestors(policy.python_path);
-    char resolved_python[PATH_MAX]; if(!realpath(policy.python_path,resolved_python)||strcmp(resolved_python,policy.python_path)) hold("python_path_not_canonical");
-    struct file_id python_id;int python_fd=open_regular_mode(policy.python_path,MAX_PYTHON_BYTES,0,true,&python_id);if((size_t)python_id.size!=policy.python_bytes)hold("python_size_mismatch");char python_hash[65];hash_exact_fd(python_fd,policy.python_bytes,python_hash);if(strcmp(python_hash,policy.python_sha256))hold("python_content_mismatch");revalidate_file(policy.python_path,python_fd,python_id);
-    char *audit_paths[]={ (char*)FIXED_SELF,(char*)FIXED_POLICY,(char*)FIXED_SOURCE_ROOT,(char*)FIXED_INSTALLER,policy.python_path };
+    int python_fd=open_regular_mode(FIXED_PYTHON,MAX_PYTHON_BYTES,0555,true,&python_id);
+    if((size_t)python_id.size!=policy.python_bytes)hold("python_size_mismatch");
+    require_static_python_elf(python_fd,policy.python_bytes);
+    char python_hash[65];hash_exact_fd(python_fd,policy.python_bytes,python_hash);if(strcmp(python_hash,policy.python_sha256))hold("python_content_mismatch");revalidate_file(FIXED_PYTHON,python_fd,python_id);
+    int stdlib_fd=open_regular_mode(FIXED_STDLIB_ZIP,MAX_STDLIB_BYTES,0444,false,&stdlib_id);
+    if((size_t)stdlib_id.size!=policy.stdlib_bytes)hold("stdlib_zip_size_mismatch");
+    char stdlib_hash[65];hash_exact_fd(stdlib_fd,policy.stdlib_bytes,stdlib_hash);if(strcmp(stdlib_hash,policy.stdlib_sha256))hold("stdlib_zip_content_mismatch");revalidate_file(FIXED_STDLIB_ZIP,stdlib_fd,stdlib_id);
+    char *audit_paths[]={ (char*)FIXED_SELF,(char*)FIXED_POLICY,(char*)FIXED_PYTHON_ROOT,(char*)FIXED_PYTHON,(char*)FIXED_STDLIB_ZIP,(char*)FIXED_SOURCE_ROOT,(char*)FIXED_INSTALLER };
     runtime_nonwritable(audit_paths,sizeof(audit_paths)/sizeof(audit_paths[0]));
-    revalidate_file(FIXED_SELF,self_fd,self_id);revalidate_file(FIXED_POLICY,policy_fd,policy_id);revalidate_file(FIXED_INSTALLER,installer_fd,installer_id);revalidate_file(policy.python_path,python_fd,python_id);
-    close(self_fd);close(policy_fd);close(installer_fd);
-    char *args[20];size_t n=0;args[n++]=policy.python_path;args[n++]="-I";args[n++]="-B";args[n++]="-S";args[n++]=(char*)FIXED_INSTALLER;args[n++]=req.apply?"--apply":"--plan";args[n++]="--native";args[n++]=(char*)req.native_path;args[n++]="--selector";args[n++]=(char*)req.selector_path;args[n++]="--expected-head";args[n++]=(char*)req.expected_head;if(req.apply){args[n++]="--expected-plan-id";args[n++]=(char*)req.expected_plan_id;args[n++]="--confirm";args[n++]=(char*)req.confirm;}args[n]=NULL;
-    char *const envp[]={"PATH=/usr/bin:/bin","HOME=/nonexistent","LANG=C","LC_ALL=C","TZ=UTC",NULL};
+    revalidate_file(FIXED_SELF,self_fd,self_id);revalidate_file(FIXED_POLICY,policy_fd,policy_id);revalidate_file(FIXED_PYTHON,python_fd,python_id);revalidate_file(FIXED_STDLIB_ZIP,stdlib_fd,stdlib_id);revalidate_file(FIXED_INSTALLER,installer_fd,installer_id);
+    close(self_fd);close(policy_fd);close(installer_fd);close(stdlib_fd);
+    char *args[20];size_t n=0;args[n++]=(char*)FIXED_PYTHON;args[n++]="-I";args[n++]="-B";args[n++]="-S";args[n++]=(char*)FIXED_INSTALLER;args[n++]=req.apply?"--apply":"--plan";args[n++]="--native";args[n++]=(char*)req.native_path;args[n++]="--selector";args[n++]=(char*)req.selector_path;args[n++]="--expected-head";args[n++]=(char*)req.expected_head;if(req.apply){args[n++]="--expected-plan-id";args[n++]=(char*)req.expected_plan_id;args[n++]="--confirm";args[n++]=(char*)req.confirm;}args[n]=NULL;
+    char *const envp[]={"PATH=/usr/bin:/bin","HOME=/nonexistent","LANG=C","LC_ALL=C","TZ=UTC","OPENSSL_CONF=/dev/null",NULL};
     fexecve(python_fd,args,envp);hold("python_fexecve_failed");
 }
