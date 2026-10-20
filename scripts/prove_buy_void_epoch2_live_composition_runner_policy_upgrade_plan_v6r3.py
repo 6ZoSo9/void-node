@@ -17,7 +17,7 @@ LOCK_ID="voidbuye2runnerpollock6r3_72ecfe7a0d5aa87237520290cdf63cf0faef821931ef0
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_aaa50e1bbfe2303045336c03be2bacd504a736a0fd04f97d4f38be7e76fbba7d"
 LOCK_BLOB="a9565f1dbe49e694ee07eb0cfdddb42d591d856b"
 RUNNER_BLOB="11a147d565bd0ee3ff48c4e3cb75d608b59e87b1"
-PLAN_BLOB="185e409aab47c8d391025decec1e58f9288fb5e2"
+PLAN_BLOB="76daf342ec779a039a91d1f7cf98f3a0ecf77f14"
 RUNNER_SHA256="9302bcbdf70c3d4fd46be5deb0a2101ab09d51bf84171e43f2b5fb6e6b4f92a8"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
@@ -35,6 +35,8 @@ for name in (
     "source_snapshot","snapshot_host_file","build_policy","verify_generation",
     "verify_v4_predecessor","classify_state","_collect_plan_with_observers",
     "collect_plan","source_plan",
+    "require_plan_identity","_directory_chain","_revalidate_chain",
+    "_trusted_file_before","_revalidate_trusted_file","_open_verified_root_fd",
     "self_test","emit_plan",
 ):
     assert any(isinstance(node,ast.FunctionDef) and node.name==name for node in tree.body),name
@@ -78,12 +80,38 @@ for required in (
     '"signing":False',
     '"transaction":False',
     '"funds_movement":False',
+    'RUNTIME_UID=1000',
+    'RUNTIME_GID=1000',
+    'def require_plan_identity()->None:',
+    'def _directory_chain(path:Path)->list[tuple[Path,tuple[int,...]]]:',
+    'os.access(ancestor,os.W_OK,effective_ids=True)',
+    'os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC',
+    'pass_fds=(tool_fd,)',
+    'os.listdir(root_fd)',
+    'chain=require_root_dir(root)',
+    'chain=require_root_dir(PREDECESSOR_V4_ROOT)',
+    'parent_chain=require_root_dir(INSTALL_PARENT)',
+    'require_plan_identity()',
+    'protected_ancestor_acl_custody_required=true',
+    'protected_directory_listing_fd_bound=true',
+    'trusted_git_first_exec_retained_fd_required=true',
+    'host_plan_exact_runtime_uid_gid_required=true',
 ):
     assert required in source,required
 assert "--apply" not in source
 assert "os.rename(" not in source
 assert "renameat2" not in source
 assert "subprocess.Popen" not in source
+# The directory and first-exec custody constraints must not regress to
+# unchecked pathname observations even if their hashes are reissued.
+assert "os.listdir(root)" not in source
+assert "os.listdir(PREDECESSOR_V4_ROOT)" not in source
+assert 'str(FIXED_GIT),' not in source[source.index('def git('):source.index('MAX_ACTUAL_ANCESTRY_COMMITS')]
+assert source.count('os.listdir(root_fd)')==2
+assert source.count('_revalidate_chain(chain)')>=4
+assert 'fd=os.open(name,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=root_fd)' in source
+assert 'fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK)' in source
+assert 'chain=_directory_chain(path.parent)' in source
 
 python=sys.executable
 for mode in ("--self-test","--source-plan"):
@@ -112,6 +140,12 @@ for mode in ("--self-test","--source-plan"):
             "terminal_source_revalidation_required=true",
             "late_source_drift_rejected=true",
             "full_root_atomic_exchange_required=true",
+            "host_plan_exact_runtime_uid_gid_required=true",
+            "protected_ancestor_acl_custody_required=true",
+            "protected_directory_listing_fd_bound=true",
+            "trusted_git_first_exec_retained_fd_required=true",
+            "host_node_nonblocking_fd_required=true",
+            "writable_ancestor_rejected=true",
             "v6r2_predecessor_retention_required=true",
             "filesystem_write=false",
             "credential_access=false",
@@ -130,6 +164,10 @@ for mode in ("--self-test","--source-plan"):
             "runtime_source_complete_dependency_set_bound=true",
             "terminal_source_revalidation_required=true",
             "atomic_root_exchange_required=true",
+            "protected_ancestor_acl_custody_required=true",
+            "protected_directory_listing_fd_bound=true",
+            "trusted_git_first_exec_retained_fd_required=true",
+            "host_plan_exact_runtime_uid_gid_required=true",
             "filesystem_write=false",
             "credential_access=false",
             "transaction=false",
@@ -168,6 +206,10 @@ print("source_runtime_actual_object_ancestry_required=true")
 print("source_runtime_graft_ancestry_rejected=true")
 print("full_root_atomic_exchange_required=true")
 print("v6r2_predecessor_retention_required=true")
+print("protected_ancestor_acl_custody_required=true")
+print("protected_directory_listing_fd_bound=true")
+print("trusted_git_first_exec_retained_fd_required=true")
+print("host_plan_exact_runtime_uid_gid_required=true")
 print("filesystem_write=false")
 print("credential_access=false")
 print("signing=false")
