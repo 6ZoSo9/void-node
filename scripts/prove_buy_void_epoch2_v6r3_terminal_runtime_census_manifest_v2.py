@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="fb31838cc28303a3da9bd6e238edad704bffe3e2"
+SOURCE_BLOB="f036cd4674d4d1748db9686722599ea4a68af6c7"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -112,6 +112,13 @@ for required in (
     "installed_first_entry_binary_overclaim_rejected=true",
     "MAX_TREE_ENTRIES=100_000",
     "MAX_INPUT_PATH_BYTES=4096",
+    "def _require_logical_path(",
+    'raise Hold("logical_path_length_exceeded")',
+    'raise Hold("logical_path_encoding_invalid")',
+    '_require_logical_path(display_root,"display_root_invalid",root=True)',
+    '_require_logical_path(display_root,"display_root_not_canonical",root=True)',
+    '_require_logical_path(display_path,"absence_path_not_canonical_or_outside_root")',
+    'record["resolved_display_path"]=_display(display_root,Path(rel))',
     'chr(0) in display_root',
     'chr(0) in display_path',
     'raise Hold("declared_absence_path_invalid")',
@@ -205,6 +212,9 @@ for mode,required_lines in (
         "noncanonical_manifest_paths_rejected=true",
         "embedded_nul_and_non_posix_input_paths_rejected=true",
         "non_posix_path_negative_fixtures=7",
+        "display_root_pretraversal_byte_budget_enforced=true",
+        "expanded_manifest_key_byte_budget_enforced=true",
+        "standalone_absence_path_byte_budget_enforced=true",
         "discovered_entry_budget_includes_queued_directories=true",
         "scandir_consumption_bounded_before_sort=true",
         "over_budget_synthetic_scandir_rejected=true",
@@ -261,6 +271,7 @@ print("git_aware_v2_freshness_bound=true")
 print("v2_binary_identity_lock_bound=true")
 print("v1_substrate_source_lineage_bound=true")
 print("non_posix_and_nul_path_guard_proven=true")
+print("display_root_and_rendered_key_budget_proven=true")
 print("fixture_only_inventory_proven=true")
 print("scandir_entry_bound_before_materialization_proven=true")
 print("queued_directory_budget_proven=true")
