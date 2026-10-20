@@ -38,6 +38,7 @@ FIXED_POLICY = FIXED_ROOT / "policy-v1.conf"
 FIXED_PLANNER = FIXED_ROOT / "void_buy_void_epoch2_live_composition_runner_policy_upgrade_plan_v6r3.py"
 FIXED_PYTHON_LINK = Path("/usr/bin/python3")
 SUDO = "/usr/bin/sudo"
+SETPRIV = "/usr/bin/setpriv"
 ENV = "/usr/bin/env"
 CC = "/usr/bin/cc"
 READELF = "/usr/bin/readelf"
@@ -187,6 +188,7 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
 
     cp = run([SUDO, "-n", "true"])
     require_success(cp, "passwordless_sudo_required")
+    assert Path(SETPRIV).is_file(), "setpriv_unavailable"
     assert FIXED_PYTHON_LINK.exists(), "fixed_python_link_missing"
 
     python_real = Path(os.path.realpath(FIXED_PYTHON_LINK))
@@ -301,6 +303,8 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         exec_argv = [
             SUDO, "-n", ENV,
             "PYTHONPATH=" + os.fspath(evil_dir), "PYTHONINSPECT=1",
+            "LD_PRELOAD=" + os.fspath(preload_so),
+            "VOID_PRELOAD_MARKER=" + os.fspath(preload_sentinel),
             os.fspath(FIXED_SELF), "--plan",
         ]
         cp = run(exec_argv, input_bytes=attack_source, timeout=90)
@@ -312,6 +316,7 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         assert (MARKER + "_HOLD").encode("ascii") not in cp.stderr
         assert b"planner_python_started=false" not in cp.stderr
         assert not evil_sentinel.exists(), "hostile PYTHONPATH imported by isolated child"
+        assert not preload_sentinel.exists(), "hostile LD_PRELOAD propagated to Python child"
 
         cp = run([
             SUDO, "-n", os.fspath(binary), "--plan",
@@ -319,6 +324,16 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         assert cp.returncode == 2
         assert b"reason=launcher_fixed_path_required" in cp.stderr
         assert b"planner_python_started=false" in cp.stderr
+
+        cp = run([
+            SUDO, "-n", SETPRIV,
+            "--reuid=1000", "--regid=1000", "--clear-groups", "--",
+            os.fspath(FIXED_SELF), "--plan",
+        ])
+        assert cp.returncode == 2
+        assert b"reason=root_static_first_entry_required" in cp.stderr
+        assert b"planner_python_started=false" in cp.stderr
+        assert PLANNER_MARKER.encode("ascii") not in cp.stdout
 
         tampered = bytearray(planner_raw); tampered[0] ^= 1
         assert len(tampered) == PLANNER_BYTES
@@ -373,6 +388,8 @@ print("isolated_python_i_b_s=true")
 print("python_site_import_disabled=true")
 print("caller_stdin_python_source_rejected=true")
 print("hostile_pythonpath_not_imported=true")
+print("hostile_ld_preload_not_propagated_to_python=true")
+print("nonroot_direct_launcher_rejected_before_python=true")
 print("same_size_planner_substitution_rejected_before_python=true")
 print("wrong_launcher_path_rejected_before_python=true")
 print("source_only=true")
