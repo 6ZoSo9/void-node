@@ -497,6 +497,27 @@ def _open_verified_root_fd(path:Path,chain:list[tuple[Path,tuple[int,...]]])->in
         os.close(fd)
         raise
 
+def require_protected_leaf_nonwritable(
+    root_fd:int,name:str,expected:tuple[int,...],
+)->None:
+    """Reject effective runtime-UID write access to verified host leaves."""
+    try:
+        before=os.stat(name,dir_fd=root_fd,follow_symlinks=False)
+        if not stat.S_ISREG(before.st_mode) or _identity(before)!=expected:
+            raise PlanError("protected_leaf_acl_generation_changed:"+name)
+        writable=os.access(
+            name,os.W_OK,dir_fd=root_fd,effective_ids=True,
+            follow_symlinks=False,
+        )
+        after=os.stat(name,dir_fd=root_fd,follow_symlinks=False)
+        if not stat.S_ISREG(after.st_mode) or _identity(after)!=expected:
+            raise PlanError("protected_leaf_acl_generation_changed:"+name)
+    except (OSError,NotImplementedError,TypeError) as exc:
+        raise PlanError("protected_leaf_acl_audit_unavailable:"+name) from exc
+    if writable:
+        raise PlanError("protected_leaf_runtime_writable:"+name)
+
+
 def verify_file(
     root_fd:int,name:str,*,expected_bytes:int,expected_sha256:str,expected_mode:int,
 )->None:
@@ -511,7 +532,11 @@ def verify_file(
         or before.st_nlink!=1 or before.st_size!=expected_bytes
     ):
         raise PlanError("protected_file_metadata_invalid:"+name)
-    fd=os.open(name,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=root_fd)
+    require_protected_leaf_nonwritable(root_fd,name,_identity(before))
+    try:
+        fd=os.open(name,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=root_fd)
+    except OSError as exc:
+        raise PlanError("protected_file_open_failed:"+name) from exc
     try:
         opened=os.fstat(fd)
         if not stat.S_ISREG(opened.st_mode) or _identity(opened)!=_identity(before):
@@ -531,6 +556,9 @@ def verify_file(
                 raise PlanError("protected_file_changed:"+name)
         if digest.hexdigest()!=expected_sha256:
             raise PlanError("protected_file_sha256_mismatch:"+name)
+        require_protected_leaf_nonwritable(root_fd,name,_identity(opened))
+    except OSError as exc:
+        raise PlanError("protected_file_observation_unavailable:"+name) from exc
     finally:
         os.close(fd)
 
@@ -740,6 +768,7 @@ def source_plan()->None:
     print("protected_ancestor_acl_custody_required=true")
     print("protected_directory_listing_fd_bound=true")
     print("trusted_git_first_exec_retained_fd_required=true")
+    print("protected_leaf_runtime_acl_nonwritability_required=true")
     print("host_plan_exact_runtime_uid_gid_required=true")
     print("host_node_and_state_terminal_revalidation_required=true")
     print("full_root_stage_required=true")
@@ -783,6 +812,59 @@ def self_test()->None:
         assert cp.stderr==b"",cp.stderr
     finally:
         os.close(fixture_fd)
+
+    # Fixture-only leaf ACL proof. It does not touch any real protected path.
+    fixture_leaf="__void_v6r3_acl_leaf_fixture__"
+    fixture_fd=-9876
+    stat_fixture=os.stat(__file__)
+    fixture_identity=_identity(stat_fixture)
+    saved_stat,saved_access=os.stat,os.access
+    inject_write=[False]
+    inject_unavailable=[False]
+    def stat_fixture_observer(candidate,*args,**kwargs):
+        if (candidate==fixture_leaf and
+                kwargs.get("dir_fd")==fixture_fd and
+                kwargs.get("follow_symlinks") is False):
+            return stat_fixture
+        return saved_stat(candidate,*args,**kwargs)
+    def access_fixture_observer(candidate,mode,*args,**kwargs):
+        if (candidate==fixture_leaf and mode==os.W_OK and
+                kwargs.get("dir_fd")==fixture_fd and
+                kwargs.get("effective_ids") is True and
+                kwargs.get("follow_symlinks") is False):
+            if inject_unavailable[0]:
+                raise NotImplementedError("synthetic_leaf_acl_unavailable")
+            return inject_write[0]
+        return saved_access(candidate,mode,*args,**kwargs)
+    os.stat,os.access=stat_fixture_observer,access_fixture_observer
+    try:
+        require_protected_leaf_nonwritable(
+            fixture_fd,fixture_leaf,fixture_identity,
+        )
+        inject_write[0]=True
+        try:
+            require_protected_leaf_nonwritable(
+                fixture_fd,fixture_leaf,fixture_identity,
+            )
+        except PlanError as exc:
+            assert str(exc)=="protected_leaf_runtime_writable:"+fixture_leaf
+        else:
+            raise AssertionError("protected_leaf_acl_write_was_accepted")
+        inject_write[0]=False
+        inject_unavailable[0]=True
+        try:
+            require_protected_leaf_nonwritable(
+                fixture_fd,fixture_leaf,fixture_identity,
+            )
+        except PlanError as exc:
+            assert str(exc)=="protected_leaf_acl_audit_unavailable:"+fixture_leaf
+        else:
+            raise AssertionError("protected_leaf_acl_unavailable_was_accepted")
+    finally:
+        os.stat,os.access=saved_stat,saved_access
+    print("protected_leaf_acl_write_rejected=true")
+    print("protected_leaf_acl_unavailable_rejected=true")
+
     assert len(SOURCE_RUNTIME_DEPENDENCY_SPECS)==9
     assert [row[0] for row in SOURCE_RUNTIME_DEPENDENCY_SPECS]==[
         "qualifier","replacement_v3r","qualifier_v6","replacement_v6",
@@ -965,6 +1047,7 @@ def self_test()->None:
     print("protected_ancestor_acl_custody_required=true")
     print("protected_directory_listing_fd_bound=true")
     print("trusted_git_first_exec_retained_fd_required=true")
+    print("protected_leaf_runtime_acl_nonwritability_required=true")
     print("trusted_git_procfd_first_exec_fixture_green=true")
     print("host_node_nonblocking_fd_required=true")
     print("writable_ancestor_rejected=true")
@@ -1008,6 +1091,7 @@ def emit_plan()->None:
     print("protected_ancestor_acl_custody_required=true")
     print("protected_directory_listing_fd_bound=true")
     print("trusted_git_first_exec_retained_fd_required=true")
+    print("protected_leaf_runtime_acl_nonwritability_required=true")
     print("host_plan_exact_runtime_uid_gid_required=true")
     print("host_node_and_state_terminal_revalidation_required=true")
     print("full_root_stage_required=true")
