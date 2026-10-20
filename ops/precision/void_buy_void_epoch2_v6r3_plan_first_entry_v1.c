@@ -17,7 +17,10 @@
 
 #define MARKER "VOID_BUY_VOID_EPOCH2_V6R3_PLAN_FIRST_ENTRY_V1"
 #define POLICY_SCHEMA "VOID_BUY_VOID_EPOCH2_V6R3_PLAN_FIRST_ENTRY_POLICY_V1"
-#define FIXED_ROOT "/opt/void-buy-void-epoch2-v6r3-plan-first-entry-v1"
+#ifndef VOID_E2_V6R3_PLAN_FIRST_ENTRY_ROOT
+#define VOID_E2_V6R3_PLAN_FIRST_ENTRY_ROOT "/opt/void-buy-void-epoch2-v6r3-plan-first-entry-v1"
+#endif
+#define FIXED_ROOT VOID_E2_V6R3_PLAN_FIRST_ENTRY_ROOT
 #define FIXED_SELF FIXED_ROOT "/void_buy_void_epoch2_v6r3_plan_first_entry_v1"
 #define FIXED_POLICY FIXED_ROOT "/policy-v1.conf"
 #define FIXED_PLANNER FIXED_ROOT "/void_buy_void_epoch2_live_composition_runner_policy_upgrade_plan_v6r3.py"
