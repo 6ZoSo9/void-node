@@ -384,3 +384,33 @@ post-`fexecve` process isolation. A distinct security reviewer and
 new exact-head CI are required before source acceptance.
 
 **PROTECT THE CORE.**
+
+
+## Composed terminal growth-byte and isolated preimport guard
+
+This generation combines both former sibling source-only drafts #3617 and
+#3611 without merging two conflicting V2 census files:
+
+- Cumulative regular and symlink-target read budgets are charged before
+  opening, with the optional terminal `os.read(fd,1)` growth probe charged
+  before it is attempted. At exact exhaustion no extra byte is read;
+  terminal descriptor and visible-file generation still fail closed.
+- Census and proof scripts import **only built-in sys** first, then enforce
+  `sys.flags.isolated`, `sys.flags.dont_write_bytecode`, and
+  `sys.flags.no_site` before importing other stdlib modules. Required
+  execution: `python3 -I -B -S`. The source verifier checks the leading
+  source AST/prefix and actually runs three sanitized negative invocations
+  each missing one required flag.
+- The checked-in proof must bind the exact changed source Git blob, while
+  all existing growth, hash-read, serialized-record, path/absence and
+  symlink budget fixtures remain active.
+
+**Boundary:** this is an accidental-invocation guard *after* Python
+interpreter startup, not an authenticated privileged first instruction.
+It cannot attest Python ELF or loader bytes, or prevent earlier
+`sitecustomize` or environment-dependent initialization. The source
+remains inert with `HOST_EXECUTION_ENABLED=False`; there is no protected
+host census, first-entry install, independent security acceptance,
+private-key/signing, transaction, payment, presale/WC or funds authority.
+
+PROTECT THE CORE.
