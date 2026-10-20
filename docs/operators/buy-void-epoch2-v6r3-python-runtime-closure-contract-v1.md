@@ -8,7 +8,7 @@ installation, or host plan.
 Contract ID:
 
 ```text
-voidbuye2v6r3pyruntimecontract1_cbc63339c5b305679b85a4a229f5c61227fabbb83388f9d261920b51588dd19a
+voidbuye2v6r3pyruntimecontract1_702512d9c813b4dd10f1e1ba4ae6bcbef300af6698cb102403a1e1d1ad2d1dc0
 ```
 
 ## Why this gate exists
@@ -105,6 +105,19 @@ isolated unprivileged **actual sealed-memfd `fexecve`** fixture:
 run `39360364319` / job `118424883505` SUCCESS. It does not run any
 VOID production binary or qualify Precision's process isolation.
 See [Linux execve(2)](https://man7.org/linux/man-pages/man2/execve.2.html).
+
+This gate now binds the **diagnostic evidence source**, not merely a free-floating
+statement that the reset was observed. The machine-readable contract fixes
+the exact #3579 commit
+`bc59170b211c3bd2490446b0e1cd045b5d9d5925`; its script Git blob
+`a946e81549fe12f61b61d17cad76a7eda40501ff`, workflow Git blob
+`e27aa4a81fbfe4ae122db5fa5cf906fbe1848e28`, hosted run
+`39360364319`, job `118424883505`, conclusion `success`, observed
+`pre=0` and `post=1`, with sealed-memory execution enabled. Source
+proof runs 10 synthetic modifications of that exact tuple and refuses
+mismatched source, workflow, run, job or observed values. This binds
+already-reviewed GitHub CI evidence; it does not read a live host or
+independently rerun the executable fixture.
 
 The revised source contract states:
 ```text
