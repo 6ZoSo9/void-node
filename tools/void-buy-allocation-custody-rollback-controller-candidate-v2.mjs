@@ -281,10 +281,19 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
       expected_policy_fingerprint_sha256:authorization.expected_policy_fingerprint_sha256,
       expected_policy_generation:authorization.expected_policy_generation,
       reviewed_source_tree:authorization.reviewed_source_tree,
+      // A protected lease adapter MUST check the durable prior-claim store
+      // atomically with lease creation. A read-only precheck alone races.
+      reject_previously_claimed_authorization:true,
     }),
     "operation_lease"),
-    ["acquired","exclusive","authorization_id","operation_id","challenge_id","lease_id"],
+    ["acquired","exclusive","authorization_id","operation_id","challenge_id","lease_id",
+     "authorization_previously_claimed"],
     "operation_lease");
+  // A replay cannot be allowed to reach observe_before or the later claim
+  // callback. The source candidate cannot authenticate this callback: only a
+  // future reviewed protected adapter can prove atomic no-write refusal.
+  if(lease.authorization_previously_claimed!==false)
+    fail("operation_lease_replay_precondition_failed");
   if(lease.acquired!==true||lease.exclusive!==true||
      lease.authorization_id!==authorization.authorization_id||
      lease.operation_id!==authorization.operation_id||
