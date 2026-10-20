@@ -97,6 +97,30 @@ Content-addressed plan ID (successor to historical `voidapollyonclaimcallbackcon
 
 `voidapollyonclaimcallbackcontain1_7f9cfdb254519f951589367877a9ad28e1fe376cb813504ee4ded40b84efdae8`
 
+## October 20 — semantic negative-proof and source-role binding
+
+The immutable plan JSON and content-addressed `plan_id` are unchanged.
+The source-only validation proof now rejects each intentionally corrupted
+requirement, authority field, unknown success gate, or missing Promise
+surface for the **exact named semantic reason**. Merely reaching the
+terminal `content_identity_invalid` check no longer counts as a negative
+test: that is tested only for the dedicated plan-ID mutation.
+
+Each inherited `bound_sources` role must name its own exact reviewed
+source path and blob; an otherwise correctly pinned *different* source
+cannot be substituted for `core`, `transaction_lease`, `native_bridge`
+or the two proofs. Two new negative cases swap core/lease roles and
+duplicate the bridge record under the core role; both must fail at
+`bound_source_role_invalid:core`, **not** at the final content hash.
+The source-only adversary count increases from 44 to **46**, with explicit
+proof output `negative_cases_failed_at_semantic_gate=true` and
+`bound_source_role_identities_enforced=true`.
+
+This improves plan assurance only. It is **not** callback containment,
+a protected worker implementation, callback-source authentication, an
+Xiphos deployment, or authority for claim publication, release, training,
+credentials, signing, transaction or funds.
+
 ## Required future runtime properties
 
 The plan requires a separate OS-process failure domain, one request per isolated process,

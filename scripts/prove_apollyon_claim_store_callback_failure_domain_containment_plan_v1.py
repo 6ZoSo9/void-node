@@ -28,6 +28,15 @@ PINS = {
     "scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs":
         "848a061a0b246e138ec8ed775ed8a87f159476f6",
 }
+
+# Roles are provenance semantics, not interchangeable labels for any pinned blob.
+ROLE_PATHS = {
+    "core": "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs",
+    "transaction_lease": "tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs",
+    "native_bridge": "tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs",
+    "core_proof": "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs",
+    "native_proof": "scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs",
+}
 SURFACES = [
     "transaction_acquisition_result",
     "core_revalidator_result",
@@ -183,6 +192,7 @@ def validate(value: object) -> dict:
     )
     for role, row in bound.items():
         item = closed(row, ("path", "git_blob_sha1"), "bound_source:" + role)
+        need(item["path"] == ROLE_PATHS[role], "bound_source_role_invalid:" + role)
         need(item["path"] in PINS, "bound_source_path_invalid:" + role)
         need(
             item["git_blob_sha1"] == PINS[item["path"]],
@@ -236,57 +246,67 @@ def validate(value: object) -> dict:
 
 
 def adversarial_self_test(plan: dict) -> int:
+    """Exercise semantic gates, never count a mere stale plan_id as coverage."""
     rejected = 0
+
+    def expect_reason(bad: dict, expected: str, label: str) -> None:
+        try:
+            validate(bad)
+        except Hold as exc:
+            need(
+                str(exc) == expected,
+                "wrong_rejection_reason:" + label + ":" + str(exc),
+            )
+        else:
+            raise Hold("mutation_accepted:" + label)
+
     for key in REQUIREMENTS:
         bad = copy.deepcopy(plan)
         bad["required_future_runtime_contract"][key] = False
-        try:
-            validate(bad)
-        except Hold:
-            rejected += 1
-        else:
-            raise Hold("requirement_mutation_accepted:" + key)
+        expect_reason(bad, "missing_requirement:" + key, "requirement:" + key)
+        rejected += 1
 
     for key in AUTHORITY:
         bad = copy.deepcopy(plan)
         bad["authority"][key] = True
-        try:
-            validate(bad)
-        except Hold:
-            rejected += 1
-        else:
-            raise Hold("authority_mutation_accepted:" + key)
+        expect_reason(bad, "forbidden_authority:" + key, "authority:" + key)
+        rejected += 1
 
     for key in ("trusted_callback_origin_proven", "failure_domain_containment_proven"):
         bad = copy.deepcopy(plan)
         bad["observed_gap"][key] = True
-        try:
-            validate(bad)
-        except Hold:
-            rejected += 1
-        else:
-            raise Hold("unproven_gate_mutation_accepted:" + key)
+        expect_reason(bad, "unproven_gate_promoted:" + key, "gate:" + key)
+        rejected += 1
 
     for surface in SURFACES:
         bad = copy.deepcopy(plan)
         bad["observed_gap"]["rejected_promise_surfaces"] = [
             item for item in SURFACES if item != surface
         ]
-        try:
-            validate(bad)
-        except Hold:
-            rejected += 1
-        else:
-            raise Hold("surface_omission_accepted:" + surface)
+        expect_reason(bad, "surface_set_invalid", "surface:" + surface)
+        rejected += 1
+
+    # A role with the correct hash of a *different* pinned source is not a
+    # valid role binding. Test both a swap and a duplicate-path substitution.
+    swapped = copy.deepcopy(plan)
+    swapped["bound_sources"]["core"], swapped["bound_sources"]["transaction_lease"] = (
+        swapped["bound_sources"]["transaction_lease"],
+        swapped["bound_sources"]["core"],
+    )
+    expect_reason(swapped, "bound_source_role_invalid:core", "role_swap")
+    rejected += 1
+
+    duplicate = copy.deepcopy(plan)
+    duplicate["bound_sources"]["core"] = copy.deepcopy(
+        duplicate["bound_sources"]["native_bridge"]
+    )
+    expect_reason(duplicate, "bound_source_role_invalid:core", "role_duplicate")
+    rejected += 1
 
     bad = copy.deepcopy(plan)
     bad["plan_id"] = "voidapollyonclaimcallbackcontain1_" + "0" * 64
-    try:
-        validate(bad)
-    except Hold:
-        rejected += 1
-    else:
-        raise Hold("identity_mutation_accepted")
+    expect_reason(bad, "content_identity_invalid", "content_identity")
+    rejected += 1
     return rejected
 
 
@@ -335,6 +355,8 @@ def main() -> None:
     print("rejected_promise_surfaces=" + str(len(SURFACES)))
     print("runtime_contract_requirements=" + str(len(REQUIREMENTS)))
     print("rejected_adversaries=" + str(rejected))
+    print("negative_cases_failed_at_semantic_gate=true")
+    print("bound_source_role_identities_enforced=true")
     print(
         "inherited_blob_validation="
         + ("true" if sys.argv[1] == "--run" else "not_requested")
