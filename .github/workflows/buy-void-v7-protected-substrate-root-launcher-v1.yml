@@ -56,9 +56,9 @@ jobs:
           else
             git diff --check "$EXPECTED_HEAD^" "$EXPECTED_HEAD" --
           fi
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v1.c)" = "7d5645531fced8a114101285150ebdfdf7266907"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_root_launcher_v1.py)" = "1f0d6e24fc7b0f251293466019121c864a3ec109"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-root-launcher-v1.md)" = "6c737bd9afc9febd1b7659bd86b2f753d2b76c27"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v1.c)" = "c95f340e447af48a56c7bac82493a5b83405f4cc"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_root_launcher_v1.py)" = "3ab95d9cfaa543c1c8899f8a4b09874f316f3162"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-root-launcher-v1.md)" = "72d32879011d7a537ca198e9b5e9ac5b21f00152"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"
 
       - name: Python proof syntax
