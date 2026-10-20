@@ -125,6 +125,14 @@ def stat_generation(st: os.stat_result) -> tuple[int, ...]:
         st.st_size, st.st_mtime_ns, st.st_ctime_ns,
     )
 
+def directory_custody_identity(st: os.stat_result) -> tuple[int, ...]:
+    # Child creation/removal legitimately changes directory size/mtime/ctime.
+    # Bind only the directory's object/custody identity here; exact entries and
+    # every created child generation are verified separately before cleanup.
+    return (
+        st.st_dev, st.st_ino, st.st_mode, st.st_uid, st.st_gid, st.st_nlink,
+    )
+
 planner_raw = stable_bytes(PLANNER, MAX_SOURCE_BYTES)
 assert len(planner_raw) == PLANNER_BYTES
 assert hashlib.sha256(planner_raw).hexdigest() == PLANNER_SHA256
@@ -258,7 +266,7 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
     require_success(cp, "fixture_launcher_compile")
 
     fixture_created = False
-    fixture_root_generation: tuple[int, ...] | None = None
+    fixture_root_identity: tuple[int, ...] | None = None
     installed_generations: dict[Path, tuple[int, ...]] = {}
 
     python_real = Path(os.path.realpath(FIXED_PYTHON_LINK))
@@ -345,7 +353,7 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         assert stat.S_ISDIR(root_st.st_mode) and not stat.S_ISLNK(root_st.st_mode)
         assert root_st.st_uid == 0 and root_st.st_gid == 0
         assert stat.S_IMODE(root_st.st_mode) == 0o755
-        fixture_root_generation = stat_generation(root_st)
+        fixture_root_identity = directory_custody_identity(root_st)
 
         for source_path, target_path, mode in (
             (fixture_binary, FIXED_SELF, "0555"),
@@ -457,9 +465,9 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         # runner teardown rather than deleting unknown content.
         if fixture_created:
             root_now = FIXED_ROOT.lstat()
-            assert fixture_root_generation is not None
-            assert stat_generation(root_now) == fixture_root_generation, (
-                "fixture_root_generation_changed"
+            assert fixture_root_identity is not None
+            assert directory_custody_identity(root_now) == fixture_root_identity, (
+                "fixture_root_custody_identity_changed"
             )
             assert set(os.listdir(FIXED_ROOT)) == {
                 FIXED_SELF.name, FIXED_PLANNER.name, FIXED_POLICY.name,
