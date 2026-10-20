@@ -16,7 +16,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs";
-const SOURCE_BLOB="abf09c1ce5540b03e39d18184858b40dac6443f1";
+const SOURCE_BLOB="911d759029dc890a00e9da5e0cd64b30c8c62b62";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json";
 const PLAN_BLOB="1cdecf34117e4e890f67e62b412419d32870dfa0";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -344,6 +344,21 @@ function mustFailAtPhase(label,mutator,pattern,terminalPhase){
   assert.ok(last>=0,terminalPhase);
   assert.deepEqual(h.order,expectedOrder.slice(0,last+1),label+": no subsequent callbacks");
 }
+// The protected-high-water index must match the journal index at the
+// starting observation. A stale journal or lagging high-water must not
+// mutate a new one-time authorization claim or append a new canary.
+mustFailAtPhase("initial stale journal refused before claim",(c)=>{
+  const original=c.observe_before;
+  c.observe_before=(args)=>({
+    ...original(args),high_water_sequence:8,
+  });
+},/initial_journal_high_water_checkpoint_mismatch/,"before");
+mustFailAtPhase("initial lagging high-water refused before claim",(c)=>{
+  const original=c.observe_before;
+  c.observe_before=(args)=>({
+    ...original(args),journal_sequence:8,
+  });
+},/initial_journal_high_water_checkpoint_mismatch/,"before");
 mustFailAtPhase("journal append sequence+1 unchanged tip",(c,s,b)=>{
   const original=c.append_journal_canary;
   c.append_journal_canary=(args)=>({
@@ -760,6 +775,8 @@ console.log("protected_high_water_non_decrease_required=true");
 console.log("journal_append_fresh_tip_required=true");
 console.log("high_water_advance_fresh_tip_required=true");
 console.log("high_water_minimal_required_sequence_enforced=true");
+console.log("initial_journal_high_water_coherence_required=true");
+console.log("stale_or_lagging_start_refused_before_claim=true");
 console.log("high_water_skip_rejected_before_downstream_callbacks=true");
 console.log("external_witness_append_fresh_tip_required=true");
 console.log("unchanged_tip_rejected_before_downstream_callbacks=true");
