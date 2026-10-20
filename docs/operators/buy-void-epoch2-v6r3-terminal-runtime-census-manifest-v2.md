@@ -135,3 +135,18 @@ post-`fexecve` process isolation, independent security review or payment
 readiness.
 
 **PROTECT THE CORE.**
+
+
+### Per-key display-path limit
+
+In addition to the aggregate 16 MiB output-name cap, every generated display
+path (including a symlink's resolved logical target) must fit within
+4096 strict UTF-8 bytes. A valid root near the limit can still create a
+child name that exceeds this bound; an isolated fixture now requires
+`Hold("manifest_display_path_length_exceeded")` before any leaf stat/hash.
+
+Exact updated source Git blob: `78afee78387d50e9144d5739cabfd33664492aa5`. Fresh source/test CI is
+required on this generation. Host census, installed runtime, signing, payment
+and funds authorities remain disabled.
+
+**PROTECT THE CORE.**
