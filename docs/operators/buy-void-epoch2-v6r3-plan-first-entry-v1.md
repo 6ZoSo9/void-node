@@ -49,7 +49,10 @@ For the future host `--plan` path, the launcher requires:
   **after** the mapping;
 - retained sealed Python ELF mapped/revalidated and entered with `fexecve()`;
 - isolated Python `-I -B -S`, with `site` import disabled;
-- caller stdin replaced with `/dev/null`;
+- caller stdin replaced with an identity-checked character-device `/dev/null`;
+- Linux `close_range(5, UINT_MAX, CLOSE_RANGE_UNSHARE)` closes every inherited
+  descriptor beyond the fixed planner/Python fd slots, followed by a `/proc/self/fd`
+  census before Python;
 - a newly constructed loader/Python environment;
 - `PR_SET_NO_NEW_PRIVS` before Python entry.
 
@@ -88,9 +91,9 @@ changes global `/opt` ownership/mode and never recursively deletes a path. Inste
 12. invokes the correct fixed launcher directly as UID/GID `1000:1000` and requires
     `root_static_first_entry_required` before Python;
 13. verifies the sealed memfd write adversary fails with `EPERM`;
-14. cleans up only if the fixture root and each installed leaf still match the exact
-    generations the proof created, removes those leaves individually, then uses
-    `rmdir` on the empty root.
+14. cleans up only if the fixture root retains its exact inode/custody identity and each
+    installed leaf still matches the exact generation the proof created, removes those
+    leaves individually, then uses `rmdir` on the empty root.
 
 If any cleanup generation or directory shape differs, the proof fails closed instead of
 deleting unknown content. The proof contains no global `/opt` mutation, no preclean,
