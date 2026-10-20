@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="fb31838cc28303a3da9bd6e238edad704bffe3e2"
+SOURCE_BLOB="8c8516a63d8890bd7103e0c868a3e88776f1e3e8"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -116,7 +116,7 @@ for required in (
     'chr(0) in display_path',
     'raise Hold("declared_absence_path_invalid")',
     'raise Hold("accessed_path_invalid_or_noncanonical")',
-    "non_posix_path_negative_fixtures=7",
+    "non_posix_path_negative_fixtures=9",
     "def require_manifest_input_budget(",
     "require_manifest_input_budget(sys_path,declared_absent,accessed_paths)",
     'raise Hold("manifest_input_path_count_exceeded")',
@@ -131,6 +131,8 @@ for required in (
     'raise Hold("sys_path_not_inventoried_or_absent:"',
     'raise Hold("sys_path_special_or_symlink_authority:"',
     'raise Hold("sys_path_invalid_or_noncanonical")',
+    'or display_root.startswith("//")',
+    '"absence_root_double_slash"',
     "def _contained_resolve(",
     "symlink_resolution_hop_limit:",
     "symlink_target_outside_inventory_root:",
@@ -204,7 +206,7 @@ for mode,required_lines in (
         "census_unbounded_generator_and_oversize_path_rejected=true",
         "noncanonical_manifest_paths_rejected=true",
         "embedded_nul_and_non_posix_input_paths_rejected=true",
-        "non_posix_path_negative_fixtures=7",
+        "non_posix_path_negative_fixtures=9",
         "discovered_entry_budget_includes_queued_directories=true",
         "scandir_consumption_bounded_before_sort=true",
         "over_budget_synthetic_scandir_rejected=true",
