@@ -35,8 +35,14 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           case "$EVENT_NAME" in
             pull_request)
-              test "$BASE_REF" = "ren/epoch2-v6r3-main-integration-v1-20261019"
-              base="$PR_BASE"
+              case "$BASE_REF" in
+                ren/epoch2-v6r3-main-integration-v1-20261019|ren/epoch2-dormant-v3r-live-binding-v4-current-source-20261019)
+                  base="$PR_BASE"
+                  ;;
+                *)
+                  exit 1
+                  ;;
+              esac
               ;;
             workflow_dispatch)
               base="977164822ca9032a9f8ec2fd988758102612d866"
