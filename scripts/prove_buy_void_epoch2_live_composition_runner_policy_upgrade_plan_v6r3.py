@@ -17,7 +17,7 @@ LOCK_ID="voidbuye2runnerpollock6r3_72ecfe7a0d5aa87237520290cdf63cf0faef821931ef0
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_aaa50e1bbfe2303045336c03be2bacd504a736a0fd04f97d4f38be7e76fbba7d"
 LOCK_BLOB="a9565f1dbe49e694ee07eb0cfdddb42d591d856b"
 RUNNER_BLOB="11a147d565bd0ee3ff48c4e3cb75d608b59e87b1"
-PLAN_BLOB="dd5a0535d275741270a2154d4b8d7685702027d2"
+PLAN_BLOB="cb242059fa3966480b1573d9801f7f988d7c9554"
 RUNNER_SHA256="9302bcbdf70c3d4fd46be5deb0a2101ab09d51bf84171e43f2b5fb6e6b4f92a8"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
@@ -66,6 +66,7 @@ for required in (
     '"host_root_descriptor_identity_required":True',
     '"host_ancestor_acl_nonwritability_required":True',
     'host_node_and_state_terminal_revalidation_required=true',
+    'trusted_git_procfd_first_exec_fixture_green=true',
     'host_node_terminal_drift_rejected=true',
     'protected_state_terminal_drift_rejected=true',
     '"source_terminal_revalidated":True',
@@ -154,6 +155,7 @@ for mode in ("--self-test","--source-plan"):
             "trusted_git_first_exec_retained_fd_required=true",
             "host_node_nonblocking_fd_required=true",
             "writable_ancestor_rejected=true",
+            "trusted_git_procfd_first_exec_fixture_green=true",
             "host_node_terminal_drift_rejected=true",
             "protected_state_terminal_drift_rejected=true",
             "v6r2_predecessor_retention_required=true",
