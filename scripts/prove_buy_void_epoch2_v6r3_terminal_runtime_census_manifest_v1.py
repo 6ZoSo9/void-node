@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v1.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v1.json"
 
-SOURCE_BLOB="99a2d7337af52fbfadce48e98a0499b57f9507e8"
+SOURCE_BLOB="3a21cc20a49147a97dc9266ec8ff52d509cf2ef7"
 CONTRACT_BLOB="c70dfd9da29c75b348a3619f6df7329381e939cf"
 FRESHNESS_BLOB="9657fff243e44135e1f992b1ef5b8e0d977b8b65"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_cdb98f511f04a3c798200e304481ec14d94373fdbdf6ec30cf88b0e281b0eb4f"
@@ -83,6 +83,11 @@ for required in (
     "symlink_target_outside_inventory_root:",
     "outside_intermediate_symlink_hop_accepted",
     "symlink_hop_limit_rejects_cycles=true",
+    "symlink_missing_component_parent_reentry:",
+    "missing_component.lstat()",
+    "resolved,missing_component=_contained_resolve(path,real_root,display_path)",
+    "missing_component_reentry_reported_existing_leaf",
+    "contained_dangling_symlink_remains_absent=true",
     "discovered_count=1",
     "with os.scandir(current) as iterator:",
     "discovered_count+=1",
@@ -110,7 +115,7 @@ for required in (
 assert "sorted(os.scandir(current)" not in source
 assert "entries=sorted(os.scandir(current)" not in source
 assert "os.path.realpath(path)" not in source[source.index("def symlink_record("):source.index("def _display(")]
-assert "resolved=_contained_resolve(path,real_root,display_path)" in source
+assert "resolved,missing_component=_contained_resolve(path,real_root,display_path)" in source
 # The over-budget sentinel must be rejected before any queued/stat/read work.
 body=source[source.index("with os.scandir(current) as iterator:"):source.index("for entry in entries:")]
 assert body.index("if discovered_count>MAX_TREE_ENTRIES:") < body.index("entries.append(entry)")
@@ -137,6 +142,8 @@ for mode,required_lines in (
         "special_files_rejected=true",
         "symlink_intermediate_outside_root_rejected=true",
         "symlink_hop_limit_rejects_cycles=true",
+        "symlink_missing_component_parent_reentry_rejected=true",
+        "contained_dangling_symlink_remains_absent=true",
         "discovered_entry_budget_includes_queued_directories=true",
         "scandir_consumption_bounded_before_sort=true",
         "over_budget_synthetic_scandir_rejected=true",
@@ -185,6 +192,7 @@ print("fixture_only_inventory_proven=true")
 print("scandir_entry_bound_before_materialization_proven=true")
 print("queued_directory_budget_proven=true")
 print("symlink_hop_confinement_proven=true")
+print("symlink_missing_parent_reentry_hold_proven=true")
 print("host_execution_enabled=false")
 print("host_census_authorized=false")
 print("protected_install_authorized=false")
