@@ -18,7 +18,7 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_postmerge_source_runtime_compat_v1.py"
-TARGET_BLOB = "cd2803d53b77e86524b5382a10dcab55ee79e1da"
+TARGET_BLOB = "e2bfe82b9db4cbabaccbe387badee545601f440e"
 MARKER = _EARLY_MARKER
 
 
@@ -59,6 +59,12 @@ for required in (
     'tracked_source_checkout_exact',
     'terminal_index_generation_revalidation_required=true',
     'terminal_worktree_generation_revalidation_required=true',
+    'retained_directory_fd_traversal_required=true',
+    'terminal_ancestor_directory_generation_revalidation_required=true',
+    'def _open_directory_leases(root: Path) -> DirectoryLeases:',
+    'def _leased_parent(',
+    'os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW',
+    'dir_fd=parent_fd',
     'worktree_filesystem_errors_normalized_to_hold=true',
     'git_timeout_normalized_to_hold=true',
     'git_exec_errors_normalized_to_hold=true',
@@ -67,7 +73,7 @@ for required in (
     'except subprocess.TimeoutExpired as exc:',
     'except OSError as exc:',
     '_require_index_unchanged(raw_index, _run_git(root, *index_query))',
-    '_terminal_revalidate_worktree(root, fingerprints)',
+    '_terminal_revalidate_worktree(root, fingerprints, directory_leases)',
     'canonical_checkout_mutation_performed',
     'filesystem_write_performed',
     'public_presale_activation',
@@ -122,6 +128,8 @@ for line in (
     "tracked_source_checkout_exact_required=true",
     "terminal_index_generation_revalidation_required=true",
     "terminal_worktree_generation_revalidation_required=true",
+    "retained_directory_fd_traversal_required=true",
+    "terminal_ancestor_directory_generation_revalidation_required=true",
     "worktree_filesystem_errors_normalized_to_hold=true",
     "git_timeout_normalized_to_hold=true",
     "git_exec_errors_normalized_to_hold=true",
