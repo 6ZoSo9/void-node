@@ -23,10 +23,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs"
 PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c"
 
-BINDER_BLOB = "6571c401af4f83c59dd5c47491247fd1d5cda01a"
-BINDER_SHA256 = "d83353349564fd54a826a96baa3c81a6741764754ff68d3f40bb54eeb1568e01"
-BINDER_BYTES = 66508
-PREENTRY_BLOB = "87d05f03ecb0bd6f3d3bce7a0b18d66cf87fc9c8"
+BINDER_BLOB = "d2d648b144d3b406ff845a597fa4b9f54167b6bc"
+BINDER_SHA256 = "c447151d7bc4d1b3ffc5e9c8d58b92e8f041e3aa6c0c5747d6da621471e28207"
+BINDER_BYTES = 66650
+PREENTRY_BLOB = "704f3726600690605303d9083976225f4913b446"
 NATIVE_LOCK_V6R2_REL = "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
 NATIVE_LOCK_V6R2_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
@@ -228,8 +228,8 @@ for required in (
     'RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4',
     '#define BINDER_GIT_BLOB "' + BINDER_BLOB + '"',
     '#define BINDER_BYTES ' + str(BINDER_BYTES) + 'U',
-    '0xd8,0x33,0x53,0x34',
-    '0x40,0xbb,0x54,0xee',
+    '0xc4,0x47,0x15,0x1d',
+    '0xd6,0xda,0x62,0x14',
     'void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs',
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V4',
     'MFD_CLOEXEC|MFD_ALLOW_SEALING',
