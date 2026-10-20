@@ -150,3 +150,24 @@ required on this generation. Host census, installed runtime, signing, payment
 and funds authorities remain disabled.
 
 **PROTECT THE CORE.**
+
+## Scan-time output-name budgeting — fixture-only follow-up
+
+The previous V2 candidate charged the 16 MiB cumulative displayed-name budget
+while processing the **sorted** `entries` list. A wide directory's complete
+`os.scandir` result could therefore be buffered before the name budget was
+evaluated, even though the entry-count cap remained in place.
+
+The corrected source charges the full rendered child display name **within**
+the `scandir` iteration and before `entries.append`, sorting, `stat`,
+hashing or queueing that child. The counted name is not charged again during
+subsequent sorted processing. An injected synthetic iterator raises if a
+second entry is requested after the first entry already exceeds a tiny name
+budget. The expected result is
+`Hold("manifest_display_path_budget_exceeded")` with exactly one consumed
+entry. Original entry-count sentinel tests now return a named dummy entry.
+
+These tests bound displayed-name work in this disposable Python fixture,
+not peak memory from Python objects, protected-host ancestry, descriptor-
+relative traversal or an actual terminal Python/Git loader observation.
+Runtime, signer, payment, presale and funds authorities remain disabled.
