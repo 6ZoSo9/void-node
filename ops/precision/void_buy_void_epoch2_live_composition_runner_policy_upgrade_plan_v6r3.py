@@ -126,7 +126,10 @@ def revalidate_host_ancestors(
     expected:tuple[tuple[Path,tuple[int,...]],...],label:str,
 )->None:
     for current,identity in expected:
-        now=os.lstat(current)
+        try:
+            now=os.lstat(current)
+        except OSError as exc:
+            raise PlanError(label+"_ancestor_unavailable:"+str(current)) from exc
         if (
             _host_identity(now)!=identity
             or not stat.S_ISDIR(now.st_mode)
@@ -146,7 +149,10 @@ def trusted_host_ancestors(
     current=leaf.parent
     observed:list[tuple[Path,tuple[int,...]]]=[]
     while True:
-        st=os.lstat(current)
+        try:
+            st=os.lstat(current)
+        except OSError as exc:
+            raise PlanError(label+"_ancestor_unavailable:"+str(current)) from exc
         if (
             not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode)
             or st.st_uid!=0 or st.st_gid!=0
@@ -456,11 +462,18 @@ def verify_file(
         or before.st_nlink!=1 or before.st_size!=expected_bytes
     ):
         raise PlanError("protected_file_metadata_invalid:"+name)
-    fd=os.open(name,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW,dir_fd=root_fd)
+    try:
+        fd=os.open(name,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK,dir_fd=root_fd)
+    except OSError as exc:
+        raise PlanError("protected_file_open_failed:"+name) from exc
     try:
         opened=os.fstat(fd)
-        if opened.st_dev!=before.st_dev or opened.st_ino!=before.st_ino:
-            raise PlanError("protected_file_rebound:"+name)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or _host_identity(opened)!=_host_identity(before)
+            or opened.st_size!=expected_bytes
+        ):
+            raise PlanError("protected_file_opened_type_or_generation_invalid:"+name)
         digest=hashlib.sha256(); remaining=expected_bytes
         while remaining:
             chunk=os.read(fd,min(1024*1024,remaining))
@@ -476,6 +489,8 @@ def verify_file(
                 raise PlanError("protected_file_changed:"+name)
         if digest.hexdigest()!=expected_sha256:
             raise PlanError("protected_file_sha256_mismatch:"+name)
+    except OSError as exc:
+        raise PlanError("protected_file_observation_unavailable:"+name) from exc
     finally:
         os.close(fd)
 
@@ -486,7 +501,10 @@ def verify_generation(
 )->None:
     ancestors=trusted_host_ancestors(root,"protected_root")
     admitted=require_root_dir(root)
-    root_fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
+    try:
+        root_fd=os.open(root,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
+    except OSError as exc:
+        raise PlanError("protected_root_open_failed:"+str(root)) from exc
     try:
         if _host_identity(os.fstat(root_fd))!=admitted:
             raise PlanError("protected_root_descriptor_generation_mismatch:"+str(root))
@@ -502,6 +520,8 @@ def verify_generation(
         ):
             raise PlanError("protected_root_descriptor_or_path_changed:"+str(root))
         revalidate_host_ancestors(ancestors,"protected_root")
+    except OSError as exc:
+        raise PlanError("protected_root_observation_unavailable:"+str(root)) from exc
     finally:
         os.close(root_fd)
 
@@ -509,7 +529,10 @@ def verify_generation(
 def verify_v4_predecessor()->None:
     ancestors=trusted_host_ancestors(PREDECESSOR_V4_ROOT,"v4_predecessor")
     admitted=require_root_dir(PREDECESSOR_V4_ROOT)
-    root_fd=os.open(PREDECESSOR_V4_ROOT,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
+    try:
+        root_fd=os.open(PREDECESSOR_V4_ROOT,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
+    except OSError as exc:
+        raise PlanError("v4_predecessor_open_failed") from exc
     try:
         if _host_identity(os.fstat(root_fd))!=admitted:
             raise PlanError("v4_predecessor_descriptor_generation_mismatch")
@@ -525,6 +548,8 @@ def verify_v4_predecessor()->None:
         ):
             raise PlanError("v4_predecessor_descriptor_or_path_changed")
         revalidate_host_ancestors(ancestors,"v4_predecessor")
+    except OSError as exc:
+        raise PlanError("v4_predecessor_observation_unavailable") from exc
     finally:
         os.close(root_fd)
 
@@ -691,6 +716,7 @@ def source_plan()->None:
     print("host_ancestor_acl_nonwritability_required=true")
     print("host_root_descriptor_identity_required=true")
     print("host_nonblocking_regular_file_open_required=true")
+    print("host_missing_ancestor_structured_hold_required=true")
     print("host_node_and_state_terminal_revalidation_required=true")
     print("full_root_stage_required=true")
     print("atomic_root_exchange_required=true")
@@ -823,6 +849,24 @@ def self_test()->None:
         os.access=saved_access
     print("host_ancestor_acl_writability_adversary_rejected=true")
 
+    # A disappearing-ancestor fixture must return a PlanError, not a traceback.
+    saved_lstat=os.lstat
+    def synthetic_missing_ancestor(current,*args,**kwargs):
+        if str(current)=="/usr":
+            raise FileNotFoundError("synthetic_missing_ancestor")
+        return saved_lstat(current,*args,**kwargs)
+    os.lstat=synthetic_missing_ancestor
+    try:
+        try:
+            trusted_host_ancestors(Path("/usr/bin/void-v6r3-inert-fixture"),"fixture_missing")
+        except PlanError as exc:
+            assert str(exc)=="fixture_missing_ancestor_unavailable:/usr"
+        else:
+            raise AssertionError("missing_ancestor_was_not_a_structured_hold")
+    finally:
+        os.lstat=saved_lstat
+    print("host_missing_ancestor_structured_hold=true")
+
     drift_calls=0
     def drifting_source():
         nonlocal drift_calls
@@ -899,6 +943,7 @@ def self_test()->None:
     print("host_ancestor_acl_nonwritability_required=true")
     print("host_root_descriptor_identity_required=true")
     print("host_nonblocking_regular_file_open_required=true")
+    print("host_missing_ancestor_structured_hold_required=true")
     print("host_node_and_state_terminal_revalidation_required=true")
     print("late_source_drift_rejected=true")
     print("source_runtime_graft_ancestry_rejected=true")
