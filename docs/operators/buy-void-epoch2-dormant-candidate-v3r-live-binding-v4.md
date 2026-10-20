@@ -1,5 +1,78 @@
 # Buy VOID Epoch-2 dormant candidate V3R live binding V4 — dynamic current-source successor
 
+
+## Current source-only installed-Binder receipt integrity successor — October 20
+
+**This section supersedes historical Binder source/size/preentry pins below.**
+
+The native parent still authenticates an exact, sealed Binder JavaScript
+snapshot **before root fork** and streams only the sealed source to Node.
+That proves which program executes, but the previous Node terminal check
+only compared the installed Binder by `dev,ino,uid,gid,mode,nlink,size`,
+not file bytes or `mtimeNs/ctimeNs`. A privileged same-inode and same-size
+in-place change *after stage* could pass the old final receipt check.
+This is **evidence freshness**, not an unsealed-code execution bypass.
+
+The reviewed descendant requires the private, root native-parent proof to
+carry its own **compile-bound accepted Binder SHA-256 and byte count**.
+Every `revalidateBinderPreentry()`, including the check immediately before
+constructing the binding receipt, performs a positional retained-FD read,
+requires the expected exact length and EOF, computes SHA-256 over those
+bytes, and matches the native parent's digest. It checks the retained FD
+against the visible installed pathname and requires the **same**
+dev/inode/UID/GID/mode/link count/size/**mtimeNs/ctimeNs** before and
+after reading, failing closed on any mismatch.
+
+An actual nonprivileged disposable Node test writes a 4096-byte file,
+authenticates it, overwrites the **same inode with a different 4096 bytes**,
+and requires terminal revalidation to reject. A second test replaces the
+visible pathname and requires HOLD against the originally retained FD.
+No fixture accesses the protected installation directory or credentials.
+
+```text
+parent_pr=3640
+parent_head=d44a2a57abf80d41eac605cbe8518f0dc7b673b7
+binder_js_blob=d2d648b144d3b406ff845a597fa4b9f54167b6bc
+binder_js_sha256=c447151d7bc4d1b3ffc5e9c8d58b92e8f041e3aa6c0c5747d6da621471e28207
+binder_js_bytes=66650
+native_preentry_c_blob=704f3726600690605303d9083976225f4913b446
+binder_source_proof_blob=3321e8a0cf05ab2272951b34aef8185fef3caf0d
+installed_binder_terminal_fd_digest_checked=true
+privileged_live_execution=false
+credential_access=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+This changes the **native preentry source** and therefore invalidates the
+prior compiled preentry ELF generation; a new content-addressed
+preentry executable and root-custodied installed-generation proof are
+mandatory. The accepted V6R2 **native child** ELF lock is separate and
+unchanged. Source-only CI is not installed source, host first-entry,
+Node/Git loader closure, postexec isolation or independent security review.
+
+Terminal digest + metadata is a **point-in-time** installed-file
+observation; without an authorized exclusive writer lease it cannot promise
+that an independently privileged actor never writes immediately after
+that observation. No stronger continuously-current or production-ready
+receipt claim is made.
+
+**HOLD:** Draft/unmerged. No protected host `--run`, installation,
+service changes, private keys, wallet, signing, RPC, transaction/payment,
+public presale/WC activation, treasury/liquidity or funds movement.
+The temporary self-test cleanup now closes its own descriptor and removes
+only its own disposable file/directory; no raw empty catches remain. This
+refinement changes the exact accepted source and C/native proof bytes, so
+only the above current-generation pins are valid. Repo-wide tracked-empty-
+catch CI must be evaluated on the newly pinned exact head.
+
+Tor renewal is managed in the other chat.
+
+PROTECT THE CORE.
+
+
+
 Marker: `VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4`.
 
 Status: **source/test/CI only**. This Draft does not install the binder, execute the

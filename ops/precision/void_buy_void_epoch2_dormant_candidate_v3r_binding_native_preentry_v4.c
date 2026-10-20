@@ -29,17 +29,17 @@
 #define BINDER_FD_ENV_PREFIX "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V4_BINDER_FD="
 #define PROOF_FD_ENV_PREFIX "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PREENTRY_V4_PROOF_FD="
 #define PROOF_SCHEMA "VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V4"
-#define BINDER_GIT_BLOB "be4a40954e5541168ab3403ad5b9b74207dc5ddd"
-#define BINDER_BYTES 62308U
+#define BINDER_GIT_BLOB "d2d648b144d3b406ff845a597fa4b9f54167b6bc"
+#define BINDER_BYTES 66650U
 #define MAX_POLICY_BYTES 1024U
 #define MAX_RUNNER_BYTES (4U * 1024U * 1024U)
 #define MAX_NODE_BYTES (512U * 1024U * 1024U)
 
 static const unsigned char BINDER_SHA256[32]={
-  0x31,0x30,0x9b,0xff,0xff,0xc0,0x9d,0xbb,
-  0x7c,0xed,0x84,0x9f,0xeb,0x61,0xf3,0xb6,
-  0x1c,0x52,0x26,0xf6,0xec,0x66,0xcd,0xcd,
-  0xba,0x3e,0x31,0x5b,0xc0,0x8c,0xed,0xbd
+  0xc4,0x47,0x15,0x1d,0x7b,0xc4,0xd1,0xb3,
+  0xff,0xc5,0xe9,0xc8,0xd5,0x8b,0x92,0xe8,
+  0xf0,0x41,0xe3,0xaa,0x6c,0x0c,0x57,0x47,
+  0xd6,0xda,0x62,0x14,0x71,0xe2,0x82,0x07
 };
 
 typedef struct{unsigned char data[64];uint32_t datalen;uint64_t bitlen;uint32_t state[8];} sha256_ctx;
@@ -242,9 +242,19 @@ static void parse_args(int argc,char**argv,char source_head[41],char runtime_hea
   memcpy(runtime_head,argv[7],41U);
 }
 static void emit_proof(int fd,pid_t child,const char source_head[41],const char runtime_head[41],const struct stat*self,const struct stat*binder,const struct stat*node,unsigned long long parent_ticks,unsigned long long child_ticks){
+  /* The parent speaks the compile-bound digest in its private proof pipe.
+   * The child must never derive expected installed-source bytes from its
+   * own mutable text or an unverified checkout. */
+  char binder_hex[65];
+  static const char digits[]="0123456789abcdef";
+  for(size_t i=0U;i<sizeof(BINDER_SHA256);i++){
+    binder_hex[i*2U]=digits[BINDER_SHA256[i]>>4];
+    binder_hex[i*2U+1U]=digits[BINDER_SHA256[i]&0x0fU];
+  }
+  binder_hex[64]='\0';
   char proof[2176];int n=snprintf(proof,sizeof(proof),
-    "{\"schema\":\"%s\",\"parent_pid\":%ld,\"parent_start_ticks\":\"%llu\",\"child_pid\":%ld,\"child_start_ticks\":\"%llu\",\"preentry_dev\":\"%ju\",\"preentry_ino\":\"%ju\",\"binder_dev\":\"%ju\",\"binder_ino\":\"%ju\",\"node_dev\":\"%ju\",\"node_ino\":\"%ju\",\"source_head\":\"%s\",\"runtime_head\":\"%s\"}\n",
-    PROOF_SCHEMA,(long)getpid(),parent_ticks,(long)child,child_ticks,(uintmax_t)self->st_dev,(uintmax_t)self->st_ino,(uintmax_t)binder->st_dev,(uintmax_t)binder->st_ino,(uintmax_t)node->st_dev,(uintmax_t)node->st_ino,source_head,runtime_head);
+    "{\"schema\":\"%s\",\"parent_pid\":%ld,\"parent_start_ticks\":\"%llu\",\"child_pid\":%ld,\"child_start_ticks\":\"%llu\",\"preentry_dev\":\"%ju\",\"preentry_ino\":\"%ju\",\"binder_dev\":\"%ju\",\"binder_ino\":\"%ju\",\"node_dev\":\"%ju\",\"node_ino\":\"%ju\",\"source_head\":\"%s\",\"runtime_head\":\"%s\",\"binder_bytes\":%u,\"binder_sha256\":\"%s\"}\n",
+    PROOF_SCHEMA,(long)getpid(),parent_ticks,(long)child,child_ticks,(uintmax_t)self->st_dev,(uintmax_t)self->st_ino,(uintmax_t)binder->st_dev,(uintmax_t)binder->st_ino,(uintmax_t)node->st_dev,(uintmax_t)node->st_ino,source_head,runtime_head,(unsigned)BINDER_BYTES,binder_hex);
   if(n<=0||(size_t)n>=sizeof(proof)||!write_all(fd,(const unsigned char*)proof,(size_t)n))hold("binder_preentry_parent_proof_write_failed");
 }
 static bool self_test_sealed_source(void){
@@ -318,10 +328,10 @@ static int self_test_hold(bool post_source){
 }
 static int self_test(void){
   static const unsigned char abc_expected[32]={0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
-  unsigned char h[32];sha256_buffer((const unsigned char*)"abc",3U,h);if(memcmp(h,abc_expected,32U)!=0)return 1;if(BINDER_BYTES!=62308U||strlen(BINDER_GIT_BLOB)!=40U)return 1;
+  unsigned char h[32];sha256_buffer((const unsigned char*)"abc",3U,h);if(memcmp(h,abc_expected,32U)!=0)return 1;if(BINDER_BYTES!=66650U||strlen(BINDER_GIT_BLOB)!=40U)return 1;
   if(!self_test_sealed_source())return 1;
   if(!self_test_fifo_replacement_nonblocking())return 1;
-  puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("binder_verified_sealed_memfd_source=true");puts("trusted_fifo_swap_open_nonblocking=true");puts("binder_same_inode_mutation_streams_only_accepted_bytes=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("source_runtime_two_head_contract=true");puts("runtime_policy_head_separate_from_source_head=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("failure_truth_boundary_test_modes=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
+  puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("binder_parent_proof_contains_accepted_source_digest=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("binder_verified_sealed_memfd_source=true");puts("trusted_fifo_swap_open_nonblocking=true");puts("binder_same_inode_mutation_streams_only_accepted_bytes=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("source_runtime_two_head_contract=true");puts("runtime_policy_head_separate_from_source_head=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("failure_truth_boundary_test_modes=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
 }
 int main(int argc,char**argv){
   if(argc==2&&strcmp(argv[1],"--self-test")==0)return self_test();

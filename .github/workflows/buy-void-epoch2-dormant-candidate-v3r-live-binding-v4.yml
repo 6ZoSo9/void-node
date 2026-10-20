@@ -55,6 +55,10 @@ jobs:
                   base="$PR_BASE"
                   test "$base" = "9746fdd767f35cb08e2967c616fb5da4a144c44e"
                   ;;
+                ren/epoch2-binder-native-nonblocking-trusted-open-v1-20261020)
+                  base="$PR_BASE"
+                  test "$base" = "d44a2a57abf80d41eac605cbe8518f0dc7b673b7"
+                  ;;
                 *)
                   exit 1
                   ;;
@@ -98,13 +102,13 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs)" = \
-            "be4a40954e5541168ab3403ad5b9b74207dc5ddd"
+            "d2d648b144d3b406ff845a597fa4b9f54167b6bc"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c)" = \
-            "78b2264a46adfc457c648dd2c57838c246c3ca71"
+            "704f3726600690605303d9083976225f4913b446"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py)" = \
-            "2441a2250ffde446e4943332e219f509eaadb8a9"
+            "3321e8a0cf05ab2272951b34aef8185fef3caf0d"
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.md)" = \
-            "f055d9a4bbf9fbc71d89e9a0530a048a8740ce78"
+            "dd21593a9e4e3086c08fb22f55ffd1727fa8569e"
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -136,6 +140,9 @@ jobs:
           grep -Fx 'binder_sealed_memfd_source_verified_before_root_fork=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_inplace_mutation_cannot_change_streamed_js=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_native_trusted_open_fifo_swap_nonblocking=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'binder_terminal_installed_source_digest_proven=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'binder_same_inode_size_mutation_receipt_rejection_proven=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'binder_parent_private_proof_accepted_digest_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_retained_root_exec_source_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_ancestor_and_runtime_acl_guard_source_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_configured_original_path_symlink_guard_source_bound=true' "$RUNNER_TEMP/proof.log"

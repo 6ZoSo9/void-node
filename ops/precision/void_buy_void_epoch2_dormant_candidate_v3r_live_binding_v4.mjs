@@ -426,6 +426,7 @@ function parseBinderParentProof(fd){
     "schema","parent_pid","parent_start_ticks","child_pid","child_start_ticks",
     "preentry_dev","preentry_ino","binder_dev","binder_ino",
     "node_dev","node_ino","source_head","runtime_head",
+    "binder_sha256","binder_bytes",
   ].sort();
   if(JSON.stringify(keys)!==JSON.stringify(expected)){
     throw new Error("binder_preentry_parent_proof_schema_invalid");
@@ -434,7 +435,10 @@ function parseBinderParentProof(fd){
      !Number.isSafeInteger(proof.parent_pid)||proof.parent_pid<=1||
      !Number.isSafeInteger(proof.child_pid)||proof.child_pid<=1||
      !SHA40.test(String(proof.source_head||""))||
-     !SHA40.test(String(proof.runtime_head||""))){
+     !SHA40.test(String(proof.runtime_head||""))||
+     !HEX64.test(String(proof.binder_sha256||""))||
+     !Number.isSafeInteger(proof.binder_bytes)||
+     proof.binder_bytes<1||proof.binder_bytes>4*1024*1024){
     throw new Error("binder_preentry_parent_proof_identity_invalid");
   }
   for(const key of [
@@ -447,6 +451,46 @@ function parseBinderParentProof(fd){
     }
   }
   return Object.freeze(proof);
+}
+/* Authenticated executed snapshot and currently installed file are
+ * distinct evidence. Rehash the retained installed FD against the native
+ * parent's compile-bound source digest, including terminal path identity. */
+function requireCurrentInstalledBinderBytes(fd,installedPath,expectedBytes,expectedSha){
+  if(!Number.isSafeInteger(expectedBytes)||expectedBytes<1||
+     expectedBytes>4*1024*1024||!HEX64.test(String(expectedSha||""))){
+    throw new Error("binder_preentry_installed_source_expected_identity_invalid");
+  }
+  const before=fs.fstatSync(fd,{bigint:true});
+  const visibleBefore=fs.lstatSync(installedPath,{bigint:true});
+  if(!before.isFile()||!visibleBefore.isFile()||
+     visibleBefore.isSymbolicLink()||before.size!==BigInt(expectedBytes)||
+     !sameTrustedExecutableGeneration(before,visibleBefore)){
+    throw new Error("binder_preentry_installed_source_generation_changed");
+  }
+  const digest=crypto.createHash("sha256");
+  const buffer=Buffer.allocUnsafe(8192);
+  let remaining=expectedBytes;
+  let offset=0;
+  while(remaining>0){
+    const want=Math.min(buffer.length,remaining);
+    const n=fs.readSync(fd,buffer,0,want,offset);
+    if(n<1||n>want)throw new Error("binder_preentry_installed_source_short_read");
+    digest.update(buffer.subarray(0,n));
+    remaining-=n;offset+=n;
+  }
+  if(fs.readSync(fd,buffer,0,1,offset)!==0){
+    throw new Error("binder_preentry_installed_source_grew");
+  }
+  const after=fs.fstatSync(fd,{bigint:true});
+  const visibleAfter=fs.lstatSync(installedPath,{bigint:true});
+  if(!sameTrustedExecutableGeneration(before,after)||
+     !sameTrustedExecutableGeneration(after,visibleAfter)){
+    throw new Error("binder_preentry_installed_source_generation_changed");
+  }
+  if(digest.digest("hex")!==expectedSha){
+    throw new Error("binder_preentry_installed_source_digest_not_accepted");
+  }
+  return true;
 }
 function revalidateBinderPreentry(proof,sourceHead,runtimeHead){
   if(proof.source_head!==sourceHead){
@@ -504,9 +548,12 @@ function revalidateBinderPreentry(proof,sourceHead,runtimeHead){
   if(!retainedBinder.isFile()||visibleBinder.isSymbolicLink()||
      !visibleBinder.isFile()||retainedBinder.uid!==0n||
      (retainedBinder.mode&0o022n)!==0n||
-     !sameFileIdentity(retainedBinder,visibleBinder)){
+     !sameTrustedExecutableGeneration(retainedBinder,visibleBinder)){
     throw new Error("binder_preentry_binder_generation_invalid");
   }
+  requireCurrentInstalledBinderBytes(
+    binderFd,FIXED_BINDER_SOURCE,proof.binder_bytes,proof.binder_sha256,
+  );
   if(fs.realpathSync(process.execPath)!==fs.realpathSync(FIXED_NODE)){
     throw new Error("binder_preentry_node_executable_mismatch");
   }
@@ -1075,7 +1122,49 @@ function proveRetainedNativeElfParserFixture(){
     fs.unlinkSync(file);fs.rmdirSync(dir);
   }
 }
+function proveInstalledBinderReceiptGenerationFixture(){
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"void-e2-binder-receipt-"));
+  const file=path.join(dir,"binder-fixture.mjs");
+  const accepted=Buffer.alloc(4096,0x41);
+  const substituted=Buffer.alloc(4096,0x42);
+  let fd=-1;
+  try{
+    fs.writeFileSync(file,accepted,{mode:0o600});
+    fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+    const bound=sha256(accepted);
+    requireCurrentInstalledBinderBytes(fd,file,accepted.length,bound);
+    const original=fs.fstatSync(fd,{bigint:true});
+    fs.writeFileSync(file,substituted);
+    const modified=fs.fstatSync(fd,{bigint:true});
+    if(!sameFileIdentity(original,modified)){
+      throw new Error("binder_receipt_same_inode_mutation_fixture_invalid");
+    }
+    let refused=false;
+    try{requireCurrentInstalledBinderBytes(fd,file,accepted.length,bound);}
+    catch(error){
+      refused=/binder_preentry_installed_source_(generation_changed|digest_not_accepted)/u
+        .test(String(error?.message||""));
+    }
+    if(!refused)throw new Error("binder_receipt_same_inode_content_mutation_accepted");
+    fs.unlinkSync(file);
+    fs.writeFileSync(file,accepted,{mode:0o600});
+    let rebound=false;
+    try{requireCurrentInstalledBinderBytes(fd,file,accepted.length,bound);}
+    catch(error){
+      rebound=String(error?.message||"")
+        .includes("binder_preentry_installed_source_generation_changed");
+    }
+    if(!rebound)throw new Error("binder_receipt_visible_path_rebind_accepted");
+  }finally{
+    // Disposable evidence may not silently swallow cleanup failures.
+    // The private fixture has exactly one file and directory to remove.
+    if(fd>=0)fs.closeSync(fd);
+    if(fs.existsSync(file))fs.unlinkSync(file);
+    fs.rmdirSync(dir);
+  }
+}
 function selfTest(){
+  proveInstalledBinderReceiptGenerationFixture();
   proveRetainedNativeElfParserFixture();
   // The static public Git tool is safe to exercise under an unprivileged
   // Actions runner. No protected credentials or native live runtime execute.
@@ -1329,6 +1418,10 @@ function selfTest(){
   console.log("binder_native_ptload_offset_plus_file_extent_negative=true");
   console.log("binder_wrong_root_owned_native_rejected_before_exec=true");
   console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
+  console.log("binder_native_parent_digest_binds_final_installed_source=true");
+  console.log("binder_terminal_retained_fd_sha256_rechecked=true");
+  console.log("binder_same_inode_size_inplace_mutation_receipt_rejected=true");
+  console.log("binder_visible_source_path_rebind_receipt_rejected=true");
   console.log("runtime_native_receives_runtime_policy_head_only=true");
   console.log("canonical_checkout_rewind_performed=false");
   console.log("installed_policy_mutation=false");
