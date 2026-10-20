@@ -215,3 +215,21 @@ worktree/object-store bindings, `GIT_NO_LAZY_FETCH=1`, and
 authority, and missing promisor objects fail closed instead of fetching.
 
 This remains source/CI-only and does not authorize host execution or mutation.
+
+
+## October 20 object-alternate repair
+
+A downstream rereview identified one remaining preliminary-object-store escape:
+Git honors `.git/objects/info/alternates` and `http-alternates` even when
+`GIT_OBJECT_DIRECTORY` is explicitly set. A local alternate can therefore
+redirect object reads before the later hardened repository snapshot rejects the
+layout.
+
+The preliminary qualifier now inspects the physical `.git/objects/info`
+directory before any Git subprocess. Presence of either redirect file is an
+immediate HOLD with `git_object_alternates_forbidden`. The adversarial proof
+creates each redirect in turn and requires rejection before the Git wrapper is
+invoked.
+
+This closes only preliminary object-store redirect authority; it adds no host or
+economic authority.

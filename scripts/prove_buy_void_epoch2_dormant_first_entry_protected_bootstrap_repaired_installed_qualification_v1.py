@@ -29,7 +29,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-TARGET_BLOB = "56e5b1e3e80fc12f5dc6f6bbd1aab3e29b673ec2"
+TARGET_BLOB = "132e03eaea440f3f8c59aeaca879596c677c6bcf"
 
 UPGRADER_REL = (
     "ops/precision/"
@@ -138,6 +138,7 @@ for required in (
     '"preliminary_git_local_config_isolated": True',
     '"preliminary_git_lazy_fetch_disabled": True',
     '"preliminary_git_protocols_denied": True',
+    '"preliminary_git_object_alternates_rejected": True',
     '"filesystem_write": True',
     '"protected_filesystem_mutation": False',
     "nonroot_required_for_repaired_qualification",
@@ -208,6 +209,7 @@ with tempfile.TemporaryDirectory(prefix="void-e2-qualification-fsmonitor-") as t
     repo = temp / "repo"
     sentinel = temp / "fsmonitor-executed"
     env_sentinel = temp / "git-env-boundary-failed"
+    invoked_sentinel = temp / "git-invoked"
     subprocess.run(
         ["/usr/bin/git", "init", "-q", "-b", "main", str(repo)],
         stdin=subprocess.DEVNULL,
@@ -299,6 +301,9 @@ with tempfile.TemporaryDirectory(prefix="void-e2-qualification-fsmonitor-") as t
         + "if [ \"$GIT_CONFIG_VALUE_5\" != never ]; then /usr/bin/touch "
         + str(env_sentinel)
         + "; exit 97; fi\n"
+        + "/usr/bin/touch "
+        + str(invoked_sentinel)
+        + "\n"
         + "exec /usr/bin/git \"$@\"\n",
         encoding="utf-8",
     )
@@ -320,6 +325,21 @@ with tempfile.TemporaryDirectory(prefix="void-e2-qualification-fsmonitor-") as t
     assert observed == fixture
     assert not sentinel.exists(), "qualification_git_fsmonitor_callback_executed"
     assert not env_sentinel.exists(), "qualification_git_env_boundary_failed"
+    assert invoked_sentinel.exists(), "qualification_git_wrapper_not_exercised"
+
+    info_dir = repo / ".git/objects/info"
+    for redirect_name in ("alternates", "http-alternates"):
+        redirect = info_dir / redirect_name
+        redirect.write_text(str(temp / "external-objects") + "\n", encoding="utf-8")
+        invoked_sentinel.unlink(missing_ok=True)
+        try:
+            module.checkout_snapshot(head)
+        except module.QualificationError as exc:
+            assert str(exc) == "git_object_alternates_forbidden"
+        else:
+            raise AssertionError("qualification_git_object_alternate_accepted")
+        assert not invoked_sentinel.exists(), "git_invoked_before_alternates_rejection"
+        redirect.unlink()
 
 tree = ast.parse(source)
 functions = {
@@ -398,6 +418,7 @@ for mode, expected_lines in (
             "preliminary_git_local_config_isolation_required=true",
             "preliminary_git_lazy_fetch_disabled_required=true",
             "preliminary_git_protocols_denied_required=true",
+            "preliminary_git_object_alternates_rejection_required=true",
             "nonroot_run_required=true",
             "protected_filesystem_mutation=false",
             "bootstrap_execution=false",
@@ -429,6 +450,7 @@ for mode, expected_lines in (
             "preliminary_git_local_config_isolation_required=true",
             "preliminary_git_lazy_fetch_disabled_required=true",
             "preliminary_git_protocols_denied_required=true",
+            "preliminary_git_object_alternates_rejection_required=true",
             "nonroot_run_required=true",
             "protected_filesystem_mutation=false",
             "bootstrap_execution=false",
@@ -477,6 +499,7 @@ print("qualification_git_fsmonitor_callback_rejected=true")
 print("preliminary_git_local_config_isolated=true")
 print("preliminary_git_lazy_fetch_disabled=true")
 print("preliminary_git_protocols_denied=true")
+print("preliminary_git_object_alternates_rejected=true")
 print("green_emit_filesystem_write_truth_bound=true")
 print("repaired_plan_immutable_handoff_bound=true")
 print("nonroot_run_required=true")

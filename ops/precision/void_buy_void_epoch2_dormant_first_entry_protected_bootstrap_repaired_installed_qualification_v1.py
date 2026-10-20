@@ -216,6 +216,28 @@ def _verified_git_dir_and_index(expected_head: str) -> tuple[Path, bytes]:
     if not stat.S_ISDIR(objects_stat.st_mode):
         raise QualificationError("git_objects_real_directory_required")
 
+    info_dir = objects_dir / "info"
+    try:
+        info_stat = info_dir.lstat()
+    except FileNotFoundError:
+        info_stat = None
+    except OSError as exc:
+        raise QualificationError("git_objects_info_metadata_failed") from exc
+    if info_stat is not None:
+        if not stat.S_ISDIR(info_stat.st_mode):
+            raise QualificationError("git_objects_info_real_directory_required")
+        for redirect_name in ("alternates", "http-alternates"):
+            redirect = info_dir / redirect_name
+            try:
+                redirect.lstat()
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise QualificationError(
+                    "git_object_alternates_metadata_failed"
+                ) from exc
+            raise QualificationError("git_object_alternates_forbidden")
+
     index_raw = _read_regular_bytes(
         git_dir / "index",
         MAX_GIT_METADATA_BYTES,
@@ -427,6 +449,7 @@ def collect(expected_head: str) -> dict[str, Any]:
         "preliminary_git_local_config_isolated": True,
         "preliminary_git_lazy_fetch_disabled": True,
         "preliminary_git_protocols_denied": True,
+        "preliminary_git_object_alternates_rejected": True,
         "filesystem_write": True,
         "protected_filesystem_mutation": False,
         "bootstrap_execution": False,
@@ -466,6 +489,7 @@ def source_plan() -> None:
     print("preliminary_git_local_config_isolation_required=true")
     print("preliminary_git_lazy_fetch_disabled_required=true")
     print("preliminary_git_protocols_denied_required=true")
+    print("preliminary_git_object_alternates_rejection_required=true")
     print("nonroot_run_required=true")
     print("protected_filesystem_mutation=false")
     print("bootstrap_execution=false")
@@ -502,6 +526,7 @@ def emit(result: dict[str, Any]) -> None:
     print("preliminary_git_local_config_isolated=true")
     print("preliminary_git_lazy_fetch_disabled=true")
     print("preliminary_git_protocols_denied=true")
+    print("preliminary_git_object_alternates_rejected=true")
     print("filesystem_write=true")
     print("protected_filesystem_mutation=false")
     print("repaired_bootstrap_sha256=" + NEW_BOOT[1])
@@ -551,6 +576,7 @@ def self_test() -> None:
     print("preliminary_git_local_config_isolation_required=true")
     print("preliminary_git_lazy_fetch_disabled_required=true")
     print("preliminary_git_protocols_denied_required=true")
+    print("preliminary_git_object_alternates_rejection_required=true")
     print("nonroot_run_required=true")
     print("upgrader_apply_not_called=true")
     print("protected_filesystem_mutation=false")
