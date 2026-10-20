@@ -37,7 +37,13 @@
     "pre_exec_freshness_not_post_exec_process_authority": true,
     "post_exec_dumpability_protection_or_isolation_required": true,
     "post_exec_dumpability_must_be_observed_before_host_plan_authority": true,
-    "installed_post_exec_dumpability_enforcement_source_proven": false
+    "installed_post_exec_dumpability_enforcement_source_proven": false,
+    "parent_python_git_runtime_closure_bound": true,
+    "git_executable_loader_dso_and_helpers_current_required": true,
+    "git_config_and_repository_metadata_absence_current_required": true,
+    "git_runtime_file_accesses_subset_of_accepted_closure": true,
+    "post_exec_diagnostic_historical_not_v2_elf_execution_authority": true,
+    "installed_v2_first_entry_enforcement_source_proven": false
   },
   "authority": {
     "source_contract_only": true,
@@ -57,5 +63,5 @@
     "funds_movement": false
   },
   "next_gate": "void_buy_void_epoch2_v6r3_python_runtime_closure_terminal_host_census_v2",
-  "gate_id": "voidbuye2v6r3pyclosurefreshness2_53653912534048b7be8b02aed429a28383edb9b419632e7e1d8fd32a19050414"
+  "gate_id": "voidbuye2v6r3pyclosurefreshness2_5840ca9aaecbbef2b50783fe05d364161e66b19a79c793b71dd80d18d243c54b"
 }

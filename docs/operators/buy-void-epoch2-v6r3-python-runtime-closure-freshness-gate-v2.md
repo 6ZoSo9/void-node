@@ -1,76 +1,86 @@
-# Buy VOID Epoch-2 V6R3 Python closure freshness gate V2
+# VOID Epoch-2 V6R3 V2 Python/Git runtime closure freshness gate
 
 Marker: `VOID_BUY_VOID_EPOCH2_V6R3_PYTHON_RUNTIME_CLOSURE_FRESHNESS_GATE_V2`.
 
-Status: **source/test/CI only — live enforcement not implemented, host census not authorized**.
+**Source/test/CI only.** This contract is **not** a live enforcement implementation, does not
+run a Precision host census, and does not authorize a protected host plan.
 
-## Why this successor exists
+## Exact V2 dependency lineage
 
-#3595 defines the Python interpreter, ELF loader, dynamic-library, sys.path,
-and import-file closure that a later read-only host census must record. A report
-from that census is a *historical observation*. A perfectly content-addressed
-report does not prove the same files, libraries, symlinks, absent paths or ACLs
-remain in place when the static launcher later enters Python.
+```text
+parent_pr=3595
+closure_contract_head=83c066af5542c2b4d836f3df9d06381499031a30
+closure_contract_git_blob=c56361ecaccb916a79591c016200b8dc02f5ca54
+closure_contract_id=voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50
+repaired_binary_lock_git_blob=14a3ff2eca0583d1355dc8b75bd54cc55115d946
+repaired_binary_lock_id=voidbuye2v6r3planfirstentrybinlock2_b5e1bbca28ed7aad579ac7f37a7575ed90eadd44f73d24edac79df3cc74664c1
+freshness_gate_id=voidbuye2v6r3pyclosurefreshness2_5840ca9aaecbbef2b50783fe05d364161e66b19a79c793b71dd80d18d243c54b
+```
 
-An accepted report is not a live first-execution authorization. This follow-on
-records a separate **temporal** gate for installed read-only qualification.
+This is a deliberate V2 reissue of historical #3578. Its original V1 contract/ELF pins
+remain frozen, but **cannot authorize** the changed first-entry executable from #3585,
+candidate #3587, or the new content-addressed binary lock #3591. The parent V2 source
+contract #3595 is itself only reviewed repository source evidence; it has **not**
+accepted an installed host Python/Git/loader runtime.
 
-## Bound source
+## Temporal security boundary
 
-- Parent corrected contract head: `83c066af5542c2b4d836f3df9d06381499031a30`.
-- Parent Python closure contract Git blob:
-  `c56361ecaccb916a79591c016200b8dc02f5ca54`.
-- Parent contract ID:
-  `voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50`.
-- Accepted static first-entry binary lock Git blob:
-  `14a3ff2eca0583d1355dc8b75bd54cc55115d946`.
-- First-entry binary lock ID:
-  `voidbuye2v6r3planfirstentrybinlock2_b5e1bbca28ed7aad579ac7f37a7575ed90eadd44f73d24edac79df3cc74664c1`.
-- This gate ID:
-  `voidbuye2v6r3pyclosurefreshness2_53653912534048b7be8b02aed429a28383edb9b419632e7e1d8fd32a19050414`.
+A historical host report or a correct SHA-256 lock is not current first-instruction evidence.
+Before any future separately approved read-only host planner execution, one coherent,
+independently reviewed installed first-entry must:
 
-## Required future live boundary
+- Compare the exact accepted report, host identity and its complete current Python/Git
+  execution closure to the **current** host generation.
+- Authenticate Python ELF, dynamic loader, transitive libraries, `-I -B -S` sys.path,
+  import roots, mapped ELFs, all file-access/config/plugin authorities, symlinks and
+  explicit absences, with effective UID-1000 ancestor and leaf custody.
+- Independently authenticate Git's retained executable, loader/DSOs, runtime helpers,
+  config and repository metadata/absences—not merely `/usr/bin/git` as a pathname.
+- Reject missing/new/writable/unapproved imports or runtime paths, changed symlinks,
+  materialized absent paths and all ambiguous dependency resolution.
+- Revalidate terminally **after** irreversible UID/GID reduction and **before** the
+  authenticated Python `fexecve`; a previous read-only census cannot authorize
+  the future loader/import sequence on its own.
+- Separately resolve the **post-`fexecve` dumpability** isolation finding. Historical
+  #3579 observed ordinary `pre=0, post=1`; this is a **diagnostic**, not evidence that
+  the new V2 Python process remains nondumpable after exec.
 
-A separately reviewed installed observer/launcher must bind the exact accepted
-host report and host identity to a **current** complete runtime-manifest check.
-The check must reobserve Python ELF and loader closure, interpreter configuration, Git subprocess runtime dependencies,
-every accepted sys.path and import root, all regular-file SHA-256/metadata,
-symlink target graphs, existing and missing paths, and effective runtime-UID
-writability of every source, ancestor, directory and loader-authority path.
+This V2 gate is content-addressed with canonical SHA-256 over exact JSON material.
+The current source verifier authenticates the V2 parent Git blob/ID and lock blob/ID;
+its **in-memory-only** classifier checks complete manifest equality, root/leaf writable
+flags, declared absences and file-access subsets. It also requires a Git runtime
+submanifest containing the executable, mapped ELFs, helper files and configuration
+presence/absence; synthetic negatives cover Git binary/loader/DSO/helper hash drift,
+configuration materialization, unapproved helpers and library loads.
 
-This gate must be repeated **after the permanent UID/GID 1000 drop** and
-**before Python first exec**. It is strictly a **pre-exec freshness** gate: it does not prove the child remains nondumpable after `fexecve()`. The corrected parent binds the observed `pre=0 → post=1` diagnostic, and a separate post-exec protection/isolation plus actual `PR_GET_DUMPABLE` observation remains mandatory before host-plan authority. New/deleted files, loader-cache or preload drift,
-new path roots, absent-path materialization, link swaps, ambiguous dependencies,
-ACL write grants, or unmapped runtime file accesses must HOLD. A future observer
-must produce source-authenticated, host-bound evidence and reject stale manifests.
+**Additional P2 correction:** a mapped/executed Git ELF, dynamic loader, DSO or
+invoked helper may NOT be declared absent merely because its absence and parent custody
+were recorded. The synthetic classifier now requires every `mapped_elf_paths`
+and `helper_paths` entry to be an existing, hashed, regular nonwritable object,
+with a positive byte length. Optional Git configuration files may be declared absent
+only with explicit nonwritable nearest-parent evidence. The positive fixture lists
+`/usr/bin/git` among accessed code paths.
 
-Even perfect on-disk revalidation is not sufficient if a runtime-writable
-ancestor can be replaced before the dynamic loader imports its dependencies.
-Use retained generation bindings or fail-closed root-owned/ACL-sealed ancestry
-and terminal checks; do not call an offline scan an atomic loader snapshot.
-The accepted static first-entry and its protected host installation remain
-separate gates.
+Four **same-data** negative fixtures deliberately delete Git, loader, DSO or helper
+from both the accepted and current object manifests, install apparently valid absence
+claims, recompute the accepted report SHA-256 and still require HOLD. They prove the
+classifier is not simply rejecting changes between two manifests. The total fixture
+adversary count is now **27**.
 
-## Synthetic proof and limits
-
-The proof contains 15 **in-memory** adversaries for stale report identity, wrong
-host or runtime identity, Python binary and loader drift, new sys.path roots,
-new/deleted files, previously absent path materialization, writable ancestors,
-leaf ACL grants, symlink swaps and unaccepted dynamic file loads. It runs under
-isolated no-site Python `-I -B -S`; it does **not** enumerate the actual
-host, read protected files, invoke the launcher, access credentials or install
-anything. Its positive result **must never** be labeled production readiness.
-
-This contract adds a *required future gate*. It is not that gate's installed
-implementation. Independently review any later live-census collector and
-enforcement mechanism and qualify them on the exact designated host.
+These fixtures are not a real host census, not descriptor-bound protected traversal,
+and not runtime-process/procfs evidence. The sibling census substrate #3594 is still
+a **fixture-only, V1-ancestry generation** and requires separate source rebind and
+review before any future host observer.
 
 ## Negative authority
 
 ```text
+source_contract_only=true
 host_census_authorized=false
 installed_enforcement_source_proven=false
+installed_v2_first_entry_enforcement_source_proven=false
 installed_post_exec_dumpability_enforcement_source_proven=false
+production_host_evidence_authority=false
 host_manifest_accepted=false
 host_plan_authorized=false
 protected_install_authorized=false
@@ -86,33 +96,8 @@ treasury_liquidity_action=false
 funds_movement=false
 ```
 
-**PROTECT THE CORE.**
+After source CI, a **genuinely distinct independent security review** is still required,
+followed by separately scoped source-authenticated host census, accepted runtime closure
+and protected install/qualification. The public presale remains disabled.
 
-## V2 exact-source boundary
-
-Binds the corrected #3595 V2 runtime contract `voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50`
-(blob `c56361ecaccb916a79591c016200b8dc02f5ca54`), and the repaired #3591 V2 static first-entry
-lock `voidbuye2v6r3planfirstentrybinlock2_b5e1bbca28ed7aad579ac7f37a7575ed90eadd44f73d24edac79df3cc74664c1` (blob `14a3ff2eca0583d1355dc8b75bd54cc55115d946`). This V2 source gate does
-not accept the stale V1 #3578 terminal freshness generation.
-#3579's post-`fexecve` dumpability reset remains a historical diagnostic
-and not a proof of runtime child protection.
-
-The enhanced terminal census substrate on #3594 is still V1-bound; this
-gate does not import, run or approve that code. Root-owned/ACL custody,
-FD-relative generation checking, Python/Git/loader runtime inventory,
-host binding, post-exec isolation and distinct independent review
-remain separate prerequisites. This is an offline 15-adversary classifier
-only, not a protected-host census or activation control.
-
-```text
-gate_id=voidbuye2v6r3pyclosurefreshness2_53653912534048b7be8b02aed429a28383edb9b419632e7e1d8fd32a19050414
-contract_id=voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50
-live_enforcement_proven=false
-post_exec_dumpability_accepted=false
-host_census_authorized=false
-protected_install_authorized=false
-host_plan_authorized=false
-payment_acceptance=false
-public_presale_activation=false
-funds_movement=false
-```
+PROTECT THE CORE.

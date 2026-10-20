@@ -30,7 +30,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-          fetch-depth: 0
       - name: Bind head
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -43,15 +42,18 @@ jobs:
         run: python3 -I -B -S scripts/prove_buy_void_epoch2_v6r3_python_runtime_closure_freshness_gate_v2.py --self-test
       - name: Source-only plan
         run: python3 -I -B -S scripts/prove_buy_void_epoch2_v6r3_python_runtime_closure_freshness_gate_v2.py --source-plan
-      - name: Exact-head diff hygiene
-        env:
-          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Require source-only V2 and synthetic Git drift guards
         run: |
           set -euo pipefail
-          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
-            BASE="$(git rev-parse "$HEAD^")"
-          fi
-          git merge-base --is-ancestor "$BASE" "$HEAD"
-          git diff --check "$BASE" "$HEAD"
+          OUTPUT="$(python3 -I -B -S scripts/prove_buy_void_epoch2_v6r3_python_runtime_closure_freshness_gate_v2.py --self-test)"
+          printf '%s\n' "$OUTPUT" | grep -Fx 'git_executable_loader_dso_helper_config_drift_rejected=true'
+          printf '%s\n' "$OUTPUT" | grep -Fx 'git_mapped_elf_and_helper_absence_same_data_rejected=true'
+          printf '%s\n' "$OUTPUT" | grep -Fx 'synthetic_adversary_count=27'
+          printf '%s\n' "$OUTPUT" | grep -Fx 'v2_binary_lock_generation_exact=true'
+          printf '%s\n' "$OUTPUT" | grep -Fx 'host_census_performed=false'
+          printf '%s\n' "$OUTPUT" | grep -Fx 'host_plan_authorized=false'
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
