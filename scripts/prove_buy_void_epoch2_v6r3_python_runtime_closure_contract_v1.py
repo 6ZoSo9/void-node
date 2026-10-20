@@ -15,7 +15,7 @@ PLANNER=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_runner_policy_
 
 MARKER="VOID_BUY_VOID_EPOCH2_V6R3_PYTHON_RUNTIME_CLOSURE_CONTRACT_V1"
 PREFIX="voidbuye2v6r3pyruntimecontract1_"
-CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_80553976a9a5a241991a827f2b6913c08b22c27865136216dd66b21b07790df5"
+CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_cbc63339c5b305679b85a4a229f5c61227fabbb83388f9d261920b51588dd19a"
 BINARY_LOCK_BLOB="66bf48fd6477e0335b1eea6e2b7e8a7f297f8c57"
 PLANNER_BLOB="19c6e1cdf9f2361cedfba4ea8d650a63eb5061ff"
 PLANNER_SHA256="95d9dd865bc226a7436a67fff977215e43aad034ce40c2c9126ecc49c469d627"
@@ -129,8 +129,25 @@ assert value["runtime_process"]["uid"]==1000 and value["runtime_process"]["gid"]
 assert value["runtime_process"]["supplementary_groups_empty"] is True
 assert value["runtime_process"]["no_new_privileges"] is True
 assert value["runtime_process"]["caller_stdin_authority"] is False
+process=value["runtime_process"]
+assert "dumpable" not in process,"post_exec_dumpable_cannot_be_inferred_from_native_preexec"
+for key in (
+    "pre_exec_dumpability_zero_required",
+    "ordinary_sealed_python_fexecve_reset_observed_in_fixture",
+):
+    assert process[key] is True,key
+for key in ("post_exec_dumpability_verified","post_exec_dumpability_accepted"):
+    assert process[key] is False,key
+# Negative control: no future report can promote post-exec dumpability by
+# inheriting the native pre-exec-only assertion.
+negative=dict(process);negative["post_exec_dumpability_accepted"]=True
+assert negative!=process and negative["post_exec_dumpability_accepted"] is not False
 h=value["host_census_requirements"]
 for key in (
+    "post_exec_pr_get_dumpable_observation_required",
+    "post_exec_ptrace_procfs_policy_evidence_required",
+    "pre_exec_dumpability_not_post_exec_authority",
+    "python_loader_startup_exposure_must_be_reviewed",
     "python_link_and_realpath_root_custody_required",
     "runtime_uid_effective_nonwritability_required",
     "python_elf_sha256_and_size_required",
@@ -195,6 +212,7 @@ assert g["clean_environment"]=={
     "GIT_ALLOW_PROTOCOL":"","GIT_PAGER":"",
 }
 a=value["acceptance_requirements"]
+assert a["post_exec_dumpability_protection_or_isolation_gate_required"] is True
 assert all(v is True for v in a.values())
 authority=value["authority"]
 assert authority["source_contract_only"] is True
@@ -213,6 +231,11 @@ print("planner_exact_import_set_bound=true")
 print("future_directive_annotations_exact=true")
 print("alternate_future_directive_rejected=true")
 print("python_flags_i_b_s_bound=true")
+print("native_pre_exec_dumpability_not_child_authority=true")
+print("post_exec_dumpability_accepted=false")
+print("post_exec_pr_get_dumpable_required=true")
+print("post_exec_ptrace_procfs_isolation_evidence_required=true")
+print("post_exec_loader_window_review_required=true")
 print("dynamic_loader_transitive_closure_required=true")
 print("complete_python_sys_path_tree_inventory_required=true")
 print("ld_so_preload_must_be_absent=true")
