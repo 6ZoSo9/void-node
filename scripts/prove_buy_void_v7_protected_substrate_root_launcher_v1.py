@@ -11,7 +11,7 @@ SOURCE = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_root_launche
 INSTALLER = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
 
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V1_PROOF"
-SOURCE_BLOB = "c6a9e00d68fbc555fa83c5cf4d2bf25b744cc1d5"
+SOURCE_BLOB = "7d5645531fced8a114101285150ebdfdf7266907"
 INSTALLER_BLOB = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"
 INSTALLER_BYTES = 87048
 INSTALLER_SHA256 = "72bdf7325fd2b3f373ad3fd41e706d9961d293cf11178d06b72ab41ddc9f8cfc"
