@@ -1,0 +1,68 @@
+# Buy VOID noncustomer custody rollback controller candidate V2
+
+Status: **source and synthetic CI only — no protected host adapter, live rollback or customer/payment authority**.
+
+This candidate is stacked on the [V2 challenge plan #3556](https://github.com/6ZoSo9/void-node/pull/3556), which has 20 inherited noncustomer durability/rollback obligations and nine additional claim/lease/transcript obligations. The existing V1 controller is immutable and intentionally rejects the V2 plan identity; substituting a V2 `plan_id` into a V1 authorization does not make V1 an authorized V2 controller.
+
+## Exact source inheritance
+
+- Parent head: `44271e4ebee39da49cf7ca8463fb9f2621998fad`.
+- V2 plan ID: `voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844`.
+- V2 plan Git blob: `1cdecf34117e4e890f67e62b412419d32870dfa0`.
+- Historical V1 controller source blob: `96d4ac3499d222841f1f7a3c53e14900b68ae8cf`; original V1 proof blob: `b196fcaa77a6bdc465baacb3387aa949f47bc956`.
+- New V2 controller source blob: `587e14c609b591e7271745bcfafaebc4fefcb37c`.
+- New V2 behavior proof blob: `e97ee45b1a68a3bd8e6b7e9583976f899669c11f`.
+- Accepted economic tree remains `71c67e62a2b21a98f3f5135ee6aa56e0ef97d262`.
+
+## V2 authorization and replay boundary
+
+V2 deliberately does **not** reinterpret V1 authorizations. Its separate marker, version and content IDs are:
+
+```text
+authorization_marker=VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_AUTHORIZATION_V2
+authorization_version=2
+authorization_id_prefix=voidbuycustodychallengeauth2_
+operation_id_prefix=voidbuycustodychallengeop2_
+challenge_id_prefix=voidbuycustodychallenge2_
+claim_id_prefix=voidbuycustodychallengeclaim2_
+operation_lease_id_prefix=voidbuycustodyoperationlease2_
+evidence_origin_id_prefix=voidbuycustodychallengeorigin2_
+controller_id=void.replay.journal.rollback.controller.v2
+```
+
+The noncustomer canary domain is intentionally unchanged: `void.buyvoid.presale.noncustomer.canary.v1`, exactly matching V2 plan requirements. The accepted economic tree, current-policy fingerprint/generation constraints and sixteen synchronous injected capability **interface names and phase order** are retained, now under the separate V2 protocol.
+
+A forged V1→V2 `plan_id` substitution fails on the V2 marker/version boundary; a V2→V1 substitution fails in the old V1 controller. The source proof makes both checks with an instrumented capability object that must not be inspected. These are negative **source-level protocol tests**, not cryptographic authorization or authentic storage evidence.
+
+## Source-only controller semantics
+
+The candidate validates noncustomer scope, immutable source/policy identity, exact sequence headroom, one-time authorization-claim contract, operation-wide exclusive lease contract, journal/high-water durability, external witness, second-control approval, controlled rollback refusal, terminal customer-state invariants, and canonical evidence-transcript digest echo.
+
+It retains **the old controller’s strict non-async injected callback requirement and capability order**. A fixture returning success cannot authenticate those callbacks, attest host storage, demonstrate real rollback resistance, authorize a customer charge or bypass missing independent review.
+
+The controller is a pure standard-library Node module with no direct filesystem/process/network/systemd/wallet/signing APIs. It has no automatic execution path; importing it does not call injected capabilities or touch host state. Host adapters are entirely absent.
+
+## Release HOLD
+
+The V2 plan and this controller require genuinely distinct independent security review before an adapter can be considered. **No V1 callback or receipt should be accepted as V2 evidence without a future separately reviewed transport/adapter design.** Neither a plan/source CI PASS nor the protected V7 installer work qualifies this controller for host execution.
+
+```text
+source_only_candidate=true
+injected_capabilities_required=true
+protected_host_adapter_required=true
+independent_security_review_satisfied=false
+protected_host_adapter_implemented=false
+operation_bound_authorization_authenticated=false
+authorization_claim_authenticated=false
+operation_lease_authenticated=false
+operation_lease_exclusivity_proven=false
+evidence_origin_authenticated=false
+live_durable_storage_proven=false
+rollback_resistance_proven=false
+payment_acceptance_authorized=false
+public_presale_activation_authorized=false
+wc_void_market_activation_authorized=false
+funds_movement=false
+```
+
+**PROTECT THE CORE.**
