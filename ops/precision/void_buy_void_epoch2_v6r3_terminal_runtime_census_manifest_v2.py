@@ -180,7 +180,7 @@ def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->
     if not in_root:
         raise Hold("symlink_target_outside_inventory_root:"+display_path)
     rel=resolved.relative_to(real_root).as_posix()
-    record["resolved_display_path"]=display_root if rel=="." else display_root.rstrip("/")+"/"+rel
+    record["resolved_display_path"]=_display(display_root,Path(rel))
     if missing_component is not None:
         # The first absent path is authoritative for this resolution:
         # never check a lexically folded final path and misreport it present.
@@ -247,9 +247,15 @@ def require_display_root(display_root:str)->int:
 def _display(display_root:str,rel:Path)->str:
     if not display_root.startswith("/") or display_root=="/":
         raise Hold("display_root_invalid")
-    if rel.as_posix()==".":
-        return display_root
-    return display_root.rstrip("/")+"/"+rel.as_posix()
+    name=(display_root if rel.as_posix()=="." else
+          display_root.rstrip("/")+"/"+rel.as_posix())
+    try:
+        encoded_bytes=len(name.encode("utf-8","strict"))
+    except UnicodeError as exc:
+        raise Hold("manifest_display_path_encoding_invalid") from exc
+    if encoded_bytes>MAX_INPUT_PATH_BYTES:
+        raise Hold("manifest_display_path_length_exceeded")
+    return name
 
 def collect_tree(
     real_root:Path,display_root:str,*,display_budget:int=MAX_REPORT_BYTES,
@@ -544,6 +550,16 @@ def fixture_self_test()->None:
         else:
             raise AssertionError("inventory_display_path_budget_bypassed")
         assert len(collect_tree(root,"/fixture"))>3
+        # A valid root may still prefix one child beyond the 4KiB individual
+        # logical-path bound while remaining far below the 16MiB aggregate cap.
+        near_limit_root="/"+"r"*(MAX_INPUT_PATH_BYTES-4)
+        assert len(near_limit_root.encode("utf-8"))<MAX_INPUT_PATH_BYTES
+        try:
+            collect_tree(root,near_limit_root)
+        except Hold as exc:
+            assert str(exc)=="manifest_display_path_length_exceeded"
+        else:
+            raise AssertionError("single_oversized_display_key_accepted")
 
         # NUL and noncanonical paths must fail before constructing a JSON
         # authority record or calling a POSIX filesystem API.
@@ -807,6 +823,7 @@ def fixture_self_test()->None:
     print("sys_path_must_be_inventoried_or_explicitly_absent=true")
     print("census_input_cardinality_and_byte_budget_pretraversal=true")
     print("census_display_root_length_utf8_and_path_budget_bound=true")
+    print("census_individual_display_path_bound=true")
     print("census_direct_absence_display_path_budget_bound=true")
     print("census_unbounded_generator_and_oversize_path_rejected=true")
     print("noncanonical_manifest_paths_rejected=true")
