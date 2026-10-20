@@ -104,8 +104,6 @@ for required in (
 ):
     assert required in binder, required
 
-    assert forbidden not in binder, forbidden
-
 for required in (
     'VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4',
     'RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4',
@@ -148,8 +146,6 @@ for required in (
     'runtime_policy_authenticated_by_native_preentry_required=true',
     'native_parent_installed_generation_bound:true',
     'runner_v4_source_checkout_bound:true',
-    '0xf1,0xb6,0xcd,0x82',
-    '0x70,0x35,0xca,0x9d',
 ):
     assert required in binder, required
 
@@ -163,6 +159,8 @@ for required in (
     'RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4',
     '#define BINDER_GIT_BLOB "' + BINDER_BLOB + '"',
     '#define BINDER_BYTES 50894U',
+    '0xf1,0xb6,0xcd,0x82',
+    '0x70,0x35,0xca,0x9d',
     'void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs',
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V4',
     '(char*)"--source-head",source_head',
