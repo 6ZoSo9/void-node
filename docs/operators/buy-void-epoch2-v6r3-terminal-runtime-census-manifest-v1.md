@@ -29,14 +29,20 @@ source-authenticated observer:
 - symlink text plus resolved-target facts;
 - explicit absent-path records bound to their nearest existing parent;
 - rejection of FIFOs/devices/sockets and other special files;
-- 100,000-entry, 512 MiB/file and 16 MiB/report bounds;
+- a **streaming** 100,000-entry discovery budget, including child directories
+  already queued but not yet visited; each `scandir` iterator stops on the
+  first over-budget entry **before** sorting, stat-ing, or queuing it;
+- 512 MiB/file and 16 MiB/report bounds;
 - exact accessed-path subset validation;
 - canonical JSON terminal-manifest equality;
 - explicit refusal to promote post-exec dumpability to verified/accepted.
 
 The self-test uses only a temporary synthetic tree. It exercises content drift, a
 materialized declared absence, symlink identity, special-file rejection, and a false
-post-exec dumpability promotion.
+post-exec dumpability promotion. Additional adversaries set the entry budget to
+two for a three-directory fan-out, and inject an effectively endless
+`scandir` iterator that fails if the collector asks for a third entry.
+The test proves early termination; it does not enumerate or mutate host files.
 
 ## Deliberate execution HOLD
 
@@ -77,3 +83,19 @@ funds_movement=false
 Next gate: `source_authenticated_host_observer_adapter`.
 
 PROTECT THE CORE.
+
+## Bounded enumeration repair — source-only child
+
+In the predecessor, `sorted(os.scandir(current))` eagerly materialized the full
+directory before testing `len(objects)>MAX_TREE_ENTRIES`. Because pending
+directories were not counted in `objects`, a wide all-directory fan-out could
+also queue an unbounded number of paths. This child maintains an independent
+discovered-entry counter, initialized with the root, and stops consuming the
+iterator at the first entry beyond the cap. Sorting is performed only on the
+bounded batch.
+
+A successful synthetic test demonstrates the resource bound **inside this
+fixture implementation**. It does not prove future protected-host ancestor
+ACL custody, descriptor-bound enumeration, symlink race closure, live
+Python/ELF runtime resolution, or any host census authority. Keep those
+separate, reviewed gates; this repair never enables host execution.
