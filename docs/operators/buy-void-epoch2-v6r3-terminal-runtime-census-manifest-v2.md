@@ -72,3 +72,48 @@ funds_movement=false
 ```
 
 **PROTECT THE CORE.**
+
+
+
+## Display-root/output-key resource barrier — composed V2 lineage
+
+A separately supplied logical `display_root` is prefixed to **every** manifest
+object key. Input-array limits do not bound that multiplier, and a final
+16 MiB report cap is too late once keys have already been allocated. This
+source-only descendant carries the bounded output-name repair forward from
+the alternative #3603 approach, but is stacked on the **current** reviewed
+#3600 parent instead of the retired earlier #3602 source line.
+
+`require_display_root()` rejects non-string, noncanonical, double-leading
+slash, embedded NUL, malformed Unicode and over-4,096-byte UTF-8 display
+roots before traversal. `collect_tree()` counts root and discovered-child
+logical display key bytes against the existing 16 MiB output budget before
+leaf stat/hash/queue; queued directories are not charged twice. The standalone
+`absence_record()` independently checks full display-path length and
+strict encoding before a pathname observation.
+
+Disposable tests cover ASCII/UTF-8 overlong roots, unencodable roots,
+leading double slash, direct overlong/unencodable absence names and
+a tiny output-key budget. These tests allocate no large collections and
+touch no protected host paths. The original 100k discovery/16 MiB input/
+16 MiB report limits, full symlink/absence/sys.path fixtures, and explicit
+false installed-binary/Git-runtime/postexec process claims remain unchanged.
+
+```text
+parent_pr=3600
+parent_head=4a022d42f975cef4393378fb7c138bf12031f416
+repaired_source_git_blob=ec7e1e01e45b0d19f7bed37df9faf26f92bb0314
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+This is an inert source proof. Actual protected-host executor, root/ACL/
+retained directory-FD observation, current Python+Git ELF/loader/import map,
+post-`fexecve` isolation, independent review and payment readiness are NOT
+established.
+
+**PROTECT THE CORE.**
