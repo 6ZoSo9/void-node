@@ -15,7 +15,16 @@ const RELEASE_ROOT=path.join(ROOT,"config","void-tor-bootstrap-release-root-v1.j
 const PREDECESSOR=path.join(ROOT,"public","bootstrap","tor-signed-v1.json");
 const ONION="6a4r6osb37sp2t6nbx7dpdnq5wfdzdrn5axt7t33kduzuznarqqpnkid.onion";
 const OTHER="r4r4rkuj522ildqsn6kvd7bkuclasm2qvlsolwg7xwizmuy6qohmhxid.onion";
-const SOURCE="a".repeat(40),NOW=Date.parse("2026-10-14T18:00:00.000Z");
+const SOURCE="a".repeat(40);
+// Fixture-only clock: anchor the simulation to the signed predecessor issuance,
+// not a hard-coded October 14 date that rejects every later valid renewal.
+// The predecessor signature and release root are verified immediately below.
+const signedFixture=JSON.parse(fs.readFileSync(PREDECESSOR,"utf8"));
+const signedAt=Date.parse(String(signedFixture?.manifest?.generated_at||""));
+const expiresAt=Date.parse(String(signedFixture?.manifest?.expires_at||""));
+assert.ok(Number.isFinite(signedAt)&&Number.isFinite(expiresAt),"signed fixture timestamps invalid");
+const NOW=signedAt+30*60_000;
+assert.ok(NOW<expiresAt,"signed fixture validity window too short");
 function receiptAt(now=NOW,onion=ONION,port=80){return buildTorQualificationReceiptV1({sourceSha:SOURCE,onionHostname:onion,virtualPort:port,socksHost:"127.0.0.1",socksPort:19051,observations:[{observed_at:new Date(now-4*60_000).toISOString(),head:2100000},{observed_at:new Date(now-3*60_000).toISOString(),head:2100001},{observed_at:new Date(now-2*60_000).toISOString(),head:2100002}],generatedAt:new Date(now-60_000).toISOString()});}
 const root=loadTorBootstrapReleaseRootFile(RELEASE_ROOT,{allowHold:false});
 const predecessor=loadTorBootstrapSignedManifestLifecycleFile(PREDECESSOR,root,{nowMs:NOW});

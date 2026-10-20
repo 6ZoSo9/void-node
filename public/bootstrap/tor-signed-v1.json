@@ -6,8 +6,8 @@
     "network": "VOID Network",
     "chain_id": 2050,
     "status": "stable_tor_seed",
-    "generated_at": "2026-10-14T17:29:51.499Z",
-    "expires_at": "2026-10-21T17:29:51.499Z",
+    "generated_at": "2026-10-20T17:14:20.929Z",
+    "expires_at": "2026-10-27T17:14:20.929Z",
     "sync_endpoints": [],
     "onion_endpoints": [
       {
@@ -16,8 +16,8 @@
         "priority": 0,
         "enabled": true,
         "temporary": false,
-        "qualification_id": "voidptq1_b98874c46299b7100ed6eb69a39a52c6896841e234986320f386b7e2be8f68fe",
-        "qualified_at": "2026-10-14T17:29:51.380Z",
+        "qualification_id": "voidptq1_da8f6e84e12db46b72305ece8a704a0a1450a2056cf6d9c677f2ecd7b0d29f1d",
+        "qualified_at": "2026-10-20T17:14:20.890Z",
         "qualified_head": 1951058
       }
     ],
@@ -31,13 +31,13 @@
       "work_credit_authority": false,
       "money_movement_authority": false
     },
-    "notes": "Issue #2854 Tor renewal candidate; source_sha=06b34efb8e6cd01046e541c02cc2f341ab3b3e1b; qualification_id=voidptq1_b98874c46299b7100ed6eb69a39a52c6896841e234986320f386b7e2be8f68fe; predecessor_manifest_id=voidpbm1_f216f54d3022a02df1f56f8547f0db0d5093ff696a09220fe9877c85094f2c11; signing_performed=false",
-    "manifest_id": "voidpbm1_c76f442a285e2ad7a8dc30caa9ade6dc525ad1905220ea42425af51e99ffffaa"
+    "notes": "Issue #2854 Tor renewal candidate; source_sha=25dcb9635f965fd83224d027702dd134a50c0a5b; qualification_id=voidptq1_da8f6e84e12db46b72305ece8a704a0a1450a2056cf6d9c677f2ecd7b0d29f1d; predecessor_manifest_id=voidpbm1_c76f442a285e2ad7a8dc30caa9ade6dc525ad1905220ea42425af51e99ffffaa; signing_performed=false",
+    "manifest_id": "voidpbm1_eabf0e6c5b62855dd3a154aaea716d0bd988a6586ad1f2262240f2f418efca2c"
   },
   "signatures": [
     {
       "key_id": "voidtpk1_6111a98528baf5e781f02456b17bd8f5f01ec0a5e81432366564e515be705c94",
-      "signature_base64": "I33Pajtb9oVIYFDiMLn47cs0qkOfRWY4IaHwIq3TeuP9Yw70Je8zaYhBDdWHfQ2/vdiNOftMYytP632rCIhGBg=="
+      "signature_base64": "+hApMjy4mn0ZT+lvhsrW8AqQJ7wIN3wZI67G011xgclFk8Jqy9FFruGz8E555ioqvd52jasVjupNzE/zxPeIBA=="
     }
   ]
 }
