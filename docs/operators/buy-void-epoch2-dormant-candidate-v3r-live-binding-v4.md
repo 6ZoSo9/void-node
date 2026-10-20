@@ -98,10 +98,10 @@ historical compatibility V3 output.
 ## Exact source identities
 
 ```text
-binder_git_blob=b51a5bf1de438af97e69ed0be3612779e5359b3b
-binder_sha256=391728ce72e3803d231198ba991ebfdf8dfd4c4f86b56cb9e92ba2f1da472b15
-binder_bytes=43554
-native_preentry_git_blob=92b476f395348e5ac447404906b01c53dfb4cefc
+binder_git_blob=6159eb6f79c0dfccafd31484415b92eefaa06662
+binder_sha256=f1b6cd8235641cc51bbf682526774abadf814da2066e0e6b7035ca9d58277cd2
+binder_bytes=50894
+native_preentry_git_blob=cdd647e8ef49f234eea1e5fbd933148a31014eef
 dormant_candidate_git_blob=e569c9211e01f14c7c00dd1c5041d4dfb0817609
 runtime_dependency_count=9
 ```
@@ -140,5 +140,36 @@ production_host_evidence_authority=false
 After exact-head source CI and independent review, derive a content-addressed
 Binder V4 native-preentry candidate lock/install/qualification lifecycle. Installation
 and any live execution remain separate authorization boundaries.
+
+PROTECT THE CORE.
+
+
+## Retained privileged first-execution repair (source-only)
+
+The original Binder V4 authenticated only the executable leaf before
+reopening `/usr/bin/setpriv` and the fixed native child by path as root.
+This check-to-first-exec window could select a different object after the
+metadata check on an unsafe host. The repaired V4 source now:
+
+- retains exact Git, setpriv and native executable file descriptors through
+  the entire sensitive source-before/child/source-after sequence;
+- qualifies root-owned, non-symlink, non-writable directories at every
+  ancestor; checks executable leaf metadata/identity including timestamps;
+  checks effective runtime UID 1000 writability under a dropped child;
+- first-executes setpriv and native only through inherited
+  `/proc/self/fd/<number>` handles with fd3+ stdio remapping, denying
+  closed-standard-fd aliases rather than silently reopening;
+- revalidates retained and visible file generations immediately before and
+  after each launch, and again before emitting a receipt;
+- exercises actual harmless unprivileged Git procfd execution, unsafe
+  `/tmp` ancestor rejection and a substituted visible executable-path
+  negative, under a source-only hosted self-test.
+
+This does **not** qualify the root-installed binder, native preentry, runtime
+Python/Git dynamic dependency closure, post-`fexecve` process isolation or
+credential signing. The exact source rebind supersedes predecessor binary
+identities; a new native ELF candidate/lock and separate independent review
+must precede any installation. Host/transaction/payment/presale authority
+remains explicitly false.
 
 PROTECT THE CORE.
