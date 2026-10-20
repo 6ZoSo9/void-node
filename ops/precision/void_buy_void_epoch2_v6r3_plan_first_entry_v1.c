@@ -12,6 +12,7 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/sysmacros.h>
 #include <unistd.h>
 
 #define MARKER "VOID_BUY_VOID_EPOCH2_V6R3_PLAN_FIRST_ENTRY_V1"
@@ -414,6 +415,33 @@ static void close_unneeded(int keep_a,int keep_b){
     for(int fd=5;fd<maxfd;fd++){if(fd==keep_a||fd==keep_b)continue;close(fd);}
 }
 
+static void require_devnull_descriptor(int fd,const char *reason){
+    struct stat st;
+    if(fstat(fd,&st)!=0||!S_ISCHR(st.st_mode)||
+       major(st.st_rdev)!=1U||minor(st.st_rdev)!=3U)hold(reason);
+}
+
+static void reserve_standard_fds(void){
+    for(int target=STDIN_FILENO;target<=STDERR_FILENO;target++){
+        errno=0;
+        if(fcntl(target,F_GETFD)>=0)continue;
+        if(errno!=EBADF)hold("standard_fd_probe_failed");
+        const int mode=target==STDIN_FILENO?O_RDONLY:O_WRONLY;
+        int fd=open("/dev/null",mode|O_CLOEXEC|O_NOFOLLOW);
+        if(fd<0)hold("standard_fd_reservation_failed");
+        require_devnull_descriptor(fd,"standard_fd_devnull_invalid");
+        if(fd!=target){
+            if(dup2(fd,target)<0){close(fd);hold("standard_fd_dup_failed");}
+            close(fd);
+        }
+        require_devnull_descriptor(target,"standard_fd_devnull_invalid");
+        const int flags=fcntl(target,F_GETFD);
+        if(flags<0||fcntl(target,F_SETFD,flags&~FD_CLOEXEC)<0){
+            hold("standard_fd_flag_update_failed");
+        }
+    }
+}
+
 static void drop_to_runtime(void){
     if(getuid()!=0U||geteuid()!=0U||getgid()!=0U||getegid()!=0U){
         hold("root_static_first_entry_required");
@@ -456,6 +484,8 @@ static int self_test(void){
     printf("planner_sha256=%s\n",PLANNER_SHA256);
     printf("planner_bytes=%u\n",(unsigned)PLANNER_BYTES);
     printf("root_static_first_entry_required=true\n");
+    printf("standard_fds_reserved_before_trusted_opens=true\n");
+    printf("mapped_planner_fd3_revalidated=true\n");
     printf("runtime_uid_gid_1000_required=true\n");
     printf("permanent_uid_gid_drop_before_python=true\n");
     printf("runtime_dumpable_disabled_before_python=true\n");
@@ -484,6 +514,7 @@ static void prepare_child_fd(int source,int target,const char *reason){
 int main(int argc,char **argv){
     if(argc==2&&strcmp(argv[1],"--self-test")==0)return self_test();
     if(argc!=2||strcmp(argv[1],"--plan")!=0)hold("launcher_arguments_invalid");
+    reserve_standard_fds();
 
     struct stat self_stat;
     require_self_identity(&self_stat);
@@ -556,10 +587,16 @@ int main(int argc,char **argv){
         close(python_fd);python_fd=moved;
     }
     prepare_child_fd(planner_fd,CHILD_PLANNER_FD,"planner_child_fd_failed");
+    require_sealed_snapshot(
+        CHILD_PLANNER_FD,PLANNER_BYTES,"planner_child_fd_identity_invalid"
+    );
     if(python_fd!=CHILD_PYTHON_FD){
         if(dup2(python_fd,CHILD_PYTHON_FD)<0){close(python_fd);hold("python_child_fd_failed");}
         close(python_fd);python_fd=CHILD_PYTHON_FD;
     }
+    require_sealed_snapshot(
+        CHILD_PYTHON_FD,policy.python_bytes,"python_child_fd_identity_invalid"
+    );
     int pyflags=fcntl(python_fd,F_GETFD);
     if(pyflags<0||fcntl(python_fd,F_SETFD,pyflags|FD_CLOEXEC)<0)hold("python_cloexec_failed");
     close_unneeded(CHILD_PLANNER_FD,CHILD_PYTHON_FD);
