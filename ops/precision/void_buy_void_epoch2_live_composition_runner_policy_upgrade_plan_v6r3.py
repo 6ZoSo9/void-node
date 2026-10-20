@@ -920,6 +920,7 @@ def self_test()->None:
     print("v4_predecessor_retained=true")
     print("v6r2_predecessor_retention_required=true")
     print("nonroot_host_plan_required=true")
+    print("host_node_and_state_terminal_revalidation_required=true")
     print("host_plan_exact_runtime_uid_gid_required=true")
     print("protected_ancestor_acl_custody_required=true")
     print("protected_directory_listing_fd_bound=true")
