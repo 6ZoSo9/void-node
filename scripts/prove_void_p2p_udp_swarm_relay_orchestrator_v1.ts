@@ -193,6 +193,7 @@ assert.equal(reservationCalls.length, 2);
 const failingRelayNodeId = "e".repeat(32);
 const healthyRelayNodeId = "f".repeat(32);
 const isolatedReservationCalls: string[] = [];
+const syntheticReservationEmissions: string[] = [];
 const failureIsolationNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
   ...node,
   relaySnapshot: () => ({
@@ -206,7 +207,8 @@ const failureIsolationNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
   requestRelayReservation: (relay) => {
     isolatedReservationCalls.push(relay);
     if (relay === failingRelayNodeId) {
-      throw new Error("synthetic route-local adapter failure");
+      syntheticReservationEmissions.push(relay);
+      throw new Error("synthetic post-emission reservation exception");
     }
     return "4".repeat(32);
   },
@@ -248,11 +250,12 @@ assert.equal(
   1,
 );
 failureIsolation.runOnce(1_000);
+failureIsolation.runOnce(2_000);
 assert.deepEqual(isolatedReservationCalls, [
   failingRelayNodeId,
   healthyRelayNodeId,
-  failingRelayNodeId,
 ]);
+assert.deepEqual(syntheticReservationEmissions, [failingRelayNodeId]);
 failureIsolation.runOnce(
   VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1,
 );
@@ -260,14 +263,45 @@ assert.deepEqual(isolatedReservationCalls, [
   failingRelayNodeId,
   healthyRelayNodeId,
   failingRelayNodeId,
-  failingRelayNodeId,
   healthyRelayNodeId,
+]);
+assert.deepEqual(syntheticReservationEmissions, [
+  failingRelayNodeId,
+  failingRelayNodeId,
 ]);
 failureIsolation.stop();
 
-// A throwing connect adapter must not starve a later route or consume
-// the 15-second retry fence when it never returns a request ID.
+// Only a nonthrowing, explicit no-request result is allowed a fast retry.
+const noSendReservationCalls: string[] = [];
+const explicitNoSendReservation = new VoidUdpSwarmRelayOrchestratorV1(
+  {
+    ...failureIsolationNode,
+    requestRelayReservation: (relay) => {
+      noSendReservationCalls.push(relay);
+      return relay === failingRelayNodeId ? undefined : "4".repeat(32);
+    },
+  },
+  {
+    enabled: true,
+    routes: [
+      { relay_node_id: failingRelayNodeId, target_node_id: targetNodeId },
+      { relay_node_id: healthyRelayNodeId, target_node_id: relayNodeId },
+    ],
+  },
+);
+explicitNoSendReservation.runOnce(0);
+explicitNoSendReservation.runOnce(1_000);
+assert.deepEqual(noSendReservationCalls, [
+  failingRelayNodeId,
+  healthyRelayNodeId,
+  failingRelayNodeId,
+]);
+explicitNoSendReservation.stop();
+
+// A thrown connect may follow emission: keep its 15-second fence while
+// allowing the later independent route to progress.
 const isolatedConnectCalls: string[] = [];
+const syntheticConnectEmissions: string[] = [];
 const connectFailureIsolationNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
   ...node,
   relaySnapshot: () => ({
@@ -284,7 +318,8 @@ const connectFailureIsolationNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
   connectViaRelay: (relay) => {
     isolatedConnectCalls.push(relay);
     if (relay === failingRelayNodeId) {
-      throw new Error("synthetic connect adapter failure");
+      syntheticConnectEmissions.push(relay);
+      throw new Error("synthetic post-emission connect exception");
     }
     return "8".repeat(32);
   },
@@ -324,11 +359,12 @@ assert.equal(
   1,
 );
 connectFailureIsolation.runOnce(1_000);
+connectFailureIsolation.runOnce(2_000);
 assert.deepEqual(isolatedConnectCalls, [
   failingRelayNodeId,
   healthyRelayNodeId,
-  failingRelayNodeId,
 ]);
+assert.deepEqual(syntheticConnectEmissions, [failingRelayNodeId]);
 connectFailureIsolation.runOnce(
   VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1,
 );
@@ -336,14 +372,45 @@ assert.deepEqual(isolatedConnectCalls, [
   failingRelayNodeId,
   healthyRelayNodeId,
   failingRelayNodeId,
-  failingRelayNodeId,
   healthyRelayNodeId,
 ]);
+assert.deepEqual(syntheticConnectEmissions, [
+  failingRelayNodeId,
+  failingRelayNodeId,
+]);
 connectFailureIsolation.stop();
+
+// The production connect adapter uses undefined to report no dispatch.
+const noSendConnectCalls: string[] = [];
+const explicitNoSendConnect = new VoidUdpSwarmRelayOrchestratorV1(
+  {
+    ...connectFailureIsolationNode,
+    connectViaRelay: (relay) => {
+      noSendConnectCalls.push(relay);
+      return relay === failingRelayNodeId ? undefined : "8".repeat(32);
+    },
+  },
+  {
+    enabled: true,
+    routes: [
+      { relay_node_id: failingRelayNodeId, target_node_id: targetNodeId },
+      { relay_node_id: healthyRelayNodeId, target_node_id: relayNodeId },
+    ],
+  },
+);
+explicitNoSendConnect.runOnce(0);
+explicitNoSendConnect.runOnce(1_000);
+assert.deepEqual(noSendConnectCalls, [
+  failingRelayNodeId,
+  healthyRelayNodeId,
+  failingRelayNodeId,
+]);
+explicitNoSendConnect.stop();
 
 const failingUpgradeStreamId = "5".repeat(32);
 const healthyUpgradeStreamId = "6".repeat(32);
 const isolatedUpgradeCalls: string[] = [];
+const syntheticUpgradeEmissions: string[] = [];
 const upgradeFailureIsolationNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
   ...node,
   relaySnapshot: () => ({
@@ -375,7 +442,8 @@ const upgradeFailureIsolationNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
   requestUdpSwarmUpgradeV1: (relay) => {
     isolatedUpgradeCalls.push(relay);
     if (relay === failingRelayNodeId) {
-      throw new Error("synthetic upgrade adapter failure");
+      syntheticUpgradeEmissions.push(relay);
+      throw new Error("synthetic post-emission upgrade exception");
     }
     return { ok: true as const, request_id: "7".repeat(32) };
   },
@@ -402,11 +470,12 @@ assert.deepEqual(isolatedUpgradeCalls, [
   healthyRelayNodeId,
 ]);
 upgradeFailureIsolation.runOnce(1_000);
+upgradeFailureIsolation.runOnce(2_000);
 assert.deepEqual(isolatedUpgradeCalls, [
   failingRelayNodeId,
   healthyRelayNodeId,
-  failingRelayNodeId,
 ]);
+assert.deepEqual(syntheticUpgradeEmissions, [failingRelayNodeId]);
 upgradeFailureIsolation.runOnce(
   VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1,
 );
@@ -414,8 +483,11 @@ assert.deepEqual(isolatedUpgradeCalls, [
   failingRelayNodeId,
   healthyRelayNodeId,
   failingRelayNodeId,
-  failingRelayNodeId,
   healthyRelayNodeId,
+]);
+assert.deepEqual(syntheticUpgradeEmissions, [
+  failingRelayNodeId,
+  failingRelayNodeId,
 ]);
 upgradeFailureIsolation.stop();
 
@@ -578,7 +650,10 @@ console.log(JSON.stringify({
     reentrant_discovery_replacement_fences_stale_routes: true,
     started_reentrant_discovery_single_scheduler: true,
     later_routes_advance_after_failure: true,
-    thrown_upgrade_retries_next_sweep: true,
+    thrown_reservation_uses_bounded_backoff: true,
+    thrown_connect_uses_bounded_backoff: true,
+    thrown_upgrade_uses_bounded_backoff: true,
+    explicit_no_request_retries_next_sweep: true,
     returned_upgrade_uses_bounded_backoff: true,
     incoming_stream_not_initiated: true,
     sanitized_status: true,

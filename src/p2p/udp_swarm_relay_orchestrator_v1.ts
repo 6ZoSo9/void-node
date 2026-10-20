@@ -419,13 +419,17 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
         ) {
           if (!sweepIsCurrent()) return;
           this.reservationAttempts += 1;
+          // An adapter can emit and then throw. Fence unknown outcomes before
+          // calling it; only its explicit no-request return is retryable soon.
+          runtime.last_reservation_attempt_ms = now;
           const requestId = this.node.requestRelayReservation(
             route.relay_node_id,
             VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RESERVATION_TTL_MS_V1,
           );
           if (requestId) {
-            runtime.last_reservation_attempt_ms = now;
             this.reservationRequests += 1;
+          } else {
+            runtime.last_reservation_attempt_ms = Number.NEGATIVE_INFINITY;
           }
         }
         if (!reservation || reservation.expires_at_ms <= now) continue;
@@ -443,13 +447,16 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
           ) {
             if (!sweepIsCurrent()) return;
             this.connectAttempts += 1;
+            // Unknown post-send exceptions must not retry every second.
+            runtime.last_connect_attempt_ms = now;
             const requestId = this.node.connectViaRelay(
               route.relay_node_id,
               route.target_node_id,
             );
             if (requestId) {
-              runtime.last_connect_attempt_ms = now;
               this.connectRequests += 1;
+            } else {
+              runtime.last_connect_attempt_ms = Number.NEGATIVE_INFINITY;
             }
           }
           continue;
@@ -476,12 +483,13 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
 
         if (!sweepIsCurrent()) return;
         this.upgradeAttempts += 1;
+        // A thrown upgrade has unknown emission status: retain the backoff.
+        runtime.last_upgrade_attempt_ms = now;
         const result = this.node.requestUdpSwarmUpgradeV1(
           route.relay_node_id,
           route.target_node_id,
           stream.stream_id,
         );
-        runtime.last_upgrade_attempt_ms = now;
         if (result.ok) this.upgradeRequests += 1;
         else this.upgradeRejects += 1;
       } catch (error) {
