@@ -13,14 +13,14 @@ from pathlib import Path
 
 MARKER = "VOID_BUY_VOID_EPOCH2_V6R3_PYTHON_RUNTIME_CLOSURE_FRESHNESS_GATE_V1"
 PREFIX = "voidbuye2v6r3pyclosurefreshness1_"
-GATE_ID = "voidbuye2v6r3pyclosurefreshness1_63ab4349db96b99792bd58531b39d05527821af8eec0111c11b088e6ab381342"
+GATE_ID = "voidbuye2v6r3pyclosurefreshness1_28fafff8e9cb508c9de7db9b32fcb7bc23766ad2eb9ecb86621aeba429d6bc11"
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v1.json"
 UPSTREAM = ROOT / "ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v1.json"
 BINARY_LOCK = ROOT / "ops/security/buy-void-epoch2-v6r3-plan-first-entry-binary-candidate-lock-v1.json"
-UPSTREAM_BLOB = "d6b31cab5745bf76f5ae8c69bef864ee4f3338b5"
+UPSTREAM_BLOB = "d3f1deeaf82c49c11353cebbb4c72466be9d2472"
 BINARY_LOCK_BLOB = "66bf48fd6477e0335b1eea6e2b7e8a7f297f8c57"
-UPSTREAM_ID = "voidbuye2v6r3pyruntimecontract1_6b88925643319fd7724f4fd66d115fd5ec9598a3c59a57cbc0a8c51737c8bae8"
+UPSTREAM_ID = "voidbuye2v6r3pyruntimecontract1_80553976a9a5a241991a827f2b6913c08b22c27865136216dd66b21b07790df5"
 BINARY_LOCK_ID = "voidbuye2v6r3planfirstentrybinlock1_f6b452bb75542809454a0b68bae2f0049a4f2af6329e0b13075de1491bbbbc61"
 
 def canonical(value: object) -> bytes:
