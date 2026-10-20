@@ -461,6 +461,12 @@ def _read_metadata_file(path: pathlib.Path, label: str, max_bytes: int = 1024 * 
     finally:
         os.close(fd)
 
+_GIT_CONFIG_ALLOWED_KEYS = {
+    "core": frozenset(("repositoryformatversion", "filemode", "bare", "logallrefupdates")),
+    "remote": frozenset(("url", "fetch")),
+    "branch": frozenset(("remote", "merge")),
+}
+
 def _git_config_closed(raw: bytes, label: str) -> None:
     try:
         text = raw.decode("utf-8")
@@ -469,6 +475,7 @@ def _git_config_closed(raw: bytes, label: str) -> None:
     if "\x00" in text:
         raise InstallError(label + "_git_config_nul")
     section = ""
+    section_token = ""
     for lineno, original in enumerate(text.splitlines(), 1):
         line = original.strip()
         if not line or line.startswith("#") or line.startswith(";"):
@@ -482,20 +489,27 @@ def _git_config_closed(raw: bytes, label: str) -> None:
             section_token = section.split(None, 1)[0].split(".", 1)[0] if section else ""
             if section_token in ("include", "includeif"):
                 raise InstallError(label + "_git_config_include_forbidden")
+            if section_token == "filter":
+                raise InstallError(label + "_git_config_filter_forbidden")
+            if section_token == "extensions":
+                raise InstallError(label + "_git_config_extension_forbidden:section")
+            if section_token not in _GIT_CONFIG_ALLOWED_KEYS:
+                raise InstallError(label + "_git_config_section_forbidden:" + str(lineno))
             continue
         key_part = line.split("=", 1)[0].strip()
         key = key_part.split(None, 1)[0].lower() if key_part else ""
-        if not key:
+        if not key or not section_token:
             raise InstallError(label + "_git_config_key_invalid:" + str(lineno))
         if key.startswith("include.") or key.startswith("includeif."):
             raise InstallError(label + "_git_config_include_forbidden")
-        section_token = section.split(None, 1)[0].split(".", 1)[0] if section else ""
         if section_token == "core" and key == "worktree":
             raise InstallError(label + "_git_config_core_worktree_forbidden")
-        if section_token == "extensions" and key in ("worktreeconfig", "partialclone"):
-            raise InstallError(label + "_git_config_extension_forbidden:" + key)
+        if section_token == "core" and key == "attributesfile":
+            raise InstallError(label + "_git_config_core_attributesfile_forbidden")
         if section_token == "remote" and key in ("promisor", "partialclonefilter"):
             raise InstallError(label + "_git_config_promisor_forbidden")
+        if key not in _GIT_CONFIG_ALLOWED_KEYS[section_token]:
+            raise InstallError(label + "_git_config_key_forbidden:" + section_token + "." + key)
 
 def _direct_git_metadata_snapshot(root: pathlib.Path, label: str) -> tuple[object, ...]:
     root_abs = pathlib.Path(os.path.abspath(os.fspath(root)))
@@ -776,6 +790,7 @@ def verify_source_release() -> None:
         raise InstallError("source_release_tree_mismatch")
     if git_text(SOURCE_RELEASE, "symbolic-ref", "--short", "-q", "HEAD") != "main":
         raise InstallError("source_release_branch_not_main")
+    require_worktree_matches_tree(SOURCE_RELEASE, SOURCE_TREE, "source_release")
     if git_text(SOURCE_RELEASE, "status", "--porcelain=v1", "--untracked-files=all") != "":
         raise InstallError("source_release_not_clean")
     revalidate_source_release_ancestor_custody(ancestors)
@@ -824,6 +839,150 @@ def _read_regular_sha256_exact(
         return h.hexdigest()
     finally:
         os.close(fd)
+
+def _read_regular_git_blob_sha1_exact(
+    path: pathlib.Path,
+    expected: tuple[int, int, int, int, int, int, int, int, int],
+    label: str,
+) -> str:
+    before = path.lstat()
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_nlink < 1
+        or before.st_size < 0
+        or before.st_size > MAX_FILE_BYTES
+        or _metadata_identity(before) != expected
+    ):
+        raise InstallError(label + "_visible_generation_invalid:" + os.fspath(path))
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        opened = os.fstat(fd)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != before.st_nlink
+            or opened.st_size != before.st_size
+            or _metadata_identity(opened) != expected
+        ):
+            raise InstallError(label + "_opened_generation_invalid:" + os.fspath(path))
+        h = hashlib.sha1()
+        h.update(b"blob " + str(opened.st_size).encode("ascii") + b"\0")
+        remaining = opened.st_size
+        while remaining:
+            part = os.read(fd, min(COPY_CHUNK, remaining))
+            if not part:
+                raise InstallError(label + "_short_read:" + os.fspath(path))
+            h.update(part)
+            remaining -= len(part)
+        if os.read(fd, 1):
+            raise InstallError(label + "_grew_during_read:" + os.fspath(path))
+        after = os.fstat(fd)
+        visible = path.lstat()
+        if _metadata_identity(after) != expected:
+            raise InstallError(label + "_descriptor_generation_changed:" + os.fspath(path))
+        if _metadata_identity(visible) != expected:
+            raise InstallError(label + "_visible_generation_changed:" + os.fspath(path))
+        return h.hexdigest()
+    finally:
+        os.close(fd)
+
+def _parse_git_tree_manifest(raw: bytes, label: str) -> dict[str, tuple[str, str]]:
+    manifest: dict[str, tuple[str, str]] = {}
+    records = raw.split(b"\0")
+    if records and records[-1] == b"":
+        records.pop()
+    if len(records) > MAX_NODES:
+        raise InstallError(label + "_git_tree_node_limit")
+    for record in records:
+        try:
+            meta, raw_path = record.split(b"\t", 1)
+            mode_raw, kind_raw, oid_raw = meta.split(b" ", 2)
+            mode = mode_raw.decode("ascii")
+            kind = kind_raw.decode("ascii")
+            oid = oid_raw.decode("ascii")
+            rel = raw_path.decode("utf-8")
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise InstallError(label + "_git_tree_manifest_invalid") from exc
+        if kind != "blob" or mode not in ("100644", "100755", "120000"):
+            raise InstallError(label + "_git_tree_entry_kind_forbidden:" + rel)
+        if len(oid) != 40 or any(ch not in "0123456789abcdef" for ch in oid):
+            raise InstallError(label + "_git_tree_oid_invalid:" + rel)
+        parts = rel.split("/")
+        if (
+            not rel
+            or rel.startswith("/")
+            or any(part in ("", ".", "..") for part in parts)
+            or parts[0] == ".git"
+            or rel in manifest
+        ):
+            raise InstallError(label + "_git_tree_path_invalid:" + rel)
+        manifest[rel] = (mode, oid)
+    return manifest
+
+def _verify_worktree_manifest(
+    root: pathlib.Path,
+    manifest: dict[str, tuple[str, str]],
+    label: str,
+) -> None:
+    expected_dirs: set[str] = set()
+    for rel in manifest:
+        parts = rel.split("/")
+        for index in range(1, len(parts)):
+            expected_dirs.add("/".join(parts[:index]))
+    seen: set[str] = set()
+    pending: list[tuple[pathlib.Path, str]] = [(root, "")]
+    nodes = 0
+    while pending:
+        directory, prefix = pending.pop()
+        for entry in sorted(os.scandir(directory), key=lambda item: item.name):
+            if not prefix and entry.name == ".git":
+                gst = os.lstat(directory / entry.name)
+                if not stat.S_ISDIR(gst.st_mode) or stat.S_ISLNK(gst.st_mode):
+                    raise InstallError(label + "_git_dir_generation_invalid")
+                continue
+            nodes += 1
+            if nodes > MAX_NODES:
+                raise InstallError(label + "_worktree_node_limit")
+            child = directory / entry.name
+            rel = entry.name if not prefix else prefix + "/" + entry.name
+            st = os.lstat(child)
+            if stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode):
+                if rel not in expected_dirs:
+                    raise InstallError(label + "_worktree_extra_directory:" + rel)
+                pending.append((child, rel))
+                continue
+            expected = manifest.get(rel)
+            if expected is None:
+                raise InstallError(label + "_worktree_extra_path:" + rel)
+            mode, oid = expected
+            if stat.S_ISREG(st.st_mode) and not stat.S_ISLNK(st.st_mode):
+                actual_mode = "100755" if stat.S_IMODE(st.st_mode) & stat.S_IXUSR else "100644"
+                if mode != actual_mode:
+                    raise InstallError(label + "_worktree_mode_mismatch:" + rel)
+                identity = _metadata_identity(st)
+                if _read_regular_git_blob_sha1_exact(child, identity, label + "_worktree_blob") != oid:
+                    raise InstallError(label + "_worktree_blob_mismatch:" + rel)
+            elif stat.S_ISLNK(st.st_mode):
+                if mode != "120000":
+                    raise InstallError(label + "_worktree_mode_mismatch:" + rel)
+                target_raw = os.fsencode(os.readlink(child))
+                if git_blob_sha1(target_raw) != oid:
+                    raise InstallError(label + "_worktree_symlink_blob_mismatch:" + rel)
+            else:
+                raise InstallError(label + "_worktree_kind_invalid:" + rel)
+            seen.add(rel)
+    if seen != set(manifest):
+        missing = sorted(set(manifest) - seen)
+        raise InstallError(label + "_worktree_missing_path:" + (missing[0] if missing else "unknown"))
+
+def require_worktree_matches_tree(root: pathlib.Path, expected_tree: str, label: str) -> None:
+    if len(expected_tree) != 40 or any(ch not in "0123456789abcdef" for ch in expected_tree):
+        raise InstallError(label + "_expected_tree_invalid")
+    manifest = _parse_git_tree_manifest(
+        git_bytes(root, "ls-tree", "-rz", "--full-tree", expected_tree),
+        label,
+    )
+    _verify_worktree_manifest(root, manifest, label)
 
 def _strict_internal_symlink(path: pathlib.Path, root: pathlib.Path, label: str) -> pathlib.Path:
     try:
@@ -1042,6 +1201,7 @@ def source_target_state(source_digest: tuple[str, int, int]) -> bool:
     require_git_metadata_provenance(SOURCE_TARGET, "protected_source")
     if git_text(SOURCE_TARGET, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD or git_text(SOURCE_TARGET, "rev-parse", "--verify", "HEAD^{tree}") != SOURCE_TREE:
         raise InstallError("protected_source_target_git_generation_mismatch")
+    require_worktree_matches_tree(SOURCE_TARGET, SOURCE_TREE, "protected_source")
     if git_text(SOURCE_TARGET, "symbolic-ref", "--short", "-q", "HEAD") != "main" or git_text(SOURCE_TARGET, "status", "--porcelain=v1", "--untracked-files=all") != "":
         raise InstallError("protected_source_target_not_clean_main")
     return True
@@ -1231,8 +1391,11 @@ def _publish_source(expected_digest: tuple[str, int, int]) -> None:
     revalidate_source_release_ancestor_custody(source_ancestors)
     if tree_digest(SOURCE_STAGE, PROTECTED_SOURCE_ROOT_MODE) != expected_digest: raise InstallError("source_stage_digest_mismatch")
     require_git_metadata_provenance(SOURCE_STAGE, "source_stage")
-    if git_text(SOURCE_STAGE, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD or git_text(SOURCE_STAGE, "status", "--porcelain=v1", "--untracked-files=all") != "":
+    if git_text(SOURCE_STAGE, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD or git_text(SOURCE_STAGE, "rev-parse", "--verify", "HEAD^{tree}") != SOURCE_TREE:
         raise InstallError("source_stage_git_generation_invalid")
+    require_worktree_matches_tree(SOURCE_STAGE, SOURCE_TREE, "source_stage")
+    if git_text(SOURCE_STAGE, "status", "--porcelain=v1", "--untracked-files=all") != "":
+        raise InstallError("source_stage_not_clean")
     _rename_noreplace(SOURCE_STAGE_NAME, SOURCE_NAME, SOURCE_STAGE, "protected_source")
     if not source_target_state(expected_digest): raise InstallError("source_postpublication_verification_failed")
 
@@ -1257,6 +1420,8 @@ def source_plan() -> None:
     print("installed_qualifier_v3_bound=true")
     print("git_metadata_provenance_required_for_all_roots=true")
     print("git_external_metadata_and_object_indirection_rejected=true")
+    print("git_local_config_exact_allowlist_required=true")
+    print("git_raw_head_tree_manifest_required=true")
     print("trusted_tool_root_descriptor_execution_required=true")
     print("trusted_tool_ancestor_acl_custody_required=true")
     print("runtime_write_audit_external_helper_free=true")
@@ -1356,8 +1521,36 @@ def self_test() -> None:
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[include]\npath = /tmp/hostile\n", "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text('[includeIf\t"gitdir:/opt/**"]\npath = /tmp/hostile\n', "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[core]\nworktree = /tmp/hostile\n", "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[core]\nattributesFile = /tmp/hostile-attrs\n", "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text('[filter "evil"]\nclean = /tmp/hostile-filter\n', "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[extensions]\nworktreeConfig = true\n", "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text('[remote "origin"]\npromisor = true\n', "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[core]\nrepositoryformatversion = 0\nbare = false\nautocrlf = true\n", "utf-8"))
+    with tempfile.TemporaryDirectory(prefix="void-v7-worktree-manifest-self-test-") as td:
+        manifest_root = pathlib.Path(td)
+        (manifest_root / ".git").mkdir()
+        (manifest_root / "sub").mkdir()
+        plain = manifest_root / "plain.txt"
+        plain.write_bytes(b"plain-bytes\n")
+        executable = manifest_root / "sub" / "run.sh"
+        executable.write_bytes(b"#!/bin/sh\nexit 0\n")
+        os.chmod(executable, 0o755)
+        link = manifest_root / "link"
+        link.symlink_to("plain.txt")
+        manifest = {
+            "plain.txt": ("100644", git_blob_sha1(plain.read_bytes())),
+            "sub/run.sh": ("100755", git_blob_sha1(executable.read_bytes())),
+            "link": ("120000", git_blob_sha1(b"plain.txt")),
+        }
+        _verify_worktree_manifest(manifest_root, manifest, "self_test_manifest")
+        ignored = manifest_root / "ignored.tmp"
+        ignored.write_bytes(b"ignored-but-published")
+        try:
+            _verify_worktree_manifest(manifest_root, manifest, "self_test_manifest")
+        except InstallError:
+            pass
+        else:
+            raise AssertionError("ignored_untracked_manifest_adversary_not_rejected")
     print("git_real_in_tree_dir_required=true")
     print("git_commondir_indirection_rejected=true")
     print("git_object_alternates_rejected=true")
@@ -1367,6 +1560,11 @@ def self_test() -> None:
     print("git_local_config_include_rejected=true")
     print("git_includeif_horizontal_whitespace_rejected=true")
     print("git_core_worktree_redirect_rejected=true")
+    print("git_core_attributesfile_rejected=true")
+    print("git_filter_driver_rejected=true")
+    print("git_local_config_exact_allowlist_required=true")
+    print("git_raw_head_tree_manifest_required=true")
+    print("git_ignored_untracked_rejected_by_manifest=true")
     print("git_worktree_config_extension_rejected=true")
     print("git_promisor_partial_clone_rejected=true")
     print("git_exact_dir_common_toplevel_required=true")
