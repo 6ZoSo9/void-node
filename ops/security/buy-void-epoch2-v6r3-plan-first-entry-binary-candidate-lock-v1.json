@@ -1,0 +1,137 @@
+{
+  "schema": "void_buy_void_epoch2_v6r3_plan_first_entry_binary_candidate_lock_v1",
+  "marker": "VOID_BUY_VOID_EPOCH2_V6R3_PLAN_FIRST_ENTRY_BINARY_CANDIDATE_LOCK_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "source_pr": 3571,
+  "source_head": "a7d2c3241f74950f58ba02088a06e4ec235f0b0f",
+  "source_git_blob_sha1": "ae26706a117025893496901d4bde8cee87cadfba",
+  "source_hosted_evidence": {
+    "workflow": "Buy VOID Epoch-2 V6R3 planner native first-entry V1",
+    "run_id": 39357595530,
+    "job_id": 118415896770,
+    "conclusion": "success"
+  },
+  "candidate_pr": 3573,
+  "candidate_head": "9d9ac685da06ba9a141109091a5b1c6490aa34b2",
+  "candidate_script_git_blob_sha1": "3bc17f9cb079da5790aac1356105883d4aa903a1",
+  "candidate_workflow_git_blob_sha1": "195fc4dc5aa389827373ebefb621cf0a5a439cca",
+  "candidate_hosted_evidence": {
+    "workflow": "Buy VOID Epoch-2 V6R3 planner first-entry binary candidate V1",
+    "run_id": 39357902711,
+    "derive_jobs": {
+      "a": 118416894790,
+      "b": 118416894807,
+      "c": 118416894656
+    },
+    "compare_job_id": 118417015303,
+    "conclusion": "success"
+  },
+  "candidate_report": {
+    "authority": {
+      "candidate_binary_identity_accepted": false,
+      "candidate_report_filesystem_write": true,
+      "credential_access": false,
+      "funds_movement": false,
+      "host_plan_authorized": false,
+      "installed_binary_identity_proven": false,
+      "payment_acceptance": false,
+      "private_key_access": false,
+      "protected_install_authorized": false,
+      "public_presale_activation": false,
+      "rpc_call": false,
+      "service_mutation": false,
+      "signing": false,
+      "source_only_candidate": true,
+      "transaction": false,
+      "treasury_liquidity_action": false,
+      "wc_void_market_activation": false
+    },
+    "binary": {
+      "bytes": 813064,
+      "elf_magic_verified": true,
+      "pt_interp_absent": true,
+      "sha256": "986e860593a1aaef34dc6d1ffbd44f626a2bed9512d96be79f1fbcfdc176f2cd",
+      "static_link_verified": true,
+      "two_builds_byte_identical": true
+    },
+    "candidate_id": "voidbuye2v6r3planfirstentrybincand1_b8b6b272caf246f14355a9fe37a218c672df5a8d4b647b66a0e6ca6c8345c124",
+    "compile_recipe": {
+      "argv_prefix": [
+        "/usr/bin/cc",
+        "-std=c11",
+        "-O2",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-D_FORTIFY_SOURCE=2",
+        "-fstack-protector-strong",
+        "-static",
+        "-Wl,-z,relro,-z,now",
+        "-Wl,--build-id=none"
+      ],
+      "build_id_disabled": true,
+      "pt_interp_absent_required": true,
+      "source_date_epoch": "0",
+      "static_link_required": true
+    },
+    "compiler": {
+      "bytes": 1023032,
+      "dumpmachine": "x86_64-linux-gnu",
+      "dumpversion": "13.3.0",
+      "realpath": "/usr/bin/x86_64-linux-gnu-gcc-13",
+      "requested_path": "/usr/bin/cc",
+      "sha256": "1b99826121ae6682a634e5efe09bd3e3df58ce58e0b28f849114ab5b89139c26",
+      "version_line": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+    },
+    "marker": "VOID_BUY_VOID_EPOCH2_V6R3_PLAN_FIRST_ENTRY_BINARY_CANDIDATE_V1",
+    "next_gate": "void_buy_void_epoch2_v6r3_plan_first_entry_binary_candidate_lock_v1",
+    "self_test": {
+      "exact_transcript_verified": true,
+      "stderr_empty": true,
+      "stdout_sha256": "2d3602b3a5949e2343e3a9acbda702df038940e83489fa6ca77f813f5a8f681f"
+    },
+    "source": {
+      "bytes": 27150,
+      "git_blob_sha1": "ae26706a117025893496901d4bde8cee87cadfba",
+      "path": "ops/precision/void_buy_void_epoch2_v6r3_plan_first_entry_v1.c",
+      "sha256": "d2f5b12304cd4a32badf95bcc84b6955f10d620f1211965c119ef35c340a8fff"
+    },
+    "source_contract": {
+      "caller_stdin_replaced": true,
+      "close_range_unshare_required": true,
+      "fixed_planner_digest_bound": true,
+      "inherited_fd_census_required": true,
+      "isolated_python_i_b_s": true,
+      "no_new_privileges_before_python": true,
+      "permanent_uid_gid_drop_before_python": true,
+      "planner_sealed_memfd_execution": true,
+      "python_sealed_memfd_fexecve": true,
+      "root_static_first_entry_required": true,
+      "supplementary_groups_cleared": true
+    },
+    "status": "candidate_only_unaccepted",
+    "version": 1
+  },
+  "candidate_binary_identity_accepted": true,
+  "source_identity_accepted": true,
+  "compile_recipe_accepted": true,
+  "three_run_report_bytes_identical": true,
+  "protected_install_authorized": false,
+  "installed_binary_identity_proven": false,
+  "host_plan_authorized": false,
+  "service_mutation": false,
+  "systemd_mutation": false,
+  "credential_access": false,
+  "private_key_access": false,
+  "signing": false,
+  "transaction": false,
+  "rpc_call": false,
+  "payment_acceptance": false,
+  "public_presale_activation": false,
+  "wc_void_market_activation": false,
+  "treasury_liquidity_action": false,
+  "funds_movement": false,
+  "next_gate": "void_buy_void_epoch2_v6r3_plan_first_entry_python_runtime_closure_v1",
+  "lock_id": "voidbuye2v6r3planfirstentrybinlock1_f6b452bb75542809454a0b68bae2f0049a4f2af6329e0b13075de1491bbbbc61"
+}
