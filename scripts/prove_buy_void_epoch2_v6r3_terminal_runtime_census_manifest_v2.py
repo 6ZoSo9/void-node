@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="8c8516a63d8890bd7103e0c868a3e88776f1e3e8"
+SOURCE_BLOB="f256731a88a09ad82d37c17e5b1c31aaa2212cf3"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -112,8 +112,16 @@ for required in (
     "installed_first_entry_binary_overclaim_rejected=true",
     "MAX_TREE_ENTRIES=100_000",
     "MAX_INPUT_PATH_BYTES=4096",
-    'chr(0) in display_root',
-    'chr(0) in display_path',
+    "def require_display_root(",
+    'raise Hold("display_root_length_exceeded")',
+    'raise Hold("display_root_encoding_invalid")',
+    'raise Hold("manifest_display_path_budget_exceeded")',
+    'raise Hold("manifest_display_path_encoding_invalid")',
+    "display_bytes_total+=display_bytes",
+    "display_budget:int=MAX_REPORT_BYTES",
+    "census_display_root_length_utf8_and_path_budget_bound=true",
+    'or "\\x00" in display_root',
+    'or "\\x00" in display_path',
     'raise Hold("declared_absence_path_invalid")',
     'raise Hold("accessed_path_invalid_or_noncanonical")',
     "non_posix_path_negative_fixtures=9",
@@ -169,6 +177,9 @@ for required in (
     assert required in source,required
 assert "sorted(os.scandir(current)" not in source
 assert "entries=sorted(os.scandir(current)" not in source
+tree_code=source[source.index("def collect_tree("):source.index("def absence_record(")]
+assert tree_code.index("root_bytes=require_display_root(display_root)") < tree_code.index("real_root=Path(os.path.abspath(")
+assert tree_code.index("display_bytes_total+=display_bytes") < tree_code.index("st=path.lstat()")
 assert "os.path.realpath(path)" not in source[source.index("def symlink_record("):source.index("def _display(")]
 assert "missing_component_out=missing_components" in source
 # The over-budget sentinel must be rejected before any queued/stat/read work.
@@ -203,6 +214,8 @@ for mode,required_lines in (
         "absence_parent_symlink_alias_rejected=true",
         "sys_path_must_be_inventoried_or_explicitly_absent=true",
         "census_input_cardinality_and_byte_budget_pretraversal=true",
+        "census_display_root_length_utf8_and_path_budget_bound=true",
+        "census_direct_absence_display_path_budget_bound=true",
         "census_unbounded_generator_and_oversize_path_rejected=true",
         "noncanonical_manifest_paths_rejected=true",
         "embedded_nul_and_non_posix_input_paths_rejected=true",
@@ -270,6 +283,7 @@ print("symlink_hop_confinement_proven=true")
 print("symlink_missing_parent_reentry_hold_proven=true")
 print("absence_parent_and_sys_path_coverage_proven=true")
 print("census_input_budget_pretraversal_proven=true")
+print("census_display_root_and_path_key_budget_proven=true")
 print("host_execution_enabled=false")
 print("host_census_authorized=false")
 print("protected_install_authorized=false")
