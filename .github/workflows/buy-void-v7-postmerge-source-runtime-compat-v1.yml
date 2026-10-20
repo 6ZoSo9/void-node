@@ -25,13 +25,13 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Bind exact compatibility scope
         env:
-          EXPECTED_HEAD: \${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
           SOURCE_BASE_HEAD: fd8131500330d8f8d51caa8275db456338c0a878
         run: |
           set -euo pipefail
@@ -41,7 +41,7 @@ jobs:
           A	.github/workflows/buy-void-v7-postmerge-source-runtime-compat-v1.yml
           A	docs/operators/buy-void-v7-postmerge-source-runtime-compat-v1.md
           A	ops/precision/void_buy_void_v7_postmerge_source_runtime_compat_v1.py
-          A	scripts/prove_buy_void_v7_postmerge_source-runtime-compat-v1.py
+          A	scripts/prove_buy_void_v7_postmerge_source_runtime_compat_v1.py
           EOF
           git diff --name-status "$SOURCE_BASE_HEAD" "$EXPECTED_HEAD" -- | sort > /tmp/actual-delta
           sort /tmp/expected-delta > /tmp/expected-delta.sorted
@@ -70,7 +70,7 @@ jobs:
 
       - name: Exact checkout compatibility verification
         env:
-          EXPECTED_HEAD: \${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           python3 -I -B \
             ops/precision/void_buy_void_v7_postmerge_source_runtime_compat_v1.py \
