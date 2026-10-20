@@ -462,7 +462,7 @@ def require_manifest_input_budget(
 
 def build_manifest(
     real_root:Path,display_root:str,sys_path:list[str],declared_absent:list[str],
-    accessed_paths:list[str],
+    accessed_paths:list[str],*,record_budget:int=MAX_REPORT_BYTES,
 )->dict[str,object]:
     require_manifest_input_budget(sys_path,declared_absent,accessed_paths)
     require_display_root(display_root)
@@ -482,8 +482,24 @@ def build_manifest(
         for p in accessed_paths
     ):
         raise Hold("accessed_path_invalid_or_noncanonical")
-    objects=collect_tree(real_root,display_root)
-    absences={p:absence_record(real_root,display_root,p) for p in sorted(set(declared_absent))}
+    # Charge exact canonical JSON for both inventory and absence records.
+    # The latter must not accumulate unchecked while awaiting the final
+    # full-manifest output limit.
+    objects=collect_tree(real_root,display_root,record_budget=record_budget)
+    record_bytes_total=sum(
+        len(canonical({name:item})) for name,item in objects.items()
+    )
+    absences={}
+    for absent_path in sorted(set(declared_absent)):
+        evidence=absence_record(real_root,display_root,absent_path)
+        try:
+            payload_bytes=len(canonical({absent_path:evidence}))
+        except (UnicodeError,TypeError,ValueError) as exc:
+            raise Hold("manifest_absence_record_encoding_invalid") from exc
+        if payload_bytes>record_budget-record_bytes_total:
+            raise Hold("manifest_absence_record_budget_exceeded")
+        record_bytes_total+=payload_bytes
+        absences[absent_path]=evidence
     for p in sys_path:
         if p in objects:
             if objects[p]["kind"] not in ("directory","regular"):
@@ -541,6 +557,62 @@ def fixture_self_test()->None:
         require_terminal_equal(manifest,json.loads(canonical(manifest)))
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
+
+        # Absence records have their own canonical JSON escape/metadata cost.
+        object_payload=sum(
+            len(canonical({name:item})) for name,item in manifest["objects"].items()
+        )
+        absence_payload=sum(
+            len(canonical({name:item})) for name,item in manifest["absent"].items()
+        )
+        exact_record_budget=object_payload+absence_payload
+        assert exact_record_budget<=MAX_REPORT_BYTES
+        assert build_manifest(
+            root,"/fixture",sys_path,absent,
+            ["/fixture/python/hashlib.py","/fixture/python/lib-dynload/_hashlib.so"],
+            record_budget=exact_record_budget,
+        )==manifest
+        try:
+            build_manifest(
+                root,"/fixture",sys_path,absent,[],
+                record_budget=exact_record_budget-1,
+            )
+        except Hold as exc:
+            assert str(exc)=="manifest_absence_record_budget_exceeded",str(exc)
+        else:
+            raise AssertionError("absence_metadata_unbudgeted")
+
+        # Linux path components may include control bytes which canonical
+        # ensure_ascii JSON expands beyond the raw UTF-8 byte budget.
+        escaped_absence="/fixture/etc/"+chr(1)*24
+        expanded_absences=[*absent,escaped_absence]
+        escaped_manifest=build_manifest(
+            root,"/fixture",sys_path,expanded_absences,[],
+        )
+        assert escaped_manifest["absent"][escaped_absence]["exists"] is False
+        assert len(canonical(escaped_absence))>len(escaped_absence.encode("utf-8"))*3
+        escaped_object_payload=sum(
+            len(canonical({name:item}))
+            for name,item in escaped_manifest["objects"].items()
+        )
+        escaped_absence_payload=sum(
+            len(canonical({name:item}))
+            for name,item in escaped_manifest["absent"].items()
+        )
+        escaped_record_budget=escaped_object_payload+escaped_absence_payload
+        assert build_manifest(
+            root,"/fixture",sys_path,expanded_absences,[],
+            record_budget=escaped_record_budget,
+        )==escaped_manifest
+        try:
+            build_manifest(
+                root,"/fixture",sys_path,expanded_absences,[],
+                record_budget=escaped_record_budget-1,
+            )
+        except Hold as exc:
+            assert str(exc)=="manifest_absence_record_budget_exceeded",str(exc)
+        else:
+            raise AssertionError("absence_escaped_json_over_budget_accepted")
 
         # The key-only guard must not admit unbudgeted symlink target text.
         key_only_budget=sum(
@@ -953,6 +1025,8 @@ def fixture_self_test()->None:
     print("census_symlink_record_strings_budget_bound=true")
     print("census_canonical_json_record_payload_budget_bound=true")
     print("census_escaped_control_record_amplification_rejected=true")
+    print("census_absence_record_canonical_budget_bound=true")
+    print("census_absence_json_escape_amplification_rejected=true")
     print("census_direct_absence_display_path_budget_bound=true")
     print("census_unbounded_generator_and_oversize_path_rejected=true")
     print("noncanonical_manifest_paths_rejected=true")
