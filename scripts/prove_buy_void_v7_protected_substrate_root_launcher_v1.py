@@ -182,7 +182,13 @@ with tempfile.TemporaryDirectory(prefix="void-v7-root-launcher-proof-") as td:
             "TZ": "UTC",
         },
     )
-    assert test.returncode == 0 and test.stderr == "", test.stdout + test.stderr
+    if test.returncode != 0 or test.stderr != "":
+        raise AssertionError(
+            "native_self_test_failed:"
+            + "returncode=" + str(test.returncode)
+            + ":stdout=" + repr(test.stdout)
+            + ":stderr=" + repr(test.stderr)
+        )
     lines = test.stdout.splitlines()
     for required in (
         "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V1_SELF_TEST_GREEN",
