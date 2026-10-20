@@ -22,11 +22,11 @@ The launcher is source-bound to the landed V4 installer generation:
 
 The launcher source Git blob is:
 
-`c6a9e00d68fbc555fa83c5cf4d2bf25b744cc1d5`.
+`7d5645531fced8a114101285150ebdfdf7266907`.
 
 The source proof Git blob is:
 
-`f174a711efdf0b91d0dd079c88a772faf4bad32b`.
+`1f0d6e24fc7b0f251293466019121c864a3ec109`.
 
 These are source identities only. A later installed launcher must be separately bound to its compiled ELF identity.
 
