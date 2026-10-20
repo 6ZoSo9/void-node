@@ -36,7 +36,7 @@ jobs:
           case "$EVENT_NAME" in
             pull_request)
               case "$BASE_REF" in
-                ren/epoch2-v6r3-main-integration-v1-20261019|ren/epoch2-dormant-v3r-live-binding-v4-current-source-20261019|ren/epoch2-dormant-v4-retained-root-exec-v1-20261020)
+                ren/epoch2-v6r3-main-integration-v1-20261019|ren/epoch2-dormant-v3r-live-binding-v4-current-source-20261019|ren/epoch2-dormant-v4-retained-root-exec-v1-20261020|ren/epoch2-dormant-v4-canonical-configured-root-exec-v1-20261020)
                   base="$PR_BASE"
                   ;;
                 *)
