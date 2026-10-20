@@ -37,6 +37,22 @@ def canonical(value:object)->bytes:
 def sha256(raw:bytes)->str:
     return hashlib.sha256(raw).hexdigest()
 
+def _require_logical_path(value:str,reason:str,*,root:bool=False)->None:
+    # The display prefix is repeated in every manifest key. A caller-provided
+    # 1 MiB prefix could multiply into tens of GiB before the final JSON bound.
+    # Reject unencodable and overlong logical names before inventory traversal.
+    if (type(value) is not str or not value.startswith("/")
+        or value.startswith("//") or chr(0) in value
+        or posixpath.normpath(value)!=value or (root and value=="/")):
+        raise Hold(reason)
+    try:
+        size=len(value.encode("utf-8","strict"))
+    except UnicodeError as exc:
+        raise Hold("logical_path_encoding_invalid") from exc
+    if size>MAX_INPUT_PATH_BYTES:
+        raise Hold("logical_path_length_exceeded")
+
+
 def _meta(st:os.stat_result)->dict[str,int]:
     return {
         "mode":stat.S_IMODE(st.st_mode),
@@ -180,7 +196,7 @@ def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->
     if not in_root:
         raise Hold("symlink_target_outside_inventory_root:"+display_path)
     rel=resolved.relative_to(real_root).as_posix()
-    record["resolved_display_path"]=display_root if rel=="." else display_root.rstrip("/")+"/"+rel
+    record["resolved_display_path"]=_display(display_root,Path(rel))
     if missing_component is not None:
         # The first absent path is authoritative for this resolution:
         # never check a lexically folded final path and misreport it present.
@@ -225,13 +241,12 @@ def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->
     return record
 
 def _display(display_root:str,rel:Path)->str:
-    if not display_root.startswith("/") or display_root=="/":
-        raise Hold("display_root_invalid")
-    if rel.as_posix()==".":
-        return display_root
-    return display_root.rstrip("/")+"/"+rel.as_posix()
+    rendered=display_root if rel.as_posix()=="." else display_root.rstrip("/")+"/"+rel.as_posix()
+    _require_logical_path(rendered,"display_path_invalid")
+    return rendered
 
 def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
+    _require_logical_path(display_root,"display_root_invalid",root=True)
     real_root=Path(os.path.abspath(os.fspath(real_root)))
     if real_root.is_symlink():
         raise Hold("inventory_root_symlink")
@@ -294,6 +309,8 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
     return dict(sorted(objects.items()))
 
 def absence_record(real_root:Path,display_root:str,display_path:str)->dict[str,object]:
+    _require_logical_path(display_root,"absence_path_not_canonical_or_outside_root",root=True)
+    _require_logical_path(display_path,"absence_path_not_canonical_or_outside_root")
     # An absence is an authority claim too. Check *every* path component
     # before the first pathname-based existence query can follow an alias.
     if (not isinstance(display_root,str) or chr(0) in display_root
@@ -380,6 +397,7 @@ def build_manifest(
     real_root:Path,display_root:str,sys_path:list[str],declared_absent:list[str],
     accessed_paths:list[str],
 )->dict[str,object]:
+    _require_logical_path(display_root,"display_root_not_canonical",root=True)
     require_manifest_input_budget(sys_path,declared_absent,accessed_paths)
     if (not isinstance(display_root,str) or chr(0) in display_root
         or not display_root.startswith("/") or display_root=="/"
@@ -460,6 +478,39 @@ def fixture_self_test()->None:
         require_terminal_equal(manifest,json.loads(canonical(manifest)))
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
+
+        # The untrusted logical root is repeated once for each manifest key.
+        # Reject oversized, non-POSIX and unencodable roots *before* scanning.
+        logical_root_cases=(
+            ("/"+"x"*MAX_INPUT_PATH_BYTES,"logical_path_length_exceeded"),
+            ("//fixture","display_root_not_canonical"),
+            ("/fixture/\ud800","logical_path_encoding_invalid"),
+        )
+        for root_name,reason in logical_root_cases:
+            try:
+                build_manifest(root,root_name,sys_path,absent,[])
+            except Hold as exc:
+                assert str(exc)==reason,(root_name,str(exc))
+            else:
+                raise AssertionError("oversized_or_unencodable_display_root_accepted")
+        try:
+            collect_tree(root,"/"+"x"*MAX_INPUT_PATH_BYTES)
+        except Hold as exc:
+            assert str(exc)=="logical_path_length_exceeded"
+        else:
+            raise AssertionError("direct_collect_tree_oversized_root_accepted")
+        try:
+            _display("/"+"x"*(MAX_INPUT_PATH_BYTES-1),Path("child"))
+        except Hold as exc:
+            assert str(exc)=="logical_path_length_exceeded"
+        else:
+            raise AssertionError("expanded_display_path_over_budget_accepted")
+        try:
+            absence_record(root,"/fixture","/fixture/"+"x"*MAX_INPUT_PATH_BYTES)
+        except Hold as exc:
+            assert str(exc)=="logical_path_length_exceeded"
+        else:
+            raise AssertionError("standalone_oversized_absence_path_accepted")
 
         # NUL and noncanonical paths must fail before constructing a JSON
         # authority record or calling a POSIX filesystem API.
@@ -719,6 +770,9 @@ def fixture_self_test()->None:
     print("noncanonical_manifest_paths_rejected=true")
     print("embedded_nul_and_non_posix_input_paths_rejected=true")
     print("non_posix_path_negative_fixtures=7")
+    print("display_root_pretraversal_byte_budget_enforced=true")
+    print("expanded_manifest_key_byte_budget_enforced=true")
+    print("standalone_absence_path_byte_budget_enforced=true")
     print("symlink_missing_component_parent_reentry_rejected=true")
     print("contained_dangling_symlink_remains_absent=true")
     print("discovered_entry_budget_includes_queued_directories=true")
