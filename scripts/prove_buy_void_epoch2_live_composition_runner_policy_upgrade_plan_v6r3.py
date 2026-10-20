@@ -17,7 +17,7 @@ LOCK_ID="voidbuye2runnerpollock6r3_72ecfe7a0d5aa87237520290cdf63cf0faef821931ef0
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_aaa50e1bbfe2303045336c03be2bacd504a736a0fd04f97d4f38be7e76fbba7d"
 LOCK_BLOB="a9565f1dbe49e694ee07eb0cfdddb42d591d856b"
 RUNNER_BLOB="11a147d565bd0ee3ff48c4e3cb75d608b59e87b1"
-PLAN_BLOB="76daf342ec779a039a91d1f7cf98f3a0ecf77f14"
+PLAN_BLOB="1ba1bdaf6a8664e5c3e4f3ebc41e951fc186946e"
 RUNNER_SHA256="9302bcbdf70c3d4fd46be5deb0a2101ab09d51bf84171e43f2b5fb6e6b4f92a8"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
@@ -61,6 +61,13 @@ for required in (
     "source_runtime_actual_object_ancestry_not_found",
     "source_runtime_graft_ancestry_rejected=true",
     '"runtime_source_complete_dependency_set_bound":True',
+    '"host_node_terminal_revalidated":True',
+    '"protected_state_terminal_revalidated":True',
+    '"host_root_descriptor_identity_required":True',
+    '"host_ancestor_acl_nonwritability_required":True',
+    'host_node_and_state_terminal_revalidation_required=true',
+    'host_node_terminal_drift_rejected=true',
+    'protected_state_terminal_drift_rejected=true',
     '"source_terminal_revalidated":True',
     'source_after=source_snapshot_fn()',
     'if source_after!=source_before:',
@@ -141,11 +148,14 @@ for mode in ("--self-test","--source-plan"):
             "late_source_drift_rejected=true",
             "full_root_atomic_exchange_required=true",
             "host_plan_exact_runtime_uid_gid_required=true",
+            "host_node_and_state_terminal_revalidation_required=true",
             "protected_ancestor_acl_custody_required=true",
             "protected_directory_listing_fd_bound=true",
             "trusted_git_first_exec_retained_fd_required=true",
             "host_node_nonblocking_fd_required=true",
             "writable_ancestor_rejected=true",
+            "host_node_terminal_drift_rejected=true",
+            "protected_state_terminal_drift_rejected=true",
             "v6r2_predecessor_retention_required=true",
             "filesystem_write=false",
             "credential_access=false",
@@ -168,6 +178,7 @@ for mode in ("--self-test","--source-plan"):
             "protected_directory_listing_fd_bound=true",
             "trusted_git_first_exec_retained_fd_required=true",
             "host_plan_exact_runtime_uid_gid_required=true",
+            "host_node_and_state_terminal_revalidation_required=true",
             "filesystem_write=false",
             "credential_access=false",
             "transaction=false",
@@ -210,6 +221,7 @@ print("protected_ancestor_acl_custody_required=true")
 print("protected_directory_listing_fd_bound=true")
 print("trusted_git_first_exec_retained_fd_required=true")
 print("host_plan_exact_runtime_uid_gid_required=true")
+print("host_node_and_state_terminal_revalidation_required=true")
 print("filesystem_write=false")
 print("credential_access=false")
 print("signing=false")
