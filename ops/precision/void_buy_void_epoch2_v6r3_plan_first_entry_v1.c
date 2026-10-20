@@ -402,7 +402,8 @@ static int self_test(void){
     printf("runtime_dumpable_disabled_before_python=true\n");
     printf("planner_retained_descriptor_required=true\n");
     printf("python_retained_descriptor_fexecve_required=true\n");
-    printf("isolated_python_required=true\n");\n    printf("python_site_import_disabled=true\\n");
+    printf("isolated_python_required=true\\n");
+    printf("python_site_import_disabled=true\\n");
     printf("caller_stdin_python_source_authority=false\n");
     printf("filesystem_write=false\n");
     printf("credential_access=false\n");
