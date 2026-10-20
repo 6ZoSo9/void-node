@@ -16,14 +16,14 @@ WORKFLOW_REL = (
     "buy-void-epoch2-dormant-first-entry-protected-installer-"
     "bootstrap-plan-v7.yml"
 )
-EXACT_PARENT = "190fae8c410d7fe3ae4af5551ea78a5523bcd7fb"
+EXACT_PARENT = "1ee54f96d341cd9d62bb69d2d3f3b27f4c03acb7"
 
 TARGET_REL = (
     "ops/precision/"
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-TARGET_BLOB = "9ea4a7d34a66f81ed568adaed693755ebca37b66"
+TARGET_BLOB = "1717477f21a43b8a6984c15657415d5dc09cf706"
 
 PREDECESSOR_REL = (
     "ops/precision/"
@@ -42,7 +42,7 @@ QUALIFIER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "d9650aff7af2cb9fc9a8d95a888d8dd52aef1970"
+QUALIFIER_BLOB = "fd6a6be74ae9ab6284bd493472f4d9e20a7f6051"
 
 MARKER = (
     "VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_"

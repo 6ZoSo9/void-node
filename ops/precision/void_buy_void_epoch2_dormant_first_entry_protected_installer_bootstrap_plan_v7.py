@@ -31,7 +31,7 @@ QUALIFIER_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-QUALIFIER_BLOB = "d9650aff7af2cb9fc9a8d95a888d8dd52aef1970"
+QUALIFIER_BLOB = "fd6a6be74ae9ab6284bd493472f4d9e20a7f6051"
 QUALIFIER_UPGRADER_BLOB = "d4b298dea73a4970987bf22435be3e76a5e7a02d"
 QUALIFIER_UPGRADE_PLAN_BLOB = "9ba10aac284da9e44db0ad258348425cfa3c2e2c"
 

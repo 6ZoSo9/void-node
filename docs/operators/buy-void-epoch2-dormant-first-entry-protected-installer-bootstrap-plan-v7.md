@@ -23,7 +23,7 @@ Exact qualifier:
 
 Git blob:
 
-`d9650aff7af2cb9fc9a8d95a888d8dd52aef1970`
+`fd6a6be74ae9ab6284bd493472f4d9e20a7f6051`
 
 Its contract requires:
 
@@ -165,7 +165,7 @@ qualification may satisfy V7.
 ## Repaired qualification parent
 
 This V7 planner generation is reviewed directly against repaired qualification
-head `190fae8c410d7fe3ae4af5551ea78a5523bcd7fb`.
+head `1ee54f96d341cd9d62bb69d2d3f3b27f4c03acb7`.
 
 The qualifier is itself bound to the monotonic-publication atomic upgrader and
 the trigger-corrected non-executing upgrade planner. V7 therefore does not

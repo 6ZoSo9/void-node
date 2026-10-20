@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import hashlib
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -27,7 +29,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_bootstrap_repaired_installed_qualification_v1.py"
 )
-TARGET_BLOB = "d9650aff7af2cb9fc9a8d95a888d8dd52aef1970"
+TARGET_BLOB = "fd6a6be74ae9ab6284bd493472f4d9e20a7f6051"
 
 UPGRADER_REL = (
     "ops/precision/"
@@ -174,6 +176,30 @@ module = types.ModuleType("void_repaired_qualification_callback_fixture")
 module.__file__ = str(ROOT / TARGET_REL)
 module.__package__ = ""
 exec(compile(source, TARGET_REL, "exec", dont_inherit=True), module.__dict__)
+
+synthetic_emit_result = {
+    "expected_head": "a" * 40,
+    "protected_state": GREEN_STATE,
+    "git_boundary_receipt": {
+        "temporary_git_metadata_write_performed": True,
+        "temporary_git_metadata_cleanup_completed": True,
+        "source_repository_mutation": False,
+        "source_object_fetch": False,
+        "repository_config_loaded": False,
+        "repository_callback_execution": False,
+        "native_parent_authority_claimed": False,
+    },
+}
+emit_buffer = io.StringIO()
+with contextlib.redirect_stdout(emit_buffer):
+    module.emit(synthetic_emit_result)
+emit_lines = emit_buffer.getvalue().splitlines()
+assert emit_lines.count("filesystem_write=true") == 1
+assert emit_lines.count("filesystem_write=false") == 0
+assert emit_lines.count("temporary_git_metadata_write_required=true") == 1
+assert emit_lines.count("temporary_git_metadata_write_performed=true") == 1
+assert emit_lines.count("temporary_git_metadata_cleanup_completed=true") == 1
+assert emit_lines.count("protected_filesystem_mutation=false") == 1
 with tempfile.TemporaryDirectory(prefix="void-e2-qualification-fsmonitor-") as td:
     temp = Path(td)
     repo = temp / "repo"
@@ -354,6 +380,7 @@ print("upgrader_apply_absent=true")
 print("temporary_git_metadata_write_required=true")
 print("qualification_git_callbacks_neutralized=true")
 print("qualification_git_fsmonitor_callback_rejected=true")
+print("green_emit_filesystem_write_truth_bound=true")
 print("repaired_plan_immutable_handoff_bound=true")
 print("nonroot_run_required=true")
 print("protected_filesystem_mutation=false")
