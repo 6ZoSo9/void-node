@@ -870,6 +870,13 @@ function selfTest(): void {
   );
 }
 
+export function testOnlySafeHoldReasonV1(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  return /^[a-z][a-z0-9_]{0,95}$/u.test(message)
+    ? message
+    : "allocation_custody_diagnostic_redacted";
+}
+
 function argument(args: string[], name: string): string {
   const index = args.indexOf(name);
   if (index < 0 || index + 1 >= args.length) fail("allocation_custody_arguments_invalid");
@@ -907,7 +914,7 @@ if (
     main();
   } catch (error) {
     console.error(MARKER + "_HOLD");
-    console.error("reason=" + String((error as Error)?.message || "unknown"));
+    console.error("reason=" + testOnlySafeHoldReasonV1(error));
     console.error("filesystem_write_performed=false");
     console.error("process_execution_performed=unknown");
     console.error("process_execution_read_only_contract=true");

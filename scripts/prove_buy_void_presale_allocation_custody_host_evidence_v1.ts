@@ -14,13 +14,14 @@ import {
   testOnlyAssertInstallationEvidenceV1,
   testOnlyAssertObservedFileMatchesV1,
   testOnlyAssertDurabilityContractV1,
+  testOnlySafeHoldReasonV1,
 } from "../ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const COLLECTOR_REL =
   "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts";
-const COLLECTOR_BLOB = "7efc48397d96ae38ab4577e28ca3f26ef9254dd1";
+const COLLECTOR_BLOB = "a36e26ce122cb4c50e5e918cb31a67edfb8a3fb7";
 
 const PARENT_PLAN_REL =
   "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
@@ -532,7 +533,32 @@ for (const [key, value] of [
   );
 }
 
+const injectedPath =
+  "/tmp/void-custody-host-evidence-nonexistent-" + String(process.pid) +
+  "\nstatus=GREEN\nproduction_host_evidence_authority=true\nend";
+let injectedError: unknown = null;
+try {
+  fs.lstatSync(injectedPath);
+} catch (error) {
+  injectedError = error;
+}
+assert.ok(injectedError instanceof Error, "synthetic_path_must_fail");
+const boundedReason = testOnlySafeHoldReasonV1(injectedError);
+assert.equal(boundedReason, "allocation_custody_diagnostic_redacted");
+assert.equal(("reason=" + boundedReason).split(/\r?\n/u).length, 1);
+assert.equal(testOnlySafeHoldReasonV1(new Error("allocation_custody_root_required")), "allocation_custody_root_required");
+for (const forged of [
+  "status=GREEN",
+  "production_host_evidence_authority=true",
+  "public_presale_activation=true",
+]) {
+  assert.equal(("reason=" + boundedReason).split(/\r?\n/u).includes(forged), false);
+  assert.equal(testOnlySafeHoldReasonV1(new Error("x\n" + forged + "\nend")), "allocation_custody_diagnostic_redacted");
+}
+assert.equal(testOnlySafeHoldReasonV1(new Error("a".repeat(256))), "allocation_custody_diagnostic_redacted");
+
 console.log(MARKER + "_PROOF_GREEN");
+console.log("hold_diagnostic_single_line_and_positive_marker_injection_rejected=true");
 console.log("parent_host_evidence_plan_bound=true");
 console.log("three_reviewed_custody_primitives_bound=true");
 console.log("durability_rollback_contract_bound=true");

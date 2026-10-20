@@ -226,3 +226,14 @@ cross-receipt mismatch fixtures fail closed.
 This changes no host authority. The future host run remains read-only collection
 with truthfully reported transitive `stat`/`lsblk` helper execution and still
 terminates at the separately authorized controlled-challenge boundary.
+
+## HOLD diagnostic integrity
+
+The root collector emits a bounded, single-line `reason=` token on CLI failures. Only
+safe, fixed lowercase ASCII failure codes are retained; arbitrary filesystem or
+operator-supplied path diagnostics are redacted to
+`allocation_custody_diagnostic_redacted`. The focused proof exercises a missing
+synthetic path with embedded newline-delimited positive status/authority markers,
+checks that no such line survives formatting, and checks that normal explicit
+collector HOLD codes remain usable. This hardens log parsing only and grants no
+host collector, storage challenge, presale, payment or funds authority.
