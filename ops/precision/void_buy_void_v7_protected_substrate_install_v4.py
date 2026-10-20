@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+# Built-in-only first import: non-isolated Python must HOLD before a checkout
+# shadow of __future__ (or any other non-built-in module) can execute.
 
 # Built-in-only bootstrap guard. This does not authenticate Python startup hooks;
 # privileged execution still requires a separately reviewed trusted launcher.
