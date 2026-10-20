@@ -200,4 +200,10 @@ state before returning a plan. Synthetic self-tests force late Node and
 protected-state drift and require HOLD, preventing an earlier valid snapshot
 from being treated as terminal authority.
 
-Planner Git blob: `dd5a0535d275741270a2154d4b8d7685702027d2`.
+The `--self-test` fixture also directly executes the retained Git ELF via
+`/proc/self/fd/<n>` and inherited `pass_fds` with `cwd=/`, requesting
+`--version` only. This tests the critical retained-first-exec mechanism on
+the hosted runner; it does not authenticate or inspect Precision's host
+binary, execute the production Runner, or authorize a host plan.
+
+Planner Git blob: `cb242059fa3966480b1573d9801f7f988d7c9554`.
