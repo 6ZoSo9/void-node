@@ -60,6 +60,8 @@
     "automatic_replay_after_indeterminate_forbidden": true,
     "parent_must_ignore_buffered_success_after_abnormal_exit": true,
     "supervisor_held_fencing_lease_through_child_exit_and_terminal_checks_required": true,
+    "supervisor_death_prior_worker_quiescence_before_fence_reuse_required": true,
+    "supervisor_restart_durable_fencing_epoch_and_unknown_recovery_required": true,
     "unknown_mutation_after_abnormal_exit_maps_to_indeterminate_required": true,
     "terminal_store_generation_revalidation_required": true,
     "terminal_peer_identity_revalidation_required": true,
@@ -84,5 +86,5 @@
     "funds_movement_authorized": false
   },
   "next_gate": "DISTINCT_REVIEW_FAILURE_DOMAIN_PLAN_THEN_BUILD_ISOLATED_RUNTIME_CANDIDATE_V1",
-  "plan_id": "voidapollyonclaimcallbackcontain1_23da91144e3da950951f871aba23166aedd6acbf13db061f4623728a8d1d656a"
+  "plan_id": "voidapollyonclaimcallbackcontain1_17848cb11147fb0284268258e784826daf75630687abec922c4dd5d972b7be68"
 }

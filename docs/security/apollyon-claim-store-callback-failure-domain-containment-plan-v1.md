@@ -45,7 +45,7 @@ receipt but before an actual trusted event-loop checkpoint, create a detached
 grandchild/worker thread that survives the first child's exit, or schedule a
 late write between a pre-exit revalidation and the apparent clean exit.
 
-The **future** supervisor must therefore prove all eleven additional properties:
+The **future** supervisor must therefore prove all thirteen additional properties:
 
 1. The completion/checkpoint marker originates from a supervisor-custodied
    control plane unavailable for forgery by arbitrary callback code.
@@ -91,13 +91,30 @@ The **future** supervisor must therefore prove all eleven additional properties:
     effects are classified indeterminate and fenced through post-quiescence
     source/store/peer checks. A forged clean exit or buffered success frame
     cannot obscure a breached quota.
+12. **A supervisor crash cannot strand an executable old worker across fence reuse.**
+    A supervisor SIGKILL/OOM/unplanned exit must cause old worker/descendants
+    to be killed or externally quarantined and proven quiescent before any
+    successor may own an effective publication fence. A worker parent-death
+    mechanism alone is insufficient without race-safe parent identity checks
+    and out-of-process cleanup/recovery. Never interpret the supervisor's
+    absence as evidence that its request had no effect.
+13. **Restart authority must be backed by durable, monotonic fencing.**
+    A supervisor-owned process lock can disappear while a worker survives.
+    Persist exact in-flight request/epoch/mutation-UNKNOWN identity in a
+    separately authoritative store, or enforce an equivalent non-reusable
+    generation fence at every protected mutation. Restart/reacquire must HOLD
+    while any earlier worker generation can write. Only independently proven
+    worker-tree quiescence plus terminal store/winner/claim/source revalidation
+    may resolve the record. UNKNOWN effects remain indeterminate and cannot
+    authorize automatic retry or a second one-time consumption.
 
 These are testable requirements for a subsequent implementation, **not**
 existing installed safeguards. Plan/proof CI only checks that omitting or
 reversing any of these requirements fails the content-addressed schema.
 Any future integration needs executable early-exit, inherited-descendant,
-timeout/kill/reap, fencing-loss, post-exit-race, kernel quota exhaustion
-and OOM/error-classification adversaries. Nothing in this
+timeout/kill/reap, fencing-loss, **supervisor SIGKILL with surviving old worker**,
+restart/reacquire denied until durable fencing and quiescence, post-exit-race,
+kernel quota exhaustion and OOM/error-classification adversaries. Nothing in this
 V1 plan authorizes host runtime execution, claim publication, credentials,
 training or funds movement.
 
@@ -112,11 +129,13 @@ training or funds movement.
 
 Content-addressed plan ID (successor to historical `voidapollyonclaimcallbackcontain1_0e0794baead1aa6571c8f0820a32d5951e24dfefb164445c0591c1d94bc5166c`):
 
-`voidapollyonclaimcallbackcontain1_23da91144e3da950951f871aba23166aedd6acbf13db061f4623728a8d1d656a`
+`voidapollyonclaimcallbackcontain1_17848cb11147fb0284268258e784826daf75630687abec922c4dd5d972b7be68` (previous kernel-resource generation: `voidapollyonclaimcallbackcontain1_23da91144e3da950951f871aba23166aedd6acbf13db061f4623728a8d1d656a`)
 
 ## October 20 — semantic negative-proof and source-role binding
 
-The immutable plan JSON and content-addressed `plan_id` are unchanged.
+The October 20 semantic-negative-proof generation preserved its then-current
+plan JSON and content ID; the later supervisor-crash requirements update
+produces the new content-addressed plan ID shown above.
 The source-only validation proof now rejects each intentionally corrupted
 requirement, authority field, unknown success gate, or missing Promise
 surface for the **exact named semantic reason**. Merely reaching the
@@ -129,7 +148,7 @@ cannot be substituted for `core`, `transaction_lease`, `native_bridge`
 or the two proofs. Two new negative cases swap core/lease roles and
 duplicate the bridge record under the core role; both must fail at
 `bound_source_role_invalid:core`, **not** at the final content hash.
-The source-only adversary count increases from 44 to **48**, with explicit
+The earlier semantic-proof generation increased the source-only adversary count from 44 to **48**; the current supervisor-death requirement generation raises it to **50**, with explicit
 proof output `negative_cases_failed_at_semantic_gate=true` and
 `bound_source_role_identities_enforced=true`.
 
@@ -146,6 +165,7 @@ custody, inherited-FD allowlisting, minimal environment, a post-callback event-l
 checkpoint, clean-exit gating before success acknowledgement, abnormal-exit HOLD,
 **bounded canonical IPC receipt framing and independent stdout/stderr/log capture budgets**,
 pre-exec kernel memory/PID/CPU/FD quotas and quota/OOM-event fencing,
+supervisor-crash old-worker quiescence and durable restart-era fencing,
 post-mutation indeterminate handling without automatic replay, and terminal revalidation of
 store generation, peer identity, and callback source identity.
 

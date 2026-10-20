@@ -3,18 +3,23 @@
 from __future__ import annotations
 
 import copy
+import fcntl
 import hashlib
 import json
 import os
+import select
+import signal
 import stat
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json"
 MARKER = "VOID_APOLLYON_CLAIM_STORE_CALLBACK_FAILURE_DOMAIN_CONTAINMENT_PLAN_V1_PROOF"
 PARENT = "187a4da4992b7d81330b9474e535b8af631de0d4"
-PLAN_ID = "voidapollyonclaimcallbackcontain1_23da91144e3da950951f871aba23166aedd6acbf13db061f4623728a8d1d656a"
+PLAN_ID = "voidapollyonclaimcallbackcontain1_17848cb11147fb0284268258e784826daf75630687abec922c4dd5d972b7be68"
 
 PINS = {
     "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs":
@@ -63,6 +68,8 @@ REQUIREMENTS = [
     "automatic_replay_after_indeterminate_forbidden",
     "parent_must_ignore_buffered_success_after_abnormal_exit",
     "supervisor_held_fencing_lease_through_child_exit_and_terminal_checks_required",
+    "supervisor_death_prior_worker_quiescence_before_fence_reuse_required",
+    "supervisor_restart_durable_fencing_epoch_and_unknown_recovery_required",
     "unknown_mutation_after_abnormal_exit_maps_to_indeterminate_required",
     "terminal_store_generation_revalidation_required",
     "terminal_peer_identity_revalidation_required",
@@ -312,10 +319,70 @@ def adversarial_self_test(plan: dict) -> int:
     return rejected
 
 
+def observe_unsafe_supervisor_death_fence_reuse() -> None:
+    """Prove *hazard*, not protection, on disposable Linux file/processes.
+
+    Worker remains alive while a separate parent-only flock owner is SIGKILLed.
+    A new owner can then acquire the old lock. Future design MUST add crash
+    cleanup and durable epoch fencing; this fixture does not implement them.
+    """
+    need(sys.platform.startswith("linux"), "supervisor_fixture_requires_linux")
+    clean_env = {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C"}
+    with tempfile.TemporaryDirectory(prefix="void-apollyon-supervisor-death-") as td:
+        lock_path = os.path.join(td, "fencing.lock")
+        worker = subprocess.Popen(
+            [sys.executable, "-I", "-B", "-c", "import time; time.sleep(12)"],
+            cwd="/", env=clean_env, stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            close_fds=True,
+        )
+        code = (
+            "import fcntl,os,sys,time\n"
+            "fd=os.open(sys.argv[1],os.O_CREAT|os.O_RDWR,0o600)\n"
+            "fcntl.flock(fd,fcntl.LOCK_EX)\n"
+            "print('fenced',flush=True)\n"
+            "time.sleep(12)\n"
+        )
+        supervisor = subprocess.Popen(
+            [sys.executable, "-I", "-B", "-c", code, lock_path],
+            cwd="/", env=clean_env, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, close_fds=True,
+        )
+        try:
+            assert supervisor.stdout is not None
+            readable, _, _ = select.select([supervisor.stdout], [], [], 8)
+            need(bool(readable), "supervisor_fixture_lock_not_observed")
+            need(
+                supervisor.stdout.readline().strip() == "fenced",
+                "supervisor_fixture_wrong_lock_state",
+            )
+            supervisor.kill()
+            supervisor.wait(timeout=3)
+            need(supervisor.returncode == -signal.SIGKILL, "supervisor_fixture_not_killed")
+            need(worker.poll() is None, "supervisor_fixture_prior_worker_not_live")
+            reacquired_fd = os.open(lock_path, os.O_RDWR | os.O_CLOEXEC)
+            try:
+                try:
+                    fcntl.flock(reacquired_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError as exc:
+                    raise Hold("supervisor_fixture_unsafe_lease_not_reacquirable") from exc
+            finally:
+                os.close(reacquired_fd)
+        finally:
+            if supervisor.poll() is None:
+                supervisor.kill()
+            supervisor.wait(timeout=3)
+            if worker.poll() is None:
+                worker.kill()
+            worker.wait(timeout=3)
+
+
 def main() -> None:
     need(sys.argv[1:] in (["--self-test"], ["--run"]), "mode_invalid")
     plan = validate(json.loads(read_regular(PLAN)))
     rejected = adversarial_self_test(plan)
+    observe_unsafe_supervisor_death_fence_reuse()
 
     if sys.argv[1] == "--run":
         for rel, expected in PINS.items():
@@ -357,6 +424,7 @@ def main() -> None:
     print("rejected_promise_surfaces=" + str(len(SURFACES)))
     print("runtime_contract_requirements=" + str(len(REQUIREMENTS)))
     print("rejected_adversaries=" + str(rejected))
+    print("unsafe_supervisor_death_fence_reuse_hazard_observed=true")
     print("negative_cases_failed_at_semantic_gate=true")
     print("bound_source_role_identities_enforced=true")
     print(

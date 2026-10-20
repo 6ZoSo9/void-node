@@ -50,9 +50,9 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = 848a061a0b246e138ec8ed775ed8a87f159476f6
 
           # Current content-addressed plan, proof and security doc: fail on drift.
-          test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = 04fdaefab375e62111952a20a4d14912e638fa13
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = ac1cd98b91b7bd3b4e7b654f80b7b6634daa2d3b
-          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 5656dcce66445d288d2beefabd3c766ec24ef68a
+          test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = 65121ec209a7c948e58e9a1e91e49f65c81d328f
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = c6ce91182f7c3d43ae3a95ae78710bf00a699443
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = c2dae7eaccb0e99fe4938605a2cb46279be8ebc5
 
           git diff --check "$PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -72,9 +72,10 @@ jobs:
           set -euo pipefail
           out="$RUNNER_TEMP/apollyon-callback-containment-plan-selftest.log"
           python3 -I -B scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py --self-test | tee "$out"
-          grep -Fx 'runtime_contract_requirements=28' "$out"
-          grep -Fx 'rejected_adversaries=48' "$out"
+          grep -Fx 'runtime_contract_requirements=30' "$out"
+          grep -Fx 'rejected_adversaries=50' "$out"
           grep -Fx 'negative_cases_failed_at_semantic_gate=true' "$out"
+          grep -Fx 'unsafe_supervisor_death_fence_reuse_hazard_observed=true' "$out"
           grep -Fx 'bound_source_role_identities_enforced=true' "$out"
           grep -Fx 'failure_domain_containment_proven=false' "$out"
           grep -Fx 'trusted_callback_origin_proven=false' "$out"
