@@ -58,7 +58,8 @@ Hosted CI:
 1. compiles the real launcher statically and requires no `PT_INTERP`;
 2. demonstrates a dynamic `LD_PRELOAD` positive control, then proves the static launcher
    does not execute the preload constructor before `main()`;
-3. installs only a disposable root-owned fixture at the exact fixed `/opt` path;
+3. normalizes the disposable hosted `/opt` ancestry to root:root `0755`, then installs
+   only a disposable root-owned fixture at the exact fixed path;
 4. invokes the real launcher through its fixed path as root, requiring the launcher itself
    to perform the irreversible drop to numeric UID/GID `1000:1000` before Python;
 5. supplies caller stdin Python and hostile `PYTHONPATH`, requiring neither to execute;
