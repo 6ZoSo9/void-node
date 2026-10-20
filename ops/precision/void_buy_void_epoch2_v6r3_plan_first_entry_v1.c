@@ -453,6 +453,25 @@ static void require_devnull_descriptor(int fd,const char *reason){
        major(st.st_rdev)!=1U||minor(st.st_rdev)!=3U)hold(reason);
 }
 
+/* Root-opened regular stdout/stderr descriptors retain write authority after
+ * setresuid().  Reject an untrusted destination before any HOLD can print. */
+static void require_safe_output_sinks(bool allow_missing){
+    for(int fd=STDOUT_FILENO;fd<=STDERR_FILENO;fd++){
+        errno=0;
+        const int fdflags=fcntl(fd,F_GETFD);
+        if(fdflags<0&&errno==EBADF&&allow_missing)continue;
+        if(fdflags<0||(fdflags&FD_CLOEXEC)!=0)_exit(2);
+        const int access=fcntl(fd,F_GETFL);
+        struct stat st;
+        if(access<0||(access&O_ACCMODE)==O_RDONLY||fstat(fd,&st)!=0)_exit(2);
+        if(S_ISFIFO(st.st_mode))continue;
+        if(S_ISCHR(st.st_mode) &&
+            (isatty(fd)||(major(st.st_rdev)==1U&&minor(st.st_rdev)==3U)))continue;
+        /* Unsafe regular/socket/block/directory fd: no diagnostic write. */
+        _exit(2);
+    }
+}
+
 static void reserve_standard_fds(void){
     for(int target=STDIN_FILENO;target<=STDERR_FILENO;target++){
         errno=0;
@@ -571,6 +590,7 @@ static int self_test(void){
     printf("planner_bytes=%u\n",(unsigned)PLANNER_BYTES);
     printf("root_static_first_entry_required=true\n");
     printf("standard_fds_reserved_before_trusted_opens=true\n");
+    printf("trusted_stdout_stderr_nonfile_sinks_required=true\n");
     printf("mapped_planner_fd3_revalidated=true\n");
     printf("runtime_uid_gid_1000_required=true\n");
     printf("runtime_securebits_default_required=true\n");
@@ -601,9 +621,12 @@ static void prepare_child_fd(int source,int target,const char *reason){
 }
 
 int main(int argc,char **argv){
+    /* No HOLD may write through a root-opened regular stdout/stderr. */
+    require_safe_output_sinks(true);
+    reserve_standard_fds();
+    require_safe_output_sinks(false);
     if(argc==2&&strcmp(argv[1],"--self-test")==0)return self_test();
     if(argc!=2||strcmp(argv[1],"--plan")!=0)hold("launcher_arguments_invalid");
-    reserve_standard_fds();
 
     struct stat self_stat;
     require_self_identity(&self_stat);
