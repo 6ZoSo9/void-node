@@ -1,0 +1,50 @@
+name: Buy VOID Epoch-2 V6R3 post-exec dumpability V1
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/prove_buy_void_epoch2_v6r3_postexec_dumpability_v1.py'
+      - '.github/workflows/buy-void-epoch2-v6r3-postexec-dumpability-v1.yml'
+      - 'docs/operators/buy-void-epoch2-v6r3-postexec-dumpability-v1.md'
+      - 'ops/precision/void_buy_void_epoch2_v6r3_plan_first_entry_v1.c'
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/prove_buy_void_epoch2_v6r3_postexec_dumpability_v1.py'
+      - '.github/workflows/buy-void-epoch2-v6r3-postexec-dumpability-v1.yml'
+      - 'docs/operators/buy-void-epoch2-v6r3-postexec-dumpability-v1.md'
+      - 'ops/precision/void_buy_void_epoch2_v6r3_plan_first_entry_v1.c'
+
+permissions:
+  contents: read
+
+jobs:
+  inert-fexecve-fixture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Exact source head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=no)"
+      - name: Syntax
+        run: |
+          python3 -I -B -S -m py_compile scripts/prove_buy_void_epoch2_v6r3_postexec_dumpability_v1.py
+      - name: Inert actual-fexecve dumpability reset evidence
+        run: |
+          set -euo pipefail
+          python3 -I -B -S scripts/prove_buy_void_epoch2_v6r3_postexec_dumpability_v1.py --self-test | tee "$RUNNER_TEMP/e2-fexecve-dumpability-v1.txt"
+          grep -Fx 'pre_fexecve_dumpable=0' "$RUNNER_TEMP/e2-fexecve-dumpability-v1.txt"
+          grep -Fx 'post_fexecve_dumpable=1' "$RUNNER_TEMP/e2-fexecve-dumpability-v1.txt"
+          grep -Fx 'runtime_dumpability_accepted=false' "$RUNNER_TEMP/e2-fexecve-dumpability-v1.txt"
+          grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/e2-fexecve-dumpability-v1.txt"
+      - name: Diff hygiene
+        run: git diff --check
