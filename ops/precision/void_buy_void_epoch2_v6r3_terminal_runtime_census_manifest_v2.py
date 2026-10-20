@@ -14,15 +14,16 @@ import tempfile
 MARKER="VOID_BUY_VOID_EPOCH2_V6R3_TERMINAL_RUNTIME_CENSUS_MANIFEST_V2"
 VERSION=2
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
-FRESHNESS_GATE_ID="voidbuye2v6r3pyclosurefreshness2_53653912534048b7be8b02aed429a28383edb9b419632e7e1d8fd32a19050414"
+FRESHNESS_GATE_ID="voidbuye2v6r3pyclosurefreshness2_5840ca9aaecbbef2b50783fe05d364161e66b19a79c793b71dd80d18d243c54b"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
-FRESHNESS_GATE_BLOB="66c1e4da7800de930804b195db6b56d8fe29b8f4"
+FRESHNESS_GATE_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 MAX_TREE_ENTRIES=100_000
 MAX_REGULAR_FILE_BYTES=512*1024*1024
 MAX_REPORT_BYTES=16*1024*1024
 MAX_INPUT_PATH_BYTES=4096
 # V1 source generation is a reviewed lineage input, not live V2 authority.
 SOURCE_V1_BLOB="05458587b5743da09ed2f752e971ca67938cceac"
+GIT_AWARE_FRESHNESS_REQUIRED=True
 FIRST_ENTRY_LOCK_ID="voidbuye2v6r3planfirstentrybinlock2_b5e1bbca28ed7aad579ac7f37a7575ed90eadd44f73d24edac79df3cc74664c1"
 FIRST_ENTRY_LOCK_BLOB="14a3ff2eca0583d1355dc8b75bd54cc55115d946"
 HOST_EXECUTION_ENABLED=False
@@ -754,6 +755,7 @@ def source_plan()->None:
     print("source_v1_blob="+SOURCE_V1_BLOB)
     print("contract_blob="+CONTRACT_BLOB)
     print("freshness_gate_blob="+FRESHNESS_GATE_BLOB)
+    print("git_aware_freshness_required=true")
     print("host_execution_enabled=false")
     print("host_census_authorized=false")
     print("protected_install_authorized=false")
