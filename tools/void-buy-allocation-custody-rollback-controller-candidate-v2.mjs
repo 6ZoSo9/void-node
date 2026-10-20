@@ -410,7 +410,7 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
      approval.protected_high_water_sha256!==high.high_water_sha256)
     fail("second_control_approval_invalid");
   if(typeof approval.approval_id!=="string"||
-     !/^voidbuycustodysecondcontrol1_[0-9a-f]{64}$/u.test(approval.approval_id))
+     !/^voidbuycustodysecondcontrol2_[0-9a-f]{64}$/u.test(approval.approval_id))
     fail("second_control_approval_id_invalid");
 
   const rollback=exactResult(callSync(caps.attempt_controlled_journal_rollback,
@@ -512,7 +512,7 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
     fail("operation_lease_not_persistent");
 
   const evidenceTranscript=Object.freeze({
-    marker:"VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_EVIDENCE_TRANSCRIPT_V1",
+    marker:"VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_EVIDENCE_TRANSCRIPT_V2",
     version:2,
     authorization,
     challenge_id:challengeId,

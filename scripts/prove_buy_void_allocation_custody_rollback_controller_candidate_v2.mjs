@@ -16,7 +16,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs";
-const SOURCE_BLOB="587e14c609b591e7271745bcfafaebc4fefcb37c";
+const SOURCE_BLOB="727c4bef3ba7d754033d9469639ffa0134278101";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json";
 const PLAN_BLOB="1cdecf34117e4e890f67e62b412419d32870dfa0";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -41,6 +41,14 @@ assert.equal(plan.plan_id,VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_P
 assert.equal(plan.plan_id,"voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844");
 assert.equal(plan.schema,"void_buy_void_presale_custody_durability_rollback_challenge_plan_v2");
 assert.equal(plan.version,2);
+const EVIDENCE_MARKER_V2="VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_EVIDENCE_TRANSCRIPT_V2";
+assert.equal(sourceCheckMarkerPreflightV2(),true);
+function sourceCheckMarkerPreflightV2(){
+  const text=pin(SOURCE_REL,SOURCE_BLOB).toString("utf8");
+  return text.includes('marker:"'+EVIDENCE_MARKER_V2+'",') &&
+    !text.includes('marker:"VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_EVIDENCE_TRANSCRIPT_V1",') &&
+    text.includes('voidbuycustodysecondcontrol2_');
+}
 assert.equal(Object.keys(plan.historical_live_evidence_required).length,20);
 assert.equal(plan.historical_live_evidence_required.reviewed_rollback_controller_required,true);
 assert.equal(Object.keys(plan.v2_controller_upgrade_required).length,9);
@@ -174,7 +182,7 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
     },
     obtain_second_control_approval({challenge_id,operation_lease_id}){
       order.push("second");assert.equal(operation_lease_id,leaseId);
-      return {approved:true,approval_id:"voidbuycustodysecondcontrol1_"+"2".repeat(64),
+      return {approved:true,approval_id:"voidbuycustodysecondcontrol2_"+"2".repeat(64),
         challenge_id,rollback_target_journal_tip_sha256:before.journal_tip_sha256,
         protected_high_water_sha256:state.high.high_water_sha256,
         operation_lease_id:leaseId};
@@ -320,6 +328,12 @@ mustFail("operation lease substitution",(c,s)=>{
   c.append_journal_canary=(args)=>({...original(args),
     operation_lease_id:"voidbuycustodyoperationlease2_"+"6".repeat(64)});
 },/append_challenge_mismatch/);
+mustFail("legacy V1 second-control approval ID rejected",(c)=>{
+  const original=c.obtain_second_control_approval;
+  c.obtain_second_control_approval=(args)=>({
+    ...original(args),approval_id:"voidbuycustodysecondcontrol1_"+"2".repeat(64),
+  });
+},/second_control_approval_id_invalid/);
 mustFail("operation lease lost before origin",(c)=>{
   c.revalidate_operation_lease=({authorization_id,operation_id,challenge_id,lease_id})=>({
     present:false,exclusive:false,authorization_id,operation_id,challenge_id,lease_id,
@@ -599,6 +613,8 @@ assert.throws(
   }),/authorization_plan_invalid/,
 );
 console.log("v1_v2_authorization_namespace_replay_rejected=true");
+console.log("v1_second_control_approval_id_rejected=true");
+console.log("v2_evidence_transcript_marker_distinct=true");
 console.log("cross_generation_capability_probe_not_invoked=true");
 
 console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_CANDIDATE_V2_PROOF_GREEN");

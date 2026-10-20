@@ -10,8 +10,8 @@ This candidate is stacked on the [V2 challenge plan #3556](https://github.com/6Z
 - V2 plan ID: `voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844`.
 - V2 plan Git blob: `1cdecf34117e4e890f67e62b412419d32870dfa0`.
 - Historical V1 controller source blob: `96d4ac3499d222841f1f7a3c53e14900b68ae8cf`; original V1 proof blob: `b196fcaa77a6bdc465baacb3387aa949f47bc956`.
-- New V2 controller source blob: `587e14c609b591e7271745bcfafaebc4fefcb37c`.
-- New V2 behavior proof blob: `03a8ad14b0670befd88f726fe1f31228f42abbd6`.
+- New V2 controller source blob: `727c4bef3ba7d754033d9469639ffa0134278101`.
+- New V2 behavior proof blob: `be8782c7de95c1aa82bcf1ddc1238d2e363d0c68`.
 - Accepted economic tree remains `71c67e62a2b21a98f3f5135ee6aa56e0ef97d262`.
 
 ## V2 authorization and replay boundary
@@ -27,8 +27,18 @@ challenge_id_prefix=voidbuycustodychallenge2_
 claim_id_prefix=voidbuycustodychallengeclaim2_
 operation_lease_id_prefix=voidbuycustodyoperationlease2_
 evidence_origin_id_prefix=voidbuycustodychallengeorigin2_
+second_control_approval_id_prefix=voidbuycustodysecondcontrol2_
+evidence_transcript_marker=VOID_BUY_VOID_CUSTODY_ROLLBACK_CHALLENGE_EVIDENCE_TRANSCRIPT_V2
 controller_id=void.replay.journal.rollback.controller.v2
 ```
+
+The V2 evidence transcript marker and second-control approval ID prefix are
+**not** accepted from the V1 controller. The V1 evidence marker/prefix were
+previously reused while changing only the V2 authorization and claim IDs;
+this child rejects V1 second-control ID before attempting rollback, and
+binds the evidence transcript digest under its own explicit V2 marker.
+These are source-protocol isolation checks, **not** authentication of
+a future external approval signer or protected host adapter.
 
 The noncustomer canary domain is intentionally unchanged: `void.buyvoid.presale.noncustomer.canary.v1`, exactly matching V2 plan requirements. The accepted economic tree, current-policy fingerprint/generation constraints and sixteen synchronous injected capability **interface names and phase order** are retained, now under the separate V2 protocol.
 
