@@ -77,11 +77,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
-            fd6a6be74ae9ab6284bd493472f4d9e20a7f6051
+            56e5b1e3e80fc12f5dc6f6bbd1aab3e29b673ec2
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
-            5e16b328c8ab7577c4c8f3ef4241c75dac1dd99a
+            5d2a24d05b0628e01574e5bf4e4ff3378753f604
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-repaired-installed-qualification-v1.md)" = \
-            888ccf2c9096564d4db38392f4a4de78f9c45d34
+            e846678161c623542e822de392d1a8e535f02d63
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = \
             d4b298dea73a4970987bf22435be3e76a5e7a02d
@@ -140,6 +140,9 @@ jobs:
             'temporary_git_metadata_write_required=true'
             'qualification_git_callbacks_neutralized=true'
             'qualification_git_fsmonitor_callback_rejected=true'
+            'preliminary_git_local_config_isolated=true'
+            'preliminary_git_lazy_fetch_disabled=true'
+            'preliminary_git_protocols_denied=true'
             'green_emit_filesystem_write_truth_bound=true'
             'repaired_plan_immutable_handoff_bound=true'
             'nonroot_run_required=true'
@@ -180,6 +183,9 @@ jobs:
             'temporary_git_metadata_boundary_explicit=true'
             'temporary_git_metadata_write_required=true'
             'qualification_git_callbacks_neutralized=true'
+            'preliminary_git_local_config_isolation_required=true'
+            'preliminary_git_lazy_fetch_disabled_required=true'
+            'preliminary_git_protocols_denied_required=true'
             'nonroot_run_required=true'
             'protected_filesystem_mutation=false'
             'bootstrap_execution=false'
