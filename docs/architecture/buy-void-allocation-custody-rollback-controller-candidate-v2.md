@@ -10,8 +10,8 @@ This candidate is stacked on the [V2 challenge plan #3556](https://github.com/6Z
 - V2 plan ID: `voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844`.
 - V2 plan Git blob: `1cdecf34117e4e890f67e62b412419d32870dfa0`.
 - Historical V1 controller source blob: `96d4ac3499d222841f1f7a3c53e14900b68ae8cf`; original V1 proof blob: `b196fcaa77a6bdc465baacb3387aa949f47bc956`.
-- New V2 controller source blob: `abf09c1ce5540b03e39d18184858b40dac6443f1`.
-- New V2 behavior proof blob: `98a0b21510e889bc2dae10d113bfd22bda4a24f1`.
+- New V2 controller source blob: `115088953bd83838623ea260bd2239e6f323d3e2`.
+- New V2 behavior proof blob: `6aaa8990e6a4ae84bbd9e905bf9d2f9256b5bccf`.
 - Accepted economic tree remains `71c67e62a2b21a98f3f5135ee6aa56e0ef97d262`.
 
 ## V2 authorization and replay boundary
@@ -149,6 +149,35 @@ append proof. Future audited catch-up through multiple genuine high-water
 generations requires a separate source-authenticated sequence/hash-lineage
 protocol and independently reviewed protected adapter. Nothing here grants
 host execution, storage mutation or customer-facing payment authority.
+
+## Starting journal/high-water checkpoint must be reconciled
+
+This single noncustomer canary challenge assumes a **coherent starting
+checkpoint**. The prior V2 source validated the journal and protected
+high-water sequence numbers separately, but accepted an initial observation
+where one was ahead of the other. That would allow an already-stale journal
+(`journal_sequence=7`, `high_water_sequence=8`) or a high-water store
+lagging the journal (`journal_sequence=8`, `high_water_sequence=7`) to
+proceed to durable one-time claim and journal-append callbacks.
+
+The revised V2 source requires
+`before.journal_sequence === before.high_water_sequence` immediately
+after authenticating the intended policy *record* and before the claim and
+append phases. Both mismatches produce
+`initial_journal_high_water_checkpoint_mismatch` and stop at the
+`observe_before` callback. Two disposable adversaries prove the
+`["entropy","lease","before"]` trace, with no claim or journal append.
+
+**Digest distinction:** Journal tip and high-water digest values represent
+different storage and data domains; equal sequence indices **do not** mean
+their hashes should be equal. This preflight is only a necessary synthetic
+consistency invariant. A future protected host adapter must independently
+prove authentic storage-origin observations, an atomic lease and claim,
+correct journal/high-water lineage and actual durable readback. The lease
+callback has already run at this point; no no-write claim is inferred about
+that future adapter. A recovery workflow for an out-of-sync baseline
+requires its own independently reviewed design before any new canary test
+may proceed.
 
 ## Source-only controller semantics
 
