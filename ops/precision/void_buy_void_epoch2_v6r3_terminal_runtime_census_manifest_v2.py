@@ -259,11 +259,14 @@ def _display(display_root:str,rel:Path)->str:
 
 def collect_tree(
     real_root:Path,display_root:str,*,display_budget:int=MAX_REPORT_BYTES,
+    record_budget:int=MAX_REPORT_BYTES,
 )->dict[str,dict[str,object]]:
     root_bytes=require_display_root(display_root)
     if (type(display_budget) is not int or
         not 1<=display_budget<=MAX_REPORT_BYTES):
         raise Hold("manifest_display_budget_invalid")
+    if type(record_budget) is not int or not 1<=record_budget<=MAX_REPORT_BYTES:
+        raise Hold("manifest_record_budget_invalid")
     if root_bytes>display_budget:
         raise Hold("manifest_display_path_budget_exceeded")
     display_bytes_total=root_bytes
@@ -273,6 +276,23 @@ def collect_tree(
     if not real_root.is_dir():
         raise Hold("inventory_root_not_directory")
     objects:dict[str,dict[str,object]]={}
+    record_bytes_total=0
+
+    def add_record(display:str,record:dict[str,object])->None:
+        nonlocal record_bytes_total
+        if display in objects:
+            raise Hold("duplicate_inventory_path")
+        # Count actual escaped JSON bytes, including metadata and symlink
+        # target fields; raw UTF-8 counts alone miss JSON \u00XX expansion.
+        try:
+            encoded_bytes=len(canonical({display:record}))
+        except (UnicodeError,TypeError,ValueError) as exc:
+            raise Hold("manifest_record_encoding_invalid") from exc
+        if encoded_bytes>record_budget-record_bytes_total:
+            raise Hold("manifest_record_budget_exceeded")
+        record_bytes_total+=encoded_bytes
+        objects[display]=record
+
     directory_generations:dict[Path,os.stat_result]={}
     stack=[real_root]
     # Count all discovered objects, including directories not yet popped from
@@ -287,7 +307,7 @@ def collect_tree(
         if display in objects:
             raise Hold("duplicate_inventory_path")
         before_dir=current.lstat()
-        objects[display]=directory_record(current)
+        add_record(display,directory_record(current))
         directory_generations[current]=before_dir
         if len(objects)>MAX_TREE_ENTRIES:
             raise Hold("tree_entry_bound_exceeded")
@@ -324,7 +344,7 @@ def collect_tree(
             if display in objects:
                 raise Hold("duplicate_inventory_path")
             if stat.S_ISREG(st.st_mode):
-                objects[display]=stable_regular(path)
+                add_record(display,stable_regular(path))
             elif stat.S_ISLNK(st.st_mode):
                 # A symlink stores target_text and resolved_display_path
                 # in addition to its inventory key. All three variable
@@ -338,7 +358,7 @@ def collect_tree(
                     if display_bytes_total+extra_bytes>display_budget:
                         raise Hold("manifest_display_path_budget_exceeded")
                     display_bytes_total+=extra_bytes
-                objects[display]=record
+                add_record(display,record)
             else:
                 raise Hold("special_file_forbidden:"+display)
             if len(objects)>MAX_TREE_ENTRIES:
@@ -542,6 +562,45 @@ def fixture_self_test()->None:
         assert collect_tree(
             root,"/fixture",display_budget=key_only_budget+symlink_extra_bytes
         )==manifest["objects"]
+
+        # Count actual canonical JSON metadata and escaped strings BEFORE
+        # inserting records, not only the raw bytes of displayed names.
+        record_payload=sum(
+            len(canonical({name:item})) for name,item in manifest["objects"].items()
+        )
+        assert collect_tree(root,"/fixture",record_budget=record_payload)==manifest["objects"]
+        try:
+            collect_tree(root,"/fixture",record_budget=record_payload-1)
+        except Hold as exc:
+            assert str(exc)=="manifest_record_budget_exceeded",str(exc)
+        else:
+            raise AssertionError("serialized_record_budget_escaped")
+
+        # Control characters are legal in Linux symlink targets but expand
+        # sixfold under canonical ensure_ascii JSON escaping.
+        escaped=py/"json-control-target"
+        escaped_target=chr(1)*24
+        escaped.symlink_to(escaped_target)
+        control_objects=collect_tree(root,"/fixture")
+        assert control_objects["/fixture/python/json-control-target"]["target_text"]==escaped_target
+        assert len(canonical(escaped_target))>len(escaped_target.encode("utf-8"))*4
+        control_payload=sum(
+            len(canonical({name:item})) for name,item in control_objects.items()
+        )
+        assert collect_tree(root,"/fixture",record_budget=control_payload)==control_objects
+        try:
+            collect_tree(root,"/fixture",record_budget=control_payload-1)
+        except Hold as exc:
+            assert str(exc)=="manifest_record_budget_exceeded",str(exc)
+        else:
+            raise AssertionError("escaped_json_record_over_budget_accepted")
+        escaped.unlink()
+        try:
+            collect_tree(root,"/fixture",record_budget=0)
+        except Hold as exc:
+            assert str(exc)=="manifest_record_budget_invalid",str(exc)
+        else:
+            raise AssertionError("invalid_record_budget_accepted")
 
         # A logical root prefixes every object key. Prove early bounds
         # without large allocations or protected-host filesystem reads.
@@ -892,6 +951,8 @@ def fixture_self_test()->None:
     print("census_display_root_length_utf8_and_path_budget_bound=true")
     print("census_individual_display_path_bound=true")
     print("census_symlink_record_strings_budget_bound=true")
+    print("census_canonical_json_record_payload_budget_bound=true")
+    print("census_escaped_control_record_amplification_rejected=true")
     print("census_direct_absence_display_path_budget_bound=true")
     print("census_unbounded_generator_and_oversize_path_rejected=true")
     print("noncanonical_manifest_paths_rejected=true")
