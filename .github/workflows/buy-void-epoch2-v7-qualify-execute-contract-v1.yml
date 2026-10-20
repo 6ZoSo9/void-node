@@ -66,11 +66,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            64d40d3af89137488c0663c46ddebc5edbaabdc8
+            ba5facb2686a27b9a8b06fd824cb25a614a770af
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            ced21b146a61abe7dfa631fa6fb14104c204d45f
+            f3b1cfa6999fa22a98e34afb61ee0603837241df
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-v7-qualify-execute-contract-v1.md)" = \
-            1edad57c110c76136f2aa3a853856efd9f6075ae
+            7ca45b543f7914e2824214697c648939ed6b0856
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
             597dd61923d349980cd30bcf190fee354ff1c1f2
@@ -118,6 +118,7 @@ jobs:
             'rehashed_nested_tamper_rejected=true'
             'qualification_state_body_fields_bound=true'
             'planner_output_race_oserror_holds=true'
+            'planner_json_parser_failures_hold=true'
             'unconsumed_tool_metadata_not_execution_authority=true'
             'nonroot_qualification_phase_required=true'
             'descriptor_bound_qualification_source_required=true'

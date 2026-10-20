@@ -589,7 +589,7 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
 
     try:
         body = json.loads(values["plan_body_json"])
-    except json.JSONDecodeError as exc:
+    except (ValueError, RecursionError) as exc:
         raise ContractError("planner_body_invalid") from exc
     if not isinstance(body, dict):
         raise ContractError("planner_body_not_object")
@@ -669,7 +669,7 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
     try:
         emitted_argv = json.loads(values["bootstrap_argv_json"])
         emitted_contract = json.loads(values["qualification_contract_json"])
-    except json.JSONDecodeError as exc:
+    except (ValueError, RecursionError) as exc:
         raise ContractError("planner_structured_output_invalid") from exc
     if emitted_argv != argv:
         raise ContractError("planner_argv_line_mismatch")
@@ -1002,6 +1002,20 @@ def _fixture_output() -> bytes:
     return ("\n".join(lines) + "\n").encode("ascii")
 
 
+def _raw_line_fixture(key: str, value: str) -> bytes:
+    lines = _fixture_output().decode("ascii").splitlines()
+    prefix = key + "="
+    replaced = False
+    for index in range(1, len(lines)):
+        if lines[index].startswith(prefix):
+            lines[index] = prefix + value
+            replaced = True
+            break
+    if not replaced:
+        raise AssertionError("fixture_line_missing:" + key)
+    return ("\n".join(lines) + "\n").encode("ascii")
+
+
 def _tampered_fixture(mutator) -> bytes:
     lines = _fixture_output().decode("ascii").splitlines()
     values: dict[str, str] = {}
@@ -1170,6 +1184,28 @@ def self_test() -> None:
         os.read = original_read
         os.close = original_close
 
+    for raw_json in (
+        '{"oversized_integer":' + ("9" * 10000) + '}',
+        ("[" * 2000) + "0" + ("]" * 2000),
+    ):
+        try:
+            validate_planner_output(_raw_line_fixture("plan_body_json", raw_json))
+        except ContractError as exc:
+            if str(exc) != "planner_body_invalid":
+                raise
+        else:
+            raise AssertionError("planner_body_parser_failure_not_held")
+
+    try:
+        validate_planner_output(
+            _raw_line_fixture("bootstrap_argv_json", "9" * 10000)
+        )
+    except ContractError as exc:
+        if str(exc) != "planner_structured_output_invalid":
+            raise
+    else:
+        raise AssertionError("planner_structured_parser_failure_not_held")
+
     print(MARKER + "_SELF_TEST_GREEN")
     print("planner_v7_generation_bound=true")
     print("planner_plan_id_recomputed=true")
@@ -1182,6 +1218,7 @@ def self_test() -> None:
     print("rehashed_nested_tamper_rejected=true")
     print("qualification_state_body_fields_bound=true")
     print("planner_output_race_oserror_holds=true")
+    print("planner_json_parser_failures_hold=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")
     print("qualification_nonroot_required=true")
     print("qualification_descriptor_bound_git_object_required=true")

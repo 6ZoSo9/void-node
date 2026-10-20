@@ -257,3 +257,19 @@ machine-readable HOLD boundary instead of a traceback. The inert self-test
 injects both an open race and a post-read visible-path race without performing
 qualification, bootstrap execution, protected installation, service mutation,
 credential access, signing, payment acceptance, activation, or funds movement.
+
+
+## October 20 pathological planner-JSON HOLD repair
+
+The subsequent exact-head review identified one additional fail-closed boundary:
+Python may raise `ValueError` for oversized integer conversion or
+`RecursionError` for pathological nesting while parsing untrusted planner JSON.
+Those parser failures are now translated to the same machine-readable
+`ContractError` HOLD contract as malformed JSON. The structured
+`bootstrap_argv_json` / `qualification_contract_json` parser boundary uses
+the same translation. Inert self-tests exercise oversized-integer and
+deep-nesting planner bodies plus an oversized structured-output value.
+
+This changes no execution authority: qualification execution, root-plan
+execution, service mutation, credentials/signing, transaction/payment,
+activation, treasury/liquidity action, and funds movement remain false.

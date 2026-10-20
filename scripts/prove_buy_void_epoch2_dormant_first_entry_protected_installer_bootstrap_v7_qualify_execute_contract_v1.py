@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "64d40d3af89137488c0663c46ddebc5edbaabdc8"
+TARGET_BLOB = "ba5facb2686a27b9a8b06fd824cb25a614a770af"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -160,6 +160,7 @@ for required in (
     '_require_exact_keys(body, PLANNER_BODY_KEYS, "planner_body")',
     "planner_body_installed_qualification_performed_invalid",
     "planner_body_qualification_requirement_invalid",
+    'except (ValueError, RecursionError) as exc:',
 ):
     assert required in validate_source, required
 
@@ -221,6 +222,7 @@ for expected in (
     "rehashed_nested_tamper_rejected=true",
     "qualification_state_body_fields_bound=true",
     "planner_output_race_oserror_holds=true",
+    "planner_json_parser_failures_hold=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
     "qualification_nonroot_required=true",
     "qualification_descriptor_bound_git_object_required=true",
@@ -294,6 +296,7 @@ print("qualification_execution_identity_fields_validated=true")
 print("rehashed_nested_tamper_rejected=true")
 print("qualification_state_body_fields_bound=true")
 print("planner_output_race_oserror_holds=true")
+print("planner_json_parser_failures_hold=true")
 print("unconsumed_tool_metadata_not_execution_authority=true")
 print("nonroot_qualification_phase_required=true")
 print("descriptor_bound_qualification_source_required=true")
