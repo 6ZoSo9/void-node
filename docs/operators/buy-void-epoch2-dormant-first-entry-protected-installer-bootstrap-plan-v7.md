@@ -127,7 +127,7 @@ function-source equality for the inherited:
 - checkout path and metadata observer;
 - index/tree parsing;
 - repository object binding;
-- artifact admission;
+- non-artifact hardened repository/tool machinery;
 - root-protected tool observation;
 - accepted launcher/native dependency validation;
 - content-addressed plan-ID derivation.
@@ -188,3 +188,27 @@ qualification requirements and required GREEN results rather than implied
 properties.
 
 No execution or economic authority is added by this rebind.
+
+
+## October 20 physical artifact ancestry repair
+
+Exact-head review of downstream #3519 identified a parent-layer mismatch: the V7
+planner could authenticate an exact launcher/native leaf beneath a symlinked
+directory, while the fixed V6 bootstrap later opens every parent component with
+`O_DIRECTORY|O_NOFOLLOW` and therefore HOLDs such a path.
+
+V7 artifact admission now mirrors that consumer boundary before emitting a plan:
+
+- the absolute path is strict UTF-8, normalized, bounded, and component-bounded;
+- every parent component is observed without symlink following and opened as a
+  physical directory with `O_DIRECTORY|O_NOFOLLOW`;
+- the final parent descriptor is retained while the leaf is opened relative to
+  it with `O_NOFOLLOW|O_NONBLOCK`;
+- leaf generation is revalidated through the retained parent descriptor;
+- the full visible parent ancestry is walked again after the read and must match
+  the original physical ancestry before the artifact is accepted.
+
+The focused proof includes a real symlinked-parent negative fixture and an
+injected post-read parent-generation mismatch. This is source-only path
+compatibility hardening; it does not execute the bootstrap or grant any host,
+credential, signing, payment, activation, treasury/liquidity, or funds authority.

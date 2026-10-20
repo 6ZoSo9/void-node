@@ -531,6 +531,81 @@ def repository_blob(relative: str, expected: str) -> bytes:
         raise PlanError("repository_file_unavailable:" + relative) from exc
 
 
+def _artifact_path_parts(path: Path, label: str) -> tuple[str, list[bytes]]:
+    raw_path = str(path)
+    try:
+        encoded = raw_path.encode("utf-8", "strict")
+    except UnicodeEncodeError as exc:
+        raise PlanError(label + "_path_invalid") from exc
+    if (
+        not path.is_absolute()
+        or os.path.normpath(raw_path) != raw_path
+        or not encoded.startswith(b"/")
+        or encoded.startswith(b"//")
+        or len(encoded) >= MAX_PATH_BYTES
+        or b"\x00" in encoded
+        or b"\n" in encoded
+        or b"\r" in encoded
+    ):
+        raise PlanError(label + "_path_invalid")
+    parts = encoded[1:].split(b"/")
+    if (
+        not parts
+        or len(parts) > MAX_PATH_DEPTH
+        or any(
+            not part
+            or part in (b".", b"..")
+            or len(part) > 255
+            for part in parts
+        )
+    ):
+        raise PlanError(label + "_path_invalid")
+    return raw_path, parts
+
+
+def _open_physical_artifact_parent(
+    path: Path,
+    label: str,
+) -> tuple[int, bytes, tuple[tuple[int, ...], ...], str]:
+    raw_path, parts = _artifact_path_parts(path, label)
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW
+    try:
+        fd = os.open(b"/", flags)
+    except OSError as exc:
+        raise PlanError(label + "_root_directory_unavailable") from exc
+    ancestry = [_directory_identity(os.fstat(fd))]
+    try:
+        for part in parts[:-1]:
+            try:
+                before = os.stat(part, dir_fd=fd, follow_symlinks=False)
+            except OSError as exc:
+                raise PlanError(label + "_parent_unavailable") from exc
+            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                raise PlanError(label + "_parent_not_physical_directory")
+            try:
+                child = os.open(part, flags, dir_fd=fd)
+            except OSError as exc:
+                raise PlanError(label + "_parent_not_physical_directory") from exc
+            try:
+                opened = os.fstat(child)
+                visible = os.stat(part, dir_fd=fd, follow_symlinks=False)
+                if (
+                    _directory_identity(before) != _directory_identity(opened)
+                    or _directory_identity(opened) != _directory_identity(visible)
+                ):
+                    raise PlanError(label + "_parent_rebound")
+            except BaseException:
+                os.close(child)
+                raise
+            os.close(fd)
+            fd = child
+            ancestry.append(_directory_identity(opened))
+        return fd, parts[-1], tuple(ancestry), raw_path
+    except BaseException:
+        os.close(fd)
+        raise
+
+
 def stable_artifact(
     path: Path,
     *,
@@ -539,68 +614,72 @@ def stable_artifact(
     expected_git_blob: str | None,
     label: str,
 ) -> dict[str, Any]:
-    raw_path = str(path)
-    if (
-        not path.is_absolute()
-        or os.path.normpath(raw_path) != raw_path
-        or "\n" in raw_path
-        or "\r" in raw_path
-    ):
-        raise PlanError(label + "_path_invalid")
-
+    parent_fd, leaf, ancestry, raw_path = _open_physical_artifact_parent(path, label)
+    before: os.stat_result
+    digest = hashlib.sha256()
+    raw = bytearray()
     try:
-        before = path.lstat()
-    except OSError as exc:
-        raise PlanError(label + "_unavailable") from exc
-    if (
-        not stat.S_ISREG(before.st_mode)
-        or stat.S_ISLNK(before.st_mode)
-        or before.st_nlink != 1
-        or stat.S_IMODE(before.st_mode) != 0o555
-        or before.st_size != expected_bytes
-    ):
-        raise PlanError(label + "_metadata_invalid")
-
-    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
-    try:
-        opened = os.fstat(fd)
+        try:
+            before = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+        except OSError as exc:
+            raise PlanError(label + "_unavailable") from exc
         if (
-            opened.st_dev != before.st_dev
-            or opened.st_ino != before.st_ino
-            or opened.st_size != before.st_size
-            or opened.st_mtime_ns != before.st_mtime_ns
-            or opened.st_ctime_ns != before.st_ctime_ns
+            not stat.S_ISREG(before.st_mode)
+            or stat.S_ISLNK(before.st_mode)
+            or before.st_nlink != 1
+            or stat.S_IMODE(before.st_mode) != 0o555
+            or before.st_size != expected_bytes
         ):
-            raise PlanError(label + "_rebound")
+            raise PlanError(label + "_metadata_invalid")
+        observed = _metadata(before)
+        try:
+            fd = os.open(
+                leaf,
+                os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+                dir_fd=parent_fd,
+            )
+        except OSError as exc:
+            raise PlanError(label + "_open_failed") from exc
+        try:
+            opened = os.fstat(fd)
+            if _metadata(opened) != observed:
+                raise PlanError(label + "_rebound")
+            remaining = expected_bytes
+            while remaining:
+                chunk = os.read(fd, min(1024 * 1024, remaining))
+                if not chunk:
+                    raise PlanError(label + "_short_read")
+                digest.update(chunk)
+                raw.extend(chunk)
+                remaining -= len(chunk)
+            if os.read(fd, 1):
+                raise PlanError(label + "_grew")
+            after = os.fstat(fd)
+            visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+            if _metadata(after) != observed or _metadata(visible) != observed:
+                raise PlanError(label + "_changed")
+        finally:
+            os.close(fd)
+        if _directory_identity(os.fstat(parent_fd)) != ancestry[-1]:
+            raise PlanError(label + "_parent_generation_changed")
 
-        digest = hashlib.sha256()
-        raw = bytearray()
-        remaining = expected_bytes
-        while remaining:
-            chunk = os.read(fd, min(1024 * 1024, remaining))
-            if not chunk:
-                raise PlanError(label + "_short_read")
-            digest.update(chunk)
-            raw.extend(chunk)
-            remaining -= len(chunk)
-        if os.read(fd, 1):
-            raise PlanError(label + "_grew")
-
-        after = os.fstat(fd)
-        visible = path.lstat()
-        if (
-            after.st_dev != opened.st_dev
-            or after.st_ino != opened.st_ino
-            or after.st_size != opened.st_size
-            or visible.st_dev != opened.st_dev
-            or visible.st_ino != opened.st_ino
-            or visible.st_size != opened.st_size
-            or visible.st_mtime_ns != opened.st_mtime_ns
-            or visible.st_ctime_ns != opened.st_ctime_ns
-        ):
-            raise PlanError(label + "_changed")
+        current_parent, current_leaf, current_ancestry, _ = (
+            _open_physical_artifact_parent(path, label)
+        )
+        try:
+            if current_leaf != leaf or current_ancestry != ancestry:
+                raise PlanError(label + "_parent_generation_changed")
+            current_visible = os.stat(
+                current_leaf,
+                dir_fd=current_parent,
+                follow_symlinks=False,
+            )
+            if _metadata(current_visible) != observed:
+                raise PlanError(label + "_changed")
+        finally:
+            os.close(current_parent)
     finally:
-        os.close(fd)
+        os.close(parent_fd)
 
     data = bytes(raw)
     if digest.hexdigest() != expected_sha256:
@@ -1166,6 +1245,9 @@ def source_plan() -> None:
     print("qualification_preliminary_git_protocols_denied_required=true")
     print("qualification_preliminary_git_object_alternates_rejection_required=true")
     print("qualification_descriptor_bound_source_execution_required=true")
+    print("artifact_physical_ancestor_required=true")
+    print("artifact_parent_generation_revalidated=true")
+    print("artifact_leaf_open_nonblocking=true")
     print("bootstrap_execution_performed=false")
     print("protected_installer_apply_performed=false")
     print("filesystem_write=false")
@@ -1207,6 +1289,9 @@ def self_test() -> None:
     print("launcher_runtime_head_contract_accepted=true")
     print("launcher_superseded_v1_lock_install_authority=false")
     print("accepted_native_materializer_bound=true")
+    print("artifact_physical_ancestor_required=true")
+    print("artifact_parent_generation_revalidated=true")
+    print("artifact_leaf_open_nonblocking=true")
     print("strict_runtime_head_required=true")
     print("qualification_nonroot_execution_required=true")
     print("qualification_descriptor_bound_source_execution_required=true")
