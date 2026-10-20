@@ -1,0 +1,62 @@
+name: Apollyon claim-store callback failure-domain containment plan V1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json'
+      - 'scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py'
+      - 'docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md'
+      - '.github/workflows/apollyon-claim-store-callback-failure-domain-containment-plan-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact parent and source-only scope
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          PARENT=187a4da4992b7d81330b9474e535b8af631de0d4
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$PARENT" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            'ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json' \
+            'scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py' \
+            'docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md' \
+            '.github/workflows/apollyon-claim-store-callback-failure-domain-containment-plan-v1.yml' \
+            | sort > "$expected"
+          git diff --no-renames --name-only "$PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = 2d72a28e9daaeabcab58975a6f362c438c720592
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = 445480e625e01e44be8722709d56d5a6541099e2
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = 69694ab1c8ffd8021817a449255eca956f91a7e8
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = bed4c6fe3896ff48dfbc873d078fac943528fa5f
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = 848a061a0b246e138ec8ed775ed8a87f159476f6
+
+          git diff --check "$PARENT" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile source proof
+        run: python3 -m py_compile scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py
+
+      - name: Self-test plan
+        run: python3 -I -B scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py --self-test
+
+      - name: Verify exact bound source generation
+        run: python3 -I -B scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py --run
