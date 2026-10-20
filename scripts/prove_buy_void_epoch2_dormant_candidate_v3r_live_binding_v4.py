@@ -23,10 +23,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs"
 PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c"
 
-BINDER_BLOB = "0577da295cc86fd03a4d02fcedc3e8f8ad2e3546"
-BINDER_SHA256 = "8da01f816940b2ed1328fab4e9a1f198ccb42cfb6678a3d3d01f1e955473462e"
-BINDER_BYTES = 61268
-PREENTRY_BLOB = "53903d0cde07de302848fb67d9c23928cec96f20"
+BINDER_BLOB = "be4a40954e5541168ab3403ad5b9b74207dc5ddd"
+BINDER_SHA256 = "31309bffffc09dbb7ced849feb61f3b61c5226f6ec66cdcdba3e315bc08cedbd"
+BINDER_BYTES = 62308
+PREENTRY_BLOB = "417195505fff1157e401a7e7b6262609fcfca5bf"
 NATIVE_LOCK_V6R2_REL = "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
 NATIVE_LOCK_V6R2_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
@@ -121,6 +121,16 @@ for required in (
     'verifyRetainedNativeElfBytes(',
     'trusted_native_load_segment_bounds_invalid',
     'proveRetainedNativeElfParserFixture',
+    'badMemoryOnly.writeBigUInt64LE(1n,64+32)',
+    'badMemoryOnly.writeBigUInt64LE(0n,64+40)',
+    'badFileOnly.writeBigUInt64LE(200n,64+32)',
+    'badFileOnly.writeBigUInt64LE(200n,64+40)',
+    'badOffsetFileOnly.writeBigUInt64LE(110n,64+8)',
+    'badOffsetFileOnly.writeBigUInt64LE(20n,64+32)',
+    'badOffsetFileOnly.writeBigUInt64LE(20n,64+40)',
+    'binder_native_ptload_mem_extent_independent_negative=true',
+    'binder_native_ptload_file_extent_independent_negative=true',
+    'binder_native_ptload_offset_plus_file_extent_negative=true',
     'native_parser_short_read_not_rejected',
     'native_parser_generation_drift_not_rejected',
     'const st=fs.fstatSync(t.fd,{bigint:true});',
@@ -209,8 +219,8 @@ for required in (
     'RUN_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4',
     '#define BINDER_GIT_BLOB "' + BINDER_BLOB + '"',
     '#define BINDER_BYTES ' + str(BINDER_BYTES) + 'U',
-    '0x8d,0xa0,0x1f,0x81',
-    '0xd0,0x1f,0x1e,0x95',
+    '0x31,0x30,0x9b,0xff',
+    '0xba,0x3e,0x31,0x5b',
     'void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs',
     'VOID_BUY_VOID_EPOCH2_DORMANT_BINDER_NATIVE_PARENT_PROOF_V4',
     '(char*)"--source-head",source_head',
@@ -281,6 +291,9 @@ for mode in ("--self-test", "--plan"):
             "binder_native_fake_elf_parser_positive_and_negatives_green=true",
             "binder_native_parser_short_read_and_generation_drift_rejected=true",
             "binder_native_load_segment_shape_bound=true",
+            "binder_native_ptload_mem_extent_independent_negative=true",
+            "binder_native_ptload_file_extent_independent_negative=true",
+            "binder_native_ptload_offset_plus_file_extent_negative=true",
             "binder_wrong_root_owned_native_rejected_before_exec=true",
             "transaction=false",
             "public_presale_activation=false",
@@ -443,6 +456,7 @@ print("binder_configured_original_path_symlink_guard_source_bound=true")
 print("binder_native_accepted_lock_v6r2_digest_bound=true")
 print("binder_native_retained_root_fd_static_elf_guard_proven=true")
 print("binder_native_exact_fd_elf_parser_fixture_proven=true")
+print("binder_native_ptload_memory_file_and_offset_bounds_proven=true")
 print("binder_native_short_read_and_generation_drift_negative_proven=true")
 print("optimized_python_negative_fixtures=2")
 print("optimized_code_object_negative_fixtures=2")
