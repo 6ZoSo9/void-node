@@ -7,9 +7,10 @@ from __future__ import annotations
 import sys
 if not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):
     raise SystemExit("HOLD=isolated_no_site_python_required")
-# Assertions authenticate the evidence/source generations in this verifier.
-# -O and -OO remove them; refuse optimized Python before any further import.
-if sys.flags.optimize != 0:
+# Assertions authenticate source identities. Besides -O/-OO CLI flags,
+# a code object compiled with optimize=1/2 has __debug__=False even if
+# sys.flags.optimize == 0. Refuse both forms before further imports.
+if sys.flags.optimize != 0 or not __debug__:
     raise SystemExit("HOLD=optimized_python_forbidden")
 
 import ast
@@ -25,7 +26,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="a349f5650b6439c4b88e1fad61370f1d886071c4"
+SOURCE_BLOB="c58c4461728370fc58842e3a614a18fa64af2f2f"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -105,8 +106,15 @@ assert isinstance(tree.body[1],ast.Import) and len(tree.body[1].names)==1
 assert tree.body[1].names[0].name=="sys"
 assert isinstance(tree.body[2],ast.If)
 assert isinstance(tree.body[3],ast.If)
+assert isinstance(tree.body[3].test,ast.BoolOp)
+assert isinstance(tree.body[3].test.op,ast.Or)
+assert len(tree.body[3].test.values)==2
+assert isinstance(tree.body[3].test.values[1],ast.UnaryOp)
+assert isinstance(tree.body[3].test.values[1].op,ast.Not)
+assert isinstance(tree.body[3].test.values[1].operand,ast.Name)
+assert tree.body[3].test.values[1].operand.id=="__debug__"
 assert isinstance(tree.body[4],ast.Import)
-assert source.startswith("#!/usr/bin/env python3\nfrom __future__ import annotations\n\n# Python initialization precedes this script: this accidental-entry guard\n# is NOT a trusted privileged first-instruction authorization.\nimport sys\nif not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):\n    raise SystemExit(\"HOLD=isolated_no_site_python_required\")\n# -O/-OO strip assertions which are part of the synthetic evidence policy.\n# Reject optimization before any non-builtin imports or fixture execution.\nif sys.flags.optimize != 0:\n    raise SystemExit(\"HOLD=optimized_python_forbidden\")\n\nimport argparse\n")
+assert source.startswith("#!/usr/bin/env python3\nfrom __future__ import annotations\n\n# Python initialization precedes this script: this accidental-entry guard\n# is NOT a trusted privileged first-instruction authorization.\nimport sys\nif not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):\n    raise SystemExit(\"HOLD=isolated_no_site_python_required\")\n# -O/-OO or a code object compiled with optimize=1/2 strips assertions.\n# sys.flags.optimize alone is insufficient: compile(..., optimize=1) leaves\n# that process flag zero but binds __debug__ to False in this code object.\n# Reject both forms before any non-builtin imports or fixture execution.\nif sys.flags.optimize != 0 or not __debug__:\n    raise SystemExit(\"HOLD=optimized_python_forbidden\")\n\nimport argparse\n")
 
 assignments={
     node.targets[0].id:node.value
@@ -383,6 +391,42 @@ for target_label,target_path,argv in (
         )
 
 print("optimized_python_negative_fixtures=4")
+# Per-code-object optimization bypasses sys.flags.optimize even under
+# an unoptimized isolated interpreter. Verify both actual source entrypoints
+# reject compile(..., optimize=1/2) before any assertion-controlled success.
+code_object_runner=(
+    "import sys\n"
+    "from pathlib import Path\n"
+    "path=Path(sys.argv[1]).resolve()\n"
+    "code=compile(path.read_bytes(),str(path),'exec',optimize=int(sys.argv[2]))\n"
+    "sys.argv=[str(path),*sys.argv[3:]]\n"
+    "scope={'__name__':'__main__','__file__':str(path)}\n"
+    "exec(code,scope,scope)\n"
+)
+for target_label,target_path,argv in (
+    ("census_source",SOURCE,("--source-plan",)),
+    ("source_verifier",Path(__file__).resolve(),()),
+):
+    for optimized_code_level in ("1","2"):
+        rejected=subprocess.run(
+            [
+                sys.executable,"-I","-B","-S","-c",code_object_runner,
+                str(target_path),optimized_code_level,*argv,
+            ],
+            stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            text=True,encoding="utf-8",errors="strict",
+            env=env,timeout=20,check=False,
+        )
+        assert rejected.returncode!=0,(
+            target_label,optimized_code_level,rejected.stdout,rejected.stderr,
+        )
+        assert rejected.stdout=="",(target_label,optimized_code_level,rejected.stdout)
+        assert "HOLD=optimized_python_forbidden" in rejected.stderr,(
+            target_label,optimized_code_level,rejected.stderr,
+        )
+print("optimized_code_object_negative_fixtures=4")
+print("per_code_object_debug_required=true")
+
 print("assertion_capable_interpreter_required=true")
 
 print(MARKER+"_PROOF_GREEN")
