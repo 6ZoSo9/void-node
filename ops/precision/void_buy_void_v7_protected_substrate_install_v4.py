@@ -479,7 +479,8 @@ def _git_config_closed(raw: bytes, label: str) -> None:
             if not line.endswith("]"):
                 raise InstallError(label + "_git_config_section_invalid:" + str(lineno))
             section = line[1:-1].strip().lower()
-            if section == "include" or section.startswith("includeif "):
+            section_token = section.split(None, 1)[0].split(".", 1)[0] if section else ""
+            if section_token in ("include", "includeif"):
                 raise InstallError(label + "_git_config_include_forbidden")
             continue
         key_part = line.split("=", 1)[0].strip()
@@ -488,11 +489,12 @@ def _git_config_closed(raw: bytes, label: str) -> None:
             raise InstallError(label + "_git_config_key_invalid:" + str(lineno))
         if key.startswith("include.") or key.startswith("includeif."):
             raise InstallError(label + "_git_config_include_forbidden")
-        if section == "core" and key == "worktree":
+        section_token = section.split(None, 1)[0].split(".", 1)[0] if section else ""
+        if section_token == "core" and key == "worktree":
             raise InstallError(label + "_git_config_core_worktree_forbidden")
-        if section == "extensions" and key in ("worktreeconfig", "partialclone"):
+        if section_token == "extensions" and key in ("worktreeconfig", "partialclone"):
             raise InstallError(label + "_git_config_extension_forbidden:" + key)
-        if section.startswith('remote "') and key in ("promisor", "partialclonefilter"):
+        if section_token == "remote" and key in ("promisor", "partialclonefilter"):
             raise InstallError(label + "_git_config_promisor_forbidden")
 
 def _direct_git_metadata_snapshot(root: pathlib.Path, label: str) -> tuple[object, ...]:
@@ -1352,6 +1354,7 @@ def self_test() -> None:
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "info" / "grafts").write_text("0" * 81 + "\n", "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "shallow").write_text("0" * 40 + "\n", "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[include]\npath = /tmp/hostile\n", "utf-8"))
+    _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text('[includeIf\t"gitdir:/opt/**"]\npath = /tmp/hostile\n', "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[core]\nworktree = /tmp/hostile\n", "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[extensions]\nworktreeConfig = true\n", "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text('[remote "origin"]\npromisor = true\n', "utf-8"))
@@ -1362,6 +1365,7 @@ def self_test() -> None:
     print("git_grafts_rejected=true")
     print("git_shallow_rejected=true")
     print("git_local_config_include_rejected=true")
+    print("git_includeif_horizontal_whitespace_rejected=true")
     print("git_core_worktree_redirect_rejected=true")
     print("git_worktree_config_extension_rejected=true")
     print("git_promisor_partial_clone_rejected=true")
