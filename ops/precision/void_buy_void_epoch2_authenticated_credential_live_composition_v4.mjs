@@ -46,7 +46,7 @@ const V6_LOCK_REL="ops/security/buy-void-user-manager-query-elf-lock-v6.json";
 const V6_LOCK_BLOB="772945b639d138284fc18cc312f7b9115b10c748";
 const V4_PARSER_REL="tools/void-buy-allocation-custody-host-evidence-v4.mjs";
 const V4_PARSER_BLOB="223a8acf32f8c7961d61222b83c0db17075f86c6";
-const SEALED_BLOB="ad4df07e9875e3c92eb8da01d6fd735d68417a45";
+const SEALED_BLOB="ad19417c7d25bfab532af3ea92f4a627d4cc857a";
 const SEALED_RUNTIME_PREDECESSOR_BLOB=
   "14cbe81e27d04fee77cbe75225ce308bf8561a7b";
 const SEALED_CONFIRM=
