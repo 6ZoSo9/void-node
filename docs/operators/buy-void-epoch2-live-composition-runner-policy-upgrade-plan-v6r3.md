@@ -183,16 +183,18 @@ permission to run a production plan or mutate the host.
   before the plan can be emitted. Drift is a HOLD, not a GREEN report.
 - Source-only self-test includes synthetic changes to the Node generation
   and protected state plus an injected effective-writability ACL adversary
-  against a root-owned ancestor. None writes into `/opt`, touches real
-  credentials, or exercises service/transaction paths.
+  against a root-owned ancestor. A disappearing-ancestor adversary must report
+  a structured `HOLD` rather than throwing an uncaught filesystem traceback.
+  None writes into `/opt`, touches real credentials, or exercises
+  service/transaction paths.
 
 This bound is scoped to **future, separately authorized read-only host
 qualification**. It does not establish the actual ACLs or root contents of
 Precision, and it does not satisfy the distinct independent reviewer gate.
 
 ```text
-planner_blob=6908ad9a41afcb88d73f5e0011614c0e239864ca
-planner_proof_blob=6366b5b73f9e2416fabe7d972a7493d2bdb8d5b8
+planner_blob=e6aca9152038ed76ec8d7fc82a63e81ed0beca2a
+planner_proof_blob=1a824bea57345f449576fabd5faccd1126382506
 accepted_lock_blob=a9565f1dbe49e694ee07eb0cfdddb42d591d856b
 accepted_runner_git_blob=11a147d565bd0ee3ff48c4e3cb75d608b59e87b1
 filesystem_write=false
