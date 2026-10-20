@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+import sys
+
+_EARLY_MARKER = "VOID_BUY_VOID_V7_POSTMERGE_SOURCE_RUNTIME_COMPAT_V1_PROOF"
+if sys.flags.isolated != 1:
+    print(_EARLY_MARKER)
+    print("status=HOLD")
+    print("reason=python_isolation_required")
+    raise SystemExit(2)
+if sys.flags.optimize != 0 or not __debug__:
+    print(_EARLY_MARKER)
+    print("status=HOLD")
+    print("reason=python_optimization_forbidden")
+    raise SystemExit(2)
 
 import pathlib
 import subprocess
-import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_postmerge_source_runtime_compat_v1.py"
-TARGET_BLOB = "3e97d602b66d3f3ceaf5b249aaeca086403c4f17"
-MARKER = "VOID_BUY_VOID_V7_POSTMERGE_SOURCE_RUNTIME_COMPAT_V1_PROOF"
+TARGET_BLOB = "cd2803d53b77e86524b5382a10dcab55ee79e1da"
+MARKER = _EARLY_MARKER
 
 
 def git_text(*args: str) -> str:
@@ -32,7 +43,11 @@ compile(raw, str(TARGET), "exec", dont_inherit=True, optimize=0)
 text = raw.decode("utf-8")
 
 for required in (
-    'MARKER = "VOID_BUY_VOID_V7_POSTMERGE_SOURCE_RUNTIME_COMPAT_V1"',
+    '_EARLY_MARKER = "VOID_BUY_VOID_V7_POSTMERGE_SOURCE_RUNTIME_COMPAT_V1"',
+    'sys.flags.isolated != 1',
+    'sys.flags.optimize != 0 or not __debug__',
+    'reason=python_isolation_required',
+    'reason=python_optimization_forbidden',
     'RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
     'SOURCE_BASE_HEAD = "fd8131500330d8f8d51caa8275db456338c0a878"',
     'SOURCE_BASE_TREE = "ff80027780ba8a037a56e0a322849420dae88565"',
@@ -60,6 +75,32 @@ for required in (
 ):
     assert required in text, required
 
+plain_plan = subprocess.run(
+    [sys.executable, "-B", str(TARGET), "--plan"],
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    timeout=30,
+    check=False,
+)
+assert plain_plan.returncode == 2 and plain_plan.stderr == ""
+assert "status=HOLD" in plain_plan.stdout.splitlines()
+assert "reason=python_isolation_required" in plain_plan.stdout.splitlines()
+
+optimized_plan = subprocess.run(
+    [sys.executable, "-I", "-B", "-O", str(TARGET), "--plan"],
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    timeout=30,
+    check=False,
+)
+assert optimized_plan.returncode == 2 and optimized_plan.stderr == ""
+assert "status=HOLD" in optimized_plan.stdout.splitlines()
+assert "reason=python_optimization_forbidden" in optimized_plan.stdout.splitlines()
+
 self_test = subprocess.run(
     [sys.executable, "-I", "-B", str(TARGET), "--self-test"],
     stdin=subprocess.DEVNULL,
@@ -73,6 +114,8 @@ assert self_test.returncode == 0 and self_test.stderr == ""
 self_lines = self_test.stdout.splitlines()
 for line in (
     "VOID_BUY_VOID_V7_POSTMERGE_SOURCE_RUNTIME_COMPAT_V1_SELF_TEST_GREEN",
+    "python_isolated_execution_required=true",
+    "python_unoptimized_execution_required=true",
     "runtime_to_source_base_exact_21_add_3_modify_required=true",
     "compatibility_self_scope_exact_four_additions_required=true",
     "runtime_sensitive_five_path_identity_equality_required=true",
@@ -105,6 +148,8 @@ plan = subprocess.run(
 assert plan.returncode == 0 and plan.stderr == ""
 assert "mode=plan" in plan.stdout.splitlines()
 assert "source_only=true" in plan.stdout.splitlines()
+assert '"python_isolated_execution_required":true' in plan.stdout
+assert '"python_unoptimized_execution_required":true' in plan.stdout
 assert '"base_added_path_count":21' in plan.stdout
 assert '"base_modified_path_count":3' in plan.stdout
 assert '"filesystem_write_authorized":false' in plan.stdout
@@ -128,6 +173,8 @@ assert verify.returncode == 0 and verify.stderr == "", verify.stdout + verify.st
 verify_lines = verify.stdout.splitlines()
 assert "VOID_BUY_VOID_V7_POSTMERGE_SOURCE_RUNTIME_COMPAT_V1" in verify_lines
 assert "status=GREEN" in verify_lines
+assert '"python_isolated_execution":true' in verify.stdout
+assert '"python_unoptimized_execution":true' in verify.stdout
 assert '"base_added_path_count":21' in verify.stdout
 assert '"base_modified_path_count":3' in verify.stdout
 assert '"compatibility_self_added_path_count":4' in verify.stdout
@@ -140,6 +187,8 @@ assert '"funds_movement":false' in verify.stdout
 
 print(MARKER + "_GREEN")
 print("target_blob=" + TARGET_BLOB)
+print("python_isolated_execution_bound=true")
+print("python_unoptimized_execution_bound=true")
 print("runtime_to_source_base_exact_21_add_3_modify_bound=true")
 print("compatibility_self_scope_exact_four_additions_bound=true")
 print("runtime_sensitive_five_path_identity_equality_bound=true")
