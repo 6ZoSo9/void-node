@@ -200,4 +200,4 @@ state before returning a plan. Synthetic self-tests force late Node and
 protected-state drift and require HOLD, preventing an earlier valid snapshot
 from being treated as terminal authority.
 
-Planner Git blob: `1ba1bdaf6a8664e5c3e4f3ebc41e951fc186946e`.
+Planner Git blob: `dd5a0535d275741270a2154d4b8d7685702027d2`.
