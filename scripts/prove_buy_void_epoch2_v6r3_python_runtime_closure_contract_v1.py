@@ -15,7 +15,7 @@ PLANNER=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_runner_policy_
 
 MARKER="VOID_BUY_VOID_EPOCH2_V6R3_PYTHON_RUNTIME_CLOSURE_CONTRACT_V1"
 PREFIX="voidbuye2v6r3pyruntimecontract1_"
-CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_e8f3211a483cf12a77f5c66e4a625da5d4f95b1f669cefa2a09711dcc6e6ee01"
+CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_6b88925643319fd7724f4fd66d115fd5ec9598a3c59a57cbc0a8c51737c8bae8"
 BINARY_LOCK_BLOB="66bf48fd6477e0335b1eea6e2b7e8a7f297f8c57"
 PLANNER_BLOB="19c6e1cdf9f2361cedfba4ea8d650a63eb5061ff"
 PLANNER_SHA256="95d9dd865bc226a7436a67fff977215e43aad034ce40c2c9126ecc49c469d627"
@@ -103,6 +103,12 @@ for key in (
     "python_elf_pt_interp_required",
     "pt_interp_root_custody_and_identity_required",
     "ld_so_preload_must_be_absent",
+    "ld_so_cache_identity_required_if_present",
+    "nonexistent_sys_path_entries_absence_and_parent_custody_required",
+    "exact_import_probe_file_access_closure_required",
+    "exact_import_probe_mapped_elf_closure_required",
+    "native_dlopen_plugin_and_config_closure_required",
+    "observed_runtime_files_must_be_manifest_subset",
     "dynamic_needed_transitive_closure_required",
     "no_unresolved_dt_needed_allowed",
     "rpath_runpath_records_required",
@@ -151,6 +157,10 @@ print("python_flags_i_b_s_bound=true")
 print("dynamic_loader_transitive_closure_required=true")
 print("complete_python_sys_path_tree_inventory_required=true")
 print("ld_so_preload_must_be_absent=true")
+print("nonexistent_sys_path_absence_bound=true")
+print("exact_import_probe_file_access_closure_required=true")
+print("exact_import_probe_mapped_elf_closure_required=true")
+print("native_dlopen_plugin_and_config_closure_required=true")
 print("host_census_authorized=false")
 print("python_runtime_closure_accepted=false")
 print("protected_install_authorized=false")
