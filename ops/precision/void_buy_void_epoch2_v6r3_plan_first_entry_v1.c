@@ -279,7 +279,10 @@ static policy_v1 parse_policy(char *text){
     policy_v1 p;memset(&p,0,sizeof(p));
     char *save=NULL;char *lines[9];size_t count=0;
     for(char *line=strtok_r(text,"\n",&save);line;line=strtok_r(NULL,"\n",&save)){
-        if(count>=9U)hold("policy_line_count_invalid");lines[count++]=line;
+        if(count>=9U){
+            hold("policy_line_count_invalid");
+        }
+        lines[count++]=line;
     }
     if(count!=9U)hold("policy_line_count_invalid");
     const char *prefixes[9]={
@@ -394,7 +397,12 @@ int main(int argc,char **argv){
 
     int nullfd=open("/dev/null",O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
     if(nullfd<0||dup2(nullfd,STDIN_FILENO)<0){
-        if(nullfd>=0)close(nullfd);close(planner_fd);close(python_fd);hold("devnull_stdin_install_failed");
+        if(nullfd>=0){
+            close(nullfd);
+        }
+        close(planner_fd);
+        close(python_fd);
+        hold("devnull_stdin_install_failed");
     }
     close(nullfd);umask(077);
     if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)!=0){close(planner_fd);close(python_fd);hold("no_new_privs_failed");}
