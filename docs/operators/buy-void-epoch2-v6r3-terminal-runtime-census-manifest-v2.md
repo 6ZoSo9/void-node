@@ -265,3 +265,41 @@ helper observation, terminal generation checks, post-`fexecve` isolation,
 distinct independent security review and installation qualification.
 
 **PROTECT THE CORE.**
+
+
+## Combined canonical record-byte and hash-read limits — source-only
+
+Parallel Draft #3608 identified another resource dimension: raw display-name
+and symlink-text budgets omit canonical JSON escaping of object metadata.
+One control byte in a Linux symlink target can expand to six ASCII bytes
+under `ensure_ascii=True`.
+
+This composed #3609 source generation bounds **both** aggregate regular and
+symlink-target hashing (charged before file open) **and** canonical record
+serialization (charged before object insertion). `record_budget` is a
+strict bounded 1–16 MiB integer. Each `{display_path:record}` JSON pair
+is measured, including metadata keys and escaped symlink strings, before
+admission to the inventory. Synthetic fixtures require the exact serialized
+sum to pass and one byte less to HOLD, including a contained control-character
+symlink target. Invalid record budgets fail closed.
+
+```text
+census_source_git_blob=4cec6d0f82ce590bb48831bac1e6c3b4db175d8b
+parent_pr=3607
+MAX_TOTAL_HASH_BYTES=8589934592
+MAX_REPORT_BYTES=16777216
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+The #3608 sibling remains historic until superseded; never accept two
+divergent manifests interchangeably. This is a synthetic source-only
+resource limit, not a bound on all Python object overhead or proof of a
+real protected-host census, Python/Git/loader closure, post-exec isolation,
+installed first entry, independent review, or customer-payment authority.
+
+PROTECT THE CORE.
