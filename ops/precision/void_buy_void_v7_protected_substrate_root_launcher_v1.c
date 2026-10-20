@@ -209,11 +209,22 @@ static request_v1 parse_request(int argc,char **argv){
     if(!hexn(r.expected_head,40)||!r.native_path||r.native_path[0]!='/'||!r.selector_path||r.selector_path[0]!='/')hold("request_identity_invalid");
     if(r.apply){if(!planid(r.expected_plan_id)||!r.confirm||strcmp(r.confirm,APPLY_CONFIRM))hold("apply_confirmation_invalid");}else if(r.expected_plan_id||r.confirm)hold("plan_extra_authority_forbidden");return r;
 }
+static int selftest_fail(const char *reason){
+    fprintf(stderr, MARKER "_SELF_TEST_HOLD reason=%s\\n", reason);
+    return 1;
+}
 static int selftest(void){
-    sha256_ctx c;uint8_t d[32];char h[65];sha256_init(&c);sha256_update(&c,(const uint8_t*)"abc",3);sha256_final(&c,d);hex32(d,h);if(strcmp(h,"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"))return 1;
-    if(!hexn("0123456789abcdef0123456789abcdef01234567",40)||hexn("ABCDEF",6)||!planid(PLAN_PREFIX "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")||planid(PLAN_PREFIX "aa"))return 1;
+    sha256_ctx c;uint8_t d[32];char h[65];
+    sha256_init(&c);sha256_update(&c,(const uint8_t*)"abc",3);sha256_final(&c,d);hex32(d,h);
+    if(strcmp(h,"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"))return selftest_fail("sha256_vector_mismatch");
+    if(!hexn("0123456789abcdef0123456789abcdef01234567",40))return selftest_fail("lower_hex40_rejected");
+    if(hexn("ABCDEF",6))return selftest_fail("uppercase_hex_accepted");
+    if(!planid(PLAN_PREFIX "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))return selftest_fail("valid_plan_id_rejected");
+    if(planid(PLAN_PREFIX "aa"))return selftest_fail("short_plan_id_accepted");
     char policy[]="schema=" POLICY_SCHEMA "\npython_path=/usr/bin/python3.12\npython_bytes=6831736\npython_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsource_root=" FIXED_SOURCE_ROOT "\ninstaller_rel=" INSTALLER_REL "\ninstaller_bytes=87048\ninstaller_sha256=" INSTALLER_SHA256 "\n";
-    policy_v1 p=parse_policy(policy,strlen(policy));if(strcmp(p.python_path,"/usr/bin/python3.12")||p.python_bytes!=6831736U)return 1;
+    policy_v1 p=parse_policy(policy,strlen(policy));
+    if(strcmp(p.python_path,"/usr/bin/python3.12"))return selftest_fail("policy_python_path_mismatch");
+    if(p.python_bytes!=6831736U)return selftest_fail("policy_python_bytes_mismatch");
     puts(MARKER "_SELF_TEST_GREEN");
     puts("static_native_first_instruction_required=true");
     puts("fixed_root_custodied_source_snapshot_required=true");
