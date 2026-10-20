@@ -165,7 +165,7 @@ for required in (
     "planner_body_qualification_requirement_invalid",
     "canonical_body = canonical(body)",
     'not _plain_int(body["version"], 0)',
-    'except (ValueError, RecursionError) as exc:',
+    'except (ValueError, TypeError, RecursionError) as exc:',
 ):
     assert required in validate_source, required
 
