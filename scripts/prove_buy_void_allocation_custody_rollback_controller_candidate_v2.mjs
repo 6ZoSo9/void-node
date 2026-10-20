@@ -16,7 +16,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs";
-const SOURCE_BLOB="75551ac25f79513cd3c99db7327c7fdbfa35cf02";
+const SOURCE_BLOB="845dd5d0afbdc3ed35a852d0286886d1aa8b6c01";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json";
 const PLAN_BLOB="1cdecf34117e4e890f67e62b412419d32870dfa0";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -540,6 +540,34 @@ mustFail("high water decrease",(c,s,b)=>{c.observe_after_rollback=()=>({...b,
   high_water_sequence:7,high_water_sha256:b.high_water_sha256,
   external_witness_sequence:12,external_witness_tip_sha256:s.witness.external_witness_tip_sha256,
 });},/protected_high_water_decreased/);
+// An observed sequence+1 paired with the prior exact tip digest is an
+// unproven new checkpoint generation, not valid monotonic evidence. Until a
+// future independently authenticated append-lineage proof exists, the
+// exclusive-lease challenge requires the exact observed generation.
+mustFail("post rollback high-water sequence+1 stale digest",(c)=>{
+  const prior=c.observe_after_rollback;
+  c.observe_after_rollback=(args)=>({
+    ...prior(args),high_water_sequence:9,
+  });
+},/post_rollback_high_water_unproven_advance/);
+mustFail("post rollback witness sequence+1 stale digest",(c)=>{
+  const prior=c.observe_after_rollback;
+  c.observe_after_rollback=(args)=>({
+    ...prior(args),external_witness_sequence:13,
+  });
+},/post_rollback_witness_unproven_advance/);
+mustFail("terminal high-water sequence+1 stale digest",(c)=>{
+  const prior=c.reobserve_storage_and_policy;
+  c.reobserve_storage_and_policy=(args)=>({
+    ...prior(args),high_water_sequence:9,
+  });
+},/terminal_high_water_unproven_advance/);
+mustFail("terminal witness sequence+1 stale digest",(c)=>{
+  const prior=c.reobserve_storage_and_policy;
+  c.reobserve_storage_and_policy=(args)=>({
+    ...prior(args),external_witness_sequence:13,
+  });
+},/terminal_witness_unproven_advance/);
 mustFail("stale replay accepted",(c,s)=>{c.attempt_stale_journal_replay=({challenge_id})=>({
   attempted:true,challenge_id,refused:false,reason:"accepted",operation_lease_id:s.leaseId,
 });},/stale_journal_not_refused/);
@@ -693,6 +721,10 @@ console.log("challenge_entropy_capability_invoked=true");
 console.log("challenge_unpredictability_proven=false");
 console.log("second_control_precedes_rollback=true");
 console.log("protected_high_water_non_decrease_required=true");
+console.log("post_rollback_high_water_exact_checkpoint_required=true");
+console.log("post_rollback_external_witness_exact_checkpoint_required=true");
+console.log("terminal_high_water_exact_checkpoint_required=true");
+console.log("terminal_external_witness_exact_checkpoint_required=true");
 console.log("stale_journal_refusal_required=true");
 console.log("terminal_journal_predecessor_revalidation_required=true");
 console.log("durability_checkpoint_binding_stability_required=true");
