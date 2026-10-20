@@ -284,7 +284,7 @@ sum to pass and one byte less to HOLD, including a contained control-character
 symlink target. Invalid record budgets fail closed.
 
 ```text
-census_source_git_blob=4cec6d0f82ce590bb48831bac1e6c3b4db175d8b
+census_source_git_blob=8d7a61675c28a2dc7f00c21571fae870bee961ff
 parent_pr=3607
 MAX_TOTAL_HASH_BYTES=8589934592
 MAX_REPORT_BYTES=16777216
