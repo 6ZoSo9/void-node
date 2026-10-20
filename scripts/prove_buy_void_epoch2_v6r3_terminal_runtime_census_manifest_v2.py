@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+# Require isolated, no-bytecode and no-site Python *before* imports that
+# might resolve via checkout/environment-controlled stdlib paths.
+# Interpreter startup itself is NOT authenticated by this source proof.
+import sys
+if not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):
+    raise SystemExit("HOLD=isolated_no_site_python_required")
+
 import ast
 import hashlib
 import json
@@ -8,14 +15,13 @@ import os
 from pathlib import Path
 import stat
 import subprocess
-import sys
 
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_manifest_v2.py"
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="7a9074709c67cce7c40d2a39ac9153a60bb8dd33"
+SOURCE_BLOB="860b82127bc3e6300612daf51d12e443b7ef4a35"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -87,6 +93,15 @@ assert fresh["mandatory_live_gate"]["installed_post_exec_dumpability_enforcement
 
 source=source_raw.decode("utf-8","strict")
 tree=ast.parse(source)
+# The only import before the fail-closed accidental-entry guard is
+# built-in sys. Require that this test also precedes *all* other stdlib
+# imports in the exact source generation.
+assert isinstance(tree.body[0],ast.ImportFrom) and tree.body[0].module=="__future__"
+assert isinstance(tree.body[1],ast.Import) and len(tree.body[1].names)==1
+assert tree.body[1].names[0].name=="sys"
+assert isinstance(tree.body[2],ast.If)
+assert source.startswith("#!/usr/bin/env python3\nfrom __future__ import annotations\n\n# Python initialization precedes this script: this accidental-entry guard\n# is NOT a trusted privileged first-instruction authorization.\nimport sys\nif not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):\n    raise SystemExit(\"HOLD=isolated_no_site_python_required\")\n\nimport argparse\n")
+
 assignments={
     node.targets[0].id:node.value
     for node in tree.body
@@ -318,6 +333,27 @@ for mode,required_lines in (
     lines=set(cp.stdout.splitlines())
     for line in required_lines:
         assert line in lines,(mode,line)
+
+# Source-only negative interpreter matrix. Each case must HOLD at the
+# first script check before a second stdlib module could import.
+for scenario,options in (
+    ("missing_no_site",("-I","-B")),
+    ("missing_no_bytecode",("-I","-S")),
+    ("missing_isolated",("-B","-S")),
+):
+    rejected=subprocess.run(
+        [sys.executable,*options,str(SOURCE),"--source-plan"],
+        stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+        text=True,encoding="utf-8",errors="strict",env=env,timeout=20,check=False,
+    )
+    assert rejected.returncode!=0,(scenario,rejected.stdout,rejected.stderr)
+    assert rejected.stdout=="",(scenario,rejected.stdout)
+    assert "HOLD=isolated_no_site_python_required" in rejected.stderr,(
+        scenario,rejected.stderr,
+    )
+
+print("isolated_preimport_negative_fixtures=3")
+print("isolated_before_checkout_stdlib_imports=true")
 
 print(MARKER+"_PROOF_GREEN")
 print("source_blob="+SOURCE_BLOB)
