@@ -4,6 +4,7 @@
 // Caller-supplied live receipts are never accepted.
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -27,6 +28,15 @@ const CANDIDATE_BLOB="e569c9211e01f14c7c00dd1c5041d4dfb0817609";
 const FIXED_NATIVE=
   "/opt/void-buy-void-epoch2-live-composition-v3/"+
   "void_buy_void_epoch2_live_composition_native_preentry_v3";
+// Accepted V6R2 static native child ELF identity (separate from the binder
+// source and Node launcher). Source-only PIN, not protected install approval.
+const NATIVE_ELF_LOCK_BLOB="bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b";
+const NATIVE_ELF_LOCK_ID=
+  "voidbuye2nativecandlock6r2_ab95f15c8f2731adf6bfd97dfd5467495c90bdb5ee267948efc6a522be74b417";
+const NATIVE_ELF_SHA256=
+  "85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8";
+const NATIVE_ELF_BYTES=726976;
+
 const BINDER_PREENTRY_ROOT=
   "/opt/void-buy-void-epoch2-dormant-v3r-binding-v4";
 const FIXED_BINDER_PREENTRY=
@@ -248,6 +258,70 @@ function openRetainedTrustedExecutable(file,label){
     success=true;return t;
   }finally{if(!success)fs.closeSync(fd);}
 }
+/* Verify exactly which executable bytes the retained FD would first-exec.
+ * Metadata/ancestor custody alone authenticates ANY root-owned replacement.
+ * The only production caller uses fixed, independently accepted V6R2 locks.
+ * Positional reads never switch to a mutable checkout or executable pathname.
+ */
+function verifyStaticNativeElfBytes(fd,expectedBytes,expectedDigest){
+  if(!Number.isSafeInteger(expectedBytes)||expectedBytes<120||
+     expectedBytes>16*1024*1024||
+     typeof expectedDigest!=="string"||!/^[0-9a-f]{64}$/u.test(expectedDigest))
+    throw new Error("trusted_native_expected_identity_invalid");
+  const before=fs.fstatSync(fd,{bigint:true});
+  if(!before.isFile()||before.nlink!==1n||
+     before.size!==BigInt(expectedBytes))
+    throw new Error("trusted_native_binary_bytes_mismatch");
+  const header=Buffer.alloc(64);
+  if(fs.readSync(fd,header,0,64,0)!==64||
+     header[0]!==0x7f||header[1]!==0x45||
+     header[2]!==0x4c||header[3]!==0x46||
+     header[4]!==2||header[5]!==1||header[6]!==1||
+     header.readUInt16LE(16)!==2|| // ET_EXEC, never dynamic PIE script
+     header.readUInt16LE(18)!==62|| // x86-64
+     header.readUInt32LE(20)!==1||
+     header.readUInt16LE(52)!==64)
+    throw new Error("trusted_native_binary_elf_header_invalid");
+  const phoff=header.readBigUInt64LE(32);
+  const phentsize=header.readUInt16LE(54);
+  const phnum=header.readUInt16LE(56);
+  if(phentsize!==56||phnum<1||phnum>128||
+     phoff>BigInt(expectedBytes)||
+     phoff+BigInt(phentsize*phnum)>BigInt(expectedBytes))
+    throw new Error("trusted_native_binary_program_headers_invalid");
+  const ph=Buffer.alloc(phentsize*phnum);
+  if(fs.readSync(fd,ph,0,ph.length,Number(phoff))!==ph.length)
+    throw new Error("trusted_native_binary_program_headers_short");
+  for(let i=0;i<phnum;i++){
+    const type=ph.readUInt32LE(i*phentsize);
+    if(type===3||type===2)
+      throw new Error("trusted_native_binary_interp_forbidden");
+  }
+  const hasher=crypto.createHash("sha256");
+  const buf=Buffer.alloc(8192);
+  let pos=0;
+  while(pos<expectedBytes){
+    const take=Math.min(buf.length,expectedBytes-pos);
+    const got=fs.readSync(fd,buf,0,take,pos);
+    if(got<=0)throw new Error("trusted_native_binary_short_read");
+    hasher.update(buf.subarray(0,got));pos+=got;
+  }
+  if(fs.readSync(fd,buf,0,1,pos)!==0)
+    throw new Error("trusted_native_binary_grew");
+  if(hasher.digest("hex")!==expectedDigest)
+    throw new Error("trusted_native_binary_digest_mismatch");
+  const after=fs.fstatSync(fd,{bigint:true});
+  if(!sameTrustedExecutableGeneration(before,after))
+    throw new Error("trusted_native_binary_generation_changed");
+}
+function requireAcceptedRetainedNative(t){
+  if(!t||t.label!=="native")
+    throw new Error("trusted_native_tool_not_retained");
+  revalidateRetainedTrustedExecutable(t);
+  verifyStaticNativeElfBytes(t.fd,NATIVE_ELF_BYTES,NATIVE_ELF_SHA256);
+  revalidateRetainedTrustedExecutable(t);
+}
+
 function closeRetainedTrustedExecutable(t){
   if(t&&Number.isInteger(t.fd)&&t.fd>=3){fs.closeSync(t.fd);t.fd=-1;}
 }
@@ -275,6 +349,7 @@ function openRootExecutionTools(){
   try{
     gitTool=openRetainedTrustedExecutable(GIT,"git");
     nativeTool=openRetainedTrustedExecutable(FIXED_NATIVE,"native");
+    requireAcceptedRetainedNative(nativeTool);
     const tools={
       setpriv,git:gitTool,native:nativeTool,
       revalidate(){
@@ -714,6 +789,7 @@ function validateChildReceipt(receipt,expectedHead,compatibility){
 }
 function runNativeLive(runtimeHead,compatibility){
   const tools=requireActiveRootExecutionTools();
+  requireAcceptedRetainedNative(tools.native);
   const r=runRetainedTrustedExecutable(tools.native,[
     "--run","--confirm",NATIVE_CONFIRM,"--expected-head",runtimeHead,
   ],{
@@ -907,7 +983,54 @@ function plan(){
   console.log("production_host_evidence_authority=false");
   console.log("next_action=SEPARATELY_AUTHORIZE_EPOCH2_V3R_DORMANT_CANDIDATE_LIVE_BINDING_V4");
 }
+function proveAcceptedNativeElfFixture(){
+  // Disposable sample of ELF64 LE ET_EXEC with one PT_LOAD, not an
+  // executable production child. Never launches the generated bytes.
+  const sample=Buffer.alloc(120);
+  sample[0]=0x7f;sample[1]=0x45;sample[2]=0x4c;sample[3]=0x46;
+  sample[4]=2;sample[5]=1;sample[6]=1;
+  sample.writeUInt16LE(2,16);sample.writeUInt16LE(62,18);
+  sample.writeUInt32LE(1,20);sample.writeBigUInt64LE(64n,32);
+  sample.writeUInt16LE(64,52);sample.writeUInt16LE(56,54);
+  sample.writeUInt16LE(1,56);sample.writeUInt32LE(1,64);
+  const fixtureDir=fs.mkdtempSync(path.join(os.tmpdir(),"void-native-elf-fd-"));
+  const fixturePath=path.join(fixtureDir,"static-elf-fixture");
+  let fd=-1;
+  try{
+    fs.writeFileSync(fixturePath,sample,{flag:"wx",mode:0o600});
+    fd=fs.openSync(fixturePath,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+    verifyStaticNativeElfBytes(fd,sample.length,sha256(sample));
+    const expectHold=(fn,reason)=>{
+      let held=false;
+      try{fn();}catch(error){held=String(error?.message||error)===reason;}
+      if(!held)throw new Error("native_elf_negative_fixture_missing:"+reason);
+    };
+    expectHold(()=>verifyStaticNativeElfBytes(
+      fd,sample.length,"0".repeat(64),
+    ),"trusted_native_binary_digest_mismatch");
+    expectHold(()=>verifyStaticNativeElfBytes(
+      fd,sample.length+1,sha256(sample),
+    ),"trusted_native_binary_bytes_mismatch");
+    const interpreter=Buffer.from(sample);
+    interpreter.writeUInt32LE(3,64); // PT_INTERP
+    fs.writeFileSync(fixturePath,interpreter);
+    expectHold(()=>verifyStaticNativeElfBytes(
+      fd,interpreter.length,sha256(interpreter),
+    ),"trusted_native_binary_interp_forbidden");
+    const script=Buffer.from(interpreter);
+    script[0]=0x23; // "#!" / fake shell-script header
+    fs.writeFileSync(fixturePath,script);
+    expectHold(()=>verifyStaticNativeElfBytes(
+      fd,script.length,sha256(script),
+    ),"trusted_native_binary_elf_header_invalid");
+  }finally{
+    if(fd>=0)fs.closeSync(fd);
+    fs.unlinkSync(fixturePath);
+    fs.rmdirSync(fixtureDir);
+  }
+}
 function selfTest(){
+  proveAcceptedNativeElfFixture();
   // The static public Git tool is safe to exercise under an unprivileged
   // Actions runner. No protected credentials or native live runtime execute.
   const selfGit=openRetainedTrustedExecutable(GIT,"git_self_test");
@@ -1132,6 +1255,10 @@ function selfTest(){
   console.log("native_binder_first_entry_required_for_live=true");
   console.log("binder_root_setpriv_retained_first_exec=true");
   console.log("binder_native_child_retained_first_exec=true");
+  console.log("binder_native_accepted_v6r2_lock_bound=true");
+  console.log("binder_native_retained_fd_sha256_and_bytes_required=true");
+  console.log("binder_native_static_elf_no_interp_required=true");
+  console.log("binder_native_substituted_bytes_rejected=true");
   console.log("binder_root_executable_ancestor_custody_required=true");
   console.log("binder_runtime_uid_acl_custody_required=true");
   console.log("binder_retained_exec_path_rebind_rejected=true");
