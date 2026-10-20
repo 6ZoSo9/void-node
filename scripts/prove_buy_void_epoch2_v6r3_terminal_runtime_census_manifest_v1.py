@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v1.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v1.json"
 
-SOURCE_BLOB="94b5bd837e72c095897b41bf0e9a9e27d8bfb840"
+SOURCE_BLOB="1299540e8a48a30d429a31580139dea28abccf23"
 CONTRACT_BLOB="c70dfd9da29c75b348a3619f6df7329381e939cf"
 FRESHNESS_BLOB="9657fff243e44135e1f992b1ef5b8e0d977b8b65"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_cdb98f511f04a3c798200e304481ec14d94373fdbdf6ec30cf88b0e281b0eb4f"
@@ -78,6 +78,14 @@ for required in (
     'CONTRACT_BLOB="'+CONTRACT_BLOB+'"',
     'FRESHNESS_GATE_BLOB="'+FRESHNESS_BLOB+'"',
     "MAX_TREE_ENTRIES=100_000",
+    'with os.scandir(current) as scan:',
+    'remaining_budget=entry_limit-len(objects)-len(stack)',
+    'if len(entries)>=remaining_budget:',
+    'entries.sort(key=lambda e:e.name,reverse=True)',
+    'if len(objects)+len(stack)>entry_limit:',
+    'raise Hold("tree_entry_bound_exceeded")',
+    'collect_tree(many_dirs,"/fixture-many-directories",entry_limit=2)',
+    'collect_tree(many_files,"/fixture-many-files",entry_limit=2)',
     "MAX_REGULAR_FILE_BYTES=512*1024*1024",
     "MAX_REPORT_BYTES=16*1024*1024",
     "os.O_NOFOLLOW|os.O_NONBLOCK",
@@ -112,6 +120,9 @@ for mode,required_lines in (
     ("--self-test",(
         MARKER+"_SELF_TEST_GREEN",
         "bounded_no_follow_regular_hashing=true",
+        "scandir_discovery_and_pending_stack_budget_bounded=true",
+        "regular_and_directory_fanout_overflow_rejected=true",
+        "root_object_counted_against_tree_limit=true",
         "complete_directory_regular_symlink_inventory=true",
         "declared_absence_parent_identity_bound=true",
         "special_files_rejected=true",
@@ -157,6 +168,7 @@ print("source_blob="+SOURCE_BLOB)
 print("corrected_contract_bound=true")
 print("freshness_gate_bound=true")
 print("fixture_only_inventory_proven=true")
+print("scandir_discovery_budget_verified=true")
 print("host_execution_enabled=false")
 print("host_census_authorized=false")
 print("protected_install_authorized=false")
