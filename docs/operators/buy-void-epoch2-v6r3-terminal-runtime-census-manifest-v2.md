@@ -90,3 +90,49 @@ and manifest entrypoints. The proof pins the new V2 source blob
 **These fixture checks are not live host custody.** All protected observer,
 postexec isolation, host-plan, signing, payment, public presale and funds
 authority flags remain false.
+
+## Display-root and inventory-name output budget — source-only V2 successor
+
+Prior source #3602 bounds input `sys_path`, `declared_absent` and
+`accessed_paths` lists, but an independent `display_root` string is
+concatenated onto **every** manifest object name. `MAX_REPORT_BYTES` was
+checked only after all object keys were built. A caller-provided, very long
+logical root could therefore cause major intermediate allocation even when
+input-array and 100,000-entry scan bounds were obeyed.
+
+This successor introduces `require_display_root()` at the start of both
+`collect_tree()` and `build_manifest()`. It requires a canonical absolute
+POSIX display identity (no redundant leading double slash, relative path,
+NUL, invalid UTF-8, or malformed components), with at most 4,096 UTF-8
+bytes. The standalone `absence_record()` applies the same logical-root
+gate and independently caps its full display path.
+
+`collect_tree()` also accumulates the UTF-8 bytes of each **discovered**
+logical path key, including queued child directories. The inventory root is
+charged once. Exceeding `MAX_REPORT_BYTES=16MiB` raises
+`Hold("manifest_display_path_budget_exceeded")` *before* leaf stat/hash or
+manifest JSON construction. A caller cannot expand a short input list into
+an arbitrarily large output-key dictionary.
+
+Disposable self-tests reject an oversized ASCII display root, an invalid
+UTF-8/surrogate root, a double-slash root, a too-long standalone absence
+identity and a tiny aggregate display-key limit. A normal fixture inventory
+still succeeds. No large allocation or privileged host action is needed.
+
+```text
+v2_source_git_blob=3edb183a6e73f7e661d63cc59b7159769c161935
+v2_proof_git_blob=479a26bc663fafdc25224938e6de033e0184e707
+v2_parent_pr=3602
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+protected_install_authorized=false
+funds_movement=false
+```
+
+These are fixture-only source resource limits. Root/ACL custody, retained
+directory-descriptor traversal, exact dynamic Python/Git/loader closure,
+post-`fexecve` isolation, independently reviewed installation and any
+economic actions remain separate HOLD gates.
+
+**PROTECT THE CORE.**
