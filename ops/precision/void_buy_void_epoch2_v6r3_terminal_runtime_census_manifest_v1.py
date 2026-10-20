@@ -20,6 +20,7 @@ FRESHNESS_GATE_BLOB="9657fff243e44135e1f992b1ef5b8e0d977b8b65"
 MAX_TREE_ENTRIES=100_000
 MAX_REGULAR_FILE_BYTES=512*1024*1024
 MAX_REPORT_BYTES=16*1024*1024
+MAX_INPUT_PATH_BYTES=4096
 HOST_EXECUTION_ENABLED=False
 
 class Hold(RuntimeError):
@@ -335,10 +336,44 @@ def absence_record(real_root:Path,display_root:str,display_path:str)->dict[str,o
         "parent":directory_record(parent),
     }
 
+def require_manifest_input_budget(
+    sys_path:list[str],declared_absent:list[str],accessed_paths:list[str],
+    *,max_entries:int=MAX_TREE_ENTRIES,max_bytes:int=MAX_REPORT_BYTES,
+)->None:
+    # Reject oversized caller-provided inventories BEFORE any tree walk,
+    # set/sort/dictionary expansion, or final JSON encoding. Python hints
+    # alone do not prevent a caller from passing unbounded generators.
+    if (
+        type(max_entries) is not int or not 1<=max_entries<=MAX_TREE_ENTRIES
+        or type(max_bytes) is not int or not 1<=max_bytes<=MAX_REPORT_BYTES
+    ):
+        raise Hold("manifest_input_budget_invalid")
+    groups=(sys_path,declared_absent,accessed_paths)
+    if any(type(group) is not list for group in groups):
+        raise Hold("manifest_input_sequence_invalid")
+    if sum(len(group) for group in groups)>max_entries:
+        raise Hold("manifest_input_path_count_exceeded")
+    total_bytes=0
+    for group in groups:
+        for candidate in group:
+            if type(candidate) is not str or not candidate or "\\x00" in candidate:
+                raise Hold("manifest_input_path_invalid")
+            try:
+                n=len(candidate.encode("utf-8","strict"))
+            except UnicodeError as exc:
+                raise Hold("manifest_input_path_encoding_invalid") from exc
+            if n>MAX_INPUT_PATH_BYTES:
+                raise Hold("manifest_input_path_length_exceeded")
+            total_bytes+=n
+            if total_bytes>max_bytes:
+                raise Hold("manifest_input_byte_budget_exceeded")
+
+
 def build_manifest(
     real_root:Path,display_root:str,sys_path:list[str],declared_absent:list[str],
     accessed_paths:list[str],
 )->dict[str,object]:
+    require_manifest_input_budget(sys_path,declared_absent,accessed_paths)
     if (not isinstance(display_root,str) or not display_root.startswith("/")
         or display_root=="/" or posixpath.normpath(display_root)!=display_root):
         raise Hold("display_root_not_canonical")
@@ -400,6 +435,51 @@ def fixture_self_test()->None:
         require_terminal_equal(manifest,json.loads(canonical(manifest)))
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
+
+        # Input cardinality/bytes are verified before inventory expansion.
+        # All fixtures are in-memory and retain production limits unchanged.
+        require_manifest_input_budget(
+            ["/fixture/python"],[],[],max_entries=1,max_bytes=64,
+        )
+        for paths,absent_paths,accessed in (
+            (["/fixture/python"]*3,[],[]),
+            (["/fixture/python"],["/fixture/a"],["/fixture/b"]),
+        ):
+            try:
+                require_manifest_input_budget(
+                    paths,absent_paths,accessed,max_entries=2,
+                )
+            except Hold as exc:
+                assert str(exc)=="manifest_input_path_count_exceeded"
+            else:
+                raise AssertionError("unbounded_input_path_count_accepted")
+        try:
+            require_manifest_input_budget(
+                ["/fixture/python"],[],[],max_bytes=4,
+            )
+        except Hold as exc:
+            assert str(exc)=="manifest_input_byte_budget_exceeded"
+        else:
+            raise AssertionError("unbounded_input_path_bytes_accepted")
+        try:
+            require_manifest_input_budget(["/fixture/"+"x"*4096],[],[])
+        except Hold as exc:
+            assert str(exc)=="manifest_input_path_length_exceeded"
+        else:
+            raise AssertionError("oversized_input_path_accepted")
+        for bad_path in (None,"",123,"/fixture/\\x00bad"):
+            try:
+                require_manifest_input_budget([bad_path],[],[])
+            except Hold as exc:
+                assert str(exc)=="manifest_input_path_invalid"
+            else:
+                raise AssertionError("malformed_input_path_accepted")
+        try:
+            require_manifest_input_budget(iter(["/fixture/python"]),[],[])
+        except Hold as exc:
+            assert str(exc)=="manifest_input_sequence_invalid"
+        else:
+            raise AssertionError("unbounded_input_iterator_accepted")
 
         # No sys.path entry is execution authority merely because it is
         # absolute. An existing directory must be enumerated, or the path
@@ -585,6 +665,8 @@ def fixture_self_test()->None:
     print("absence_intermediate_symlink_escape_rejected=true")
     print("absence_parent_symlink_alias_rejected=true")
     print("sys_path_must_be_inventoried_or_explicitly_absent=true")
+    print("census_input_cardinality_and_byte_budget_pretraversal=true")
+    print("census_unbounded_generator_and_oversize_path_rejected=true")
     print("noncanonical_manifest_paths_rejected=true")
     print("symlink_missing_component_parent_reentry_rejected=true")
     print("contained_dangling_symlink_remains_absent=true")
