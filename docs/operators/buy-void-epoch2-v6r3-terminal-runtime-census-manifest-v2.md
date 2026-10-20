@@ -505,3 +505,56 @@ independent security review or presale launch readiness. Source-only
 Draft/unmerged. Tor renewal belongs to another chat.
 
 **PROTECT THE CORE.**
+
+
+
+## P1 pre-guard import elimination — exact source-only successor
+
+This section **supersedes the previous last-reported source/proof Git blobs**,
+which remain historical evidence for earlier #3630 generations.
+
+`from __future__ import annotations` is not a harmless comment or static
+directive at runtime: it compiles into `IMPORT_NAME __future__`, which
+can resolve a checkout-controlled `__future__.py` before either
+`sys.flags.isolated` or the optimization/ANSI assertions HOLD executes.
+An inert local reproduction with a poisoned sibling emitted
+`POISON` before the script could raise its intended isolation HOLD.
+That bypass is material only for untrusted, non-isolated entrypoints;
+there is no evidence that protected Precision has such a file.
+
+Both executable files now have **no future import**. Their first executable
+statement is the *built-in* `import sys`, followed immediately by the
+source-only fail-closed `-I -B -S` check and the
+`sys.flags.optimize != 0 or not __debug__` check **before any
+checkout-/environment-resolvable import**. The verifier updates its
+AST/prefix source checks and executes **two actual poisoned-sibling
+negative subprocesses**: one for the census script and one for its
+source-proof script, each with a hostile same-directory
+`__future__.py` and missing `-I`. Each must exit nonzero,
+produce empty stdout and only
+`HOLD=isolated_no_site_python_required` on stderr. All prior
+optimization flags/code-object negative fixtures and exact source/policy
+identities remain required.
+
+```text
+parent_pr=3630
+parent_head=087a99f3d08f042b57ecc99ef18eda59cf84c33c
+current_census_source_git_blob=c5578a6954ff3309e7f32c83f8a73b62d0c97ee9
+current_census_proof_git_blob=eac1cdbd6da28c30e94042dfa7696db4b45881ee
+pre_guard_future_import_poison_negative_fixtures=2
+first_executable_import_builtin_sys_only=true
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+**This is source/test proof integrity only.** It does *not*
+authenticate interpreter startup itself, installed Python/Git/stdlib/loader
+bytes, root/ACL/FD-based host observation, post-`fexecve` isolation,
+independent security approval, signing, payment intake, or presale
+activation. No production host files or services were changed.
+
+PROTECT THE CORE.
