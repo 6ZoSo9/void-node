@@ -451,9 +451,13 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
   if(after.high_water_sequence<high.high_water_sequence||
      after.high_water_sha256!==high.high_water_sha256)
     fail("protected_high_water_decreased");
+  if(after.high_water_sequence!==high.high_water_sequence)
+    fail("post_rollback_high_water_unproven_advance");
   if(after.external_witness_sequence<witness.external_witness_sequence||
      after.external_witness_tip_sha256!==witness.external_witness_tip_sha256)
     fail("external_witness_continuity_lost");
+  if(after.external_witness_sequence!==witness.external_witness_sequence)
+    fail("post_rollback_witness_unproven_advance");
   assertStableContext(before,after,"post_rollback_binding_drift");
 
   const stale=exactResult(callSync(caps.attempt_stale_journal_replay,
@@ -480,9 +484,13 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
   if(terminal.high_water_sequence<high.high_water_sequence||
      terminal.high_water_sha256!==high.high_water_sha256)
     fail("terminal_high_water_drift");
+  if(terminal.high_water_sequence!==high.high_water_sequence)
+    fail("terminal_high_water_unproven_advance");
   if(terminal.external_witness_sequence<witness.external_witness_sequence||
      terminal.external_witness_tip_sha256!==witness.external_witness_tip_sha256)
     fail("terminal_external_witness_drift");
+  if(terminal.external_witness_sequence!==witness.external_witness_sequence)
+    fail("terminal_witness_unproven_advance");
 
   const claimAfter=exactResult(callSync(caps.revalidate_operation_authorization_claim,
     Object.freeze({
