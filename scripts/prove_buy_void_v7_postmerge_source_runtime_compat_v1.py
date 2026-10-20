@@ -7,7 +7,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_postmerge_source_runtime_compat_v1.py"
-TARGET_BLOB = "69fae4909c66d2a958fbcf1cf8703d965e2740d7"
+TARGET_BLOB = "a129e9645458a54417dff448703d7c314c1bdeff"
 MARKER = "VOID_BUY_VOID_V7_POSTMERGE_SOURCE_RUNTIME_COMPAT_V1_PROOF"
 
 
@@ -42,6 +42,11 @@ for required in (
     'len(RUNTIME_SENSITIVE_EQUAL) == 5',
     'runtime_source_exact_reviewed_delta',
     'tracked_source_checkout_exact',
+    'terminal_index_generation_revalidation_required=true',
+    'terminal_worktree_generation_revalidation_required=true',
+    'worktree_filesystem_errors_normalized_to_hold=true',
+    '_require_index_unchanged(raw_index, _run_git(root, *index_query))',
+    '_terminal_revalidate_worktree(root, fingerprints)',
     'canonical_checkout_mutation_performed',
     'filesystem_write_performed',
     'public_presale_activation',
@@ -66,6 +71,9 @@ for line in (
     "compatibility_self_scope_exact_four_additions_required=true",
     "runtime_sensitive_five_path_identity_equality_required=true",
     "tracked_source_checkout_exact_required=true",
+    "terminal_index_generation_revalidation_required=true",
+    "terminal_worktree_generation_revalidation_required=true",
+    "worktree_filesystem_errors_normalized_to_hold=true",
     "canonical_checkout_mutation_authorized=false",
     "filesystem_write_authorized=false",
     "credential_access_authorized=false",
@@ -126,6 +134,9 @@ print("runtime_to_source_base_exact_21_add_3_modify_bound=true")
 print("compatibility_self_scope_exact_four_additions_bound=true")
 print("runtime_sensitive_five_path_identity_equality_bound=true")
 print("full_tracked_worktree_bytes_bound=true")
+print("terminal_index_generation_revalidation_bound=true")
+print("terminal_worktree_generation_revalidation_bound=true")
+print("worktree_filesystem_errors_normalized_to_hold=true")
 print("canonical_checkout_mutation_performed=false")
 print("filesystem_write_performed=false")
 print("service_mutation=false")
