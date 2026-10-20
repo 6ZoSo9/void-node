@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -271,6 +272,55 @@ static void require_digest_size(int fd,const char *expected_sha,size_t expected_
     char observed[65];sha256_fd_hex(fd,observed);if(strcmp(observed,expected_sha)!=0)hold(reason);
 }
 
+static void require_sealed_snapshot(int fd,size_t expected_bytes,const char *reason){
+    struct stat st;
+    if(fstat(fd,&st)!=0||st.st_size<0||(uintmax_t)st.st_size!=(uintmax_t)expected_bytes)hold(reason);
+    const int want=F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL;
+    const int observed=fcntl(fd,F_GET_SEALS);
+    if(observed<0||(observed&want)!=want)hold(reason);
+}
+
+static int sealed_snapshot_fd(
+    int source,const char *expected_sha,size_t expected_bytes,mode_t mode,const char *reason
+){
+    if(lseek(source,0,SEEK_SET)<0)hold(reason);
+    const int fd=memfd_create("void-epoch2-v6r3-plan-snapshot",MFD_CLOEXEC|MFD_ALLOW_SEALING);
+    if(fd<0)hold(reason);
+    size_t remaining=expected_bytes;
+    unsigned char buffer[8192];
+    while(remaining){
+        const size_t want=remaining<sizeof(buffer)?remaining:sizeof(buffer);
+        ssize_t got=read(source,buffer,want);
+        if(got<0&&errno==EINTR)continue;
+        if(got<=0){close(fd);hold(reason);}
+        size_t off=0;
+        while(off<(size_t)got){
+            ssize_t wrote=write(fd,buffer+off,(size_t)got-off);
+            if(wrote<0&&errno==EINTR)continue;
+            if(wrote<=0){close(fd);hold(reason);}
+            off+=(size_t)wrote;
+        }
+        remaining-=(size_t)got;
+    }
+    unsigned char extra;
+    for(;;){
+        const ssize_t got=read(source,&extra,1U);
+        if(got<0&&errno==EINTR)continue;
+        if(got<0){close(fd);hold(reason);}
+        if(got!=0){close(fd);hold(reason);}
+        break;
+    }
+    if(fchmod(fd,mode)!=0){close(fd);hold(reason);}
+    char observed_sha[65];sha256_fd_hex(fd,observed_sha);
+    if(strcmp(observed_sha,expected_sha)!=0){close(fd);hold(reason);}
+    if(fcntl(fd,F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)!=0){
+        close(fd);hold(reason);
+    }
+    require_sealed_snapshot(fd,expected_bytes,reason);
+    if(lseek(fd,0,SEEK_SET)<0){close(fd);hold(reason);}
+    return fd;
+}
+
 static void require_self_identity(struct stat *opened_out){
     char observed[PATH_MAX];
     const ssize_t n=readlink("/proc/self/exe",observed,sizeof(observed)-1U);
@@ -392,6 +442,15 @@ static int self_test(void){
     if(memcmp(actual,expected,sizeof(actual))!=0)return 1;
     if(!lower_hex_exact(PLANNER_GIT_BLOB,40U)||!lower_hex_exact(PLANNER_SHA256,64U))return 1;
     size_t parsed=0;if(!decimal_size("49025",100000U,&parsed)||parsed!=PLANNER_BYTES)return 1;
+    int seal_test=memfd_create("void-epoch2-v6r3-seal-self-test",MFD_CLOEXEC|MFD_ALLOW_SEALING);
+    if(seal_test<0)return 1;
+    if(write(seal_test,"abc",3)!=3||
+       fcntl(seal_test,F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)!=0){
+        close(seal_test);return 1;
+    }
+    errno=0;
+    if(pwrite(seal_test,"x",1,0)!=-1||errno!=EPERM){close(seal_test);return 1;}
+    close(seal_test);
     printf("%s_SELF_TEST_GREEN\n",MARKER);
     printf("planner_git_blob=%s\n",PLANNER_GIT_BLOB);
     printf("planner_sha256=%s\n",PLANNER_SHA256);
@@ -401,6 +460,9 @@ static int self_test(void){
     printf("permanent_uid_gid_drop_before_python=true\n");
     printf("runtime_dumpable_disabled_before_python=true\n");
     printf("planner_retained_descriptor_required=true\n");
+    printf("planner_sealed_memfd_execution=true\n");
+    printf("python_sealed_memfd_fexecve=true\n");
+    printf("sealed_memfd_write_rejected=true\n");
     printf("python_retained_descriptor_fexecve_required=true\n");
     printf("isolated_python_required=true\n");
     printf("python_site_import_disabled=true\n");
@@ -443,6 +505,13 @@ int main(int argc,char **argv){
     require_digest_size(python_fd,policy.python_sha256,policy.python_bytes,"python_identity_invalid");
     revalidate_trusted_regular(policy.python_realpath,python_fd,&python_stat,true,0,"python_generation_changed");
 
+    int planner_exec_fd=sealed_snapshot_fd(
+        planner_fd,PLANNER_SHA256,PLANNER_BYTES,0444,"planner_sealed_snapshot_invalid"
+    );
+    int python_exec_fd=sealed_snapshot_fd(
+        python_fd,policy.python_sha256,policy.python_bytes,0555,"python_sealed_snapshot_invalid"
+    );
+
     umask(077);
     drop_to_runtime();
 
@@ -463,6 +532,12 @@ int main(int argc,char **argv){
     revalidate_trusted_regular(
         policy.python_realpath,python_fd,&python_stat,true,0,"python_runtime_generation_changed"
     );
+    require_sealed_snapshot(planner_exec_fd,PLANNER_BYTES,"planner_sealed_snapshot_changed");
+    require_sealed_snapshot(python_exec_fd,policy.python_bytes,"python_sealed_snapshot_changed");
+    close(planner_fd);
+    close(python_fd);
+    planner_fd=planner_exec_fd;
+    python_fd=python_exec_fd;
 
     int nullfd=open("/dev/null",O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
     if(nullfd<0||dup2(nullfd,STDIN_FILENO)<0){
