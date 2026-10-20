@@ -402,7 +402,7 @@ static int self_test(void){
     printf("runtime_dumpable_disabled_before_python=true\n");
     printf("planner_retained_descriptor_required=true\n");
     printf("python_retained_descriptor_fexecve_required=true\n");
-    printf("isolated_python_required=true\n");
+    printf("isolated_python_required=true\n");\n    printf("python_site_import_disabled=true\\n");
     printf("caller_stdin_python_source_authority=false\n");
     printf("filesystem_write=false\n");
     printf("credential_access=false\n");
@@ -489,7 +489,7 @@ int main(int argc,char **argv){
     close_unneeded(CHILD_PLANNER_FD,CHILD_PYTHON_FD);
 
     char *const child_argv[]={
-        policy.python_realpath,"-I","-B","/proc/self/fd/3","--plan",NULL
+        policy.python_realpath,"-I","-B","-S","/proc/self/fd/3","--plan",NULL
     };
     char *const child_env[]={
         "PATH=/usr/bin:/bin","HOME=/home/zoso","LANG=C","LC_ALL=C","TZ=UTC","PYTHONNOUSERSITE=1",NULL
