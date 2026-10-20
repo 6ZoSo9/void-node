@@ -367,9 +367,16 @@ export function executeBuyVoidAllocationCustodyRollbackControllerCandidateV2(inp
     "advance_high_water");
   if(high.challenge_id!==challengeId||high.operation_lease_id!==lease.lease_id)
     fail("high_water_challenge_mismatch");
+  const requiredHighWaterSequence=Math.max(
+    before.high_water_sequence+1,append.journal_sequence,
+  );
   if(!Number.isSafeInteger(high.high_water_sequence)||
-     high.high_water_sequence<Math.max(before.high_water_sequence+1,append.journal_sequence))
+     high.high_water_sequence<requiredHighWaterSequence)
     fail("high_water_not_advanced");
+  // Only one canary was appended under this exclusive challenge lease.
+  // Skipping beyond the required checkpoint has no proven append lineage.
+  if(high.high_water_sequence!==requiredHighWaterSequence)
+    fail("high_water_unproven_sequence_skip");
   string(high.high_water_sha256,SHA,"high_water_sha_invalid");
   if(high.high_water_sha256===before.high_water_sha256)
     fail("high_water_tip_not_advanced");
