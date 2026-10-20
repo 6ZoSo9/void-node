@@ -48,6 +48,15 @@ const BINDER_PROOF_SCHEMA=
 const FIXED_NODE="/usr/bin/node";
 const NATIVE_CONFIRM=
   "RUN_AUTHENTICATED_EPOCH2_CREDENTIAL_LIVE_COMPOSITION_V3";
+// Independently accepted repository candidate #V6R2. A different installed
+// generation HOLDS rather than using a root-owned filename as code authority.
+const ACCEPTED_NATIVE_LOCK_V6R2_ID=
+  "voidbuye2nativecandlock6r2_ab95f15c8f2731adf6bfd97dfd5467495c90bdb5ee267948efc6a522be74b417";
+const ACCEPTED_NATIVE_LOCK_V6R2_BLOB=
+  "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b";
+const ACCEPTED_NATIVE_BINARY_SHA256=
+  "85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8";
+const ACCEPTED_NATIVE_BINARY_BYTES=726976;
 
 const QUALIFIER_REL=
   "ops/precision/void_buy_void_user_manager_credential_query_installed_qualification_v3r.py";
@@ -201,6 +210,58 @@ function requireRootOwnedExecutableAncestors(real,label){
 function sameTrustedExecutableGeneration(a,b){
   return sameFileIdentity(a,b)&&a.mtimeNs===b.mtimeNs&&a.ctimeNs===b.ctimeNs;
 }
+function requirePinnedNativeExecutionClosure(t){
+  // Only the fixed privileged native child is eligible for this exact binary.
+  // Authenticate the already-retained descriptor, never reopen by pathname.
+  const st=fs.fstatSync(t.fd,{bigint:true});
+  if(!st.isFile()||st.size!==BigInt(ACCEPTED_NATIVE_BINARY_BYTES))
+    throw new Error("trusted_native_binary_size_not_accepted");
+  const digest=crypto.createHash("sha256");
+  const chunk=Buffer.allocUnsafe(64*1024);
+  let pos=0;
+  while(pos<ACCEPTED_NATIVE_BINARY_BYTES){
+    const want=Math.min(chunk.length,ACCEPTED_NATIVE_BINARY_BYTES-pos);
+    const read=fs.readSync(t.fd,chunk,0,want,pos);
+    if(read<=0)throw new Error("trusted_native_binary_short_read");
+    digest.update(chunk.subarray(0,read));
+    pos+=read;
+  }
+  if(digest.digest("hex")!==ACCEPTED_NATIVE_BINARY_SHA256)
+    throw new Error("trusted_native_binary_sha256_not_accepted");
+  // ELF64 LE, System V x86-64 ET_EXEC and an exact PHDR shape, without a
+  // dynamic interpreter or PT_DYNAMIC. Shebang/non-ELF execution is refused.
+  const hdr=Buffer.alloc(64);
+  if(fs.readSync(t.fd,hdr,0,hdr.length,0)!==hdr.length||
+     hdr.subarray(0,4).toString("hex")!=="7f454c46"||
+     hdr[4]!==2||hdr[5]!==1||hdr[6]!==1||
+     hdr.readUInt16LE(16)!==2||hdr.readUInt16LE(18)!==62||
+     hdr.readUInt32LE(20)!==1||hdr.readUInt16LE(52)!==64||
+     hdr.readUInt16LE(54)!==56)
+    throw new Error("trusted_native_static_elf_identity_invalid");
+  const phoff=hdr.readBigUInt64LE(32);
+  const phnum=hdr.readUInt16LE(56);
+  if(phnum<1||phnum>128||phoff<BigInt(64)||
+     phoff+BigInt(phnum)*56n>BigInt(ACCEPTED_NATIVE_BINARY_BYTES))
+    throw new Error("trusted_native_program_header_bounds_invalid");
+  const ph=Buffer.alloc(56);
+  let loads=0;
+  for(let i=0;i<phnum;i++){
+    const offset=Number(phoff)+i*56;
+    if(fs.readSync(t.fd,ph,0,ph.length,offset)!==ph.length)
+      throw new Error("trusted_native_program_header_short_read");
+    const type=ph.readUInt32LE(0);
+    if(type===3||type===2)
+      throw new Error("trusted_native_dynamic_interpreter_forbidden");
+    if(type===1)loads++;
+  }
+  if(loads<1)throw new Error("trusted_native_load_segments_missing");
+  // Check all inode/custody fields again after reading from the retained FD.
+  const after=fs.fstatSync(t.fd,{bigint:true});
+  const visible=fs.lstatSync(t.real,{bigint:true});
+  if(!sameTrustedExecutableGeneration(st,after)||
+     !sameTrustedExecutableGeneration(after,visible))
+    throw new Error("trusted_native_binary_generation_changed_during_hash");
+}
 function revalidateRetainedTrustedExecutable(t){
   // A retained leaf FD alone cannot authenticate a configured symlink alias.
   // Reject any symlink added to the original lexical chain before execution.
@@ -216,6 +277,7 @@ function revalidateRetainedTrustedExecutable(t){
      !sameTrustedExecutableGeneration(held,visible))
     throw new Error("trusted_executable_generation_changed:"+t.label);
   requireRuntimeUidNonwritable(t.real,t.label+"_leaf");
+  if(t.label==="native")requirePinnedNativeExecutionClosure(t);
 }
 function openRetainedTrustedExecutable(file,label){
   // Authenticate the *configured* lexical path before any realpath call can
@@ -960,6 +1022,19 @@ function selfTest(){
       if(!symlinkAncestorHeld)
         throw new Error("configured_symlink_ancestor_self_test_failed");
     }
+    // An unrelated root-owned ELF is never native-child authority even if
+    // its path, ACL, inode and ownership would pass generic custody checks.
+    let wrongNativeHeld=false;
+    try{openRetainedTrustedExecutable(GIT,"native");}
+    catch(error){
+      wrongNativeHeld=String(error?.message||"").includes(
+        "trusted_native_binary_size_not_accepted",
+      )||String(error?.message||"").includes(
+        "trusted_native_binary_sha256_not_accepted",
+      );
+    }
+    if(!wrongNativeHeld)
+      throw new Error("trusted_root_native_wrong_binary_self_test_failed");
   }finally{
     closeRetainedTrustedExecutable(selfSetpriv);
     closeRetainedTrustedExecutable(selfGit);
@@ -1137,6 +1212,9 @@ function selfTest(){
   console.log("binder_retained_exec_path_rebind_rejected=true");
   console.log("binder_configured_original_path_custody_required=true");
   console.log("binder_configured_symlink_alias_rejected=true");
+  console.log("binder_native_retained_fd_sha256_and_size_required=true");
+  console.log("binder_native_static_no_interp_elf_required=true");
+  console.log("binder_wrong_root_owned_native_rejected_before_exec=true");
   console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
   console.log("runtime_native_receives_runtime_policy_head_only=true");
   console.log("canonical_checkout_rewind_performed=false");
