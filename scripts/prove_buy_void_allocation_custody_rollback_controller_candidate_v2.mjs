@@ -16,7 +16,7 @@ import {
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs";
-const SOURCE_BLOB="727c4bef3ba7d754033d9469639ffa0134278101";
+const SOURCE_BLOB="75551ac25f79513cd3c99db7327c7fdbfa35cf02";
 const PLAN_REL="ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json";
 const PLAN_BLOB="1cdecf34117e4e890f67e62b412419d32870dfa0";
 const CONTRACT_REL="tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs";
@@ -126,9 +126,24 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
   const state={before,authorizationClaims,leaseId};
   const caps={
     generate_challenge_entropy(){order.push("entropy");return Buffer.alloc(32,0x5a);},
-    acquire_operation_lease({authorization_id,operation_id,challenge_id}){
+    acquire_operation_lease({
+      authorization_id,operation_id,challenge_id,reject_previously_claimed_authorization,
+    }){
       order.push("lease");challenge=challenge_id;
-      state.lease={acquired:true,exclusive:true,authorization_id,operation_id,challenge_id,lease_id:leaseId};
+      assert.equal(reject_previously_claimed_authorization,true);
+      state.attemptedLeaseChallengeId=challenge_id;
+      // In a real adapter this decision must be atomic with durable lease
+      // acquisition; an untrusted callback's assertion is not proof.
+      if(authorizationClaims.has(authorization_id)){
+        return {
+          acquired:false,exclusive:false,authorization_id,operation_id,
+          challenge_id,lease_id:leaseId,authorization_previously_claimed:true,
+        };
+      }
+      state.lease={
+        acquired:true,exclusive:true,authorization_id,operation_id,
+        challenge_id,lease_id:leaseId,authorization_previously_claimed:false,
+      };
       return state.lease;
     },
     observe_before({challenge_id,operation_lease_id}){
@@ -306,9 +321,11 @@ const expectedOrder=["entropy","lease","before","claim","append","high","reopen"
   },claims);
   assert.throws(()=>executeBuyVoidAllocationCustodyRollbackControllerCandidateV2({
     authorization,capabilities:second.caps,
-  }),/authorization_replay_or_claim_failed/);
-  assert.deepEqual(second.order,["entropy","lease","before","claim"]);
-  assert.notEqual(firstResult.challenge_id,second.state.claim.challenge_id);
+  }),/operation_lease_replay_precondition_failed/);
+  assert.deepEqual(second.order,["entropy","lease"]);
+  assert.equal(Object.hasOwn(second.state,"lease"),false);
+  assert.equal(Object.hasOwn(second.state,"claim"),false);
+  assert.notEqual(firstResult.challenge_id,second.state.attemptedLeaseChallengeId);
   assert.equal(second.order.includes("append"),false);
 }
 
@@ -322,7 +339,29 @@ mustFail("bad entropy",(c)=>{c.generate_challenge_entropy=()=>Buffer.alloc(31);}
 mustFail("operation lease acquisition refused",(c)=>{c.acquire_operation_lease=({
   authorization_id,operation_id,challenge_id,
 })=>({acquired:false,exclusive:false,authorization_id,operation_id,challenge_id,
-  lease_id:"voidbuycustodyoperationlease2_"+"5".repeat(64)});},/operation_lease_acquisition_failed/);
+  lease_id:"voidbuycustodyoperationlease2_"+"5".repeat(64),
+  authorization_previously_claimed:false});},/operation_lease_acquisition_failed/);
+mustFail("lease replay assertion rejected",(c)=>{
+  c.acquire_operation_lease=({
+    authorization_id,operation_id,challenge_id,reject_previously_claimed_authorization,
+  })=>{
+    assert.equal(reject_previously_claimed_authorization,true);
+    return {
+      acquired:false,exclusive:false,authorization_id,operation_id,challenge_id,
+      lease_id:"voidbuycustodyoperationlease2_"+"5".repeat(64),
+      authorization_previously_claimed:true,
+    };
+  };
+},/operation_lease_replay_precondition_failed/);
+mustFail("missing lease replay precondition field rejected",(c)=>{
+  const original=c.acquire_operation_lease;
+  c.acquire_operation_lease=(args)=>{
+    const response=original(args);
+    const {authorization_previously_claimed,...without}=response;
+    void authorization_previously_claimed;
+    return without;
+  };
+},/operation_lease_shape/);
 mustFail("operation lease substitution",(c,s)=>{
   const original=c.append_journal_canary;
   c.append_journal_canary=(args)=>({...original(args),
@@ -627,6 +666,9 @@ console.log("policy_generation_u64_bounded=true");
 console.log("operation_bound_authorization_required=true");
 console.log("authorization_claim_once_required=true");
 console.log("same_authorization_replay_rejected_before_mutation=true");
+console.log("lease_replay_precondition_bound_before_observation=true");
+console.log("fixture_replay_creates_no_lease_or_claim=true");
+console.log("lease_previously_claimed_false_required=true");
 console.log("authorization_claim_bound_to_evidence_origin=true");
 console.log("authorization_claim_post_rollback_revalidation_required=true");
 console.log("authorization_claim_post_rollback_revalidated=true");
