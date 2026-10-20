@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
+#include <linux/memfd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -125,12 +127,72 @@ static void require_devnull_stdin(void){
   struct stat a,b;if(fstat(STDIN_FILENO,&a)!=0||lstat(FIXED_DEVNULL,&b)!=0||!S_ISCHR(a.st_mode)||!S_ISCHR(b.st_mode)||a.st_dev!=b.st_dev||a.st_ino!=b.st_ino||a.st_rdev!=b.st_rdev)hold("binder_preentry_caller_stdin_forbidden");
 }
 static bool write_all(int fd,const unsigned char*d,size_t n){size_t o=0;while(o<n){ssize_t w=write(fd,d+o,n-o);if(w<0){if(errno==EINTR)continue;return false;}if(w==0)return false;o+=(size_t)w;}return true;}
-static bool stream_fd(int in_fd,int out_fd){
+/* Copy installed binder bytes BEFORE fork into a private source generation.
+ * Hash the copied FD, then seal it against writes/growth/shrinkage. The
+ * original root-owned inode is never streamed to a privileged child. */
+static int stage_sealed_source(int source_fd,size_t accepted_bytes,const unsigned char expected_sha[32]){
+  if(accepted_bytes==0U||accepted_bytes>MAX_RUNNER_BYTES)return -1;
+  int sealed=memfd_create("void-epoch2-binder-verified-source",MFD_CLOEXEC|MFD_ALLOW_SEALING);
+  if(sealed<0)return -1;
+  if(lseek(source_fd,0,SEEK_SET)<0)goto fail;
+  unsigned char buf[8192];size_t remaining=accepted_bytes;
+  while(remaining>0U){
+    size_t want=remaining<sizeof(buf)?remaining:sizeof(buf);
+    ssize_t n=read(source_fd,buf,want);
+    if(n<0&&errno==EINTR)continue;
+    if(n<=0||!write_all(sealed,buf,(size_t)n))goto fail;
+    remaining-=(size_t)n;
+  }
+  /* Even same-inode/same-size replacements must not be accepted. */
+  for(;;){
+    ssize_t n=read(source_fd,buf,1U);
+    if(n<0&&errno==EINTR)continue;
+    if(n!=0)goto fail;
+    break;
+  }
+  struct stat st;
+  if(fstat(sealed,&st)!=0||!S_ISREG(st.st_mode)||
+     (uintmax_t)st.st_size!=(uintmax_t)accepted_bytes||
+     !sha256_fd_matches(sealed,expected_sha))goto fail;
+  const int require_seals=F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL;
+  if(fcntl(sealed,F_ADD_SEALS,require_seals)!=0)goto fail;
+  int applied=fcntl(sealed,F_GET_SEALS);
+  if(applied<0||(applied&require_seals)!=require_seals||
+     !sha256_fd_matches(sealed,expected_sha)||
+     lseek(sealed,0,SEEK_SET)<0)goto fail;
+  return sealed;
+fail:
+  close(sealed);
+  return -1;
+}
+static bool same_content_generation(const struct stat*a,const struct stat*b){
+  return same_identity(a,b)&&a->st_mtim.tv_sec==b->st_mtim.tv_sec&&
+    a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+    a->st_ctim.tv_sec==b->st_ctim.tv_sec&&
+    a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
+}
+/* Release only the verified, sealed, exact-length byte snapshot. */
+static bool stream_fd_exact(int in_fd,int out_fd,size_t expected_bytes){
   if(lseek(in_fd,0,SEEK_SET)<0)return false;
-  unsigned char b[8192];
-  for(;;){ssize_t n=read(in_fd,b,sizeof(b));if(n<0){if(errno==EINTR)continue;return false;}if(n==0)break;binder_source_release_started=true;if(!write_all(out_fd,b,(size_t)n))return false;}
+  unsigned char b[8192];size_t remaining=expected_bytes;
+  while(remaining>0U){
+    size_t want=remaining<sizeof(b)?remaining:sizeof(b);
+    ssize_t n=read(in_fd,b,want);
+    if(n<0&&errno==EINTR)continue;
+    if(n<=0)return false;
+    binder_source_release_started=true;
+    if(!write_all(out_fd,b,(size_t)n))return false;
+    remaining-=(size_t)n;
+  }
+  for(;;){
+    ssize_t n=read(in_fd,b,1U);
+    if(n<0&&errno==EINTR)continue;
+    if(n!=0)return false;
+    break;
+  }
   return lseek(in_fd,0,SEEK_SET)>=0;
 }
+
 static bool read_start_ticks(pid_t pid,unsigned long long*out){
   char p[64];int n=snprintf(p,sizeof(p),"/proc/%ld/stat",(long)pid);if(n<=0||(size_t)n>=sizeof(p))return false;int fd=open(p,O_RDONLY|O_CLOEXEC|O_NOFOLLOW);if(fd<0)return false;
   char b[4096];ssize_t got;do{got=read(fd,b,sizeof(b)-1U);}while(got<0&&errno==EINTR);close(fd);if(got<=0||(size_t)got>=sizeof(b))return false;b[got]='\0';
@@ -179,6 +241,49 @@ static void emit_proof(int fd,pid_t child,const char source_head[41],const char 
     PROOF_SCHEMA,(long)getpid(),parent_ticks,(long)child,child_ticks,(uintmax_t)self->st_dev,(uintmax_t)self->st_ino,(uintmax_t)binder->st_dev,(uintmax_t)binder->st_ino,(uintmax_t)node->st_dev,(uintmax_t)node->st_ino,source_head,runtime_head);
   if(n<=0||(size_t)n>=sizeof(proof)||!write_all(fd,(const unsigned char*)proof,(size_t)n))hold("binder_preentry_parent_proof_write_failed");
 }
+static bool self_test_sealed_source(void){
+  /* No root, protected paths, Node, or signer: all data is disposable. */
+  static const unsigned char accepted[6]={'A','B','C','D','E','F'};
+  static const unsigned char substituted[6]={'U','V','W','X','Y','Z'};
+  FILE*f=tmpfile();
+  if(f==NULL)return false;
+  int original=fileno(f),sealed=-1,staged_again=-1;
+  int pfd[2]={-1,-1};bool ok=false;
+  unsigned char digest[32],observed[6];struct stat before,after;
+  sha256_buffer(accepted,sizeof(accepted),digest);
+  if(original<0||!write_all(original,accepted,sizeof(accepted))||
+     fstat(original,&before)!=0)goto out;
+  sealed=stage_sealed_source(original,sizeof(accepted),digest);
+  if(sealed<0)goto out;
+  const int all_seals=F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL;
+  int got_seals=fcntl(sealed,F_GET_SEALS);
+  if(got_seals<0||(got_seals&all_seals)!=all_seals)goto out;
+  errno=0;
+  if(pwrite(sealed,substituted,sizeof(substituted),0)>=0||errno!=EPERM)goto out;
+  /* Simulate a privileged same-inode writer after admission and before
+   * source release. The old stat-only stream could now execute new bytes. */
+  if(pwrite(original,substituted,sizeof(substituted),0)!=(ssize_t)sizeof(substituted)||
+     fstat(original,&after)!=0||!same_identity(&before,&after))goto out;
+  if(pipe(pfd)!=0)goto out;
+  if(!stream_fd_exact(sealed,pfd[1],sizeof(accepted)))goto out;
+  close(pfd[1]);pfd[1]=-1;
+  ssize_t n=read(pfd[0],observed,sizeof(observed));
+  if(n!=(ssize_t)sizeof(accepted)||memcmp(observed,accepted,sizeof(accepted))!=0)goto out;
+  if(read(pfd[0],observed,1U)!=0)goto out;
+  /* A fresh staging attempt from the modified original must fail digest
+   * acceptance despite unchanged dev/ino/mode/nlink/size. */
+  staged_again=stage_sealed_source(original,sizeof(accepted),digest);
+  if(staged_again>=0)goto out;
+  ok=true;
+out:
+  binder_source_release_started=false;
+  if(staged_again>=0)close(staged_again);
+  if(pfd[0]>=0)close(pfd[0]);
+  if(pfd[1]>=0)close(pfd[1]);
+  if(sealed>=0)close(sealed);
+  fclose(f);
+  return ok;
+}
 static int self_test_hold(bool post_source){
   child_created=true;proof_released=true;binder_source_release_started=post_source;
   hold(post_source?"self_test_post_source":"self_test_pre_source");
@@ -187,7 +292,8 @@ static int self_test_hold(bool post_source){
 static int self_test(void){
   static const unsigned char abc_expected[32]={0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
   unsigned char h[32];sha256_buffer((const unsigned char*)"abc",3U,h);if(memcmp(h,abc_expected,32U)!=0)return 1;if(BINDER_BYTES!=62308U||strlen(BINDER_GIT_BLOB)!=40U)return 1;
-  puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("source_runtime_two_head_contract=true");puts("runtime_policy_head_separate_from_source_head=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("failure_truth_boundary_test_modes=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
+  if(!self_test_sealed_source())return 1;
+  puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("binder_verified_sealed_memfd_source=true");puts("binder_same_inode_mutation_streams_only_accepted_bytes=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("source_runtime_two_head_contract=true");puts("runtime_policy_head_separate_from_source_head=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("failure_truth_boundary_test_modes=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
 }
 int main(int argc,char**argv){
   if(argc==2&&strcmp(argv[1],"--self-test")==0)return self_test();
@@ -196,7 +302,18 @@ int main(int argc,char**argv){
   if(geteuid()!=0)hold("binder_preentry_root_required");
   char source_head[41],runtime_head[41];parse_args(argc,argv,source_head,runtime_head);struct stat self_st=require_self_identity();require_devnull_stdin();
   policy_v1 policy=read_policy();if(strcmp(runtime_head,policy.expected_head)!=0)hold("binder_preentry_runtime_head_policy_mismatch");
-  int binder_fd=open_trusted(FIXED_BINDER,false,"binder_preentry_binder_custody_invalid");struct stat binder_st;if(fstat(binder_fd,&binder_st)!=0||(uintmax_t)binder_st.st_size!=BINDER_BYTES||!sha256_fd_matches(binder_fd,BINDER_SHA256)){close(binder_fd);hold("binder_preentry_binder_identity_mismatch");}
+  int binder_fd=open_trusted(FIXED_BINDER,false,"binder_preentry_binder_custody_invalid");
+  struct stat binder_st,binder_after,binder_visible;
+  if(fstat(binder_fd,&binder_st)!=0||(uintmax_t)binder_st.st_size!=BINDER_BYTES){
+    close(binder_fd);hold("binder_preentry_binder_identity_mismatch");
+  }
+  int frozen_fd=stage_sealed_source(binder_fd,BINDER_BYTES,BINDER_SHA256);
+  if(frozen_fd<0){close(binder_fd);hold("binder_preentry_binder_sealed_source_invalid");}
+  if(fstat(binder_fd,&binder_after)!=0||lstat(FIXED_BINDER,&binder_visible)!=0||
+     !same_content_generation(&binder_st,&binder_after)||
+     !same_content_generation(&binder_after,&binder_visible)){
+    close(frozen_fd);close(binder_fd);hold("binder_preentry_binder_generation_changed_during_stage");
+  }
   int node_fd=open_trusted(FIXED_NODE,true,"binder_preentry_node_custody_invalid");require_node_policy(node_fd,&policy);
   struct stat node_st;if(fstat(node_fd,&node_st)!=0){close(node_fd);close(binder_fd);hold("binder_preentry_generation_snapshot_failed");}
   unsigned long long parent_ticks=0;if(!read_start_ticks(getpid(),&parent_ticks)){close(node_fd);close(binder_fd);hold("binder_preentry_parent_generation_unavailable");}
@@ -204,6 +321,7 @@ int main(int argc,char**argv){
   if(signal(SIGPIPE,SIG_IGN)==SIG_ERR){close(source_pipe[0]);close(source_pipe[1]);close(proof_pipe[0]);close(proof_pipe[1]);close(node_fd);close(binder_fd);hold("binder_preentry_sigpipe_guard_failed");}
   pid_t child=fork();if(child<0){close(source_pipe[0]);close(source_pipe[1]);close(proof_pipe[0]);close(proof_pipe[1]);close(node_fd);close(binder_fd);hold("binder_preentry_fork_failed");}
   if(child==0){
+    close(frozen_fd);
     close(source_pipe[1]);close(proof_pipe[1]);if(dup2(source_pipe[0],STDIN_FILENO)<0)_exit(126);close(source_pipe[0]);
     int bf=fcntl(binder_fd,F_GETFD),pf=fcntl(proof_pipe[0],F_GETFD);if(bf<0||pf<0||fcntl(binder_fd,F_SETFD,bf&~FD_CLOEXEC)!=0||fcntl(proof_pipe[0],F_SETFD,pf&~FD_CLOEXEC)!=0)_exit(126);
     char binder_env[128],proof_env[128];if(snprintf(binder_env,sizeof(binder_env),BINDER_FD_ENV_PREFIX "%d",binder_fd)<=0||snprintf(proof_env,sizeof(proof_env),PROOF_FD_ENV_PREFIX "%d",proof_pipe[0])<=0)_exit(126);
@@ -214,6 +332,6 @@ int main(int argc,char**argv){
   child_created=true;close(source_pipe[0]);close(proof_pipe[0]);close(node_fd);
   unsigned long long child_ticks=0;if(!read_start_ticks(child,&child_ticks)){close(source_pipe[1]);close(proof_pipe[1]);close(binder_fd);(void)kill(child,SIGTERM);(void)waitpid(child,NULL,0);hold("binder_preentry_child_generation_unavailable");}
   emit_proof(proof_pipe[1],child,source_head,policy.expected_head,&self_st,&binder_st,&node_st,parent_ticks,child_ticks);proof_released=true;close(proof_pipe[1]);
-  if(!stream_fd(binder_fd,source_pipe[1])){close(source_pipe[1]);close(binder_fd);(void)kill(child,SIGTERM);(void)waitpid(child,NULL,0);hold("binder_preentry_source_stream_failed");}
-  close(source_pipe[1]);close(binder_fd);int status=0;pid_t waited;do{waited=waitpid(child,&status,0);}while(waited<0&&errno==EINTR);if(waited!=child)hold("binder_preentry_child_wait_failed");if(WIFEXITED(status))return WEXITSTATUS(status);hold("binder_preentry_child_not_cleanly_exited");
+  if(!stream_fd_exact(frozen_fd,source_pipe[1],BINDER_BYTES)){close(source_pipe[1]);close(frozen_fd);close(binder_fd);(void)kill(child,SIGTERM);(void)waitpid(child,NULL,0);hold("binder_preentry_source_stream_failed");}
+  close(source_pipe[1]);close(frozen_fd);close(binder_fd);int status=0;pid_t waited;do{waited=waitpid(child,&status,0);}while(waited<0&&errno==EINTR);if(waited!=child)hold("binder_preentry_child_wait_failed");if(WIFEXITED(status))return WEXITSTATUS(status);hold("binder_preentry_child_not_cleanly_exited");
 }

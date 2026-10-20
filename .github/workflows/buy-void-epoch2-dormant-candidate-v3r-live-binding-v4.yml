@@ -47,6 +47,10 @@ jobs:
                   base="$PR_BASE"
                   test "$base" = "8a58301048437f6406349665dcd6c48287fce53a"
                   ;;
+                ren/epoch2-dormant-elf-load-extent-independent-fixture-20261020)
+                  base="$PR_BASE"
+                  test "$base" = "891db34c74ebbba102515e5184f157ec1898cb46"
+                  ;;
                 *)
                   exit 1
                   ;;
@@ -69,6 +73,13 @@ jobs:
               'docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.md' \
               'scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py' \
               | sort > "$expected"
+          elif [ "$BASE_REF" = "ren/epoch2-dormant-elf-load-extent-independent-fixture-20261020" ]; then
+            printf '%s\n' \
+              '.github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.yml' \
+              'docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.md' \
+              'ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c' \
+              'scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py' \
+              | sort > "$expected"
           else
             printf '%s\n' \
               '.github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.yml' \
@@ -84,11 +95,11 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs)" = \
             "be4a40954e5541168ab3403ad5b9b74207dc5ddd"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c)" = \
-            "417195505fff1157e401a7e7b6262609fcfca5bf"
+            "e3eae688ed8b378fe219a9aa39271c2312262161"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py)" = \
-            "23e195dbe80d8fbdb5edd1a6b974f3f6e476fe3c"
+            "e84e05d0cb097a806f6306367455a55c42a46cc1"
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.md)" = \
-            "4fd93755e6e5e73bc7a0eb8acbad826878d4d7b0"
+            "98c35457ac3b3be64c564a58eb245281f3ff2ad0"
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -117,6 +128,8 @@ jobs:
           grep -Fx 'runtime_policy_authenticated_by_native_preentry=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'historical_generation_overclaim_absent=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'native_preentry_binds_exact_binder_bytes=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'binder_sealed_memfd_source_verified_before_root_fork=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'binder_inplace_mutation_cannot_change_streamed_js=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_retained_root_exec_source_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_ancestor_and_runtime_acl_guard_source_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'binder_configured_original_path_symlink_guard_source_bound=true' "$RUNNER_TEMP/proof.log"

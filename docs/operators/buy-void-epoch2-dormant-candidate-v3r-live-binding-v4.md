@@ -448,3 +448,63 @@ security review are required. The fixed accepted V6R2 ELF/lock remains
 unchanged. Tor renewal is managed separately.
 
 PROTECT THE CORE.
+
+
+## CURRENT SOURCE-ONLY DESCENDANT — freeze accepted binder JS before root Node fork
+
+The native parent previously read and hashed the retained root-owned Binder
+script, then forked root Node and streamed **the original mutable file
+descriptor** to its stdin pipe. An in-place privileged writer could change
+the same inode without altering dev/ino/mode/uid/gid/nlink/size between
+the verification and later source-stream pass. A correct SHA of the
+**earlier** file contents therefore did not prove the bytes ultimately
+interpreted by root Node.
+
+This descendant stages exactly `BINDER_BYTES=62308` from the trusted root
+Binder descriptor into a private `memfd_create(MFD_ALLOW_SEALING)` **before
+fork**. It requires exact length and accepted Binder SHA-256 of the
+**staged bytes**, adds all four irrevocable write/grow/shrink/seal flags,
+verifies the seals and staged digest again, and checks the original
+installed generation including mtime/ctime before child creation. Only
+the fully verified sealed memfd is released through the existing
+source pipe to the existing root Node `--input-type=module -` entrypoint;
+the original file descriptor is never used as the source byte stream.
+The parent streams **exactly** BINDER_BYTES, not arbitrary new EOF data.
+It retains the existing parent proof, file-identity bindings, Node ELF
+policy, root custody, pipe cleanup and negative economic authority.
+
+The disposable unprivileged C `--self-test` uses a temporary six-byte
+source file; it stages/seals accepted bytes, overwrites the *original
+same-inode, same-size* file via a different handle, confirms the immutable
+stage refuses write and still streams the original accepted text only,
+and rejects a fresh stage from the mutated original. No protected file
+or actual Node/binder root child is executed in this fixture.
+
+```text
+parent_pr=3637
+parent_head=891db34c74ebbba102515e5184f157ec1898cb46
+staged_native_preentry_c_git_blob=e3eae688ed8b378fe219a9aa39271c2312262161
+binder_js_git_blob=be4a40954e5541168ab3403ad5b9b74207dc5ddd
+binder_js_sha256=31309bffffc09dbb7ced849feb61f3b61c5226f6ec66cdcdba3e315bc08cedbd
+binder_js_bytes=62308
+binder_verified_sealed_memfd_source=true
+binder_same_inode_mutation_streams_only_accepted_bytes=true
+protected_install_authorized=false
+host_plan_authorized=false
+credential_access=false
+private_key_access=false
+signing=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+This is a changed **root native preentry source generation**, not an
+accepted or installed binary. Rebuild/reidentify its native binary,
+rerun exact-head compiler/proof/CI, obtain genuinely distinct security
+review, and separately qualify first entry and host dependencies before
+any future protected invocation. No previous native ELF/lock is
+implicitly reissued, and this fixture does **not** license production
+root execution or presale/customer payments.
+
+Tor renewal is handled in another chat. PROTECT THE CORE.
