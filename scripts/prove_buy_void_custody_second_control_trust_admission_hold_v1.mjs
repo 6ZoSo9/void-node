@@ -16,6 +16,7 @@ import {
 } from "../tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs";
 
 const ROOT=new URL("../",import.meta.url);
+const WORKFLOW_PATH=".github/workflows/buy-void-custody-second-control-trust-admission-hold-v1.yml";
 const expectedBlobs={
   "tools/void-buy-custody-second-control-trust-admission-hold-v1.mjs":
     "f07701e5f89f82fbe5e97b0df1bc91deee7a9ea7",
@@ -32,6 +33,21 @@ const gitBlob=bytes=>crypto.createHash("sha1")
 for(const [path,hash] of Object.entries(expectedBlobs)){
   const bytes=fs.readFileSync(new URL(path,ROOT));
   assert.equal(gitBlob(bytes),hash,path);
+}
+const workflowSource=fs.readFileSync(new URL(WORKFLOW_PATH,ROOT),"utf8");
+const pullStart=workflowSource.indexOf("  pull_request:\n");
+const pushStart=workflowSource.indexOf("  push:\n");
+const permissionsStart=workflowSource.indexOf("permissions:\n");
+assert.ok(pullStart>=0&&pushStart>pullStart&&permissionsStart>pushStart,
+  "workflow_trigger_sections_missing");
+const pullBlock=workflowSource.slice(pullStart,pushStart);
+const pushBlock=workflowSource.slice(pushStart,permissionsStart);
+for(const path of Object.keys(expectedBlobs)){
+  const triggerLine='      - "'+path+'"';
+  assert.equal(pullBlock.includes(triggerLine),true,
+    "pull_request_trigger_missing:"+path);
+  assert.equal(pushBlock.includes(triggerLine),true,
+    "push_trigger_missing:"+path);
 }
 assert.equal(VERIFIER_GIT_BLOB_SHA1,
   expectedBlobs["tools/void-buy-allocation-custody-second-control-signature-verifier-v1.mjs"]);
@@ -189,6 +205,7 @@ console.log("operator_pin_inequality_is_not_principal_separation=true");
 console.log("fabricated_positive_authority_fields_rejected=true");
 console.log("client_supplied_trust_root_rejected=true");
 console.log("proxy_and_accessor_rejected_without_invocation=true");
+console.log("trigger_dependency_closure_bound=true");
 console.log("accepted_approver_root_configured=false");
 console.log("trusted_clock_and_revocation_evidence=false");
 console.log("authenticated_replay_and_lease_store=false");

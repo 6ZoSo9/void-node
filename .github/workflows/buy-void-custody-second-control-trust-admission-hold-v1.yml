@@ -16,6 +16,9 @@ on:
       - "tools/void-buy-custody-second-control-trust-admission-hold-v1.mjs"
       - "scripts/prove_buy_void_custody_second_control_trust_admission_hold_v1.mjs"
       - "docs/architecture/buy-void-custody-second-control-trust-admission-hold-v1.md"
+      - "tools/void-buy-allocation-custody-second-control-signature-verifier-v1.mjs"
+      - "tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs"
+      - "ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json"
 permissions:
   contents: read
 jobs:
