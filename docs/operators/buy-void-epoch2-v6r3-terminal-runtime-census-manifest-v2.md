@@ -210,3 +210,49 @@ funds_movement=false
 ```
 
 PROTECT THE CORE.
+
+## Canonical JSON record-byte admission — source-only successor
+
+Even after #3607 charged each symlink's raw target and resolved-name
+UTF-8 bytes, the collector could build a large record dictionary before
+checking its final `MAX_REPORT_BYTES=16MiB` serialized output. Canonical
+`ensure_ascii=True` JSON can also **expand** valid Linux control-character
+file names: for example, one raw byte `0x01` is emitted as six ASCII bytes
+(`\\u0001`). Per-record metadata, quoted field names and punctuation were
+not accounted for by the raw displayed-string budget.
+
+The source now maintains a separate **`record_budget`** (default and
+maximum 16 MiB). Immediately before inserting *each* root/directory,
+regular-file or symlink record, it computes the canonical JSON byte length
+of that exact `{display_name: record}` pair and charges that size to the
+remaining record budget. An over-budget or unencodable record produces a
+structured `Hold` without admission to the inventory map. The extra
+per-record braces make this a conservative upper bound on the final
+`objects` JSON payload; the independent final full-manifest bound remains.
+
+Disposable negative tests reject the exact accepted aggregate minus one
+byte, then repeat with a contained dangling symlink whose target consists
+of control characters that expand during canonical JSON escaping. The exact
+aggregate passes, the one-byte-less aggregate HOLDs. Invalid record
+budgets also HOLD before traversal. The existing raw-string display budget,
+100,000-entry ceiling, absent/sys.path checks, V2 accepted binary/closure
+contracts and all disabled host/economic authority remain unchanged.
+
+```text
+census_source_git_blob=81ef2fbf72b94457c6cc7fb058e45b54f9f5089d
+census_proof_git_blob=7ffb6f0d0d6053fc2b8ee61917cefdae8644e45c
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+protected_install_authorized=false
+host_plan_authorized=false
+payment_acceptance=false
+funds_movement=false
+```
+
+This is a bound on *serialized object records*, not an absolute process-memory
+or total file-hashing work limit. In particular, Python container overhead,
+temporary read/hash buffers, absences and input materialization remain
+separate controls. Nothing in this source-only fixture authorizes a live
+Precision census, installed observer, signing, service or presale payment.
+
+PROTECT THE CORE.
