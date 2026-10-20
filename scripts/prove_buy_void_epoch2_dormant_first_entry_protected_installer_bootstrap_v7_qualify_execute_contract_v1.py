@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "9a4f795d9c3271f3498840e61b34a28265ab9519"
+TARGET_BLOB = "cab90c5125c948dd3255522a7b69e5c71b194241"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -193,6 +193,8 @@ assert '"\\0" not in value' in normalized_source
 assert 'not value.startswith("//")' in normalized_source
 assert 'value.encode("utf-8", "strict")' in normalized_source
 assert 'len(encoded) < 4096' in normalized_source
+assert 'components = value[1:].split("/")' in normalized_source
+assert 'len(component.encode("utf-8", "strict")) <= 255' in normalized_source
 artifact_source = ast.get_source_segment(source, functions["_artifact"]) or ""
 assert 'not _plain_int(value["bytes"], 1)' in artifact_source
 tool_source = ast.get_source_segment(source, functions["_validate_tool_identity"]) or ""
@@ -243,6 +245,7 @@ for expected in (
     "planner_body_canonicalization_failures_hold=true",
     "planner_output_open_nonblocking=true",
     "executable_artifact_paths_canonical_utf8_bounded=true",
+    "executable_artifact_path_components_consumer_compatible=true",
     "planner_output_race_oserror_holds=true",
     "planner_json_parser_failures_hold=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
@@ -324,6 +327,7 @@ print("executable_artifact_paths_nul_rejected=true")
 print("planner_body_canonicalization_failures_hold=true")
 print("planner_output_open_nonblocking=true")
 print("executable_artifact_paths_canonical_utf8_bounded=true")
+print("executable_artifact_path_components_consumer_compatible=true")
 print("planner_output_race_oserror_holds=true")
 print("planner_json_parser_failures_hold=true")
 print("unconsumed_tool_metadata_not_execution_authority=true")

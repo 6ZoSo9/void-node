@@ -362,10 +362,18 @@ def _normalized_absolute(value: object) -> bool:
         encoded = value.encode("utf-8", "strict")
     except UnicodeEncodeError:
         return False
+    components = value[1:].split("/")
     return (
         value.startswith("/")
         and not value.startswith("//")
         and 0 < len(encoded) < 4096
+        and bool(components)
+        and all(
+            component
+            and component not in (".", "..")
+            and len(component.encode("utf-8", "strict")) <= 255
+            for component in components
+        )
         and "\n" not in value
         and "\r" not in value
         and "\0" not in value
@@ -1228,6 +1236,22 @@ def self_test() -> None:
             ),
         )
     )
+    _expect_tamper_rejected(
+        lambda body: (
+            body["accepted_launcher"].__setitem__("path", "/"),
+            body["bootstrap_argv"].__setitem__(3, "/"),
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: (
+            body["accepted_launcher"].__setitem__(
+                "path", "/tmp/" + ("a" * 256)
+            ),
+            body["bootstrap_argv"].__setitem__(
+                3, "/tmp/" + ("a" * 256)
+            ),
+        )
+    )
 
     canonical_fixture = _fixture_output()
     original_canonical = canonical
@@ -1354,6 +1378,7 @@ def self_test() -> None:
     print("planner_body_canonicalization_failures_hold=true")
     print("planner_output_open_nonblocking=true")
     print("executable_artifact_paths_canonical_utf8_bounded=true")
+    print("executable_artifact_path_components_consumer_compatible=true")
     print("planner_output_race_oserror_holds=true")
     print("planner_json_parser_failures_hold=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")

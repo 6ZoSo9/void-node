@@ -332,3 +332,12 @@ Executable artifact paths are restricted to one-root, normalized, strict UTF-8,
 sub-4096-byte absolute paths with no NUL/CR/LF. Rehashed double-root,
 unencodable-surrogate and overlong paths must HOLD. These checks constrain only
 source evidence; they do not execute any artifact.
+
+
+## Downstream bootstrap path parity
+
+Executable artifact paths also mirror the fixed V6 bootstrap `clean_path()`
+consumer boundary: `/` alone is invalid, every path component must be nonempty,
+must not be `.` or `..`, and each UTF-8 component must be at most 255 bytes.
+The existing total UTF-8 path bound remains below 4096 bytes. Rehashed root-only
+and 256-byte-component fixtures must HOLD before a root-plan contract is emitted.
