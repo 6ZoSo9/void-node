@@ -347,18 +347,6 @@ def fake_artifact(
     }
 
 
-module.stable_artifact = fake_artifact
-module._safe_tool = lambda value, label, maximum: {
-    "path": str(value),
-    "resolved_path": str(value),
-    "bytes": 123 if label == "qualification_python" else 456,
-    "sha256": "1" * 64 if label == "qualification_python" else "2" * 64,
-    "mode": "0755",
-    "uid": 0,
-    "gid": 0,
-    "dev": 4,
-    "ino": 5 if label == "qualification_python" else 6,
-}
 module.os.geteuid = lambda: 1000
 
 with tempfile.TemporaryDirectory(prefix="void-v7-artifact-physical-parent-") as td:
@@ -426,6 +414,19 @@ with tempfile.TemporaryDirectory(prefix="void-v7-artifact-physical-parent-") as 
             raise AssertionError("artifact_parent_generation_change_accepted")
     finally:
         module._open_physical_artifact_parent = original_parent_open
+
+module.stable_artifact = fake_artifact
+module._safe_tool = lambda value, label, maximum: {
+    "path": str(value),
+    "resolved_path": str(value),
+    "bytes": 123 if label == "qualification_python" else 456,
+    "sha256": "1" * 64 if label == "qualification_python" else "2" * 64,
+    "mode": "0755",
+    "uid": 0,
+    "gid": 0,
+    "dev": 4,
+    "ino": 5 if label == "qualification_python" else 6,
+}
 
 launcher = Path("/tmp/accepted-launcher-v2")
 native = Path("/tmp/accepted-native-v2")
