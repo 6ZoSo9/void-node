@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -129,7 +130,11 @@ assert lock["next_gate"]=="void_buy_void_epoch2_live_composition_runner_policy_u
 material=dict(lock); observed=material.pop("lock_id")
 assert observed==LOCK_ID==LOCK_PREFIX+sha256(canonical(material))
 
-node="/usr/bin/node"
+# Source-only CI proof: use the hosted runner's Node, matching the V6R3
+# candidate verifier. Production Node identity remains host-derived, never here.
+node=shutil.which("node")
+if not node or not Path(node).is_file() or not os.access(node,os.X_OK):
+ raise RuntimeError("hosted_source_proof_node_unavailable")
 sealed_cp=subprocess.run(
  [node,str(SEALED_V3),"--self-test"],stdin=subprocess.DEVNULL,
  stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding="utf-8",errors="strict",
