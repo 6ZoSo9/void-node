@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
 import hashlib
 import json
 import os
@@ -80,6 +81,65 @@ def directory_record(path:Path)->dict[str,object]:
         raise Hold("directory_metadata_invalid:"+os.fspath(path))
     return {"kind":"directory",**_meta(st)}
 
+def _contained_resolve(path:Path,real_root:Path,display_path:str)->Path:
+    """Resolve each symlink hop inside the inventory root, never just the end.
+
+    A final realpath/relative_to check falsely accepts root/link ->
+    outside/bridge -> root/file. This function does not open external paths,
+    caps link expansion, and refuses upward traversal above real_root.
+    Future *protected-host* use additionally needs independent FD/ACL custody.
+    """
+    try:
+        relative=path.relative_to(real_root)
+    except ValueError as exc:
+        raise Hold("symlink_source_outside_inventory_root:"+display_path) from exc
+    pending=deque(relative.parts)
+    current=real_root
+    hops=0
+    missing=False
+    while pending:
+        part=pending.popleft()
+        if part in ("","."):
+            continue
+        if part=="..":
+            if current==real_root:
+                raise Hold("symlink_target_outside_inventory_root:"+display_path)
+            current=current.parent
+            continue
+        next_path=current/part
+        if missing:
+            current=next_path
+            continue
+        try:
+            st=next_path.lstat()
+        except FileNotFoundError:
+            missing=True
+            current=next_path
+            continue
+        if stat.S_ISLNK(st.st_mode):
+            hops+=1
+            if hops>40:
+                raise Hold("symlink_resolution_hop_limit:"+display_path)
+            target_text=os.readlink(next_path)
+            if not _same_generation(st,next_path.lstat()):
+                raise Hold("symlink_chain_generation_changed:"+display_path)
+            target=Path(target_text)
+            if target.is_absolute():
+                # Keep '..' parts unnormalized so escape-then-return loses
+                # authority at the first out-of-root component.
+                if target.parts[:len(real_root.parts)]!=real_root.parts:
+                    raise Hold("symlink_target_outside_inventory_root:"+display_path)
+                pending=deque(target.parts[len(real_root.parts):]+tuple(pending))
+                current=real_root
+            else:
+                pending=deque(target.parts+tuple(pending))
+        else:
+            if pending and not stat.S_ISDIR(st.st_mode):
+                raise Hold("symlink_intermediate_not_directory:"+display_path)
+            current=next_path
+    return current
+
+
 def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->dict[str,object]:
     before=path.lstat()
     if not stat.S_ISLNK(before.st_mode):
@@ -88,7 +148,7 @@ def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->
     after=path.lstat()
     if not _same_generation(before,after):
         raise Hold("symlink_generation_changed:"+os.fspath(path))
-    resolved=Path(os.path.realpath(path))
+    resolved=_contained_resolve(path,real_root,display_path)
     record={"kind":"symlink",**_meta(before),"target_text":text}
     try:
         resolved.relative_to(real_root)
@@ -272,6 +332,30 @@ def fixture_self_test()->None:
         except Hold as exc: assert "symlink_target_outside_inventory_root" in str(exc)
         else: raise AssertionError("outside_root_symlink_accepted")
         outside_link.unlink()
+
+        # Escape-then-return is not acceptable: os.path.realpath() of this
+        # path ends inside root, although the first symlink crosses outside.
+        outside_hop=Path(td)/"outside-hop";outside_hop.mkdir()
+        (outside_hop/"bridge").symlink_to(py/"hashlib.py")
+        pivot=py/"escape-return";pivot.symlink_to(outside_hop/"bridge")
+        assert Path(os.path.realpath(pivot))==py/"hashlib.py"
+        try:
+            collect_tree(root,"/fixture")
+        except Hold as exc:
+            assert "symlink_target_outside_inventory_root" in str(exc)
+        else:
+            raise AssertionError("outside_intermediate_symlink_hop_accepted")
+        pivot.unlink()
+
+        # Cyclic paths must terminate with a bounded explicit HOLD.
+        loop=py/"cyclic-link";loop.symlink_to("cyclic-link")
+        try:
+            collect_tree(root,"/fixture")
+        except Hold as exc:
+            assert "symlink_resolution_hop_limit" in str(exc)
+        else:
+            raise AssertionError("symlink_cycle_accepted")
+        loop.unlink()
         assert manifest["absent"]["/fixture/etc/ld.so.preload"]["exists"] is False
 
         changed=json.loads(canonical(manifest))
@@ -352,6 +436,8 @@ def fixture_self_test()->None:
     print("complete_directory_regular_symlink_inventory=true")
     print("declared_absence_parent_identity_bound=true")
     print("special_files_rejected=true")
+    print("symlink_intermediate_outside_root_rejected=true")
+    print("symlink_hop_limit_rejects_cycles=true")
     print("discovered_entry_budget_includes_queued_directories=true")
     print("scandir_consumption_bounded_before_sort=true")
     print("over_budget_synthetic_scandir_rejected=true")
