@@ -10,8 +10,8 @@ This candidate is stacked on the [V2 challenge plan #3556](https://github.com/6Z
 - V2 plan ID: `voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844`.
 - V2 plan Git blob: `1cdecf34117e4e890f67e62b412419d32870dfa0`.
 - Historical V1 controller source blob: `96d4ac3499d222841f1f7a3c53e14900b68ae8cf`; original V1 proof blob: `b196fcaa77a6bdc465baacb3387aa949f47bc956`.
-- New V2 controller source blob: `727c4bef3ba7d754033d9469639ffa0134278101`.
-- New V2 behavior proof blob: `be8782c7de95c1aa82bcf1ddc1238d2e363d0c68`.
+- New V2 controller source blob: `75551ac25f79513cd3c99db7327c7fdbfa35cf02`.
+- New V2 behavior proof blob: `5c3865010eefd8e24c898f0186c505e364aef151`.
 - Accepted economic tree remains `71c67e62a2b21a98f3f5135ee6aa56e0ef97d262`.
 
 ## V2 authorization and replay boundary
@@ -43,6 +43,33 @@ a future external approval signer or protected host adapter.
 The noncustomer canary domain is intentionally unchanged: `void.buyvoid.presale.noncustomer.canary.v1`, exactly matching V2 plan requirements. The accepted economic tree, current-policy fingerprint/generation constraints and sixteen synchronous injected capability **interface names and phase order** are retained, now under the separate V2 protocol.
 
 A forged V1→V2 `plan_id` substitution fails on the V2 marker/version boundary; a V2→V1 substitution fails in the old V1 controller. The source proof makes both checks with an instrumented capability object that must not be inspected. These are negative **source-level protocol tests**, not cryptographic authorization or authentic storage evidence.
+
+## Lease-level replay refusal — future protected adapter obligation
+
+The V2 plan requires replay refusal **before mutation**. In the previous
+fixture the later `claim_operation_authorization_once` rejected a repeated
+authorization only **after** `acquire_operation_lease` had already returned
+and changed the synthetic lease state. Although no journal/high-water
+mutation followed, treating that as *pre-mutation* replay denial was too broad.
+
+This successor makes the V2 lease acquisition callback carry the explicit
+request `reject_previously_claimed_authorization=true` and return the closed
+field `authorization_previously_claimed=false` before it can pass to
+`observe_before`. A replay-preclaimed result is a structured fail-closed
+`operation_lease_replay_precondition_failed`. The fixture's lease callback
+checks the prior-authorization claim set **before** creating any lease
+record and denies a replay at the lease boundary. The adversarial proof
+requires replay call order `["entropy","lease"]`, no created lease or claim,
+and rejects missing or positive prior-claim fields. The existing later
+durable one-time claim remains mandatory as the second guard against races.
+
+**Critical limit:** A Boolean returned by an injected callback cannot prove
+a real atomic check or lack of storage mutation. A future protected host
+adapter must authenticate the callback and implement the prior-claim check
+and exclusive lease acquisition **atomically against a durable claim/lease
+store**. A standalone read-only preflight is insufficient against concurrent
+replays. This source-only V2 change does *not* establish durable lease
+exclusivity or customer/presale/payment authority.
 
 ## Source-only controller semantics
 
