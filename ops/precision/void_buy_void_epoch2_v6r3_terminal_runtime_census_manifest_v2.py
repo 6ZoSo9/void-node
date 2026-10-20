@@ -324,7 +324,19 @@ def collect_tree(
             if stat.S_ISREG(st.st_mode):
                 objects[display]=stable_regular(path)
             elif stat.S_ISLNK(st.st_mode):
-                objects[display]=symlink_record(path,display,real_root,display_root)
+                # A symlink stores target_text and resolved_display_path
+                # in addition to its inventory key. All three variable
+                # strings must consume the same cumulative byte budget.
+                record=symlink_record(path,display,real_root,display_root)
+                for field in ("target_text","resolved_display_path"):
+                    try:
+                        extra_bytes=len(record[field].encode("utf-8","strict"))
+                    except UnicodeError as exc:
+                        raise Hold("manifest_symlink_record_encoding_invalid") from exc
+                    if display_bytes_total+extra_bytes>display_budget:
+                        raise Hold("manifest_display_path_budget_exceeded")
+                    display_bytes_total+=extra_bytes
+                objects[display]=record
             else:
                 raise Hold("special_file_forbidden:"+display)
             if len(objects)>MAX_TREE_ENTRIES:
@@ -507,6 +519,28 @@ def fixture_self_test()->None:
         require_terminal_equal(manifest,json.loads(canonical(manifest)))
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
+
+        # With only inventory-key bytes counted, the old collector allowed
+        # this limit despite also allocating the symlink's two strings.
+        key_only_budget=sum(
+            len(name.encode("utf-8","strict")) for name in manifest["objects"]
+        )
+        symlink_extra_bytes=sum(
+            len(item[field].encode("utf-8","strict"))
+            for item in manifest["objects"].values()
+            if item["kind"]=="symlink"
+            for field in ("target_text","resolved_display_path")
+        )
+        assert symlink_extra_bytes>0
+        try:
+            collect_tree(root,"/fixture",display_budget=key_only_budget)
+        except Hold as exc:
+            assert str(exc)=="manifest_display_path_budget_exceeded",str(exc)
+        else:
+            raise AssertionError("symlink_record_variable_strings_unbudgeted")
+        assert collect_tree(
+            root,"/fixture",display_budget=key_only_budget+symlink_extra_bytes
+        )==manifest["objects"]
 
         # A logical root prefixes every object key. Prove early bounds
         # without large allocations or protected-host filesystem reads.
@@ -824,6 +858,7 @@ def fixture_self_test()->None:
     print("census_input_cardinality_and_byte_budget_pretraversal=true")
     print("census_display_root_length_utf8_and_path_budget_bound=true")
     print("census_individual_display_path_bound=true")
+    print("census_symlink_record_strings_budget_bound=true")
     print("census_direct_absence_display_path_budget_bound=true")
     print("census_unbounded_generator_and_oversize_path_rejected=true")
     print("noncanonical_manifest_paths_rejected=true")

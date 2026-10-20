@@ -150,3 +150,42 @@ required on this generation. Host census, installed runtime, signing, payment
 and funds authorities remain disabled.
 
 **PROTECT THE CORE.**
+
+## Symlink-record variable string resource bound — source-only successor
+
+The cumulative output-name budget from #3605 charged each inventory object
+key, but a symlink record also contains **`target_text`** and
+**`resolved_display_path`**. Many symlinks could store these additional
+variable-length strings without counting them against the 16 MiB
+pre-materialization budget. The final canonical-report limit would reject
+only **after** allocating the records.
+
+This successor counts the strict UTF-8 byte lengths of both symlink fields
+against the *same* `display_budget` before publishing the record. An
+over-budget record HOLDS as `manifest_display_path_budget_exceeded`;
+an unencodable field HOLDS as
+`manifest_symlink_record_encoding_invalid`.
+
+The disposable negative proof computes a small inventory's exact object-key
+byte total, then demonstrates that this **key-only** budget must HOLD.
+A positive proof allows precisely the object-key bytes plus the recorded
+symlink-string bytes and requires an identical inventory.
+
+The original 100,000-entry streaming census limit, 4096-byte individual
+display-path limit, V2 Git-aware contract and launch-authority restrictions
+are unchanged. This is *not* a strict total process-memory bound or a
+real host-observer qualification. Metadata/dictionary overhead and other
+serialized fields remain separate limits requiring review before a future
+production collector exists.
+
+```text
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+protected_install_authorized=false
+host_plan_authorized=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+PROTECT THE CORE.
