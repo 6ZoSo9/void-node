@@ -20,7 +20,7 @@ CANDIDATE_PREFIX = "voidbuye2runnerpolcand6r3_"
 
 RUNNER_REL = "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
 RUNNER = ROOT / RUNNER_REL
-RUNNER_GIT_BLOB_SHA1 = "2f147d8841e96c6bbf83997104e6905ac07f986c"
+RUNNER_GIT_BLOB_SHA1 = "2fa028824d71a22f4d228cdb7fcda738bce7b409"
 RUNNER_INSTALL_MODE = "0444"
 
 NATIVE_SOURCE_REL = "ops/precision/void_buy_void_epoch2_live_composition_native_preentry_v3.c"
