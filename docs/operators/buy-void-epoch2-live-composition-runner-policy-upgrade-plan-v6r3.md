@@ -159,3 +159,53 @@ retains the nonblocking sealed-V3/FIFO-race requirements and all negative author
 The planner remains non-executing and has no apply mode. No protected filesystem
 mutation, credential/key access, signing, transaction/payment, presale/WC activation,
 service mutation, treasury/liquidity action, or funds movement is authorized.
+
+## Read-only host-plan custody and terminal-revalidation boundary
+
+The source-only planner now validates the protected host path *before*
+read-only plan evidence is produced. This is an additional requirement, not
+permission to run a production plan or mutate the host.
+
+- Canonical parent directories for the protected roots and the fixed Node
+  executable must be root-owned, non-symlink, group/world-nonwritable, and
+  effectively nonwritable to the user executing the read-only plan (including
+  ACL grants). Exact ancestor metadata is revalidated after observation.
+- Protected `/opt` generation directories are opened by retained
+  `O_DIRECTORY|O_NOFOLLOW` descriptors. The initial admitted root metadata
+  must match the opened descriptor; all three child files are enumerated and
+  verified relative to that descriptor; visible root identity and ancestors
+  are rechecked at the terminal boundary.
+- The host Node executable is opened with
+  `O_RDONLY|O_NOFOLLOW|O_NONBLOCK`. An unexpected FIFO, symlink,
+  non-regular file, size change or generation replacement is rejected before
+  hashing can proceed. No host Node execution occurs in the planner.
+- The Node identity and protected root READY/GREEN state are observed again
+  before the plan can be emitted. Drift is a HOLD, not a GREEN report.
+- Source-only self-test includes synthetic changes to the Node generation
+  and protected state plus an injected effective-writability ACL adversary
+  against a root-owned ancestor. None writes into `/opt`, touches real
+  credentials, or exercises service/transaction paths.
+
+This bound is scoped to **future, separately authorized read-only host
+qualification**. It does not establish the actual ACLs or root contents of
+Precision, and it does not satisfy the distinct independent reviewer gate.
+
+```text
+planner_blob=6908ad9a41afcb88d73f5e0011614c0e239864ca
+planner_proof_blob=6366b5b73f9e2416fabe7d972a7493d2bdb8d5b8
+accepted_lock_blob=a9565f1dbe49e694ee07eb0cfdddb42d591d856b
+accepted_runner_git_blob=11a147d565bd0ee3ff48c4e3cb75d608b59e87b1
+filesystem_write=false
+service_mutation=false
+credential_access=false
+signing=false
+transaction=false
+payment_acceptance=false
+public_presale_activation=false
+wc_void_market_activation=false
+funds_movement=false
+```
+
+No installer mode, privileged first entry, wallet/key access, transaction,
+payment collection, public presale activation or treasury/liquidity action
+is introduced. PROTECT THE CORE.
