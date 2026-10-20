@@ -10,8 +10,8 @@ This candidate is stacked on the [V2 challenge plan #3556](https://github.com/6Z
 - V2 plan ID: `voidbuycustodychallengeplan2_622c5cab506b8424860a484e6675f73031a26635c0ef29a80aee2281f53f0844`.
 - V2 plan Git blob: `1cdecf34117e4e890f67e62b412419d32870dfa0`.
 - Historical V1 controller source blob: `96d4ac3499d222841f1f7a3c53e14900b68ae8cf`; original V1 proof blob: `b196fcaa77a6bdc465baacb3387aa949f47bc956`.
-- New V2 controller source blob: `115088953bd83838623ea260bd2239e6f323d3e2`.
-- New V2 behavior proof blob: `6aaa8990e6a4ae84bbd9e905bf9d2f9256b5bccf`.
+- New V2 controller source blob: `911d759029dc890a00e9da5e0cd64b30c8c62b62`.
+- New V2 behavior proof blob: `889718b202d47210997c630d02ee2664f3c0e5fc`.
 - Accepted economic tree remains `71c67e62a2b21a98f3f5135ee6aa56e0ef97d262`.
 
 ## V2 authorization and replay boundary
@@ -161,9 +161,8 @@ lagging the journal (`journal_sequence=8`, `high_water_sequence=7`) to
 proceed to durable one-time claim and journal-append callbacks.
 
 The revised V2 source requires
-`before.journal_sequence === before.high_water_sequence` immediately
-after authenticating the intended policy *record* and before the claim and
-append phases. Both mismatches produce
+`before.journal_sequence === before.high_water_sequence` after validating the intended policy *record* and the existing numeric
+headroom checks, but still **before** the claim and append phases. Both mismatches produce
 `initial_journal_high_water_checkpoint_mismatch` and stop at the
 `observe_before` callback. Two disposable adversaries prove the
 `["entropy","lease","before"]` trace, with no claim or journal append.
