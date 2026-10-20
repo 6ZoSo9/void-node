@@ -11,7 +11,7 @@ This candidate is stacked on the [V2 challenge plan #3556](https://github.com/6Z
 - V2 plan Git blob: `1cdecf34117e4e890f67e62b412419d32870dfa0`.
 - Historical V1 controller source blob: `96d4ac3499d222841f1f7a3c53e14900b68ae8cf`; original V1 proof blob: `b196fcaa77a6bdc465baacb3387aa949f47bc956`.
 - New V2 controller source blob: `587e14c609b591e7271745bcfafaebc4fefcb37c`.
-- New V2 behavior proof blob: `e97ee45b1a68a3bd8e6b7e9583976f899669c11f`.
+- New V2 behavior proof blob: `03a8ad14b0670befd88f726fe1f31228f42abbd6`.
 - Accepted economic tree remains `71c67e62a2b21a98f3f5135ee6aa56e0ef97d262`.
 
 ## V2 authorization and replay boundary
