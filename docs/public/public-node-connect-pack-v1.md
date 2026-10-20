@@ -16,7 +16,7 @@ It helps an operator:
 - identify a bootstrap peer
 - dial a peer with `/p2p/dial`
 - verify `/health`
-- verify `/peers`
+- verify `/p2p/peers`
 - understand what evidence to share if the connection worked
 
 ## What this is not
@@ -55,14 +55,14 @@ This is not a public internet mesh claim.
 
 5. Verify local peers:
 
-       curl -fsS http://127.0.0.1:4100/peers | jq .
+       curl -fsS http://127.0.0.1:4100/p2p/peers | jq .
 
 ## Evidence to share
 
 If an operator connects successfully, useful public-safe evidence is:
 
 - local `/health`
-- local `/peers`
+- local `/p2p/peers`
 - bootstrap route used
 - peer address dialed
 - timestamp
