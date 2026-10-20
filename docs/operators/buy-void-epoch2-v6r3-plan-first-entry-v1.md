@@ -59,6 +59,28 @@ For the future host `--plan` path, the launcher requires:
 The launcher accepts only `--plan`. It does not expose installer/apply/service/payment
 modes.
 
+## Effective-capability drop gate
+
+The native first-entry process must not rely on numeric UID/GID 1000 alone.
+An inherited `SECBIT_NO_SETUID_FIXUP` plus inheritable/ambient capabilities
+can preserve effective privilege across the root-to-runtime transition and
+into Python. Before dropping privileges the native launcher rejects **any
+nondefault inherited securebits** and clears ambient capabilities. After the
+permanent UID/GID drop it clears all inheritable, permitted and effective
+capabilities with Linux `capset`, verifies all three sets via `capget`,
+clears ambient capabilities again, and checks saved IDs and the supplementary
+group list. Every failure HOLDS before Python.
+
+The hosted disposable adversary exercises both the inherited securebit alone
+and securebit plus ambient/inheritable CAP_DAC_OVERRIDE. This source change
+invalidates the earlier static ELF candidate and accepted binary lock in
+#3573/#3574. Rebuild and reissue all binary, candidate and lock identities;
+**never reuse the previous identity as installation authority**.
+
+This is a *pre-exec capability* contract. `PR_SET_DUMPABLE(0)` is not a
+post-exec Python guarantee; the independent #3579/#3580 dumpability
+review gate remains required.
+
 ## Adversarial proof
 
 The proof has two modes. **Default invocation is nonprivileged**: it compiles/checks the

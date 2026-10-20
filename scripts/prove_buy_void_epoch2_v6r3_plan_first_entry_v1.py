@@ -153,6 +153,14 @@ for required in (
     "setresgid((gid_t)REQUIRED_GID",
     "setresuid((uid_t)REQUIRED_UID",
     "PR_SET_DUMPABLE",
+    "PR_GET_SECUREBITS",
+    "PR_CAP_AMBIENT_CLEAR_ALL",
+    "SYS_capset",
+    "SYS_capget",
+    "getresuid(",
+    "getresgid(",
+    "getgroups(0,NULL)",
+    "runtime_capabilities_not_empty",
     "revalidate_fixed_generation(",
     "reserve_standard_fds();",
     "standard_fds_reserved_before_trusted_opens=true",
@@ -210,6 +218,9 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         "standard_fds_reserved_before_trusted_opens=true",
         "mapped_planner_fd3_revalidated=true",
         "runtime_uid_gid_1000_required=true",
+        "runtime_securebits_default_required=true",
+        "runtime_capability_sets_zero_required=true",
+        "runtime_supplementary_groups_empty_required=true",
         "permanent_uid_gid_drop_before_python=true",
         "runtime_dumpable_disabled_before_python=true",
         "planner_retained_descriptor_required=true",
@@ -438,6 +449,22 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         assert b"planner_python_started=false" in cp.stderr
         assert PLANNER_MARKER.encode("ascii") not in cp.stdout
 
+        # A root caller with inherited SECBIT_NO_SETUID_FIXUP must fail
+        # before Python; ambient CAP_DAC_OVERRIDE must not rescue this path.
+        for inherited_flags in (
+            ["--securebits=+no_setuid_fixup"],
+            ["--securebits=+no_setuid_fixup",
+             "--inh-caps=+dac_override", "--ambient-caps=+dac_override"],
+        ):
+            cp = run([
+                SUDO, "-n", SETPRIV, *inherited_flags,
+                os.fspath(FIXED_SELF), "--plan",
+            ])
+            assert cp.returncode == 2, (inherited_flags, cp.stdout, cp.stderr)
+            assert b"reason=nondefault_root_securebits_forbidden" in cp.stderr
+            assert b"planner_python_started=false" in cp.stderr
+            assert PLANNER_MARKER.encode("ascii") not in cp.stdout
+
         tampered = bytearray(planner_raw); tampered[0] ^= 1
         assert len(tampered) == PLANNER_BYTES
         tampered_path = temp / "planner-tampered.py"
@@ -517,6 +544,10 @@ print("mapped_planner_fd3_revalidated=true")
 print("inherited_fds_ge5_closed_and_censused=true")
 print("devnull_stdin_descriptor_revalidated=true")
 print("runtime_uid_gid_1000_required=true")
+print("runtime_securebits_default_required=true")
+print("runtime_capability_sets_zero_required=true")
+print("runtime_supplementary_groups_empty_required=true")
+print("inherited_securebits_and_ambient_capabilities_rejected=true")
 print("permanent_uid_gid_drop_before_python=true")
 print("planner_runtime_uid_gid_1000_proven=true")
 print("runtime_dumpable_disabled_before_python=true")

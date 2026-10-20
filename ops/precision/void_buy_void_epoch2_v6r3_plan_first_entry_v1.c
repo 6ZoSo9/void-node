@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
+#include <linux/capability.h>
 #include <limits.h>
 #include <linux/close_range.h>
 #include <stdbool.h>
@@ -473,11 +474,44 @@ static void reserve_standard_fds(void){
     }
 }
 
+static void require_empty_runtime_capabilities(void){
+    struct __user_cap_header_struct header={
+        .version=_LINUX_CAPABILITY_VERSION_3,.pid=0
+    };
+    struct __user_cap_data_struct caps[2]={{0},{0}};
+    if(syscall(SYS_capget,&header,caps)!=0||
+       header.version!=_LINUX_CAPABILITY_VERSION_3){
+        hold("runtime_capability_observation_failed");
+    }
+    for(size_t i=0;i<2U;i++){
+        if(caps[i].effective!=0U||caps[i].permitted!=0U||
+           caps[i].inheritable!=0U){
+            hold("runtime_capabilities_not_empty");
+        }
+    }
+    /* Kernel operation clears the whole ambient set, not just a sampled bit. */
+    if(prctl(PR_CAP_AMBIENT,PR_CAP_AMBIENT_CLEAR_ALL,0,0,0)!=0){
+        hold("runtime_ambient_capability_clear_failed");
+    }
+}
+
 static void drop_to_runtime(void){
     if(getuid()!=0U||geteuid()!=0U||getgid()!=0U||getegid()!=0U){
         hold("root_static_first_entry_required");
     }
+    /*
+     * With SECBIT_NO_SETUID_FIXUP, UID 0 -> 1000 need not clear effective
+     * capabilities; inherited ambient/inheritable caps can then survive exec.
+     * Require the default root securebits state rather than guessing which
+     * nondefault combinations are safe.
+     */
+    if(prctl(PR_GET_SECUREBITS,0,0,0,0)!=0){
+        hold("nondefault_root_securebits_forbidden");
+    }
     if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)!=0)hold("no_new_privs_failed");
+    if(prctl(PR_CAP_AMBIENT,PR_CAP_AMBIENT_CLEAR_ALL,0,0,0)!=0){
+        hold("ambient_capability_clear_failed");
+    }
     if(setgroups(0,NULL)!=0)hold("supplementary_group_clear_failed");
     if(setresgid((gid_t)REQUIRED_GID,(gid_t)REQUIRED_GID,(gid_t)REQUIRED_GID)!=0){
         hold("runtime_gid_drop_failed");
@@ -485,10 +519,31 @@ static void drop_to_runtime(void){
     if(setresuid((uid_t)REQUIRED_UID,(uid_t)REQUIRED_UID,(uid_t)REQUIRED_UID)!=0){
         hold("runtime_uid_drop_failed");
     }
-    if(getuid()!=REQUIRED_UID||geteuid()!=REQUIRED_UID||
-       getgid()!=REQUIRED_GID||getegid()!=REQUIRED_GID){
+    /* Dropping capabilities is permitted for a nonroot process; fail closed. */
+    struct __user_cap_header_struct header={
+        .version=_LINUX_CAPABILITY_VERSION_3,.pid=0
+    };
+    struct __user_cap_data_struct cleared[2]={{0},{0}};
+    if(syscall(SYS_capset,&header,cleared)!=0){
+        hold("runtime_capability_drop_failed");
+    }
+    uid_t real_uid,effective_uid,saved_uid;
+    gid_t real_gid,effective_gid,saved_gid;
+    if(getresuid(&real_uid,&effective_uid,&saved_uid)!=0||
+       getresgid(&real_gid,&effective_gid,&saved_gid)!=0||
+       real_uid!=REQUIRED_UID||effective_uid!=REQUIRED_UID||
+       saved_uid!=REQUIRED_UID||real_gid!=REQUIRED_GID||
+       effective_gid!=REQUIRED_GID||saved_gid!=REQUIRED_GID){
         hold("runtime_identity_drop_not_permanent");
     }
+    if(getgroups(0,NULL)!=0)hold("runtime_supplementary_groups_not_empty");
+    if(prctl(PR_GET_SECUREBITS,0,0,0,0)!=0){
+        hold("runtime_securebits_changed");
+    }
+    if(prctl(PR_GET_NO_NEW_PRIVS,0,0,0,0)!=1){
+        hold("runtime_no_new_privs_missing");
+    }
+    require_empty_runtime_capabilities();
     if(prctl(PR_SET_DUMPABLE,0,0,0,0)!=0)hold("runtime_dumpable_disable_failed");
 }
 
@@ -518,6 +573,9 @@ static int self_test(void){
     printf("standard_fds_reserved_before_trusted_opens=true\n");
     printf("mapped_planner_fd3_revalidated=true\n");
     printf("runtime_uid_gid_1000_required=true\n");
+    printf("runtime_securebits_default_required=true\n");
+    printf("runtime_capability_sets_zero_required=true\n");
+    printf("runtime_supplementary_groups_empty_required=true\n");
     printf("permanent_uid_gid_drop_before_python=true\n");
     printf("runtime_dumpable_disabled_before_python=true\n");
     printf("planner_retained_descriptor_required=true\n");
