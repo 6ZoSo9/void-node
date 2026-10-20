@@ -99,9 +99,17 @@ def stable_regular(
             if not chunk:
                 raise Hold("regular_short_read:"+os.fspath(path))
             digest.update(chunk);remaining-=len(chunk)
-        if os.read(fd,1)!=b"":
-            raise Hold("regular_grew:"+os.fspath(path))
+        # The optional one-byte growth probe is an actual potential read.
+        # Reserve its byte BEFORE the syscall, even if it returns EOF.
+        # If the total read budget is exhausted, skip the probe and rely
+        # on the terminal descriptor/visible-generation checks below.
+        if read_budget.remaining:
+            read_budget.charge(1)
+            if os.read(fd,1)!=b"":
+                raise Hold("regular_grew:"+os.fspath(path))
         after=os.fstat(fd);visible=path.lstat()
+        if after.st_size>opened.st_size:
+            raise Hold("regular_grew:"+os.fspath(path))
         if not _same_generation(opened,after) or not _same_generation(after,visible):
             raise Hold("regular_generation_changed:"+os.fspath(path))
         return {"kind":"regular",**_meta(opened),"sha256":digest.hexdigest()}
@@ -649,6 +657,70 @@ def fixture_self_test()->None:
         else:
             raise AssertionError("absence_escaped_json_over_budget_accepted")
 
+        # Exactly-sized read budgets may be exhausted before the optional
+        # growth probe. No extra byte may be read beyond this hard ceiling.
+        # A separate disposable probe avoids mutating the inventory fixture.
+        growth_probe=Path(td)/"growth-probe"
+        growth_probe.write_bytes(b"ABCD")
+        original_read=os.read
+        exact_budget=_HashReadBudget(4)
+        def _deny_unbudgeted_probe(fd:int,n:int)->bytes:
+            if n==1:
+                raise AssertionError("unbudgeted_terminal_growth_read")
+            return original_read(fd,n)
+        try:
+            os.read=_deny_unbudgeted_probe
+            record=stable_regular(growth_probe,read_budget=exact_budget)
+            assert record["sha256"]==sha256(b"ABCD")
+        finally:
+            os.read=original_read
+        assert exact_budget.remaining==0 and exact_budget.spent==4
+
+        # A growth mutation after the initially allowed read is detected
+        # through terminal file size/generation without spending one extra
+        # read when the shared budget is exactly exhausted.
+        grew_once=[False]
+        growth_budget=_HashReadBudget(4)
+        def _grow_after_read(fd:int,n:int)->bytes:
+            if n==1:
+                raise AssertionError("unbudgeted_terminal_growth_read")
+            data=original_read(fd,n)
+            if not grew_once[0]:
+                grew_once[0]=True
+                with growth_probe.open("ab") as writer:
+                    writer.write(b"Z")
+            return data
+        try:
+            os.read=_grow_after_read
+            try:
+                stable_regular(growth_probe,read_budget=growth_budget)
+            except Hold as exc:
+                assert str(exc).startswith("regular_grew:"),str(exc)
+            else:
+                raise AssertionError("growth_after_exhausted_hash_budget_accepted")
+        finally:
+            os.read=original_read
+        assert grew_once[0]
+        assert growth_budget.remaining==0 and growth_budget.spent==4
+
+        # When a spare budget byte exists the EOF/growth probe must reserve
+        # it *before* issuing a one-byte read, even if EOF consumes nothing.
+        growth_probe.write_bytes(b"ABCD")
+        spare_budget=_HashReadBudget(5)
+        saw_probe=[False]
+        def _verify_charged_terminal_probe(fd:int,n:int)->bytes:
+            if n==1:
+                assert spare_budget.remaining==0
+                saw_probe[0]=True
+            return original_read(fd,n)
+        try:
+            os.read=_verify_charged_terminal_probe
+            record=stable_regular(growth_probe,read_budget=spare_budget)
+            assert record["sha256"]==sha256(b"ABCD")
+        finally:
+            os.read=original_read
+        assert saw_probe[0] and spare_budget.spent==5
+
         # A source inventory must share one finite read/hash budget across
         # ordinary files AND aliases to the same target.  A symlink target
         # cannot silently receive another free per-file allowance.
@@ -1112,6 +1184,9 @@ def fixture_self_test()->None:
     print("census_absence_record_canonical_budget_bound=true")
     print("census_absence_json_escape_amplification_rejected=true")
     print("census_hash_budget_checked_before_file_open=true")
+    print("census_terminal_growth_probe_reserves_budget_before_read=true")
+    print("census_exhausted_budget_avoids_terminal_extra_read=true")
+    print("census_growth_after_exhaustion_rejected=true")
     print("census_direct_absence_display_path_budget_bound=true")
     print("census_unbounded_generator_and_oversize_path_rejected=true")
     print("noncanonical_manifest_paths_rejected=true")
