@@ -465,13 +465,13 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
           VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_RETRY_MS_V1
         ) continue;
 
-        runtime.last_upgrade_attempt_ms = now;
         this.upgradeAttempts += 1;
         const result = this.node.requestUdpSwarmUpgradeV1(
           route.relay_node_id,
           route.target_node_id,
           stream.stream_id,
         );
+        runtime.last_upgrade_attempt_ms = now;
         if (result.ok) this.upgradeRequests += 1;
         else this.upgradeRejects += 1;
       } catch (error) {
