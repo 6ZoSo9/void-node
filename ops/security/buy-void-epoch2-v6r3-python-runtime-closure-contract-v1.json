@@ -120,7 +120,8 @@
     "report_must_bind_exact_python_and_runtime_closure": true,
     "separate_content_addressed_acceptance_lock_required": true,
     "installed_qualification_required_after_install": true,
-    "independent_review_required": true
+    "independent_review_required": true,
+    "report_must_bind_git_subprocess_runtime_closure": true
   },
   "authority": {
     "source_contract_only": true,
@@ -143,5 +144,51 @@
     "funds_movement": false
   },
   "next_gate": "void_buy_void_epoch2_v6r3_python_runtime_closure_census_v1",
-  "contract_id": "voidbuye2v6r3pyruntimecontract1_6b88925643319fd7724f4fd66d115fd5ec9598a3c59a57cbc0a8c51737c8bae8"
+  "contract_id": "voidbuye2v6r3pyruntimecontract1_80553976a9a5a241991a827f2b6913c08b22c27865136216dd66b21b07790df5",
+  "planner_subprocess_closure": {
+    "git": {
+      "requested_path": "/usr/bin/git",
+      "retained_fd_execution_required": true,
+      "realpath_sha256_and_size_required": true,
+      "root_custody_and_runtime_uid_nonwritability_required": true,
+      "pt_interp_and_transitive_dt_needed_closure_required": true,
+      "rpath_runpath_records_required": true,
+      "runtime_helpers_plugins_and_config_file_access_closure_required": true,
+      "mapped_elf_closure_required": true,
+      "terminal_generation_revalidation_required": true,
+      "clean_environment": {
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/home/zoso",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_SYSTEM": "/dev/null",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_NO_LAZY_FETCH": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_ASKPASS": "/bin/false",
+        "GIT_PROTOCOL_FROM_USER": "0",
+        "GIT_ALLOW_PROTOCOL": "",
+        "GIT_PAGER": ""
+      },
+      "observed_builtin_commands": [
+        "branch",
+        "cat-file",
+        "rev-parse",
+        "show",
+        "status"
+      ],
+      "repository_metadata_closure_required": {
+        "local_git_config_identity_or_absence": true,
+        "worktree_config_identity_or_absence": true,
+        "object_alternates_identity_or_absence": true,
+        "shallow_boundary_identity_or_absence": true,
+        "grafts_identity_or_absence": true
+      },
+      "adversarial_dependency_or_helper_substitution_must_hold": true
+    }
+  }
 }

@@ -8,7 +8,7 @@ installation, or host plan.
 Contract ID:
 
 ```text
-voidbuye2v6r3pyruntimecontract1_6b88925643319fd7724f4fd66d115fd5ec9598a3c59a57cbc0a8c51737c8bae8
+voidbuye2v6r3pyruntimecontract1_80553976a9a5a241991a827f2b6913c08b22c27865136216dd66b21b07790df5
 ```
 
 ## Why this gate exists
@@ -20,6 +20,10 @@ ELF interpreter, DSOs, Python import roots, stdlib files, extension modules, and
 native dependencies.
 
 A Python binary hash alone is therefore not a complete execution identity.
+
+The planner also executes retained `/usr/bin/git` under UID/GID 1000 to establish
+source/tree/ancestry evidence. Git is therefore a second dynamic execution closure and
+cannot be left outside the production host gate.
 
 ## Bound upstream identity
 
@@ -38,6 +42,8 @@ python_flags=-I -B -S
 The planner's exact top-level standard-library import set is:
 `argparse, hashlib, json, os, pathlib, re, stat, subprocess, typing`.
 Repository-local Python imports are forbidden.
+The compile-time directive is also exact: one unaliased `from __future__ import annotations`
+and no other future feature.
 
 ## Required host census closure
 
@@ -64,6 +70,12 @@ A later separately reviewed read-only census must bind all of these:
   in static `DT_NEEDED` metadata; every observed runtime file must be in the manifest;
 - root-owned/non-writable ancestry and effective runtime-UID nonwritability for all
   execution-authority paths.
+- exact `/usr/bin/git` realpath/digest/size, PT_INTERP, transitive DSOs, RPATH/RUNPATH,
+  helpers/plugins/config file accesses, mapped ELFs, and terminal generation revalidation;
+- Git local/worktree config, object alternates, shallow boundary and graft metadata as
+  exact identities or explicit absence claims under the planner's clean Git environment;
+- a negative dependency/helper substitution fixture that must HOLD rather than emit
+  forged READY/GREEN source evidence.
 
 The census must be bounded (100,000 entries, 512 MiB per regular file, 16 MiB canonical
 report) and must remain **unaccepted source evidence** until a separate content-addressed
