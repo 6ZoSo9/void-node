@@ -337,3 +337,50 @@ host observer, privileged tree scan, post-`fexecve` isolation, wallet,
 signer, customer payments or live presale authority follows.
 
 PROTECT THE CORE.
+
+
+## Exact cumulative hash limit under concurrent file growth
+
+The source collector's earlier `stable_regular()` charged the original
+regular-file `st_size` against the shared hash budget, then **always**
+called `os.read(fd, 1)` to detect a file that grew. If the budget was
+already exhausted, that terminal probe could consume a byte beyond the
+claimed hard cumulative I/O ceiling before raising `regular_grew`.
+
+This source-only successor reserves **one extra budget byte before issuing
+the growth probe** whenever any allowance remains. At exact exhaustion,
+it does not issue another read; it checks the terminal opened descriptor
+and visible file generation, including size growth, and fails closed if
+the expected generation changed. EOF attempts are conservatively charged
+so the caller's budget cannot be exceeded even if an unexpected byte is
+returned. This does not weaken the existing `st_size`-before-open charge
+or stable visible-generation checks.
+
+Disposable adversaries cover: a file that succeeds under an exact-sized
+budget without a second `os.read`; a file that **grows immediately after
+its initially charged read** and is rejected without a terminal growth read
+at exhaustion; and a positive-budget path that charges the spare probe
+byte before calling `os.read(fd,1)`. Tests monkeypatch only the temporary
+fixture's in-process `os.read` and restore it afterwards, with no protected
+host execution or large allocations.
+
+```text
+parent_pr=3609
+parent_head=50f57c88f86b68e3cba98a04441f51957c3aaa4b
+new_source_git_blob=a3c7c19743f06eeb697a77608bf1f8a7658cf25b
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+credential_access=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+The default 8 GiB synthetic hash budget remains only a **source fixture**
+limit; this neither qualifies a host-specific runtime policy nor proves
+root/ACL/retained-FD custody, Python/Git loader/import identity or
+post-`fexecve` process isolation. A distinct security reviewer and
+new exact-head CI are required before source acceptance.
+
+**PROTECT THE CORE.**
