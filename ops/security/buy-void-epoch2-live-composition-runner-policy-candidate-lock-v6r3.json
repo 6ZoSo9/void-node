@@ -8,7 +8,7 @@
   "integration_base_head": "0ada7fde0d90c3946b10693f4621cbd690bfcde6",
   "integration_head": "8729f4ca54543228ee99d5a50afc6a394c77bb28",
   "integration_tree_binding": {
-    "method": "git_commit_sha1_transitively_binds_tree",
+    "method": "git_commit_object",
     "head": "8729f4ca54543228ee99d5a50afc6a394c77bb28",
     "verification_required": true
   },
