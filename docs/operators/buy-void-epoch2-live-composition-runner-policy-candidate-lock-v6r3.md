@@ -150,10 +150,10 @@ candidate_identity_job=118374985297
 
 candidate_id=voidbuye2runnerpolcand6r3_aaa50e1bbfe2303045336c03be2bacd504a736a0fd04f97d4f38be7e76fbba7d
 runner_git_blob=11a147d565bd0ee3ff48c4e3cb75d608b59e87b1
-runner_sha256=7f727f23d93e3c2e237f73cad448f9cf825f37f22bcdaf0eb5c050a5cbbf30e8
+runner_sha256=9302bcbdf70c3d4fd46be5deb0a2101ab09d51bf84171e43f2b5fb6e6b4f92a8
 runner_bytes=82972
 sealed_v3_git_blob=ad19417c7d25bfab532af3ea92f4a627d4cc857a
-lock_id=voidbuye2runnerpollock6r3_dea4081ea3ee00d2bb94279ceae023bb74f9b2322c74e5b80e73981cfe1a6783
+lock_id=voidbuye2runnerpollock6r3_72ecfe7a0d5aa87237520290cdf63cf0faef821931ef094ac0ec5dd1858e496f
 ```
 
 This successor closes the reviewed regular-file→FIFO credential-open liveness seam:
@@ -168,3 +168,14 @@ explicitly superseded. Historical identities are not relabeled.
 No protected install, live credential execution, signing, transaction/payment,
 activation, service mutation, treasury/liquidity action, or funds movement is
 authorized by this lock.
+
+
+### Hosted digest correction checkpoint
+
+The accepted nonblocking generation above uses the Runner SHA-256 emitted by its exact
+hosted candidate evidence (run 39344747264 / job 118374543666) and identity job
+(118374985297): `9302bcbdf70c3d4fd46be5deb0a2101ab09d51bf84171e43f2b5fb6e6b4f92a8`. The earlier transient draft value was not accepted.
+The corrected content-addressed lock ID is `voidbuye2runnerpollock6r3_72ecfe7a0d5aa87237520290cdf63cf0faef821931ef094ac0ec5dd1858e496f`, with lock Git blob
+`a9565f1dbe49e694ee07eb0cfdddb42d591d856b`.
+
+No runtime authority is widened by this documentation correction.
