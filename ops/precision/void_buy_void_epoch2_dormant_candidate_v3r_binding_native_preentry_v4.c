@@ -105,9 +105,15 @@ static void require_safe_ancestors(const char*p,const char*r){
   char b[PATH_MAX];size_t n=strlen(p);if(n==0||n>=sizeof(b)||p[0]!='/')hold(r);memcpy(b,p,n+1);require_safe_dir("/",r);
   for(size_t i=1;i<n;i++){if(b[i]!='/')continue;char s=b[i];b[i]='\0';require_safe_dir(b,r);b[i]=s;}
 }
+/* The lstat->open interval must not wait if a concurrent privileged writer
+ * substitutes a FIFO. The post-open fstat still requires an exact, root-owned
+ * regular file. No executable authority or pathname fallback is added. */
+static int open_leaf_nofollow_nonblocking(const char*p){
+  return open(p,O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
+}
 static int open_trusted(const char*p,bool executable,const char*r){
   require_safe_ancestors(p,r);struct stat before;if(lstat(p,&before)!=0||S_ISLNK(before.st_mode)||!safe_regular(&before,executable))hold(r);
-  int fd=open(p,O_RDONLY|O_CLOEXEC|O_NOFOLLOW);if(fd<0)hold(r);struct stat opened,visible;
+  int fd=open_leaf_nofollow_nonblocking(p);if(fd<0)hold(r);struct stat opened,visible;
   if(fstat(fd,&opened)!=0||lstat(p,&visible)!=0||!same_identity(&before,&opened)||!same_identity(&opened,&visible)||!safe_regular(&opened,executable)){close(fd);hold(r);}
   return fd;
 }
@@ -284,6 +290,27 @@ out:
   fclose(f);
   return ok;
 }
+/* Exercise the SAME fd opener on a private FIFO without a writer. An
+ * O_RDONLY open without O_NONBLOCK would hang before root-custody fstat.
+ * The real open_trusted retains all exact leaf/ancestor/generation checks. */
+static bool self_test_fifo_replacement_nonblocking(void){
+  char dir[]="/tmp/void-e2-dormant-preentry-leaf-XXXXXX";
+  if(mkdtemp(dir)==NULL)return false;
+  char fifo[PATH_MAX];int n=snprintf(fifo,sizeof(fifo),"%s/swapped",dir);
+  bool ok=false;
+  if(n>0&&(size_t)n<sizeof(fifo)&&mkfifo(fifo,0600)==0){
+    int fd=open_leaf_nofollow_nonblocking(fifo);
+    if(fd>=0){
+      struct stat observed;
+      ok=fstat(fd,&observed)==0&&S_ISFIFO(observed.st_mode)&&
+         !safe_regular(&observed,false);
+      close(fd);
+    }
+    (void)unlink(fifo);
+  }
+  (void)rmdir(dir);
+  return ok;
+}
 static int self_test_hold(bool post_source){
   child_created=true;proof_released=true;binder_source_release_started=post_source;
   hold(post_source?"self_test_post_source":"self_test_pre_source");
@@ -293,7 +320,8 @@ static int self_test(void){
   static const unsigned char abc_expected[32]={0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
   unsigned char h[32];sha256_buffer((const unsigned char*)"abc",3U,h);if(memcmp(h,abc_expected,32U)!=0)return 1;if(BINDER_BYTES!=62308U||strlen(BINDER_GIT_BLOB)!=40U)return 1;
   if(!self_test_sealed_source())return 1;
-  puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("binder_verified_sealed_memfd_source=true");puts("binder_same_inode_mutation_streams_only_accepted_bytes=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("source_runtime_two_head_contract=true");puts("runtime_policy_head_separate_from_source_head=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("failure_truth_boundary_test_modes=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
+  if(!self_test_fifo_replacement_nonblocking())return 1;
+  puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("binder_verified_sealed_memfd_source=true");puts("trusted_fifo_swap_open_nonblocking=true");puts("binder_same_inode_mutation_streams_only_accepted_bytes=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("source_runtime_two_head_contract=true");puts("runtime_policy_head_separate_from_source_head=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("failure_truth_boundary_test_modes=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
 }
 int main(int argc,char**argv){
   if(argc==2&&strcmp(argv[1],"--self-test")==0)return self_test();
