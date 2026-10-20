@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import hashlib,json,os
+
+import hashlib
+import json
+import os
 from pathlib import Path
-import subprocess,sys,tempfile
+import subprocess
+import sys
+import tempfile
 
 ROOT=Path(__file__).resolve().parents[1]
 LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.json"
 CANDIDATE=ROOT/"scripts/prove_buy_void_epoch2_live_composition_runner_policy_candidate_v6r3.py"
 CANDIDATE_WORKFLOW=ROOT/".github/workflows/buy-void-epoch2-live-composition-runner-policy-candidate-v6r3.yml"
 RUNNER=ROOT/"ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
+SEALED_V3=ROOT/"scripts/void_buy_void_epoch2_credential_attestation_sealed_v3.mjs"
 COMPAT_CONTRACT=ROOT/"ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py"
 COMPAT_PROOF=ROOT/"scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py"
 COMPAT_WORKFLOW=ROOT/".github/workflows/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.yml"
@@ -16,34 +22,51 @@ V6R2_LOCK=ROOT/"ops/security/buy-void-epoch2-live-composition-native-candidate-l
 
 MARKER="VOID_BUY_VOID_EPOCH2_LIVE_COMPOSITION_RUNNER_POLICY_CANDIDATE_LOCK_V6R3_MAIN_INTEGRATION"
 LOCK_PREFIX="voidbuye2runnerpollock6r3_"
-LOCK_ID="voidbuye2runnerpollock6r3_e65f2b3a34ce06a34bd2cc1e2f91e877fa3c6d67621fd02a191b1aae374a3a21"
-CANDIDATE_ID="voidbuye2runnerpolcand6r3_c2d5d08f412be224ad0f05745b5ce3e03dafb5a55d807632ae2b3ec6fb59c6b1"
+LOCK_ID="voidbuye2runnerpollock6r3_dea4081ea3ee00d2bb94279ceae023bb74f9b2322c74e5b80e73981cfe1a6783"
+CANDIDATE_ID="voidbuye2runnerpolcand6r3_aaa50e1bbfe2303045336c03be2bacd504a736a0fd04f97d4f38be7e76fbba7d"
 EXPECTED={
- CANDIDATE:"6bf1b8ce0cc49a83817453046990895f9ff1ff59",
+ CANDIDATE:"af7d6b8f34e273b99161bada37f88afa614fc137",
  CANDIDATE_WORKFLOW:"a0ddc4b6b070b77cc546c5c4beb02fdb3696672c",
- RUNNER:"2f17fd716f266fc1e12144799879d949983cc807",
+ RUNNER:"11a147d565bd0ee3ff48c4e3cb75d608b59e87b1",
+ SEALED_V3:"ad19417c7d25bfab532af3ea92f4a627d4cc857a",
  COMPAT_CONTRACT:"daedec8934ae0488c26650920497b1a08b117a25",
- COMPAT_PROOF:"95319ab4ccdf2e637c9d7d949c88aa92cce46c60",
+ COMPAT_PROOF:"c17b5d6fd3af8a3d8bc187930468c98a793dfdb3",
  COMPAT_WORKFLOW:"676fc24e89d67d1592e2ab1813b345f0ef1135db",
  V6R2_LOCK:"bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b",
 }
-RUNNER_SHA256="1685536b4717963dc35459695e80f13841e330ed278b88b6a5004134aab2a030"
+RUNNER_SHA256="7f727f23d93e3c2e237f73cad448f9cf825f37f22bcdaf0eb5c050a5cbbf30e8"
 RUNNER_BYTES=82972
 NATIVE_SHA256="85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
 def git_blob(raw:bytes)->str:
  return hashlib.sha1(b"blob "+str(len(raw)).encode("ascii")+b"\0"+raw).hexdigest()
-def sha256(raw:bytes)->str:return hashlib.sha256(raw).hexdigest()
+
+def sha256(raw:bytes)->str:
+ return hashlib.sha256(raw).hexdigest()
+
 def canonical(v:object)->bytes:
  return json.dumps(v,sort_keys=True,separators=(",",":"),ensure_ascii=True).encode("ascii")
+
 def exact(path:Path,maximum:int)->bytes:
- st=path.lstat()
- assert st.st_nlink==1 and st.st_size>0 and st.st_size<=maximum and not path.is_symlink()
- raw=path.read_bytes()
- st2=path.lstat()
- assert (st.st_dev,st.st_ino,st.st_size,st.st_mtime_ns,st.st_ctime_ns)==(st2.st_dev,st2.st_ino,st2.st_size,st2.st_mtime_ns,st2.st_ctime_ns)
- return raw
+ before=path.lstat()
+ assert before.st_nlink==1 and before.st_size>0 and before.st_size<=maximum and not path.is_symlink()
+ fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW)
+ try:
+  opened=os.fstat(fd)
+  assert (opened.st_dev,opened.st_ino,opened.st_mode,opened.st_uid,opened.st_gid,opened.st_nlink,opened.st_size)==(
+   before.st_dev,before.st_ino,before.st_mode,before.st_uid,before.st_gid,before.st_nlink,before.st_size)
+  chunks=[]; remaining=opened.st_size
+  while remaining:
+   chunk=os.read(fd,min(64*1024,remaining)); assert chunk
+   chunks.append(chunk); remaining-=len(chunk)
+  assert os.read(fd,1)==b""
+  after=os.fstat(fd); visible=path.lstat()
+  for field in ("st_dev","st_ino","st_mode","st_uid","st_gid","st_nlink","st_size","st_mtime_ns","st_ctime_ns"):
+   assert getattr(opened,field)==getattr(after,field)==getattr(visible,field)
+  return b"".join(chunks)
+ finally:
+  os.close(fd)
 
 for path,want in EXPECTED.items():
  assert git_blob(exact(path,4*1024*1024))==want,(path,want)
@@ -51,21 +74,20 @@ for path,want in EXPECTED.items():
 raw_lock=exact(LOCK,256*1024)
 lock=json.loads(raw_lock)
 assert lock["schema"]=="void_buy_void_epoch2_live_composition_runner_policy_candidate_lock_v6r3"
-assert lock["version"]==6
+assert lock["version"]==7
 assert lock["repository"]=="6ZoSo9/void-node"
 assert lock["integration_pr"]==3546
 assert lock["integration_base_head"]=="0ada7fde0d90c3946b10693f4621cbd690bfcde6"
-assert lock["integration_head"]=="613156021f2bea1f14b2ef6f5f281e476138ec70"
-assert lock["integration_tree"]=="e8dab55d99b0a2c6d846221e83825ef595e504b4"
-assert lock["stacked_source_head_superseded_for_current_authority"]=="cb8554553dcc97e4abb5a9f8f15a26a487773fb5"
+assert lock["integration_head"]=="72ca08e87e379594af04060fc65f009e38860d74"
+assert lock["integration_tree"]=="b6a52866b3d40d65f721d9465f8b6b18ea2c1339"
 assert lock["compatibility_hosted_evidence"]=={
  "workflow":"Buy VOID Epoch-2 live-binding source/runtime compatibility contract V1",
- "run_id":39339962805,"job_id":118358769619,"conclusion":"success",
+ "run_id":39344749462,"job_id":118374548791,"conclusion":"success",
 }
 assert lock["candidate_hosted_evidence"]=={
  "workflow":"Buy VOID Epoch-2 live-composition runner policy candidate V6R3",
- "run_id":39339961945,"job_id":118358767699,
- "identity_job_id":118359008105,"conclusion":"success",
+ "run_id":39344747264,"job_id":118374543666,
+ "identity_job_id":118374985297,"conclusion":"success",
 }
 r=lock["candidate_report"]
 assert r["candidate_id"]==CANDIDATE_ID
@@ -76,10 +98,11 @@ assert r["compat_proof_git_blob_sha1"]==EXPECTED[COMPAT_PROOF]
 assert r["compat_workflow_git_blob_sha1"]==EXPECTED[COMPAT_WORKFLOW]
 assert r["runner_source_git_blob_sha1"]==EXPECTED[RUNNER]
 assert r["runner_sha256"]==RUNNER_SHA256 and r["runner_bytes"]==RUNNER_BYTES
+assert r["sealed_v3_git_blob_sha1"]==EXPECTED[SEALED_V3]
+assert r["sealed_v3_credential_open_nonblocking"] is True
+assert r["sealed_v3_fifo_race_rejected"] is True
 assert r["runtime_head"]==RUNTIME_HEAD
 sc=r["source_compatibility"]
-assert sc["historical_compat_v3_identity_recorded"] is True
-assert sc["historical_compat_v3_materialization_required"] is False
 assert sc["runtime_ancestor_required"] is True
 assert sc["actual_object_ancestry_required"] is True
 assert sc["revision_walk_metadata_authority"] is False
@@ -90,27 +113,42 @@ assert sc["untracked_paths_source_authority"] is False
 assert sc["canonical_git_dir_worktree_pinned_required"] is True
 assert sc["sealed_probe_runtime_release_cwd_required"] is True
 assert sc["runtime_release_root_custody_required"] is True
-assert sc["runtime_release_path"]=="/opt/void-node-live/releases/4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 assert r["native_binary_sha256"]==NATIVE_SHA256
 assert r["native_binary_identity_reused"] is True
 assert r["native_binary_rebuild_required"] is False
 assert r["policy_runtime_expected_head"]==RUNTIME_HEAD
 assert r["source_head_must_not_replace_policy_runtime_head"] is True
-for k in ("candidate_accepted","runner_identity_accepted","native_reuse_identity_accepted","policy_template_accepted"):
+for k in ("candidate_accepted","runner_identity_accepted","native_reuse_identity_accepted","policy_template_accepted","sealed_v3_identity_accepted"):
  assert lock[k] is True
 for k in ("protected_install_authorized","live_execution_authorized","credential_access_authorized","private_key_access_authorized","signing_authorized","transaction_authorized","rpc_call_authorized","payment_acceptance_authorized","public_presale_activation_authorized","wc_void_market_activation_authorized","treasury_liquidity_action_authorized","funds_movement_authorized","production_host_evidence_authority"):
  assert lock[k] is False,k
 assert lock["superseded_install_authority"] is False
-assert "voidbuye2runnerpollock6r3_bdd3e0b6fe28f2a6873920cdb1436914183e817c02b4d4ac9da130e3ec14b365" in lock["superseded_lock_ids"]
-assert "voidbuye2runnerpollock6r3_1c5c5b31abd01aa6cf3f080b2cf666980f18a6a2daf22700127fd6d84951f74c" in lock["superseded_lock_ids"]
-assert "voidbuye2runnerpollock6r3_7cce6937b504ce5ec9dd1fe7aaa303763035f9d6486a081619be346793787dc7" in lock["superseded_lock_ids"]
-assert "voidbuye2runnerpolcand6r3_a9f60a75a96d74c9bbae89f6d9867886f6fb9b60b9a7bd7da4137c4502c2557f" in lock["superseded_candidate_ids"]
-assert "voidbuye2runnerpolcand6r3_c82e554cbc92600aa4a91f6d25c43e437526c670b1509a2c6435c7e8edf55a0d" in lock["superseded_candidate_ids"]
-assert "voidbuye2runnerpolcand6r3_8ffc05fc997f4dc19a3174ca588b812afd126565235361bb6048170701ba1af1" in lock["superseded_candidate_ids"]
-assert "voidbuye2runnerpollock6r3_7dd8db2619e9c02ef8120e6d5e4e716946b991787dea7128fb51ed63290e4af7" in lock["superseded_lock_ids"]
+assert "voidbuye2runnerpolcand6r3_c2d5d08f412be224ad0f05745b5ce3e03dafb5a55d807632ae2b3ec6fb59c6b1" in lock["superseded_candidate_ids"]
+assert "voidbuye2runnerpollock6r3_e65f2b3a34ce06a34bd2cc1e2f91e877fa3c6d67621fd02a191b1aae374a3a21" in lock["superseded_lock_ids"]
 assert lock["next_gate"]=="void_buy_void_epoch2_live_composition_runner_policy_upgrade_v6r3_plan"
 material=dict(lock); observed=material.pop("lock_id")
 assert observed==LOCK_ID==LOCK_PREFIX+sha256(canonical(material))
+
+node="/usr/bin/node"
+sealed_cp=subprocess.run(
+ [node,str(SEALED_V3),"--self-test"],stdin=subprocess.DEVNULL,
+ stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding="utf-8",errors="strict",
+ env={"PATH":"/usr/bin:/bin","HOME":"/nonexistent","LANG":"C","LC_ALL":"C","TZ":"UTC"},
+ cwd=str(ROOT),timeout=30,check=False,
+)
+assert sealed_cp.returncode==0,(sealed_cp.stdout,sealed_cp.stderr)
+assert sealed_cp.stderr=="",sealed_cp.stderr
+sealed_lines=set(sealed_cp.stdout.splitlines())
+for line in (
+ "VOID_BUY_VOID_EPOCH2_CREDENTIAL_ATTESTATION_SEALED_V3_SELF_TEST_GREEN",
+ "credential_regular_to_fifo_race_rejected=true",
+ "credential_open_nonblocking_required=true",
+ "credential_content_read=false",
+ "signing_performed=false",
+ "transaction_constructed=false",
+ "funds_movement=false",
+):
+ assert line in sealed_lines,line
 
 with tempfile.TemporaryDirectory(prefix="void-v6r3-main-lock-proof-") as td:
  out=Path(td)/"candidate.json"
@@ -133,13 +171,11 @@ print(MARKER+"_PROOF_GREEN")
 print("lock_id="+LOCK_ID)
 print("candidate_id="+CANDIDATE_ID)
 print("main_based_integration_proven=true")
+print("nonblocking_sealed_v3_identity_bound=true")
+print("credential_fifo_race_rejected=true")
 print("stacked_lock_authority_superseded=true")
 print("candidate_hosted_evidence_bound=true")
 print("compatibility_hosted_evidence_bound=true")
-print("historical_compat_v3_materialization_required=false")
-print("actual_object_ancestry_required=true")
-print("revision_walk_metadata_authority=false")
-print("graft_ancestry_authority=false")
 print("protected_install_authorized=false")
 print("credential_access_authorized=false")
 print("signing_authorized=false")
