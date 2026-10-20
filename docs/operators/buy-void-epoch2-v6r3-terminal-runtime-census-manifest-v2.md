@@ -210,3 +210,58 @@ funds_movement=false
 ```
 
 PROTECT THE CORE.
+
+
+
+## Aggregate file-hash read/I/O budget — new source-only descendant
+
+The prior collector bounded **each** regular input file to 512 MiB and bounded
+display-name/report bytes, but up to 100,000 regular files (or symlinks
+which repeatedly resolve to the same large regular target) could still
+trigger a vastly larger cumulative amount of read-and-hash I/O before a
+small final JSON report would be rejected. This is a future protected
+host-observer **availability bound**, not an observed attack or existing
+authorized host census.
+
+One source-only `_HashReadBudget` is now shared by the entire
+`collect_tree()` traversal: ordinary `stable_regular()` files and every
+`symlink_record()` resolved regular-file digest charge their full size
+**before opening and reading**. The default synthetic ceiling is 8 GiB,
+bounded by `MAX_TOTAL_HASH_BYTES`; no caller can request a higher value
+or a negative/boolean budget. The exact number remains a *source fixture
+policy*, not a claim that 8 GiB is sufficient for a particular approved
+production Python/Git root. Host acceptance must separately choose and
+review that limit.
+
+A disposable fixture proves that a budget sufficient for all unique regular
+files but not their symlink rehashes HOLDS. The combined regular+symlink
+budget reproduces the same positive inventory. An injected `os.open`
+sentinel proves an exhausted budget rejects **before** the next regular
+file open; invalid budget values are separately rejected. No large
+allocations or privileged filesystem operations are used.
+
+The preceding 16 MiB aggregate display-name/string and 4096-byte
+per-logical-path bounds, stable regular generation checks, symlink-hop
+confinement, V2 contract/binary lock and explicitly false installed/host/
+payment authority remain unchanged.
+
+```text
+parent_pr=3607
+parent_head=2d68d5a928feeac66e043ce156770f6f858ef2d8
+repaired_source_git_blob=bb76f730d63250e658831f44baf307663bbb2c6b
+MAX_TOTAL_HASH_BYTES=8589934592
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+protected_install_authorized=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+This is source/test/CI only. A production collector also needs validated
+root/ACL/directory-FD custody, complete runtime Python/Git loader/import/
+helper observation, terminal generation checks, post-`fexecve` isolation,
+distinct independent security review and installation qualification.
+
+**PROTECT THE CORE.**
