@@ -18,7 +18,7 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_postmerge_source_runtime_compat_v1.py"
-TARGET_BLOB = "ad3837d5b40c54949bcedd918d7725602c632960"
+TARGET_BLOB = "231c5b37a79226f76f4a338cb3343dc04a79d24b"
 MARKER = _EARLY_MARKER
 
 
@@ -49,10 +49,10 @@ for required in (
     'reason=python_isolation_required',
     'reason=python_optimization_forbidden',
     'RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
-    'SOURCE_BASE_HEAD = "fd8131500330d8f8d51caa8275db456338c0a878"',
-    'SOURCE_BASE_TREE = "ff80027780ba8a037a56e0a322849420dae88565"',
+    'SOURCE_BASE_HEAD = "4fd0351b5cff19a4e851ace4f91b249617033cbc"',
+    'SOURCE_BASE_TREE = "3b8b91ee0af25039fd785d6aea725083849bc714"',
     'len(BASE_ADDITIONS) == 21',
-    'len(BASE_MODIFICATIONS) == 3',
+    'len(BASE_MODIFICATIONS) == 16',
     'len(SELF_ADDITIONS) == 4',
     'len(RUNTIME_SENSITIVE_EQUAL) == 5',
     'runtime_source_exact_reviewed_delta',
@@ -134,7 +134,7 @@ for line in (
     "VOID_BUY_VOID_V7_POSTMERGE_SOURCE_RUNTIME_COMPAT_V1_SELF_TEST_GREEN",
     "python_isolated_execution_required=true",
     "python_unoptimized_execution_required=true",
-    "runtime_to_source_base_exact_21_add_3_modify_required=true",
+    "runtime_to_source_base_exact_21_add_16_modify_required=true",
     "compatibility_self_scope_exact_four_additions_required=true",
     "runtime_sensitive_five_path_identity_equality_required=true",
     "tracked_source_checkout_exact_required=true",
@@ -176,7 +176,7 @@ assert "source_only=true" in plan.stdout.splitlines()
 assert '"python_isolated_execution_required":true' in plan.stdout
 assert '"python_unoptimized_execution_required":true' in plan.stdout
 assert '"base_added_path_count":21' in plan.stdout
-assert '"base_modified_path_count":3' in plan.stdout
+assert '"base_modified_path_count":16' in plan.stdout
 assert '"filesystem_write_authorized":false' in plan.stdout
 assert '"payment_acceptance_authorized":false' in plan.stdout
 assert '"funds_movement_authorized":false' in plan.stdout
@@ -201,7 +201,7 @@ assert "status=GREEN" in verify_lines
 assert '"python_isolated_execution":true' in verify.stdout
 assert '"python_unoptimized_execution":true' in verify.stdout
 assert '"base_added_path_count":21' in verify.stdout
-assert '"base_modified_path_count":3' in verify.stdout
+assert '"base_modified_path_count":16' in verify.stdout
 assert '"compatibility_self_added_path_count":4' in verify.stdout
 assert '"runtime_sensitive_equal_path_count":5' in verify.stdout
 assert '"tracked_source_checkout_exact":true' in verify.stdout
@@ -214,7 +214,7 @@ print(MARKER + "_GREEN")
 print("target_blob=" + TARGET_BLOB)
 print("python_isolated_execution_bound=true")
 print("python_unoptimized_execution_bound=true")
-print("runtime_to_source_base_exact_21_add_3_modify_bound=true")
+print("runtime_to_source_base_exact_21_add_16_modify_bound=true")
 print("compatibility_self_scope_exact_four_additions_bound=true")
 print("runtime_sensitive_five_path_identity_equality_bound=true")
 print("full_tracked_worktree_bytes_bound=true")

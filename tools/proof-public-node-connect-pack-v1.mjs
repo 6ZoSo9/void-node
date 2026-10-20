@@ -21,11 +21,15 @@ if (data.marker !== marker) throw new Error('marker mismatch');
 if (data.expected_green_marker !== green) throw new Error('green marker mismatch');
 if (data.status !== 'connect_pack_ready') throw new Error('status mismatch');
 if (data.chain_id !== 2050) throw new Error('chain id mismatch');
+if (data.example_commands?.verify_peers !== "curl -fsS http://127.0.0.1:4100/p2p/peers | jq .") throw new Error('peer command mismatch');
+if (!data.operator_flow?.includes('Verify local /p2p/peers.')) throw new Error('operator flow peer route mismatch');
+if (!data.safe_evidence?.includes('local /p2p/peers output')) throw new Error('safe evidence peer route mismatch');
 
 for (const route of [
   '/__void/public-bootstrap.json',
   '/bootstrap/network.json',
   '/bootstrap/peers.json',
+  '/p2p/peers',
   '/public-node/connect',
   '/public-node/connect/public-node-connect-pack-v1.json',
   '/public-node/connect/public-node-connect-pack-v1.html'
@@ -51,10 +55,15 @@ for (const [k, want] of Object.entries({
   if (data.boundary?.[k] !== want) throw new Error(`boundary ${k} expected ${want}, got ${data.boundary?.[k]}`);
 }
 
+for (const [surfaceName, surface] of Object.entries({ doc, html, json: JSON.stringify(data) })) {
+  if (surface.includes('127.0.0.1:4100/peers')) throw new Error(`${surfaceName} retains obsolete peer command`);
+}
+
 for (const needle of [
   marker,
   'p2p/dial',
   'bootstrap/peers.json',
+  '/p2p/peers',
   'not validator admission',
   'public internet mesh claim'
 ]) {

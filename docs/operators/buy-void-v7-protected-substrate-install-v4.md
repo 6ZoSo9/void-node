@@ -377,3 +377,27 @@ verification and protected-source copying.
 This closes only the privileged traversal ordering/custody gap. It does not grant
 merge, protected filesystem apply, service/systemd, credential/key/wallet, signing,
 transaction/payment/activation, treasury/liquidity or funds authority.
+
+## Post-merge Python first-import repair — October 20, 2026
+
+The accepted V4 source in #3539 was merged as `main@fd8131500330d8f8d51caa8275db456338c0a878`.
+The root-capable installer used a `from __future__ import annotations` directive
+before its built-in `sys` isolation/safe-path guard. That directive emits a
+runtime import of `__future__`. On a **non-isolated `python3 -S` invocation
+from a writable checkout**, a sibling `__future__.py` could execute before
+the installer emitted its otherwise-correct HOLD. This is a conditional
+unsafe-invocation issue, **not evidence of host compromise**. It does not affect
+the mandatory trusted root-custodied isolated launcher contract.
+
+The repair removes the unnecessary future directive so the first executable
+import is only built-in `sys`, and the isolation/safe-path guard runs before
+any checkout-resolvable module import. The focused regression uses disposable
+`-S -B` subprocesses: a deliberately restored unsafe future import must
+execute the shadow-module fixture before HOLD, while the repaired installer
+must HOLD with no marker. Existing isolated self-test/source-plan proofs and
+all root source/Git/ACL/descriptor controls remain mandatory.
+
+This source-only change does not perform protected `/opt` installation,
+qualify the installed runtime, activate presale/WC, sign, broadcast transactions,
+or authorize treasury/funds movements. **KEEP DRAFT/HOLD for exact-head CI and
+independent review**; a separate post-landing operator gate is still required.

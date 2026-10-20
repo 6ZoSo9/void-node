@@ -34,10 +34,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           case "$EVENT_NAME" in
             pull_request) base="$PR_BASE" ;;
-            workflow_dispatch) base="0ada7fde0d90c3946b10693f4621cbd690bfcde6" ;;
+            workflow_dispatch) base="fd8131500330d8f8d51caa8275db456338c0a878" ;;
             *) exit 1 ;;
           esac
-          test "$base" = "0ada7fde0d90c3946b10693f4621cbd690bfcde6"
+          test "$base" = "fd8131500330d8f8d51caa8275db456338c0a878"
           git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
           expected="$RUNNER_TEMP/expected.txt"
           actual="$RUNNER_TEMP/actual.txt"
@@ -45,7 +45,6 @@ jobs:
             '.github/workflows/buy-void-v7-protected-substrate-install-v4.yml' \
             'docs/operators/buy-void-v7-protected-substrate-install-v4.md' \
             'ops/precision/void_buy_void_v7_protected_substrate_install_v4.py' \
-            'ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py' \
             'scripts/prove_buy_void_v7_protected_substrate_install_v4.py' \
             | sort > "$expected"
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
@@ -55,9 +54,9 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-protected-substrate-candidate-lock-v1.json)" = "831f6e3f79a62a334662cebc6d2c39133bc7a309"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py)" = "56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py)" = "ea3c31180810ea4efe4341683742827dcf6ac5ac"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "0dc070665b2bb3a786e0e7d2a91a1a25326e2adc"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v4.py)" = "b730fb8a81880199e3bd36d5608b7b13564512b0"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v4.md)" = "eb9361f5b6da964d1cfe8ee0eaa761f7e5e25656"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v4.py)" = "80aa7ca5f50afe899560acaa9115ce7a28d01192"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v4.md)" = "e52c6b928502314d14c2ae65378d5eea62b10f99"
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -70,6 +69,7 @@ jobs:
           python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py
           python3 -I -B scripts/prove_buy_void_v7_protected_substrate_install_v4.py | tee "$RUNNER_TEMP/proof.log"
           grep -Fx 'VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4_PROOF_GREEN' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'installer_no_pre_guard_checkout_future_import=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'immutable_source_release_root_mode_0555_required=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'protected_source_root_mode_0755_required=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'installed_qualifier_v3_bound=true' "$RUNNER_TEMP/proof.log"

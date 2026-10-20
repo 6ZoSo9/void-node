@@ -32,13 +32,13 @@
     },
     {
       "order": 4,
-      "title": "Dial a peer manually",
+      "title": "Open the manual peer-dial instructions",
       "route": "/public-node/connect/public-node-connect-pack-v1.json"
     },
     {
       "order": 5,
       "title": "Verify local health and peers",
-      "route": "/health and /peers on the operator node"
+      "route": "/health and /p2p/peers on the operator node"
     },
     {
       "order": 6,

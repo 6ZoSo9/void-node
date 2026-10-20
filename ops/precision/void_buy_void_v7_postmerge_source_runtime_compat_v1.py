@@ -28,8 +28,8 @@ VERSION = 1
 
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 RUNTIME_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
-SOURCE_BASE_HEAD = "fd8131500330d8f8d51caa8275db456338c0a878"
-SOURCE_BASE_TREE = "ff80027780ba8a037a56e0a322849420dae88565"
+SOURCE_BASE_HEAD = "4fd0351b5cff19a4e851ace4f91b249617033cbc"
+SOURCE_BASE_TREE = "3b8b91ee0af25039fd785d6aea725083849bc714"
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 
 SELF_ADDITIONS = (
@@ -42,15 +42,15 @@ SELF_ADDITIONS = (
 BASE_ADDITIONS: dict[str, tuple[str, str, int]] = {
     ".github/workflows/buy-void-v7-materializer-v2-install-v3.yml": ("100644", "c689997ecdf97e58c3fedf96a7cae2fb6f76c8a2", 4403),
     ".github/workflows/buy-void-v7-protected-substrate-install-v2.yml": ("100644", "f2bfa4df16c4c4a69be275dd504b7a458512e7db", 5672),
-    ".github/workflows/buy-void-v7-protected-substrate-install-v4.yml": ("100644", "5b640d01fc488e6b5d38f822a6736eab1b0c9c37", 9532),
+    ".github/workflows/buy-void-v7-protected-substrate-install-v4.yml": ("100644", "49e7c0c169df3a1c752ff1eaff247ab19d17ba12", 9532),
     "docs/operators/buy-void-v7-materializer-v2-install-v3.md": ("100644", "91a9c04c02ba4ddbe5417e03b73efe0e71605e81", 1980),
     "docs/operators/buy-void-v7-protected-substrate-install-v2.md": ("100644", "a6d81892b9493258e7c8f4aaf8ac4981955ec42a", 4628),
-    "docs/operators/buy-void-v7-protected-substrate-install-v4.md": ("100644", "eb9361f5b6da964d1cfe8ee0eaa761f7e5e25656", 20642),
+    "docs/operators/buy-void-v7-protected-substrate-install-v4.md": ("100644", "e52c6b928502314d14c2ae65378d5eea62b10f99", 22159),
     "docs/operators/buy-void-v7-protected-substrate-source-proposal-v3.md": ("100644", "78190cd9f71e4dd0ee4f7fdc1144b70fc644db8c", 967),
     "ops/precision/void_buy_void_v7_protected_substrate_install_v1.py": ("100755", "9f7f035b814549dad9cc6eeee3620d2c04b95d8a", 4762),
     "ops/precision/void_buy_void_v7_protected_substrate_install_v2.py": ("100755", "aae2d1a011053ea0665bf07972d9670cca73f6da", 36881),
     "ops/precision/void_buy_void_v7_protected_substrate_install_v3.py": ("100755", "4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38", 36987),
-    "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py": ("100644", "0dc070665b2bb3a786e0e7d2a91a1a25326e2adc", 86934),
+    "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py": ("100644", "6e187a9a6e782df13ecd423fc80c82b759a8f6db", 87048),
     "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py": ("100755", "56a7ca798553766af525d9fb1ccbe58b70fe9c1d", 11949),
     "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py": ("100644", "ea3c31180810ea4efe4341683742827dcf6ac5ac", 29366),
     "ops/security/buy-void-v7-protected-substrate-candidate-lock-v1.json": ("100644", "831f6e3f79a62a334662cebc6d2c39133bc7a309", 2756),
@@ -59,7 +59,7 @@ BASE_ADDITIONS: dict[str, tuple[str, str, int]] = {
     "scripts/materialize_buy_void_v7_protected_substrate_v2.py": ("100755", "474614da950db72082fb95a5174405ce8caf2513", 7922),
     "scripts/prove_buy_void_v7_materializer_v2_install_v3.py": ("100755", "c853547fe037ced8fbaa63da11987343c9f0ee4e", 4030),
     "scripts/prove_buy_void_v7_protected_substrate_install_v2.py": ("100755", "7d09250dab932971e18171d667bfb98994e05e7e", 7950),
-    "scripts/prove_buy_void_v7_protected_substrate_install_v4.py": ("100644", "b730fb8a81880199e3bd36d5608b7b13564512b0", 24537),
+    "scripts/prove_buy_void_v7_protected_substrate_install_v4.py": ("100644", "80aa7ca5f50afe899560acaa9115ce7a28d01192", 26105),
     "scripts/prove_buy_void_v7_protected_substrate_source_proposal_v3.py": ("100755", "568bd08c6c3a120864a6b4f69a8d5b5cb41f5f72", 3464),
 }
 
@@ -67,6 +67,18 @@ BASE_MODIFICATIONS: dict[
     str,
     tuple[tuple[str, str, int], tuple[str, str, int]],
 ] = {
+    "docs/public/public-node-connect-pack-v1.md": (
+        ("100644", "695a6658bc74a9ac652dec9da5ccbd774ee805a1", 2115),
+        ("100644", "8cdc928f3ee6d7d6eebc2a7a00ba582ed884ec5c", 2127),
+    ),
+    "docs/public/public-node-operator-quickstart-v1.md": (
+        ("100644", "9e5e0a968e4ed06fd589f33eeeb64b87ff87de95", 1924),
+        ("100644", "ce5e9c86f69e956899d9396eb2713e9f21440111", 1948),
+    ),
+    "docs/public/void-p2p-udp-swarm-relay-orchestrator-v1.md": (
+        ("100644", "ad10984200beceac95b05e809c5304ad4fe2ec8c", 3150),
+        ("100644", "6eaf00cab3c45bf1813ac965f45931ed3913d0e7", 3951),
+    ),
     "public/bootstrap/tor-signed-v1.json": (
         ("100644", "82e964dae62873dd95c28c5791b12c9d678e8fab", 1844),
         ("100644", "5d74430ff5452d86044d0a1ae5c5f3af34e17a4a", 1844),
@@ -75,9 +87,49 @@ BASE_MODIFICATIONS: dict[
         ("100644", "e0caed35ceadffaebba0257cefaa172fd2ee1164", 1166),
         ("100644", "08d944e7a7b84059e2baf623d2ad7aa3f0cf55e5", 1166),
     ),
+    "public/public-node/connect/index.html": (
+        ("100644", "40e6059b1044c509be2e3cc79b071ccc43d37d5d", 2119),
+        ("100644", "b3f8ad4802541fdd3f5a0c98511a03328a4f8b89", 2123),
+    ),
+    "public/public-node/connect/public-node-connect-pack-v1.html": (
+        ("100644", "80d19367ec3c3d0642db47bfac2c02ddd9d6d4ff", 2048),
+        ("100644", "1f4f3d7210fa095e9c7a261ee18cff532542317d", 2052),
+    ),
+    "public/public-node/connect/public-node-connect-pack-v1.json": (
+        ("100644", "16b1a104626650e8b06f19d052a73ad69293cddf", 2630),
+        ("100644", "ca7ad76a69f3440965c9fd14ec78a0255f718ed0", 2642),
+    ),
+    "public/public-node/operator-quickstart-v1.html": (
+        ("100644", "2611d7b24e035ed3bf942ce68dac69c88d9a0716", 1834),
+        ("100644", "612b7823e74f430c31d0cb18a89cf7b7cfd6deaf", 2297),
+    ),
+    "public/public-node/public-node-operator-quickstart-v1.html": (
+        ("100644", "2611d7b24e035ed3bf942ce68dac69c88d9a0716", 1834),
+        ("100644", "612b7823e74f430c31d0cb18a89cf7b7cfd6deaf", 2297),
+    ),
+    "public/public-node/public-node-operator-quickstart-v1.json": (
+        ("100644", "ed1efe170f7ec33fe57baed4232be75dd863d9d6", 2704),
+        ("100644", "5f9739056fb65cefd5b3ac67a7316321daa7b182", 2726),
+    ),
+    "scripts/prove_void_p2p_udp_swarm_relay_orchestrator_v1.ts": (
+        ("100644", "3c06ddf5141af8d69ee46e1d872b3cafd508e315", 5866),
+        ("100644", "ab02b71a42ebf3d27982010d5d50d03fc9f7e43d", 20156),
+    ),
     "scripts/prove_void_tor_bootstrap_manifest_candidate_v1.mjs": (
         ("100644", "44d998e55aea52dd20155d70d481737e73f6f9fa", 9980),
         ("100644", "3b2fc33060f58837ecda47b725a421779e7d3131", 10597),
+    ),
+    "src/p2p/udp_swarm_relay_orchestrator_v1.ts": (
+        ("100644", "fd1bf99239c57b51dea4dcafcbccb22f83cc0175", 16557),
+        ("100644", "545de52c829344f6c72f439c9aaa4f65fe20bd92", 17929),
+    ),
+    "tools/proof-public-node-connect-pack-v1.mjs": (
+        ("100644", "0ac46e702095c538351fc36afa85de44da77b09c", 2186),
+        ("100644", "21f805470be92f6ef76b732b28fbd9b30f3ddccc", 2803),
+    ),
+    "tools/proof-public-node-operator-quickstart-v1.mjs": (
+        ("100644", "a3b5590b529a69790199b32fc150c7db160a5737", 3418),
+        ("100644", "73d0be291bdffdb1e5a9697dff8540ff5cc7f426", 4911),
     ),
 }
 
@@ -735,7 +787,7 @@ def build_plan() -> dict[str, object]:
 
 def self_test() -> None:
     assert len(BASE_ADDITIONS) == 21
-    assert len(BASE_MODIFICATIONS) == 3
+    assert len(BASE_MODIFICATIONS) == 16
     assert len(SELF_ADDITIONS) == 4
     assert len(RUNTIME_SENSITIVE_EQUAL) == 5
     runtime = {
@@ -983,7 +1035,7 @@ def self_test() -> None:
     print(MARKER + "_SELF_TEST_GREEN")
     print("python_isolated_execution_required=true")
     print("python_unoptimized_execution_required=true")
-    print("runtime_to_source_base_exact_21_add_3_modify_required=true")
+    print("runtime_to_source_base_exact_21_add_16_modify_required=true")
     print("compatibility_self_scope_exact_four_additions_required=true")
     print("runtime_sensitive_five_path_identity_equality_required=true")
     print("tracked_source_checkout_exact_required=true")
