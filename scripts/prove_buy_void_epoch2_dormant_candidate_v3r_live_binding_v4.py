@@ -12,10 +12,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 BINDER = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs"
 PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c"
 
-BINDER_BLOB = "6159eb6f79c0dfccafd31484415b92eefaa06662"
-BINDER_SHA256 = "f1b6cd8235641cc51bbf682526774abadf814da2066e0e6b7035ca9d58277cd2"
-BINDER_BYTES = 50894
-PREENTRY_BLOB = "cdd647e8ef49f234eea1e5fbd933148a31014eef"
+BINDER_BLOB = "5c3f2f8f6d49e67017ad30e6c61bd8af6a11a3ab"
+BINDER_SHA256 = "a66dfc54a7cbaed0257119fb5f6ee0d4cd094c31ad0407358219601f466fcf11"
+BINDER_BYTES = 52936
+PREENTRY_BLOB = "87a2efeb8ba5ef3d07d79f665931d5ece9976f78"
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
 CANDIDATE_REL = "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v4.json"
@@ -91,6 +91,13 @@ for forbidden in (
 # The only allowed first-exec transport is an inherited verified descriptor.
 for required in (
     'function openRetainedTrustedExecutable(',
+    'requireRootOwnedExecutableAncestors(file,label);',
+    'const st=fs.lstatSync(file,{bigint:true});',
+    'const real=fs.realpathSync.native(file);',
+    'if(real!==file)',
+    'trusted_executable_configured_path_not_canonical',
+    'configured_lexical_alias_self_test_failed',
+    'configured_symlink_ancestor_self_test_failed',
     'function requireRootOwnedExecutableAncestors(',
     'function requireRuntimeUidNonwritable(',
     'function runRetainedTrustedExecutable(',
@@ -224,6 +231,8 @@ for mode in ("--self-test", "--plan"):
             "binder_root_executable_ancestor_custody_required=true",
             "binder_runtime_uid_acl_custody_required=true",
             "binder_retained_exec_path_rebind_rejected=true",
+            "binder_configured_original_path_custody_required=true",
+            "binder_configured_symlink_alias_rejected=true",
             "transaction=false",
             "public_presale_activation=false",
             "funds_movement=false",
@@ -317,6 +326,7 @@ print("runner_v4_child_source_checkout_drift_rejected=true")
 print("runtime_policy_sha256_compile_constant_absent=true")
 print("binder_retained_root_exec_source_bound=true")
 print("binder_ancestor_and_runtime_acl_guard_source_bound=true")
+print("binder_configured_original_path_symlink_guard_source_bound=true")
 print("runtime_policy_authenticated_by_native_preentry=true")
 print("historical_generation_overclaim_absent=true")
 print("native_preentry_binds_exact_binder_bytes=true")

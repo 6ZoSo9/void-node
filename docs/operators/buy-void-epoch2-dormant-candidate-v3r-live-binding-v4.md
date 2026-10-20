@@ -98,10 +98,10 @@ historical compatibility V3 output.
 ## Exact source identities
 
 ```text
-binder_git_blob=6159eb6f79c0dfccafd31484415b92eefaa06662
-binder_sha256=f1b6cd8235641cc51bbf682526774abadf814da2066e0e6b7035ca9d58277cd2
-binder_bytes=50894
-native_preentry_git_blob=cdd647e8ef49f234eea1e5fbd933148a31014eef
+binder_git_blob=5c3f2f8f6d49e67017ad30e6c61bd8af6a11a3ab
+binder_sha256=a66dfc54a7cbaed0257119fb5f6ee0d4cd094c31ad0407358219601f466fcf11
+binder_bytes=52936
+native_preentry_git_blob=87a2efeb8ba5ef3d07d79f665931d5ece9976f78
 dormant_candidate_git_blob=e569c9211e01f14c7c00dd1c5041d4dfb0817609
 runtime_dependency_count=9
 ```
@@ -172,4 +172,44 @@ identities; a new native ELF candidate/lock and separate independent review
 must precede any installation. Host/transaction/payment/presale authority
 remains explicitly false.
 
+PROTECT THE CORE.
+
+## Original configured executable pathname custody — P1 repair
+
+The predecessor retained trusted executable FDs but called
+`fs.realpathSync(file)` **before** checking the original configured path's
+ancestry. This allowed a symlink inside a runtime-UID-writable ancestor to
+redirect the configured name to a different root-owned ELF. The subsequent
+root/ACL checks saw only the redirected target's safe ancestry.
+
+The repaired source requires an absolute, lexically normalized canonical
+configured path and checks every **configured** root-owned/nonwritable
+ancestor and original leaf with `lstat` before calling realpath. The leaf
+must be a regular non-symlink; the actual realpath must equal the configured
+name exactly. That original canonical path is again checked on every
+retained-FD revalidation before privileged first exec. There is no fallback
+to an externally chosen executable path.
+
+Source-only self-tests reject a noncanonical `/usr/bin/../bin/git` alias
+and, where the host is usrmerge, the `/bin/git` symlinked-ancestor alias.
+The positive fixture still first-executes the retained benign Git executable
+without entering production native/credential/signing paths.
+
+```text
+source_parent_pr=3613
+source_parent_head=f956e8268f7528a1b3729c25869d16bce9c2fb62
+binder_git_blob=5c3f2f8f6d49e67017ad30e6c61bd8af6a11a3ab
+binder_sha256=a66dfc54a7cbaed0257119fb5f6ee0d4cd094c31ad0407358219601f466fcf11
+binder_bytes=52936
+native_preentry_git_blob=87a2efeb8ba5ef3d07d79f665931d5ece9976f78
+protected_install_authorized=false
+host_plan_authorized=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+**Required:** exact-head CI and independent security review, then regenerate
+all native candidate/lock/policy identities and complete host qualification.
+Do not treat this source proof as a production credential or payment authority.
 PROTECT THE CORE.

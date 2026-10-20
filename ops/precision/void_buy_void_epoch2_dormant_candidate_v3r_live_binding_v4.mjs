@@ -202,7 +202,11 @@ function sameTrustedExecutableGeneration(a,b){
   return sameFileIdentity(a,b)&&a.mtimeNs===b.mtimeNs&&a.ctimeNs===b.ctimeNs;
 }
 function revalidateRetainedTrustedExecutable(t){
+  // A retained leaf FD alone cannot authenticate a configured symlink alias.
+  // Reject any symlink added to the original lexical chain before execution.
   requireRootOwnedExecutableAncestors(t.real,t.label);
+  if(fs.realpathSync.native(t.real)!==t.real)
+    throw new Error("trusted_executable_path_canonical_generation_changed:"+t.label);
   const held=fs.fstatSync(t.fd,{bigint:true});
   const visible=fs.lstatSync(t.real,{bigint:true});
   if(!visible.isFile()||visible.isSymbolicLink()||visible.uid!==0n||
@@ -214,9 +218,18 @@ function revalidateRetainedTrustedExecutable(t){
   requireRuntimeUidNonwritable(t.real,t.label+"_leaf");
 }
 function openRetainedTrustedExecutable(file,label){
-  const real=fs.realpathSync(file);
-  requireRootOwnedExecutableAncestors(real,label);
-  const st=fs.lstatSync(real,{bigint:true});
+  // Authenticate the *configured* lexical path before any realpath call can
+  // follow a symlink through a runtime-user-writable ancestor.
+  if(typeof file!=="string"||!path.isAbsolute(file)||
+     path.resolve(file)!==file||file.includes("\0"))
+    throw new Error("trusted_executable_configured_path_not_canonical:"+label);
+  requireRootOwnedExecutableAncestors(file,label);
+  const st=fs.lstatSync(file,{bigint:true});
+  if(st.isSymbolicLink()||!st.isFile())
+    throw new Error("trusted_executable_configured_leaf_invalid:"+label);
+  const real=fs.realpathSync.native(file);
+  if(real!==file)
+    throw new Error("trusted_executable_configured_path_not_canonical:"+label);
   if(!st.isFile()||st.isSymbolicLink()||st.uid!==0n||st.gid!==0n||
      st.nlink!==1n||(st.mode&0o022n)!==0n||(st.mode&0o111n)===0n)
     throw new Error("trusted_executable_invalid:"+label);
@@ -924,6 +937,29 @@ function selfTest(){
         .includes("trusted_executable_generation_changed");
     }
     if(!reboundHeld)throw new Error("retained_path_rebind_self_test_failed");
+    // A cosmetically normalized path aliases the trusted ELF but must not
+    // pass as an authority-bearing configured pathname.
+    let lexicalAliasHeld=false;
+    try{
+      openRetainedTrustedExecutable("/usr/bin/../bin/git","lexical_alias_fixture");
+    }catch(error){
+      lexicalAliasHeld=String(error?.message||"")
+        .includes("trusted_executable_configured_path_not_canonical");
+    }
+    if(!lexicalAliasHeld)throw new Error("configured_lexical_alias_self_test_failed");
+    // Ubuntu 24.04 normally uses a /bin -> /usr/bin symlink. If present,
+    // the configured symlink *ancestor* must HOLD before realpath is called.
+    if(fs.lstatSync("/bin").isSymbolicLink()){
+      let symlinkAncestorHeld=false;
+      try{
+        openRetainedTrustedExecutable("/bin/git","symlinked_ancestor_fixture");
+      }catch(error){
+        symlinkAncestorHeld=String(error?.message||"")
+          .includes("trusted_executable_ancestor_invalid");
+      }
+      if(!symlinkAncestorHeld)
+        throw new Error("configured_symlink_ancestor_self_test_failed");
+    }
   }finally{
     closeRetainedTrustedExecutable(selfSetpriv);
     closeRetainedTrustedExecutable(selfGit);
@@ -1099,6 +1135,8 @@ function selfTest(){
   console.log("binder_root_executable_ancestor_custody_required=true");
   console.log("binder_runtime_uid_acl_custody_required=true");
   console.log("binder_retained_exec_path_rebind_rejected=true");
+  console.log("binder_configured_original_path_custody_required=true");
+  console.log("binder_configured_symlink_alias_rejected=true");
   console.log("binder_parent_proof_binds_source_and_runtime_heads=true");
   console.log("runtime_native_receives_runtime_policy_head_only=true");
   console.log("canonical_checkout_rewind_performed=false");
