@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v1.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v1.json"
 
-SOURCE_BLOB="3a21cc20a49147a97dc9266ec8ff52d509cf2ef7"
+SOURCE_BLOB="3b6b0c6eae0c386b7a5a9ce4c47166fffc8ae2eb"
 CONTRACT_BLOB="c70dfd9da29c75b348a3619f6df7329381e939cf"
 FRESHNESS_BLOB="9657fff243e44135e1f992b1ef5b8e0d977b8b65"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_cdb98f511f04a3c798200e304481ec14d94373fdbdf6ec30cf88b0e281b0eb4f"
