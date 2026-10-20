@@ -257,10 +257,18 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         require_success(cp, "static_launcher_preload_test")
         assert not preload_sentinel.exists(), "static launcher executed hostile preload"
 
+        require_success(
+            run([SUDO, "-n", "chown", "root:root", "/opt"]),
+            "hosted_opt_root_ownership_normalize",
+        )
+        require_success(
+            run([SUDO, "-n", "chmod", "0755", "/opt"]),
+            "hosted_opt_mode_normalize",
+        )
         opt_st = Path("/opt").lstat()
         assert stat.S_ISDIR(opt_st.st_mode) and not stat.S_ISLNK(opt_st.st_mode)
         assert opt_st.st_uid == 0 and opt_st.st_gid == 0
-        assert (opt_st.st_mode & 0o022) == 0
+        assert stat.S_IMODE(opt_st.st_mode) == 0o755
 
         require_success(run([SUDO, "-n", "rm", "-rf", "--", os.fspath(FIXED_ROOT)]), "fixture_preclean")
         require_success(
@@ -350,6 +358,7 @@ print("native_static_first_instruction=true")
 print("native_no_pt_interp=true")
 print("native_ld_preload_blocked_before_main=true")
 print("fixed_root_custody_required=true")
+print("hosted_opt_ancestry_normalized_for_fixture=true")
 print("root_static_first_entry_required=true")
 print("runtime_uid_gid_1000_required=true")
 print("permanent_uid_gid_drop_before_python=true")
