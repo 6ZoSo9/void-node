@@ -83,6 +83,27 @@ funds_movement=false
 
 Next gate: `source_authenticated_host_observer_adapter`.
 
+## Non-POSIX pathname identity rejection — additive source-only repair
+
+The earlier lexical `posixpath.normpath(...)` canonicality check cannot reject
+embedded NUL bytes: a string containing `chr(0)` can pass lexical normalization,
+be serialized in the canonical manifest as `\\u0000`, yet cannot be interpreted
+as the same pathname by Linux syscalls or native consumers. That is an
+**evidence-integrity** mismatch even when `HOST_EXECUTION_ENABLED=False`.
+
+This successor requires NUL-free canonical absolute paths **before inventory**
+for logical display roots, ordered `sys.path`, every declared absence and
+every accessed path. Standalone `absence_record()` also requires a valid
+root/leaf identity before symlink/parent lookup. Non-string, NUL and
+noncanonical imported/accessed path inputs raise explicit `Hold`, not an
+unhandled `ValueError`. Seven disposable adversaries exercise each boundary,
+including two direct calls to the absence-record helper.
+
+This patch does not create a host observer or qualify inherited V1 runtime
+contract, loader, Python/Git closure, post-exec process isolation or protected
+path/ACL custody. The newer V2 runtime/freshness source lineage is separate;
+no automatic acceptance or host-plan authority follows.
+
 PROTECT THE CORE.
 
 ## Bounded enumeration repair — source-only child
