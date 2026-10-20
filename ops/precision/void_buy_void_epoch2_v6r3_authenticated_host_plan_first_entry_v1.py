@@ -128,7 +128,7 @@ def installed_entry_gate() -> None:
     if (
         os.getuid() != RUNTIME_UID or os.geteuid() != RUNTIME_UID
         or os.getgid() != RUNTIME_GID or os.getegid() != RUNTIME_GID
-        or not sys.flags.isolated or not sys.dont_write_bytecode
+        or not sys.flags.isolated or not sys.dont_write_bytecode or not sys.flags.no_site
     ):
         raise Hold("isolated_exact_runtime_identity_required")
     if Path(os.path.abspath(__file__)) != ENTRY:
@@ -212,7 +212,7 @@ def run_sealed(raw: bytes, python_fd: int, argument: str, *, timeout: int) -> su
     script_fd = sealed_reader(raw)
     try:
         command = [
-            "/proc/self/fd/" + str(python_fd), "-I", "-B",
+            "/proc/self/fd/" + str(python_fd), "-I", "-B", "-S",
             "/proc/self/fd/" + str(script_fd), argument,
         ]
         try:
@@ -268,6 +268,7 @@ def source_plan() -> None:
     print("separately_installed_root_custodied_entry_required=true")
     print("exact_uid_gid_1000_required=true")
     print("isolated_python_required=true")
+    print("python_site_import_disabled_required=true")
     print("trusted_python_retained_descriptor_first_exec_required=true")
     print("planner_git_blob=" + PLANNER_GIT_BLOB)
     print("planner_sha256=" + PLANNER_SHA256)
