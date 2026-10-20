@@ -15,7 +15,7 @@ PLANNER=ROOT/"ops/precision/void_buy_void_epoch2_live_composition_runner_policy_
 
 MARKER="VOID_BUY_VOID_EPOCH2_V6R3_PYTHON_RUNTIME_CLOSURE_CONTRACT_V1"
 PREFIX="voidbuye2v6r3pyruntimecontract1_"
-CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_cbc63339c5b305679b85a4a229f5c61227fabbb83388f9d261920b51588dd19a"
+CONTRACT_ID="voidbuye2v6r3pyruntimecontract1_702512d9c813b4dd10f1e1ba4ae6bcbef300af6698cb102403a1e1d1ad2d1dc0"
 BINARY_LOCK_BLOB="66bf48fd6477e0335b1eea6e2b7e8a7f297f8c57"
 PLANNER_BLOB="19c6e1cdf9f2361cedfba4ea8d650a63eb5061ff"
 PLANNER_SHA256="95d9dd865bc226a7436a67fff977215e43aad034ce40c2c9126ecc49c469d627"
@@ -129,6 +129,50 @@ assert value["runtime_process"]["uid"]==1000 and value["runtime_process"]["gid"]
 assert value["runtime_process"]["supplementary_groups_empty"] is True
 assert value["runtime_process"]["no_new_privileges"] is True
 assert value["runtime_process"]["caller_stdin_authority"] is False
+# The diagnostic is a separate Draft PR generation, not the local checkout:
+# bind exactly the reviewed hosted source+workflow run and its *observed*
+# ordinary sealed-Python fexecve result, not a free-floating boolean.
+DIAGNOSTIC_EVIDENCE={
+    "repository":"6ZoSo9/void-node",
+    "pull_request":3579,
+    "exact_head":"bc59170b211c3bd2490446b0e1cd045b5d9d5925",
+    "fixture_path":"scripts/prove_buy_void_epoch2_v6r3_postexec_dumpability_v1.py",
+    "fixture_git_blob_sha1":"a946e81549fe12f61b61d17cad76a7eda40501ff",
+    "workflow_path":".github/workflows/buy-void-epoch2-v6r3-postexec-dumpability-v1.yml",
+    "workflow_git_blob_sha1":"e27aa4a81fbfe4ae122db5fa5cf906fbe1848e28",
+    "run_id":39360364319,
+    "job_id":118424883505,
+    "conclusion":"success",
+    "actual_sealed_memfd_fexecve":True,
+    "observed_pre_exec_dumpable":0,
+    "observed_post_exec_dumpable":1,
+    "production_host_execution":False,
+    "runtime_dumpability_accepted":False,
+}
+def assert_exact_diagnostic_evidence(candidate:dict)->None:
+    assert candidate==DIAGNOSTIC_EVIDENCE,"post_exec_fixture_evidence_generation_mismatch"
+
+assert_exact_diagnostic_evidence(value["post_exec_diagnostic_evidence"])
+for key,bad in (
+    ("exact_head","0"*40),
+    ("fixture_git_blob_sha1","0"*40),
+    ("workflow_git_blob_sha1","0"*40),
+    ("run_id",0),
+    ("job_id",0),
+    ("conclusion","failure"),
+    ("observed_pre_exec_dumpable",1),
+    ("observed_post_exec_dumpable",0),
+    ("runtime_dumpability_accepted",True),
+    ("production_host_execution",True),
+):
+    adversary=dict(DIAGNOSTIC_EVIDENCE);adversary[key]=bad
+    try:
+        assert_exact_diagnostic_evidence(adversary)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("unbound_diagnostic_evidence_accepted:"+key)
+
 def verify_dumpability_evidence(process:dict)->None:
     assert "dumpable" not in process,"post_exec_dumpable_cannot_be_inferred_from_native_preexec"
     for key in (
@@ -229,6 +273,7 @@ assert g["clean_environment"]=={
 }
 a=value["acceptance_requirements"]
 assert a["post_exec_dumpability_protection_or_isolation_gate_required"] is True
+assert a["post_exec_diagnostic_exact_generation_and_observation_required"] is True
 assert all(v is True for v in a.values())
 authority=value["authority"]
 assert authority["source_contract_only"] is True
@@ -250,6 +295,8 @@ print("python_flags_i_b_s_bound=true")
 print("native_pre_exec_dumpability_not_child_authority=true")
 print("post_exec_dumpability_accepted=false")
 print("invalid_post_exec_dumpability_claims_rejected=true")
+print("exact_sealed_fexecve_diagnostic_evidence_bound=true")
+print("diagnostic_source_workflow_and_job_mutations_rejected=true")
 print("post_exec_pr_get_dumpable_required=true")
 print("post_exec_ptrace_procfs_isolation_evidence_required=true")
 print("post_exec_loader_window_review_required=true")
