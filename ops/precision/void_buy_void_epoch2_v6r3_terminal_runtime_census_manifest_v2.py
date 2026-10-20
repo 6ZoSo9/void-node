@@ -649,7 +649,7 @@ def fixture_self_test()->None:
         # Exact canonical JSON bytes, not merely raw names, constrain
         # metadata/escaping memory before each manifest object insertion.
         payload=sum(
-            len(canonical({name,item_key})) for name,item_key in manifest["objects"].items()
+            len(canonical({name:item_key})) for name,item_key in manifest["objects"].items()
         )
         assert collect_tree(root,"/fixture",record_budget=payload)==manifest["objects"]
         try:
