@@ -16,6 +16,8 @@ This successor is deliberately **four new ADD-only paths** stacked on V2 tempora
 
 These are source/fixture properties only, not a complete implementation of safe production scanning.
 
+The V2 source additionally carries the later standalone V1 [#3601](https://github.com/6ZoSo9/void-node/pull/3601) **non-POSIX identity** guard: `chr(0)` in the logical display root, sys.path and standalone declared absences is not a valid filesystem authority. The input-size budget already rejects NUL in the three entry arrays; separate canonical checks reject noncanonical accessed paths, and the standalone `absence_record()` now rejects NUL before any filesystem query. Seven disposable negative fixtures establish these distinctions; these are not host path-custody evidence.
+
 ## Exact V2 source trust generation
 
 ```text
@@ -29,7 +31,7 @@ v2_native_binary_lock_blob=14a3ff2eca0583d1355dc8b75bd54cc55115d946
 v2_native_binary_lock_id=voidbuye2v6r3planfirstentrybinlock2_b5e1bbca28ed7aad579ac7f37a7575ed90eadd44f73d24edac79df3cc74664c1
 v2_native_binary_sha256=b3043169c466ab96a953d00fedd960817e982bf45897ac6b3259baaaeb0e81dd
 v1_census_substrate_source_blob=05458587b5743da09ed2f752e971ca67938cceac
-v2_census_substrate_source_blob=70727eb4a46890574fc3336e3f0931947b247257
+v2_census_substrate_source_blob=8f1c7bbbaefa150e1c3ee4a59527d3046142b994
 ```
 
 The V2 manifest itself additionally records the exact V2 binary lock ID and **keeps**
