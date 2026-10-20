@@ -406,7 +406,7 @@ def _validate_tool_identity(
         or int(mode, 8) & 0o022
     ):
         raise ContractError(label + "_mode_invalid")
-    if value["uid"] != 0:
+    if not _plain_int(value["uid"], 0) or value["uid"] != 0:
         raise ContractError(label + "_uid_invalid")
     for key in ("gid", "dev", "ino"):
         if not _plain_int(value[key], 0 if key != "ino" else 1):
@@ -1117,6 +1117,11 @@ def self_test() -> None:
     _expect_tamper_rejected(
         lambda body: body["qualification_contract"]["git_tool"].__setitem__(
             "path", "/tmp/git"
+        )
+    )
+    _expect_tamper_rejected(
+        lambda body: body["qualification_contract"]["interpreter"].__setitem__(
+            "uid", 0.0
         )
     )
     _expect_tamper_rejected(

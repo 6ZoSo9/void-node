@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "0edcf2e29c74e161ac46cca5132fef2e90cbdc2e"
+TARGET_BLOB = "25f4c06a3fb49a9df850688524a767af3b38342e"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -191,6 +191,8 @@ normalized_source = ast.get_source_segment(source, functions["_normalized_absolu
 assert '"\\0" not in value' in normalized_source
 artifact_source = ast.get_source_segment(source, functions["_artifact"]) or ""
 assert 'not _plain_int(value["bytes"], 1)' in artifact_source
+tool_source = ast.get_source_segment(source, functions["_validate_tool_identity"]) or ""
+assert 'not _plain_int(value["uid"], 0)' in tool_source
 
 contract_source = ast.get_source_segment(source, functions["execution_contract"]) or ""
 assert '"ordinal": 1' in contract_source
