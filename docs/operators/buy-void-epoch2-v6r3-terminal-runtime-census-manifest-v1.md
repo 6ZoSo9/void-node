@@ -26,7 +26,8 @@ source-authenticated observer:
 
 - no-follow/nonblocking, generation-stable SHA-256 of regular files;
 - deterministic directory inventory without following symlinks;
-- symlink text plus resolved-target facts;
+- symlink text plus resolved-target facts, with **every traversal hop** confined
+  to the inventory root and a hard 40-symlink hop limit;
 - explicit absent-path records bound to their nearest existing parent;
 - rejection of FIFOs/devices/sockets and other special files;
 - a **streaming** 100,000-entry discovery budget, including child directories
@@ -99,3 +100,25 @@ fixture implementation**. It does not prove future protected-host ancestor
 ACL custody, descriptor-bound enumeration, symlink race closure, live
 Python/ELF runtime resolution, or any host census authority. Keep those
 separate, reviewed gates; this repair never enables host execution.
+
+## Intermediate-symlink escape repair — source-only successor
+
+The prior `symlink_record()` called `os.path.realpath()` and checked only that
+the **final** target was within the inventory root. A symlink could point
+outside the root to another link that pointed back inside, thus traversing an
+out-of-root intermediate path while still satisfying the final-target check.
+
+The repaired source walks each component and each `readlink()` hop itself.
+An absolute target must start within the root, a relative `..` must not
+climb above it, and a chain is rejected once more than 40 symlinks are
+encountered. Metadata is rechecked after reading each symlink. Nonexistent
+targets contained within the root remain explicit `resolved_exists=false`
+evidence. The disposable fixture proves outside-then-return and cyclic-link
+paths HOLD; an ordinary internal link remains accepted.
+
+**This does not establish host-grade path custody.** The synthetic scanner
+still uses path-based `lstat` and `scandir`, so it does not defend against
+a runtime-writable ancestor being swapped concurrently. Any future protected
+host execution requires separate root/ACL custody, retained directory-FD
+observation, and terminal generation binding. Production host mode remains
+hard-disabled and all authority flags remain false.
