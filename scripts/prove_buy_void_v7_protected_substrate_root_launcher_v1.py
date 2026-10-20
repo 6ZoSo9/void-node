@@ -11,7 +11,7 @@ SOURCE = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_root_launche
 INSTALLER = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
 
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V1_PROOF"
-SOURCE_BLOB = "c95f340e447af48a56c7bac82493a5b83405f4cc"
+SOURCE_BLOB = "3b6402a1df523842720a24b719c2b3e86c18ed42"
 INSTALLER_BLOB = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"
 INSTALLER_BYTES = 87048
 INSTALLER_SHA256 = "72bdf7325fd2b3f373ad3fd41e706d9961d293cf11178d06b72ab41ddc9f8cfc"
@@ -99,6 +99,14 @@ for required in (
     'setgid((gid_t)RUNTIME_GID)',
     'setuid((uid_t)RUNTIME_UID)',
     'runtime_identity_can_write_trusted_path_or_ancestor',
+    'FS_IOC_MEASURE_VERITY',
+    'FS_VERITY_HASH_ALG_SHA256',
+    'require_fsverity_sha256(self_fd,"launcher_self_fsverity_required")',
+    'require_fsverity_sha256(policy_fd,"launcher_policy_fsverity_required")',
+    'require_fsverity_sha256(installer_fd,"installer_fsverity_required")',
+    'require_fsverity_sha256(python_fd,"python_fsverity_required")',
+    'require_fsverity_sha256(stdlib_fd,"stdlib_zip_fsverity_required")',
+    'fsverity_sha256_digest_required',
     'readlink("/proc/self/exe"',
     'running_self_generation_mismatch',
     'require_exact_dir_entries(FIXED_PYTHON_ROOT,"bin","lib")',
@@ -214,6 +222,12 @@ with tempfile.TemporaryDirectory(prefix="void-v7-root-launcher-proof-") as td:
         "python_isolated_no_site_no_bytecode_required=true",
         "minimal_environment_required=true",
         "runtime_uid_nonwritability_required=true",
+        "fsverity_sha256_kernel_seal_required=true",
+        "launcher_self_fsverity_required=true",
+        "launcher_policy_fsverity_required=true",
+        "installer_fsverity_required=true",
+        "python_fsverity_required=true",
+        "stdlib_zip_fsverity_required=true",
         "fresh_operation_bound_plan_confirmation_required=true",
         "source_snapshot_install_authorized=false",
         "protected_install_performed=false",
@@ -238,6 +252,12 @@ with tempfile.TemporaryDirectory(prefix="void-v7-root-launcher-proof-") as td:
     print("static_native_first_instruction_proven=true")
     print("fixed_root_source_snapshot_required=true")
     print("runtime_uid_acl_effective_nonwritability_required=true")
+    print("fsverity_sha256_kernel_seal_required=true")
+    print("launcher_self_fsverity_required=true")
+    print("launcher_policy_fsverity_required=true")
+    print("installer_fsverity_required=true")
+    print("python_fsverity_required=true")
+    print("stdlib_zip_fsverity_required=true")
     print("static_python_runtime_required=true")
     print("stdlib_zip_content_hash_policy_bound=true")
     print("python_runtime_tree_exact_entries_required=true")
