@@ -213,3 +213,63 @@ funds_movement=false
 all native candidate/lock/policy identities and complete host qualification.
 Do not treat this source proof as a production credential or payment authority.
 PROTECT THE CORE.
+
+
+## Accepted native V6R2 ELF bytes at retained root first-exec — P1 repair
+
+This source-only successor closes a **distinct, more serious** trust gap
+left after the pathname/symlink TOCTOU fix: root-owned executable
+metadata and a stable retained FD can describe an unexpected native
+program. The binder cannot run such a replacement as root simply because
+its inode, ancestor permissions and timestamps are plausible.
+
+Before any privileged first execution of the fixed
+`/opt/void-buy-void-epoch2-live-composition-v3/void_buy_void_epoch2_live_composition_native_preentry_v3`,
+the binder now authenticates the **retained native descriptor's bytes**,
+both at root-tool opening and immediately before the live native child
+spawn. The accepted identity is independently source-bound to tracked
+`ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json`
+(Git blob `bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b`), with accepted
+static ELF SHA-256, exact byte count, x86-64 ELF64 little-endian ET_EXEC
+shape and **no PT_INTERP/PT_DYNAMIC**. The digest reader uses bounded,
+positional reads from the exact original FD, no pathname reopen, followed
+by terminal FD and visible-source generation revalidation. An unrelated
+root-owned ELF, shebang script, interpreter-bearing executable, wrong
+size or wrong digest must HOLD before root child execution.
+
+```text
+parent_pr=3614
+parent_head=c6e0024a1e4b29d42e74a23adca8e4d64e03d152
+native_accepted_lock_id=voidbuye2nativecandlock6r2_ab95f15c8f2731adf6bfd97dfd5467495c90bdb5ee267948efc6a522be74b417
+native_accepted_lock_git_blob=bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b
+native_accepted_elf_sha256=85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8
+native_accepted_elf_bytes=726976
+repaired_binder_git_blob=fec8dcf902e15aa4d121ac6561bd00cc0eb503ac
+repaired_binder_sha256=bb7fa509f25037fe7d8ed164edb90c8f8acf55120cc36809d5a32b94ab2ad8a8
+repaired_binder_bytes=58859
+repaired_binder_native_preentry_c_blob=370ba9a37b1e1d31d4f3aac5de6e173e5bde0941
+HOST_PRODUCTION_NATIVE_EXECUTION=false
+protected_install_authorized=false
+live_execution_authorized=false
+credential_access=false
+private_key_access=false
+signing=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+The disposable fixture constructs a **non-executed fake static ELF** in
+a new private directory and checks positive digest/ELF acceptance plus
+wrong digest, wrong bytes, PT_INTERP and fake script rejection. It does
+not invoke the installed native child, wallets, signers or credentials.
+The accepted V6R2 lock also has `protected_install_authorized=false` and
+`live_execution_authorized=false`; these remain false. This is *not*
+permission to run the native code on Precision or enable intake.
+
+**HOLD:** source proof and exact-head CI, genuinely independent review,
+reproducible runtime/loader and external host installed-generation evidence,
+root/ACL/source-first-entry custody and separately authorized future
+payment/presale canaries remain mandatory. No production host action follows.
+
+PROTECT THE CORE.
