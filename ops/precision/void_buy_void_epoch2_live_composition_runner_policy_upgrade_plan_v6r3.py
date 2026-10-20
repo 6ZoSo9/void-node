@@ -743,6 +743,24 @@ def self_test()->None:
     else:
         raise AssertionError("writable_directory_ancestor_accepted")
     assert hasattr(os,"O_NONBLOCK") and hasattr(os,"O_NOFOLLOW")
+    # Hosted/disposable first-exec smoke test. No source checkout, live host
+    # state, credential, service, wallet or transaction is accessed here.
+    # The actual --plan still enforces the root/ACL/UID trust boundary.
+    fixture_fd=os.open(
+        FIXED_GIT,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC
+    )
+    try:
+        cp=subprocess.run(
+            ["/proc/self/fd/"+str(fixture_fd),"--version"],
+            pass_fds=(fixture_fd,),cwd="/",env=clean_git_env(),
+            stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,
+            timeout=10,check=False,
+        )
+        assert cp.returncode==0,(cp.returncode,cp.stderr)
+        assert cp.stdout.startswith(b"git version "),cp.stdout
+        assert cp.stderr==b"",cp.stderr
+    finally:
+        os.close(fixture_fd)
     assert len(SOURCE_RUNTIME_DEPENDENCY_SPECS)==9
     assert [row[0] for row in SOURCE_RUNTIME_DEPENDENCY_SPECS]==[
         "qualifier","replacement_v3r","qualifier_v6","replacement_v6",
@@ -925,6 +943,7 @@ def self_test()->None:
     print("protected_ancestor_acl_custody_required=true")
     print("protected_directory_listing_fd_bound=true")
     print("trusted_git_first_exec_retained_fd_required=true")
+    print("trusted_git_procfd_first_exec_fixture_green=true")
     print("host_node_nonblocking_fd_required=true")
     print("writable_ancestor_rejected=true")
     print("filesystem_write=false")
