@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+# Python initialization precedes this script: this accidental-entry guard
+# is NOT a trusted privileged first-instruction authorization.
+import sys
+if not (sys.flags.isolated and sys.flags.dont_write_bytecode and sys.flags.no_site):
+    raise SystemExit("HOLD=isolated_no_site_python_required")
+
 import argparse
 from collections import deque
 import hashlib
