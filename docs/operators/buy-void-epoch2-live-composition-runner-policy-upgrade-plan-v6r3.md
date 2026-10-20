@@ -136,3 +136,26 @@ the native V3 identity remains reused, and policy Node identity remains protecte
 The planner still has no apply mode and does not execute the Runner/native path, access
 credentials or private keys, sign/broadcast transactions, accept payments, activate
 the presale/WC market, mutate services, or move funds.
+
+
+## Nonblocking sealed-V3 accepted-lock repair
+
+Current repaired source identities:
+
+```text
+candidate_id=voidbuye2runnerpolcand6r3_aaa50e1bbfe2303045336c03be2bacd504a736a0fd04f97d4f38be7e76fbba7d
+accepted_lock_id=voidbuye2runnerpollock6r3_72ecfe7a0d5aa87237520290cdf63cf0faef821931ef094ac0ec5dd1858e496f
+accepted_lock_blob=a9565f1dbe49e694ee07eb0cfdddb42d591d856b
+runner_git_blob=11a147d565bd0ee3ff48c4e3cb75d608b59e87b1
+runner_sha256=9302bcbdf70c3d4fd46be5deb0a2101ab09d51bf84171e43f2b5fb6e6b4f92a8
+runner_bytes=82972
+planner_blob=185e409aab47c8d391025decec1e58f9288fb5e2
+```
+
+The Runner digest is the exact value emitted by hosted candidate run 39344747264,
+job 118374543666, and exported by identity job 118374985297. The accepted lock
+retains the nonblocking sealed-V3/FIFO-race requirements and all negative authority.
+
+The planner remains non-executing and has no apply mode. No protected filesystem
+mutation, credential/key access, signing, transaction/payment, presale/WC activation,
+service mutation, treasury/liquidity action, or funds movement is authorized.
