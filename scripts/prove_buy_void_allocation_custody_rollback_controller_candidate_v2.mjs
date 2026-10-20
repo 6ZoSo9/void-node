@@ -201,8 +201,8 @@ function makeHarness(mutator=()=>{},authorizationClaims=new Set()){
       assert.equal(body.marker,"VOID_BUY_VOID_CUSTODY_SECOND_CONTROL_APPROVAL_V2");
       assert.equal(body.version,2);
       assert.equal(body.plan_id,authBody.plan_id);
-      assert.equal(body.authorization_id,authorization.authorization_id);
-      assert.equal(body.operation_id,authorization.operation_id);
+      assert.equal(body.authorization_id,state.claim.authorization_id);
+      assert.equal(body.operation_id,state.claim.operation_id);
       assert.equal(body.authorization_claim_id,state.claim.claim_id);
       assert.equal(body.rollback_target_journal_tip_sha256,before.journal_tip_sha256);
       assert.equal(body.protected_high_water_sha256,state.high.high_water_sha256);
