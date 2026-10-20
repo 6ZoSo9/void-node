@@ -46,9 +46,9 @@ jobs:
           git diff --name-status "$SOURCE_BASE_HEAD" "$EXPECTED_HEAD" -- | sort > /tmp/actual-delta
           sort /tmp/expected-delta > /tmp/expected-delta.sorted
           diff -u /tmp/expected-delta.sorted /tmp/actual-delta
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_postmerge_source_runtime_compat_v1.py)" = "cd2803d53b77e86524b5382a10dcab55ee79e1da"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_postmerge_source_runtime_compat_v1.py)" = "f8fdd7e358fab7196398ac2ac5c371f99f710796"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-postmerge-source-runtime-compat-v1.md)" = "2144da5b26b31ba0d723531564f98ce301dda3fe"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_postmerge_source_runtime_compat_v1.py)" = "e2bfe82b9db4cbabaccbe387badee545601f440e"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_postmerge_source_runtime_compat_v1.py)" = "fb65bfaa833d048560f171d207138439592545f3"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-postmerge-source-runtime-compat-v1.md)" = "ec6545bf3357786516f2d157c4f3aabaa7b2d9b0"
           git diff --check "$SOURCE_BASE_HEAD" "$EXPECTED_HEAD"
 
       - name: Python syntax
