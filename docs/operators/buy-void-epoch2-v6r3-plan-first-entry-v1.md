@@ -160,4 +160,24 @@ treasury_liquidity_action=false
 funds_movement=false
 ```
 
+## Additional first-entry negative constraints — source-only successor
+
+A future root first-entry must reject nondefault inherited securebits and retained
+Linux capabilities after dropping to UID/GID 1000: real/effective/saved UID/GID,
+supplementary groups, CapInh, CapPrm, CapEff, CapAmb and no_new_privs are all
+checked before the sealed Python `fexecve`. A permanent numeric UID drop alone
+does **not** prove lost capabilities under `SECBIT_NO_SETUID_FIXUP`.
+
+The launcher's inherited stdout/stderr are classified **before** any HOLD output.
+Only explicit pipes, TTYs or `/dev/null` are eligible. Root-opened regular files
+and sockets fail without printing to the unsafe sink. A disposable
+native fixture must reject a securebits-inherited root launch and root-opened
+regular stdout/stderr sentinels before Python; all remains source/test-only.
+
+These changes invalidate the earlier #3573/#3574 static binary SHA-256 and
+content-addressed lock for future installation. A fresh reproducible binary,
+new lock, exact-head CI and genuinely independent review are required.
+No source CI or this fixture authorizes production host install/plan,
+credential signing, payments, presale activation, or funds movement.
+
 PROTECT THE CORE.
