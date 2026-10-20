@@ -607,6 +607,14 @@ def _collect_plan_with_observers(
     if old_policy==new_policy or sha256(old_policy)==sha256(new_policy):
         raise PlanError("new_policy_not_distinct")
     state=classify_state_fn(old_policy,new_policy)
+    # Reobserve the protected directory state and host Node before emitting
+    # plan evidence; early valid observations cannot mask late drift.
+    node_after=snapshot_host_file_fn(FIXED_NODE,executable=True)
+    if node_after!=node:
+        raise PlanError("host_node_generation_changed_during_plan")
+    state_after=classify_state_fn(old_policy,new_policy)
+    if state_after!=state:
+        raise PlanError("protected_state_changed_during_plan")
     source_after=source_snapshot_fn()
     if source_after!=source_before:
         raise PlanError("source_generation_changed_during_plan")
@@ -618,6 +626,11 @@ def _collect_plan_with_observers(
         "runtime_source_dependency_count":len(SOURCE_RUNTIME_DEPENDENCY_SPECS),
         "runtime_source_complete_dependency_set_bound":True,
         "source_terminal_revalidated":True,
+        "host_node_terminal_revalidated":True,
+        "protected_state_terminal_revalidated":True,
+        "host_ancestor_acl_nonwritability_required":True,
+        "host_root_descriptor_identity_required":True,
+        "host_nonblocking_regular_file_open_required":True,
         "runtime_head":RUNTIME_HEAD,
         "runtime_tree":RUNTIME_TREE,
         "node":node,
@@ -706,6 +719,7 @@ def source_plan()->None:
     print("protected_directory_listing_fd_bound=true")
     print("trusted_git_first_exec_retained_fd_required=true")
     print("host_plan_exact_runtime_uid_gid_required=true")
+    print("host_node_and_state_terminal_revalidation_required=true")
     print("full_root_stage_required=true")
     print("atomic_root_exchange_required=true")
     print("predecessor_v6r2_retention_required=true")
@@ -785,6 +799,43 @@ def self_test()->None:
     )
     assert stable_calls==2
     assert stable["body"]["source_terminal_revalidated"] is True
+    assert stable["body"]["host_node_terminal_revalidated"] is True
+    assert stable["body"]["protected_state_terminal_revalidated"] is True
+
+    node_observations=0
+    def drifting_node(_path,*,executable):
+        nonlocal node_observations
+        node_observations+=1
+        value=dict(node)
+        if node_observations==2:
+            value["sha256"]="e"*64
+        return value
+    try:
+        _collect_plan_with_observers(
+            source_snapshot_fn=lambda:dict(source_base),
+            snapshot_host_file_fn=drifting_node,
+            classify_state_fn=lambda _old,_new:READY_STATE,
+        )
+    except PlanError as exc:
+        assert str(exc)=="host_node_generation_changed_during_plan"
+    else:
+        raise AssertionError("host_node_terminal_drift_not_rejected")
+
+    state_observations=0
+    def drifting_state(_old,_new):
+        nonlocal state_observations
+        state_observations+=1
+        return READY_STATE if state_observations==1 else GREEN_STATE
+    try:
+        _collect_plan_with_observers(
+            source_snapshot_fn=lambda:dict(source_base),
+            snapshot_host_file_fn=lambda _path,executable:dict(node),
+            classify_state_fn=drifting_state,
+        )
+    except PlanError as exc:
+        assert str(exc)=="protected_state_changed_during_plan"
+    else:
+        raise AssertionError("protected_state_terminal_drift_not_rejected")
     assert stable["body"]["runtime_source_dependency_count"]==9
     assert stable["body"]["runtime_source_complete_dependency_set_bound"] is True
 
@@ -862,6 +913,8 @@ def self_test()->None:
     print("runtime_source_dependency_count=9")
     print("terminal_source_revalidation_required=true")
     print("late_source_drift_rejected=true")
+    print("host_node_terminal_drift_rejected=true")
+    print("protected_state_terminal_drift_rejected=true")
     print("source_runtime_graft_ancestry_rejected=true")
     print("full_root_atomic_exchange_required=true")
     print("v4_predecessor_retained=true")
@@ -907,10 +960,13 @@ def emit_plan()->None:
     print("runtime_source_complete_dependency_set_bound=true")
     print("source_runtime_actual_object_ancestry_required=true")
     print("source_terminal_revalidated=true")
+    print("host_node_terminal_revalidated=true")
+    print("protected_state_terminal_revalidated=true")
     print("protected_ancestor_acl_custody_required=true")
     print("protected_directory_listing_fd_bound=true")
     print("trusted_git_first_exec_retained_fd_required=true")
     print("host_plan_exact_runtime_uid_gid_required=true")
+    print("host_node_and_state_terminal_revalidation_required=true")
     print("full_root_stage_required=true")
     print("atomic_root_exchange_required=true")
     print("rename_exchange_required=true")
