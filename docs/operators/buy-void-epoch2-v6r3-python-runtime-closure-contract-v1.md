@@ -8,7 +8,7 @@ installation, or host plan.
 Contract ID:
 
 ```text
-voidbuye2v6r3pyruntimecontract1_cbc63339c5b305679b85a4a229f5c61227fabbb83388f9d261920b51588dd19a
+voidbuye2v6r3pyruntimecontract1_cdb98f511f04a3c798200e304481ec14d94373fdbdf6ec30cf88b0e281b0eb4f
 ```
 
 ## Why this gate exists
@@ -82,6 +82,27 @@ report) and must remain **unaccepted source evidence** until a separate content-
 lock reviews the exact host report.
 
 ## Loader and Python environment
+
+## Bound post-exec dumpability diagnostic
+
+The contract now binds the exact source-only diagnostic that established the reset:
+
+```text
+diagnostic_pr=3579
+diagnostic_head=bc59170b211c3bd2490446b0e1cd045b5d9d5925
+diagnostic_script_blob=a946e81549fe12f61b61d17cad76a7eda40501ff
+diagnostic_workflow_blob=e27aa4a81fbfe4ae122db5fa5cf906fbe1848e28
+diagnostic_run=39360364319
+diagnostic_job=118424883505
+native_source_blob=ae26706a117025893496901d4bde8cee87cadfba
+pre_fexecve_dumpable=0
+post_fexecve_dumpable=1
+```
+
+This evidence tuple is content-addressed into the contract. The verifier rejects changes
+to the diagnostic commit/blob identities, hosted run/job, conclusion, native source,
+observed values, or proof marker. It remains source evidence only; it does not accept
+post-exec dumpability.
 
 The bound launcher executes Python under numeric UID/GID 1000, empty supplementary
 groups, `no_new_privs`, a **pre-exec-only** `PR_SET_DUMPABLE=0`, isolated
