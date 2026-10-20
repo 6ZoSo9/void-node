@@ -87,3 +87,51 @@ filesystem lookup. Two disposable adversaries assert specific HOLD reasons;
 the non-POSIX input suite now has nine cases. The source proof pins blob
 `8c8516a63d8890bd7103e0c868a3e88776f1e3e8`. This is still fixture-only and does not certify
 an installed host observer.
+
+
+
+## Aggregate display-name output budget — current V2 census successor
+
+The logical `display_root` is an independent caller-supplied prefix on **every**
+object key. Although the three import/absence/access arrays have pre-traversal
+resource limits, a giant root or many repeated output keys can allocate
+substantial intermediate memory before the final 16 MiB JSON report cap.
+
+This source-only successor combines the stronger cumulative output budget from
+the superseded-path #3603 approach with the **current #3600 double-slash and
+nine non-POSIX path fixture** generation. It does not replace any original
+V2 Python/Git/binary identities.
+
+`require_display_root()` bounds root spelling to a canonical absolute POSIX
+path, no leading // or embedded NUL, strictly encodable UTF-8 and no more than
+4,096 UTF-8 bytes. It is invoked at the start of `collect_tree()` and
+`build_manifest()`. `collect_tree()` counts all discovered child display
+path UTF-8 bytes (and the root once) against 16 MiB **before leaf stat,
+hashing or queuing a child**. Standalone `absence_record()` validates the
+root and full displayed absence path with the same size/encoding barrier
+before inspecting any filesystem state.
+
+Disposable tests require HOLD for oversized ASCII and multibyte roots,
+unencodable Unicode, double-leading slash, overlong/unencodable direct
+absence names and an injected tiny aggregate output-name budget. The
+original nine non-POSIX path regression fixtures remain. No large
+collections or protected host data are used.
+
+```text
+parent_pr=3600
+parent_head=8a6b15a0c4e73fc9f3f6a1edc991e76ae34ded14
+new_source_blob=23e975df97f6cd02b1c1f3ce6a83ab02334468b2
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+These limits qualify only source/fixture behavior, **not** root/ACL-safe
+retained-FD host traversal, runtime Python/Git loader dependencies,
+post-`fexecve` process isolation, independent security review or payment
+readiness.
+
+**PROTECT THE CORE.**
