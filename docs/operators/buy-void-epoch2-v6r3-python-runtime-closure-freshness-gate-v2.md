@@ -53,6 +53,20 @@ submanifest containing the executable, mapped ELFs, helper files and configurati
 presence/absence; synthetic negatives cover Git binary/loader/DSO/helper hash drift,
 configuration materialization, unapproved helpers and library loads.
 
+**Additional P2 correction:** a mapped/executed Git ELF, dynamic loader, DSO or
+invoked helper may NOT be declared absent merely because its absence and parent custody
+were recorded. The synthetic classifier now requires every `mapped_elf_paths`
+and `helper_paths` entry to be an existing, hashed, regular nonwritable object,
+with a positive byte length. Optional Git configuration files may be declared absent
+only with explicit nonwritable nearest-parent evidence. The positive fixture lists
+`/usr/bin/git` among accessed code paths.
+
+Four **same-data** negative fixtures deliberately delete Git, loader, DSO or helper
+from both the accepted and current object manifests, install apparently valid absence
+claims, recompute the accepted report SHA-256 and still require HOLD. They prove the
+classifier is not simply rejecting changes between two manifests. The total fixture
+adversary count is now **27**.
+
 These fixtures are not a real host census, not descriptor-bound protected traversal,
 and not runtime-process/procfs evidence. The sibling census substrate #3594 is still
 a **fixture-only, V1-ancestry generation** and requires separate source rebind and
