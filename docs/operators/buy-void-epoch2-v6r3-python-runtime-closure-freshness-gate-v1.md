@@ -18,21 +18,21 @@ records a separate **temporal** gate for installed read-only qualification.
 ## Bound source
 
 - Parent Python closure contract Git blob:
-  `d6b31cab5745bf76f5ae8c69bef864ee4f3338b5`.
+  `d3f1deeaf82c49c11353cebbb4c72466be9d2472`.
 - Parent contract ID:
-  `voidbuye2v6r3pyruntimecontract1_6b88925643319fd7724f4fd66d115fd5ec9598a3c59a57cbc0a8c51737c8bae8`.
+  `voidbuye2v6r3pyruntimecontract1_80553976a9a5a241991a827f2b6913c08b22c27865136216dd66b21b07790df5`.
 - Accepted static first-entry binary lock Git blob:
   `66bf48fd6477e0335b1eea6e2b7e8a7f297f8c57`.
 - First-entry binary lock ID:
   `voidbuye2v6r3planfirstentrybinlock1_f6b452bb75542809454a0b68bae2f0049a4f2af6329e0b13075de1491bbbbc61`.
 - This gate ID:
-  `voidbuye2v6r3pyclosurefreshness1_63ab4349db96b99792bd58531b39d05527821af8eec0111c11b088e6ab381342`.
+  `voidbuye2v6r3pyclosurefreshness1_28fafff8e9cb508c9de7db9b32fcb7bc23766ad2eb9ecb86621aeba429d6bc11`.
 
 ## Required future live boundary
 
 A separately reviewed installed observer/launcher must bind the exact accepted
 host report and host identity to a **current** complete runtime-manifest check.
-The check must reobserve Python ELF and loader closure, interpreter configuration,
+The check must reobserve Python ELF and loader closure, interpreter configuration, Git subprocess runtime dependencies,
 every accepted sys.path and import root, all regular-file SHA-256/metadata,
 symlink target graphs, existing and missing paths, and effective runtime-UID
 writability of every source, ancestor, directory and loader-authority path.
