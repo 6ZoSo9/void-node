@@ -177,3 +177,28 @@ Next gate:
 `DISTINCT_REVIEW_FAILURE_DOMAIN_PLAN_THEN_BUILD_ISOLATED_RUNTIME_CANDIDATE_V1`.
 
 PROTECT THE CORE.
+
+## Source identity: explicit UID/GID and hard-link count binding
+
+The proof's bounded no-follow `read_regular()` checks had compared
+`st_dev`, `st_ino`, `st_mode`, file size, mtime and ctime across the
+initial pathname observation, opened descriptor and terminal recheck.
+Ordinary ownership or hard-link modifications also change ctime on Linux,
+so this was **not evidence of a practical bypass**. Nonetheless, those
+specific custody attributes should not depend on timestamp inference.
+
+The reader now compares `st_uid`, `st_gid` and `st_nlink` explicitly at
+the same before/opened/terminal checkpoints, retaining its initial
+regular-file and single-link requirement. An isolated temporary-file proof
+simulates each descriptor attribute drifting *without* changing ctime,
+verifying a specific `source_generation_changed` HOLD every time.
+It uses no `chown`, protected pathname, elevated privilege or production
+file mutation; the patched `os.fstat` function is restored after each
+negative case.
+
+These checks **do not** authenticate parent directory ancestry, ACLs,
+mount namespace, executable identity, or the installed callback process,
+and do not turn the source-only plan into runnable containment. Exact
+source and parent ancestry, independent security review, future isolated
+callback process fencing and production training authorization remain
+separate gates. No keys, services, signing, funds or training started.
