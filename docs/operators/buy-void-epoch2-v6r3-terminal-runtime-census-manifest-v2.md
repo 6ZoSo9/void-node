@@ -87,3 +87,42 @@ filesystem lookup. Two disposable adversaries assert specific HOLD reasons;
 the non-POSIX input suite now has nine cases. The source proof pins blob
 `8c8516a63d8890bd7103e0c868a3e88776f1e3e8`. This is still fixture-only and does not certify
 an installed host observer.
+
+## Bounded V2 display roots and generated inventory names
+
+This source-only successor retains #3600's explicit `//`-root rejection
+and authenticates its current Git-aware V2 binary lock, closure and freshness.
+It adds one missing resource invariant: the independent logical
+`display_root` is prefixed to every inventoried path name but formerly
+had no byte limit, and output dictionary/JSON materialization happened before
+the 16MiB report cap.
+
+`require_display_root()` now rejects malformed, noncanonical, double-slash,
+NUL-containing, invalid UTF-8 and >4096-byte display roots before any
+directory inventory. Standalone `absence_record()` also bounds the
+logical display root and complete logical absence path.
+
+The collector charges UTF-8 bytes of the root once and each discovered
+inventory object name once, **including directories still queued for
+descent**. If the combined path-name budget would exceed `MAX_REPORT_BYTES`
+(16MiB), it returns structured HOLD before the next leaf stat/hash/queue
+or final JSON expansion. A synthetic tiny-budget test proves the behavior;
+oversized ASCII/surrogate display roots, noncanonical double slash and
+direct oversized absence paths fail closed. Normal fixture inventory succeeds.
+
+```text
+parent_pr=3600
+parent_head=8a6b15a0c4e73fc9f3f6a1edc991e76ae34ded14
+source_git_blob=f256731a88a09ad82d37c17e5b1c31aaa2212cf3
+proof_git_blob=76f550e94ec42e5b601ebdff023eba8042ac25f6
+HOST_EXECUTION_ENABLED=False
+host_census_authorized=false
+host_plan_authorized=false
+funds_movement=false
+```
+
+No protected-host observer/installer, Python or Git process isolation,
+credential, signer, transaction/payment acceptance or presale activation
+is enabled. Exact-head CI and genuinely independent review remain required.
+
+**PROTECT THE CORE.**
