@@ -1,0 +1,74 @@
+name: Buy VOID Epoch-2 V6R3 planner native first-entry V1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/buy-void-epoch2-v6r3-plan-first-entry-v1.yml'
+      - 'ops/precision/void_buy_void_epoch2_v6r3_plan_first_entry_v1.c'
+      - 'scripts/prove_buy_void_epoch2_v6r3_plan_first_entry_v1.py'
+      - 'docs/operators/buy-void-epoch2-v6r3-plan-first-entry-v1.md'
+      - 'ops/precision/void_buy_void_epoch2_live_composition_runner_policy_upgrade_plan_v6r3.py'
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/buy-void-epoch2-v6r3-plan-first-entry-v1.yml'
+      - 'ops/precision/void_buy_void_epoch2_v6r3_plan_first_entry_v1.c'
+      - 'scripts/prove_buy_void_epoch2_v6r3_plan_first_entry_v1.py'
+      - 'docs/operators/buy-void-epoch2-v6r3-plan-first-entry-v1.md'
+      - 'ops/precision/void_buy_void_epoch2_live_composition_runner_policy_upgrade_plan_v6r3.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-epoch2-v6r3-plan-first-entry-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1)"
+
+      - name: Syntax and static source
+        run: |
+          set -euo pipefail
+          python3 -I -B -m py_compile scripts/prove_buy_void_epoch2_v6r3_plan_first_entry_v1.py
+          cc -std=c11 -Wall -Wextra -Werror -O2 -static             ops/precision/void_buy_void_epoch2_v6r3_plan_first_entry_v1.c             -o "$RUNNER_TEMP/epoch2-v6r3-plan-first-entry"
+          file "$RUNNER_TEMP/epoch2-v6r3-plan-first-entry" | grep -F 'statically linked'
+          readelf -l "$RUNNER_TEMP/epoch2-v6r3-plan-first-entry" > "$RUNNER_TEMP/readelf.txt"
+          if grep -F ' INTERP ' "$RUNNER_TEMP/readelf.txt"; then
+            echo launcher_has_dynamic_interpreter >&2
+            exit 1
+          fi
+          "$RUNNER_TEMP/epoch2-v6r3-plan-first-entry" --self-test
+
+      - name: Prove authenticated planner first entry
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/epoch2-v6r3-plan-first-entry-proof.txt"
+          python3 -I -B scripts/prove_buy_void_epoch2_v6r3_plan_first_entry_v1.py | tee "$OUT"
+          for marker in             'VOID_BUY_VOID_EPOCH2_V6R3_PLAN_FIRST_ENTRY_V1_PROOF_GREEN'             'native_static_first_instruction=true'             'native_no_pt_interp=true'             'native_ld_preload_blocked_before_main=true'             'runtime_uid_gid_1000_required=true'             'planner_sha256_and_size_bound_before_python=true'             'planner_retained_fd_execution=true'             'python_root_owned_generation_policy_bound=true'             'python_retained_fd_fexecve=true'             'isolated_python_i_b=true'             'caller_stdin_python_source_rejected=true'             'hostile_pythonpath_not_imported=true'             'same_size_planner_substitution_rejected_before_python=true'             'wrong_launcher_path_rejected_before_python=true'             'protected_install_authorized=false'             'host_plan_authorized=false'             'credential_access=false'             'signing=false'             'transaction=false'             'funds_movement=false'
+          do
+            grep -Fx "$marker" "$OUT"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain=v1)"
