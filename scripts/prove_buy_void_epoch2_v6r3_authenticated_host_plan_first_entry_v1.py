@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ENTRY = ROOT / "ops/precision/void_buy_void_epoch2_v6r3_authenticated_host_plan_first_entry_v1.py"
 PLANNER = ROOT / "ops/precision/void_buy_void_epoch2_live_composition_runner_policy_upgrade_plan_v6r3.py"
 MARKER = "VOID_BUY_VOID_EPOCH2_V6R3_AUTHENTICATED_HOST_PLAN_FIRST_ENTRY_V1"
-ENTRY_BLOB = "a42283027989df87d99064ad78dd5e606ebe9b4e"
+ENTRY_BLOB = "af5d52a13f25effef04a5a801bc79e5f0125dbf6"
 PLANNER_BLOB = "19c6e1cdf9f2361cedfba4ea8d650a63eb5061ff"
 PLANNER_SHA256 = "95d9dd865bc226a7436a67fff977215e43aad034ce40c2c9126ecc49c469d627"
 PLANNER_BYTES = 49025
@@ -42,12 +42,12 @@ required = (
     "root_leaf(ENTRY, executable=False, required_mode=0o444)",
     "os.getuid() != RUNTIME_UID or os.geteuid() != RUNTIME_UID",
     "os.getgid() != RUNTIME_GID or os.getegid() != RUNTIME_GID",
-    "not sys.flags.isolated or not sys.dont_write_bytecode",
+    "not sys.flags.isolated or not sys.dont_write_bytecode or not sys.flags.no_site",
     'os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC',
     "os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING",
     "fcntl.fcntl(writer, fcntl.F_ADD_SEALS, SEALS)",
     "fcntl.F_SEAL_WRITE | fcntl.F_SEAL_GROW | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_SEAL",
-    '"-I", "-B",',
+    '"-I", "-B", "-S",',
     "pass_fds=(python_fd, script_fd)",
     "validate_plan(result.stdout)",
     "any(body.get(key) is not False for key in FORBIDDEN)",
@@ -67,7 +67,7 @@ assert source.count("subprocess.run(") == 1
 env = {"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LANG": "C", "LC_ALL": "C", "TZ": "UTC"}
 for mode in ("--self-test", "--source-plan"):
     result = subprocess.run(
-        [sys.executable, "-I", "-B", str(ENTRY), mode],
+        [sys.executable, "-I", "-B", "-S", str(ENTRY), mode],
         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         cwd=str(ROOT), env=env, check=False, timeout=20,
         text=True, encoding="utf-8", errors="strict",
@@ -92,6 +92,7 @@ for mode in ("--self-test", "--source-plan"):
             MARKER, "mode=source-plan", "source_only=true",
             "separately_installed_root_custodied_entry_required=true",
             "exact_uid_gid_1000_required=true", "isolated_python_required=true",
+            "python_site_import_disabled_required=true",
             "trusted_python_retained_descriptor_first_exec_required=true",
             "planner_git_blob=" + PLANNER_BLOB,
             "planner_sha256=" + PLANNER_SHA256,
@@ -109,7 +110,7 @@ for mode in ("--self-test", "--source-plan"):
 
 # Negative host-plan invocation must HOLD before accessing source or protected host.
 result = subprocess.run(
-    [sys.executable, "-I", "-B", str(ENTRY), "--host-plan"],
+    [sys.executable, "-I", "-B", "-S", str(ENTRY), "--host-plan"],
     stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
     cwd=str(ROOT), env=env, check=False, timeout=10,
     text=True, encoding="utf-8", errors="strict",
