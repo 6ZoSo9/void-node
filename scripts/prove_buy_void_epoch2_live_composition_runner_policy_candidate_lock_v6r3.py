@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import tempfile
 
@@ -129,7 +130,8 @@ assert lock["next_gate"]=="void_buy_void_epoch2_live_composition_runner_policy_u
 material=dict(lock); observed=material.pop("lock_id")
 assert observed==LOCK_ID==LOCK_PREFIX+sha256(canonical(material))
 
-node="/usr/bin/node"
+node=shutil.which("node")
+assert node is not None, "node_unavailable"
 sealed_cp=subprocess.run(
  [node,str(SEALED_V3),"--self-test"],stdin=subprocess.DEVNULL,
  stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,encoding="utf-8",errors="strict",
