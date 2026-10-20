@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="4ce879f1be9581d65759e64e185621fcbe57f8a7"
+SOURCE_BLOB="bb76f730d63250e658831f44baf307663bbb2c6b"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -167,6 +167,15 @@ for required in (
     'entries.sort(key=lambda e:e.name,reverse=True)',
     "observed[0]==2",
     "MAX_REGULAR_FILE_BYTES=512*1024*1024",
+    "MAX_TOTAL_HASH_BYTES=8*1024*1024*1024",
+    "class _HashReadBudget:",
+    'raise Hold("aggregate_regular_hash_byte_budget_exceeded")',
+    "read_budget.charge(before.st_size)",
+    "max_hash_bytes:int=MAX_TOTAL_HASH_BYTES",
+    "objects[display]=stable_regular(path,read_budget=read_budget)",
+    "resolved,read_budget=read_budget,",
+    "census_cumulative_regular_and_symlink_hash_budget_bound=true",
+    "census_hash_budget_checked_before_file_open=true",
     "MAX_REPORT_BYTES=16*1024*1024",
     "os.O_NOFOLLOW|os.O_NONBLOCK",
     'raise Hold("special_file_forbidden:"',
@@ -228,6 +237,8 @@ for mode,required_lines in (
         "census_display_root_length_utf8_and_path_budget_bound=true",
         "census_individual_display_path_bound=true",
         "census_symlink_record_strings_budget_bound=true",
+        "census_cumulative_regular_and_symlink_hash_budget_bound=true",
+        "census_hash_budget_checked_before_file_open=true",
         "census_direct_absence_display_path_budget_bound=true",
         "census_unbounded_generator_and_oversize_path_rejected=true",
         "noncanonical_manifest_paths_rejected=true",
@@ -301,6 +312,8 @@ print("census_display_root_and_path_key_budget_proven=true")
 print("display_name_budget_pre_materialization_proven=true")
 print("census_individual_display_key_bound_proven=true")
 print("census_symlink_record_string_budget_proven=true")
+print("census_cumulative_hash_read_budget_proven=true")
+print("census_hash_bound_precedes_open_proven=true")
 print("host_execution_enabled=false")
 print("host_census_authorized=false")
 print("protected_install_authorized=false")
