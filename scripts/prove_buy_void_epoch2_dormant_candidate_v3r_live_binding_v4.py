@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from __future__ import annotations
 
 # This verifier uses assertion-based identity checks. A different optimized
 # code object can disable them even when the parent interpreter flags are 0.
@@ -396,6 +395,30 @@ for optimization in (1, 2):
     assert cp.stdout == "", (optimization, cp.stdout)
     assert cp.stderr == "HOLD=optimized_python_forbidden\n", (optimization, cp.stderr)
 
+
+# The standard-library __future__ module is otherwise imported BEFORE the
+# guard when the script uses a future statement. A sibling checkout-local
+# __future__.py could execute before -I is checked. This disposable copy
+# demonstrates that the removed preguard import cannot run attacker bytes.
+with tempfile.TemporaryDirectory(prefix="void-dormant-proof-preimport-") as td:
+    fixture_dir = pathlib.Path(td)
+    poisoned_future = fixture_dir / "__future__.py"
+    poisoned_future.write_text(
+        'print("POISONED_PRE_GUARD_IMPORT")\nannotations=object()\n',
+        encoding="utf-8",
+    )
+    fixture_script = fixture_dir / "verifier.py"
+    fixture_script.write_bytes(proof_path.read_bytes())
+    cp = subprocess.run(
+        [sys.executable, "-B", "-S", str(fixture_script)],
+        cwd=fixture_dir, env=proof_env, stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        check=False, timeout=20,
+    )
+    assert cp.returncode == 2, (cp.returncode, cp.stdout, cp.stderr)
+    assert cp.stdout == "", cp.stdout
+    assert cp.stderr == "HOLD=isolated_python_proof_required\n", cp.stderr
+
 print("VOID_BUY_VOID_EPOCH2_DORMANT_CANDIDATE_V3R_LIVE_BINDING_V4_PROOF_GREEN")
 print("binder_blob=" + BINDER_BLOB)
 print("binder_sha256=" + BINDER_SHA256)
@@ -425,6 +448,7 @@ print("optimized_python_negative_fixtures=2")
 print("optimized_code_object_negative_fixtures=2")
 print("per_code_object_debug_required=true")
 print("isolated_no_site_python_proof_entry_required=true")
+print("pre_guard_future_import_poison_rejected=true")
 print("runtime_policy_authenticated_by_native_preentry=true")
 print("historical_generation_overclaim_absent=true")
 print("native_preentry_binds_exact_binder_bytes=true")
