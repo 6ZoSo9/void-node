@@ -72,3 +72,18 @@ funds_movement=false
 ```
 
 **PROTECT THE CORE.**
+
+## Canonical double-slash display-root policy
+
+POSIX permits implementation-defined treatment of precisely two leading
+slashes. Python preserves that spelling under
+`posixpath.normpath("//fixture")`. The previous standalone absence
+helper would accept `//fixture/etc/ghost` as a canonical display identity,
+even though such a path spelling cannot be assumed portable or unambiguous.
+
+The V2 substrate now rejects `display_root.startswith("//")` in both
+`build_manifest()` and standalone `absence_record()` before inventory or
+filesystem lookup. Two disposable adversaries assert specific HOLD reasons;
+the non-POSIX input suite now has nine cases. The source proof pins blob
+`8c8516a63d8890bd7103e0c868a3e88776f1e3e8`. This is still fixture-only and does not certify
+an installed host observer.
