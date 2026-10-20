@@ -15,7 +15,7 @@ SOURCE=ROOT/"ops/precision/void_buy_void_epoch2_v6r3_terminal_runtime_census_man
 CONTRACT=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-contract-v2.json"
 FRESHNESS=ROOT/"ops/security/buy-void-epoch2-v6r3-python-runtime-closure-freshness-gate-v2.json"
 
-SOURCE_BLOB="d2f6d44a9dd8c8961fb7952c1aa985bb3da9cdb3"
+SOURCE_BLOB="f42458ff4c9d2de7d879e7501ab3964e6a48c61b"
 CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 CONTRACT_ID="voidbuye2v6r3pyruntimecontract2_6fe0f7e5779d998659ffb67d64832e9ce5babac92584c88f43c1400cef3e4e50"
@@ -103,6 +103,11 @@ for required in (
     'raise Hold("sys_path_not_inventoried_or_absent:"',
     'raise Hold("sys_path_special_or_symlink_authority:"',
     'raise Hold("sys_path_invalid_or_noncanonical")',
+    'raise Hold("accessed_path_invalid_or_noncanonical")',
+    'chr(0) in display_root',
+    'chr(0) in display_path',
+    'embedded_nul_and_non_posix_input_paths_rejected=true',
+    'non_posix_path_negative_fixtures=4',
     "def _contained_resolve(",
     "symlink_resolution_hop_limit:",
     "symlink_target_outside_inventory_root:",
@@ -175,6 +180,8 @@ for mode,required_lines in (
         "census_input_cardinality_and_byte_budget_pretraversal=true",
         "census_unbounded_generator_and_oversize_path_rejected=true",
         "noncanonical_manifest_paths_rejected=true",
+        "embedded_nul_and_non_posix_input_paths_rejected=true",
+        "non_posix_path_negative_fixtures=4",
         "discovered_entry_budget_includes_queued_directories=true",
         "scandir_consumption_bounded_before_sort=true",
         "over_budget_synthetic_scandir_rejected=true",
@@ -225,6 +232,7 @@ print("queued_directory_budget_proven=true")
 print("symlink_hop_confinement_proven=true")
 print("symlink_missing_parent_reentry_hold_proven=true")
 print("absence_parent_and_sys_path_coverage_proven=true")
+print("nul_and_non_posix_path_rejection_proven=true")
 print("census_input_budget_pretraversal_proven=true")
 print("host_execution_enabled=false")
 print("host_census_authorized=false")
