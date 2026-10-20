@@ -389,3 +389,62 @@ security review are mandatory. Source guards still cannot authenticate the
 Python interpreter's own startup or any real installed privileged native.
 
 PROTECT THE CORE.
+
+
+
+## CURRENT CHILD SOURCE — independent ELF PT_LOAD extent tests (October 20, 2026)
+
+This source-only descendant of the hardened/optimizer-safe [#3633](https://github.com/6ZoSo9/void-node/pull/3633)
+closes the outstanding P1 **parser-fixture coverage** finding on the
+historical [#3631](https://github.com/6ZoSo9/void-node/pull/3631).
+The previous single negative had `p_filesz=200` and `p_memsz=0`:
+the validator's `p_memsz < p_filesz || p_offset+p_filesz > expectedBytes`
+short-circuited on its memory-size branch, leaving the separate
+file-extent branch untested.
+
+The disposable **nonexecuted**, 0600 synthetic ELF fixture now verifies
+both subconditions independently:
+
+- Memory-size violation **only:** `p_filesz=1`, `p_memsz=0`, `p_offset=0`,
+  with the segment completely inside the fixture file.
+- File-extent violation **only:** `p_filesz=200`, `p_memsz=200`,
+  `p_offset=0`; the memory-size condition is false.
+- Offset-plus-file violation **only:** `p_offset=110`, `p_filesz=20`,
+  `p_memsz=20`; the segment start is inside the file but its end is not.
+
+Every case must fail inside the **real** retained-FD native ELF parser
+with `trusted_native_load_segment_bounds_invalid`. Removing either
+production branch makes its dedicated regression fail. The existing
+positive ELF and independent malformed-header, PT_INTERP, PT_DYNAMIC,
+missing PT_LOAD, digest, partial read and generation-drift cases remain.
+
+```text
+parent_pr=3633
+parent_head=8a58301048437f6406349665dcd6c48287fce53a
+binder_git_blob=be4a40954e5541168ab3403ad5b9b74207dc5ddd
+binder_sha256=31309bffffc09dbb7ced849feb61f3b61c5226f6ec66cdcdba3e315bc08cedbd
+binder_bytes=62308
+native_preentry_c_git_blob=417195505fff1157e401a7e7b6262609fcfca5bf
+binder_source_proof_git_blob=23e195dbe80d8fbdb5edd1a6b974f3f6e476fe3c
+native_accepted_elf_sha256=85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8
+native_accepted_elf_bytes=726976
+optimized_python_negative_fixtures=2
+optimized_code_object_negative_fixtures=2
+pre_guard_future_import_poison_rejected=true
+ptload_independent_negative_fixtures=3
+private_key_access=false
+signing=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+This tests exact code paths in a **disposable unprivileged synthetic ELF**,
+not a production native executable. None of these source-check results
+authorize root native first entry, protected filesystem installation,
+real signer/credential access, customer payment, presale/WC activation
+or funds movement. Full exact-head CI and genuinely independent P1
+security review are required. The fixed accepted V6R2 ELF/lock remains
+unchanged. Tor renewal is managed separately.
+
+PROTECT THE CORE.
