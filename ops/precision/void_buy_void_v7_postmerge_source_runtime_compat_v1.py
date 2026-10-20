@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+import sys
+
+_EARLY_MARKER = "VOID_BUY_VOID_V7_POSTMERGE_SOURCE_RUNTIME_COMPAT_V1"
+if sys.flags.isolated != 1:
+    print(_EARLY_MARKER)
+    print("status=HOLD")
+    print("reason=python_isolation_required")
+    raise SystemExit(2)
+if sys.flags.optimize != 0 or not __debug__:
+    print(_EARLY_MARKER)
+    print("status=HOLD")
+    print("reason=python_optimization_forbidden")
+    raise SystemExit(2)
 
 import argparse
 import hashlib
@@ -9,9 +21,8 @@ from pathlib import Path
 import re
 import stat
 import subprocess
-import sys
 
-MARKER = "VOID_BUY_VOID_V7_POSTMERGE_SOURCE_RUNTIME_COMPAT_V1"
+MARKER = _EARLY_MARKER
 SCHEMA = "void_buy_void_v7_postmerge_source_runtime_compat_v1"
 VERSION = 1
 
@@ -480,6 +491,8 @@ def verify_repository(root: Path, expected_head: str, require_main: bool) -> dic
         "source_base_head": SOURCE_BASE_HEAD,
         "source_base_tree": SOURCE_BASE_TREE,
         "source_head": expected_head,
+        "python_isolated_execution": True,
+        "python_unoptimized_execution": True,
         "base_added_path_count": len(BASE_ADDITIONS),
         "base_modified_path_count": len(BASE_MODIFICATIONS),
         "compatibility_self_added_path_count": len(SELF_ADDITIONS),
@@ -509,6 +522,8 @@ def build_plan() -> dict[str, object]:
         "runtime_tree": RUNTIME_TREE,
         "source_base_head": SOURCE_BASE_HEAD,
         "source_base_tree": SOURCE_BASE_TREE,
+        "python_isolated_execution_required": True,
+        "python_unoptimized_execution_required": True,
         "base_added_path_count": len(BASE_ADDITIONS),
         "base_modified_path_count": len(BASE_MODIFICATIONS),
         "base_modified_paths": sorted(BASE_MODIFICATIONS),
@@ -660,6 +675,8 @@ def self_test() -> None:
         RUNTIME_SENSITIVE_EQUAL.clear()
         RUNTIME_SENSITIVE_EQUAL.update(saved_sensitive)
     print(MARKER + "_SELF_TEST_GREEN")
+    print("python_isolated_execution_required=true")
+    print("python_unoptimized_execution_required=true")
     print("runtime_to_source_base_exact_21_add_3_modify_required=true")
     print("compatibility_self_scope_exact_four_additions_required=true")
     print("runtime_sensitive_five_path_identity_equality_required=true")
