@@ -19,6 +19,9 @@ CONTRACT_BLOB="c56361ecaccb916a79591c016200b8dc02f5ca54"
 FRESHNESS_GATE_BLOB="864c04c578d0abdb6e8c01d3f9dd7eda6ceff2ac"
 MAX_TREE_ENTRIES=100_000
 MAX_REGULAR_FILE_BYTES=512*1024*1024
+# Source-only ceiling for cumulative bytes actually hashed per inventory.
+# A production host's approved runtime census needs a separate approved limit.
+MAX_TOTAL_HASH_BYTES=8*1024*1024*1024
 MAX_REPORT_BYTES=16*1024*1024
 MAX_INPUT_PATH_BYTES=4096
 # V1 source generation is a reviewed lineage input, not live V2 authority.
@@ -54,7 +57,25 @@ def _same_generation(a:os.stat_result,b:os.stat_result)->bool:
     fields=("st_dev","st_ino","st_mode","st_uid","st_gid","st_nlink","st_size","st_mtime_ns","st_ctime_ns")
     return all(getattr(a,k)==getattr(b,k) for k in fields)
 
-def stable_regular(path:Path)->dict[str,object]:
+class _HashReadBudget:
+    def __init__(self,maximum:int)->None:
+        if type(maximum) is not int or not 1<=maximum<=MAX_TOTAL_HASH_BYTES:
+            raise Hold("aggregate_hash_budget_invalid")
+        self.remaining=maximum
+        self.spent=0
+
+    def charge(self,size:int)->None:
+        if type(size) is not int or size<0:
+            raise Hold("aggregate_hash_charge_invalid")
+        if size>self.remaining:
+            raise Hold("aggregate_regular_hash_byte_budget_exceeded")
+        self.remaining-=size
+        self.spent+=size
+
+
+def stable_regular(
+    path:Path,*,read_budget:_HashReadBudget|None=None,
+)->dict[str,object]:
     before=path.lstat()
     if (
         not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode)
@@ -62,6 +83,11 @@ def stable_regular(path:Path)->dict[str,object]:
         or before.st_size<0 or before.st_size>MAX_REGULAR_FILE_BYTES
     ):
         raise Hold("regular_metadata_invalid:"+os.fspath(path))
+    if read_budget is None:
+        read_budget=_HashReadBudget(MAX_TOTAL_HASH_BYTES)
+    # Charge the complete currently advertised file BEFORE opening or
+    # reading it.  Failed reads cause HOLD; no budget refund is allowed.
+    read_budget.charge(before.st_size)
     fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK)
     try:
         opened=os.fstat(fd)
@@ -156,7 +182,10 @@ def _contained_resolve(
     return current
 
 
-def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->dict[str,object]:
+def symlink_record(
+    path:Path,display_path:str,real_root:Path,display_root:str,
+    *,read_budget:_HashReadBudget|None=None,
+)->dict[str,object]:
     before=path.lstat()
     if not stat.S_ISLNK(before.st_mode):
         raise Hold("symlink_metadata_invalid:"+os.fspath(path))
@@ -209,7 +238,9 @@ def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->
             if record["resolved_kind"]=="special":
                 raise Hold("symlink_resolved_special_file_forbidden:"+display_path)
             if stat.S_ISREG(rst.st_mode):
-                record["resolved_sha256"]=stable_regular(resolved)["sha256"]
+                record["resolved_sha256"]=stable_regular(
+                    resolved,read_budget=read_budget,
+                )["sha256"]
     terminal=path.lstat()
     if not _same_generation(before,terminal):
         raise Hold("symlink_generation_changed_after_resolution:"+display_path)
@@ -259,8 +290,10 @@ def _display(display_root:str,rel:Path)->str:
 
 def collect_tree(
     real_root:Path,display_root:str,*,display_budget:int=MAX_REPORT_BYTES,
+    max_hash_bytes:int=MAX_TOTAL_HASH_BYTES,
 )->dict[str,dict[str,object]]:
     root_bytes=require_display_root(display_root)
+    read_budget=_HashReadBudget(max_hash_bytes)
     if (type(display_budget) is not int or
         not 1<=display_budget<=MAX_REPORT_BYTES):
         raise Hold("manifest_display_budget_invalid")
@@ -324,12 +357,14 @@ def collect_tree(
             if display in objects:
                 raise Hold("duplicate_inventory_path")
             if stat.S_ISREG(st.st_mode):
-                objects[display]=stable_regular(path)
+                objects[display]=stable_regular(path,read_budget=read_budget)
             elif stat.S_ISLNK(st.st_mode):
                 # A symlink stores target_text and resolved_display_path
                 # in addition to its inventory key. All three variable
                 # strings must consume the same cumulative byte budget.
-                record=symlink_record(path,display,real_root,display_root)
+                record=symlink_record(
+                    path,display,real_root,display_root,read_budget=read_budget,
+                )
                 for field in ("target_text","resolved_display_path"):
                     try:
                         extra_bytes=len(record[field].encode("utf-8","strict"))
@@ -521,6 +556,53 @@ def fixture_self_test()->None:
         require_terminal_equal(manifest,json.loads(canonical(manifest)))
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
+
+        # A source inventory must share one finite read/hash budget across
+        # ordinary files AND aliases to the same target.  A symlink target
+        # cannot silently receive another free per-file allowance.
+        unique_regular_bytes=sum(
+            item["size"] for item in manifest["objects"].values()
+            if item["kind"]=="regular"
+        )
+        symlink_rehash_bytes=sum(
+            len(b"x=1\n")
+            for item in manifest["objects"].values()
+            if item["kind"]=="symlink" and item.get("resolved_sha256") is not None
+        )
+        assert unique_regular_bytes>0 and symlink_rehash_bytes>0
+        try:
+            collect_tree(root,"/fixture",max_hash_bytes=unique_regular_bytes)
+        except Hold as exc:
+            assert str(exc)=="aggregate_regular_hash_byte_budget_exceeded",str(exc)
+        else:
+            raise AssertionError("symlink_target_rehash_budget_bypassed")
+        assert collect_tree(
+            root,"/fixture",
+            max_hash_bytes=unique_regular_bytes+symlink_rehash_bytes,
+        )==manifest["objects"]
+
+        # Reject at the budget boundary before the first regular-file open:
+        # the sentinel would fail if a hash read were attempted first.
+        original_open=os.open
+        def _reject_unbudgeted_open(*args,**kwargs):
+            raise AssertionError("regular_hash_open_before_budget_check")
+        try:
+            os.open=_reject_unbudgeted_open
+            try:
+                collect_tree(root,"/fixture",max_hash_bytes=1)
+            except Hold as exc:
+                assert str(exc)=="aggregate_regular_hash_byte_budget_exceeded"
+            else:
+                raise AssertionError("aggregate_hash_bound_bypassed")
+        finally:
+            os.open=original_open
+        for bad_budget in (0,MAX_TOTAL_HASH_BYTES+1,True,"invalid"):
+            try:
+                collect_tree(root,"/fixture",max_hash_bytes=bad_budget)
+            except Hold as exc:
+                assert str(exc)=="aggregate_hash_budget_invalid",str(exc)
+            else:
+                raise AssertionError("unapproved_hash_budget_accepted")
 
         # The key-only guard must not admit unbudgeted symlink target text.
         key_only_budget=sum(
@@ -892,6 +974,8 @@ def fixture_self_test()->None:
     print("census_display_root_length_utf8_and_path_budget_bound=true")
     print("census_individual_display_path_bound=true")
     print("census_symlink_record_strings_budget_bound=true")
+    print("census_cumulative_regular_and_symlink_hash_budget_bound=true")
+    print("census_hash_budget_checked_before_file_open=true")
     print("census_direct_absence_display_path_budget_bound=true")
     print("census_unbounded_generator_and_oversize_path_rejected=true")
     print("noncanonical_manifest_paths_rejected=true")
