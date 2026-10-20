@@ -71,10 +71,12 @@ The verifier:
 6. requires isolated, unoptimized Python before the verifier can produce plan or verification authority;
 7. opens the checkout root and every traversed tracked-file ancestor as retained no-follow directory descriptors, then reads leaves descriptor-relative so pathname ancestor replacement cannot redirect the authenticated read;
 8. hashes every tracked visible worktree file directly with retained no-follow leaf descriptors and checks Git blob identity/mode/size;
-9. revalidates the raw index, every tracked leaf generation, and every retained ancestor-directory generation before and after terminal Git observations;
-10. normalizes ordinary filesystem drift plus Git timeout/exec failures into machine-readable HOLD rather than traceback.
+9. requires sanitized Git discovery to report a `--show-toplevel` that resolves exactly to the supplied checkout root, rejecting nested copies that would otherwise inherit an ancestor repository;
+10. when `--require-main` is requested, revalidates symbolic branch `main` at the terminal Git barriers so a same-commit branch switch cannot survive as GREEN;
+11. revalidates the raw index, every tracked leaf generation, and every retained ancestor-directory generation before and after terminal Git observations;
+12. normalizes ordinary filesystem drift plus Git timeout/exec failures into machine-readable HOLD rather than traceback.
 
-Untracked paths never receive source authority. A renamed/replaced tracked ancestor directory also invalidates the generation even if a replacement tree contains byte-identical leaves.
+Untracked paths never receive source authority. A renamed/replaced tracked ancestor directory invalidates the generation even if a replacement tree contains byte-identical leaves, and a nested filesystem copy cannot borrow Git authority from an ancestor checkout.
 
 ## Authority
 
