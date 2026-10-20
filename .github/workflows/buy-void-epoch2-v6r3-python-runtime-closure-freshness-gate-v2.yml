@@ -47,6 +47,8 @@ jobs:
           set -euo pipefail
           OUTPUT="$(python3 -I -B -S scripts/prove_buy_void_epoch2_v6r3_python_runtime_closure_freshness_gate_v2.py --self-test)"
           printf '%s\n' "$OUTPUT" | grep -Fx 'git_executable_loader_dso_helper_config_drift_rejected=true'
+          printf '%s\n' "$OUTPUT" | grep -Fx 'git_mapped_elf_and_helper_absence_same_data_rejected=true'
+          printf '%s\n' "$OUTPUT" | grep -Fx 'synthetic_adversary_count=27'
           printf '%s\n' "$OUTPUT" | grep -Fx 'v2_binary_lock_generation_exact=true'
           printf '%s\n' "$OUTPUT" | grep -Fx 'host_census_performed=false'
           printf '%s\n' "$OUTPUT" | grep -Fx 'host_plan_authorized=false'
