@@ -26,7 +26,7 @@ PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_bind
 BINDER_BLOB = "be4a40954e5541168ab3403ad5b9b74207dc5ddd"
 BINDER_SHA256 = "31309bffffc09dbb7ced849feb61f3b61c5226f6ec66cdcdba3e315bc08cedbd"
 BINDER_BYTES = 62308
-PREENTRY_BLOB = "e3eae688ed8b378fe219a9aa39271c2312262161"
+PREENTRY_BLOB = "78b2264a46adfc457c648dd2c57838c246c3ca71"
 NATIVE_LOCK_V6R2_REL = "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
 NATIVE_LOCK_V6R2_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
@@ -229,6 +229,10 @@ for required in (
     'stream_fd_exact(frozen_fd,source_pipe[1],BINDER_BYTES)',
     'binder_preentry_binder_generation_changed_during_stage',
     'self_test_sealed_source()',
+    'open_leaf_nofollow_nonblocking(p)',
+    'O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK',
+    'self_test_fifo_replacement_nonblocking()',
+    'trusted_fifo_swap_open_nonblocking=true',
     '(char*)"--source-head",source_head',
     '(char*)"--runtime-head",policy.expected_head',
 ):
@@ -367,6 +371,7 @@ with tempfile.TemporaryDirectory(prefix="void-dormant-binding-v4-proof-") as td:
         "private_parent_proof_channel=true",
         "binder_verified_sealed_memfd_source=true",
         "binder_same_inode_mutation_streams_only_accepted_bytes=true",
+        "trusted_fifo_swap_open_nonblocking=true",
         "source_runtime_two_head_contract=true",
         "runtime_policy_head_separate_from_source_head=true",
         "credential_content_access=false",
@@ -476,6 +481,7 @@ print("historical_generation_overclaim_absent=true")
 print("native_preentry_binds_exact_binder_bytes=true")
 print("binder_sealed_memfd_source_verified_before_root_fork=true")
 print("binder_inplace_mutation_cannot_change_streamed_js=true")
+print("binder_native_trusted_open_fifo_swap_nonblocking=true")
 print("host_execution=false")
 print("credential_access=false")
 print("signing=false")
