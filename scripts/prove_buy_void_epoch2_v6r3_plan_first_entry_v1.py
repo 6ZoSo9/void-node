@@ -217,6 +217,8 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         "python_sealed_memfd_fexecve=true",
         "sealed_memfd_write_rejected=true",
         "python_retained_descriptor_fexecve_required=true",
+        "trusted_stdout_stderr_nonfile_sinks_required=true",
+        "securebits_and_capabilities_verified_after_drop=true",
         "isolated_python_required=true",
         "python_site_import_disabled=true",
         "caller_stdin_python_source_authority=false",
@@ -406,6 +408,34 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         assert not evil_sentinel.exists(), "hostile PYTHONPATH imported by isolated child"
         assert not preload_sentinel.exists(), "hostile LD_PRELOAD propagated to Python child"
 
+        # Reject inherited root securebits before any protected Python runs.
+        cp = run([
+            SUDO, "-n", SETPRIV, "--securebits=+no_setuid_fixup",
+            os.fspath(FIXED_SELF), "--plan",
+        ], timeout=90)
+        assert cp.returncode == 2, (cp.stdout, cp.stderr)
+        assert b"reason=inherited_securebits_rejected" in cp.stderr
+        assert b"planner_python_started=false" in cp.stderr
+        assert PLANNER_MARKER.encode("ascii") not in cp.stdout
+
+        # A root-opened regular fd1/fd2 must not receive native/planner output.
+        for output_fd in (1, 2):
+            output_sentinel = temp / ("root-opened-output-fd" + str(output_fd))
+            cp = run([
+                SUDO, "-n", "/bin/sh", "-c",
+                "exec " + str(output_fd) + '> "$1"; exec "$2" --plan',
+                "void-inherited-output", os.fspath(output_sentinel),
+                os.fspath(FIXED_SELF),
+            ], timeout=90)
+            assert cp.returncode == 2, (cp.stdout, cp.stderr)
+            out_st = output_sentinel.lstat()
+            assert stat.S_ISREG(out_st.st_mode) and out_st.st_uid == 0
+            assert output_sentinel.read_bytes() == b"", (
+                "root_opened_regular_output_mutated:" + str(output_fd)
+            )
+            assert PLANNER_MARKER.encode("ascii") not in (cp.stdout + cp.stderr)
+            output_sentinel.unlink()
+
         # Actual native closed-stdin adversary: fd0 must be reserved before any
         # trusted open, and the authenticated planner must still execute from fd3.
         cp = run([
@@ -511,6 +541,9 @@ print("isolated_disposable_fixture_root=true")
 print("preexisting_fixture_root_rejected=true")
 print("generation_bound_nonrecursive_cleanup=true")
 print("closed_stdin_first_entry_green=true")
+print("root_opened_regular_output_sinks_rejected=true")
+print("inherited_securebits_rejected_before_python=true")
+print("postdrop_capability_sets_required_empty=true")
 print("root_static_first_entry_required=true")
 print("standard_fds_reserved_before_trusted_opens=true")
 print("mapped_planner_fd3_revalidated=true")
