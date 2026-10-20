@@ -291,12 +291,16 @@ def _display(display_root:str,rel:Path)->str:
 def collect_tree(
     real_root:Path,display_root:str,*,display_budget:int=MAX_REPORT_BYTES,
     max_hash_bytes:int=MAX_TOTAL_HASH_BYTES,
+    record_budget:int=MAX_REPORT_BYTES,
 )->dict[str,dict[str,object]]:
     root_bytes=require_display_root(display_root)
     read_budget=_HashReadBudget(max_hash_bytes)
     if (type(display_budget) is not int or
         not 1<=display_budget<=MAX_REPORT_BYTES):
         raise Hold("manifest_display_budget_invalid")
+    if (type(record_budget) is not int or
+        not 1<=record_budget<=MAX_REPORT_BYTES):
+        raise Hold("manifest_record_budget_invalid")
     if root_bytes>display_budget:
         raise Hold("manifest_display_path_budget_exceeded")
     display_bytes_total=root_bytes
@@ -306,6 +310,23 @@ def collect_tree(
     if not real_root.is_dir():
         raise Hold("inventory_root_not_directory")
     objects:dict[str,dict[str,object]]={}
+    record_bytes_total=0
+
+    def add_record(display:str,record:dict[str,object])->None:
+        nonlocal record_bytes_total
+        if display in objects:
+            raise Hold("duplicate_inventory_path")
+        # Canonical escaping/metadata bytes are additional to raw UTF-8
+        # display names; charge before admitting any manifest object.
+        try:
+            encoded_bytes=len(canonical({display:record}))
+        except (UnicodeError,TypeError,ValueError) as exc:
+            raise Hold("manifest_record_encoding_invalid") from exc
+        if encoded_bytes>record_budget-record_bytes_total:
+            raise Hold("manifest_record_budget_exceeded")
+        record_bytes_total+=encoded_bytes
+        objects[display]=record
+
     directory_generations:dict[Path,os.stat_result]={}
     stack=[real_root]
     # Count all discovered objects, including directories not yet popped from
@@ -320,7 +341,7 @@ def collect_tree(
         if display in objects:
             raise Hold("duplicate_inventory_path")
         before_dir=current.lstat()
-        objects[display]=directory_record(current)
+        add_record(display,directory_record(current))
         directory_generations[current]=before_dir
         if len(objects)>MAX_TREE_ENTRIES:
             raise Hold("tree_entry_bound_exceeded")
@@ -357,7 +378,7 @@ def collect_tree(
             if display in objects:
                 raise Hold("duplicate_inventory_path")
             if stat.S_ISREG(st.st_mode):
-                objects[display]=stable_regular(path,read_budget=read_budget)
+                add_record(display,stable_regular(path,read_budget=read_budget))
             elif stat.S_ISLNK(st.st_mode):
                 # A symlink stores target_text and resolved_display_path
                 # in addition to its inventory key. All three variable
@@ -373,7 +394,7 @@ def collect_tree(
                     if display_bytes_total+extra_bytes>display_budget:
                         raise Hold("manifest_display_path_budget_exceeded")
                     display_bytes_total+=extra_bytes
-                objects[display]=record
+                add_record(display,record)
             else:
                 raise Hold("special_file_forbidden:"+display)
             if len(objects)>MAX_TREE_ENTRIES:
@@ -624,6 +645,46 @@ def fixture_self_test()->None:
         assert collect_tree(
             root,"/fixture",display_budget=key_only_budget+symlink_extra_bytes
         )==manifest["objects"]
+
+        # Exact canonical JSON bytes, not merely raw names, constrain
+        # metadata/escaping memory before each manifest object insertion.
+        payload=sum(
+            len(canonical({name,item_key})) for name,item_key in manifest["objects"].items()
+        )
+        assert collect_tree(root,"/fixture",record_budget=payload)==manifest["objects"]
+        try:
+            collect_tree(root,"/fixture",record_budget=payload-1)
+        except Hold as exc:
+            assert str(exc)=="manifest_record_budget_exceeded",str(exc)
+        else:
+            raise AssertionError("serialized_record_budget_escaped")
+
+        # Linux permits control characters inside contained symlink targets.
+        # ensure_ascii JSON expands each 0x01 to six ASCII bytes.
+        escaped=py/"json-control-target"
+        escaped_target=chr(1)*24
+        escaped.symlink_to(escaped_target)
+        control_objects=collect_tree(root,"/fixture")
+        assert control_objects["/fixture/python/json-control-target"]["target_text"]==escaped_target
+        assert len(canonical(escaped_target))>len(escaped_target.encode("utf-8"))*4
+        escaped_payload=sum(
+            len(canonical({name,item})) for name,item in control_objects.items()
+        )
+        assert collect_tree(root,"/fixture",record_budget=escaped_payload)==control_objects
+        try:
+            collect_tree(root,"/fixture",record_budget=escaped_payload-1)
+        except Hold as exc:
+            assert str(exc)=="manifest_record_budget_exceeded",str(exc)
+        else:
+            raise AssertionError("escaped_json_record_over_budget_accepted")
+        escaped.unlink()
+        for bad_budget in (0,MAX_REPORT_BYTES+1,True,"invalid"):
+            try:
+                collect_tree(root,"/fixture",record_budget=bad_budget)
+            except Hold as exc:
+                assert str(exc)=="manifest_record_budget_invalid",str(exc)
+            else:
+                raise AssertionError("unapproved_record_budget_accepted")
 
         # A logical root prefixes every object key. Prove early bounds
         # without large allocations or protected-host filesystem reads.
@@ -975,6 +1036,8 @@ def fixture_self_test()->None:
     print("census_individual_display_path_bound=true")
     print("census_symlink_record_strings_budget_bound=true")
     print("census_cumulative_regular_and_symlink_hash_budget_bound=true")
+    print("census_canonical_json_record_payload_budget_bound=true")
+    print("census_escaped_control_record_amplification_rejected=true")
     print("census_hash_budget_checked_before_file_open=true")
     print("census_direct_absence_display_path_budget_bound=true")
     print("census_unbounded_generator_and_oversize_path_rejected=true")
