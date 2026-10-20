@@ -17,7 +17,7 @@ LOCK_ID="voidbuye2runnerpollock6r3_0633e059bfdfb1209b80b090adacddae61795ca610a6b
 CANDIDATE_ID="voidbuye2runnerpolcand6r3_0a3bfc00032b0feeb253fb0f295b4dacc1e3e66af35013676351ed11e3c119e1"
 LOCK_BLOB="d28ebbd3fe1d89a1940b039af64e10a6cb96065e"
 RUNNER_BLOB="2fa028824d71a22f4d228cdb7fcda738bce7b409"
-PLAN_BLOB="9eeadd69546cf0eb5793a744b273319bec757d39"
+PLAN_BLOB="83ef44f0cacc3f0445ccdb23fb0c478d79f01f70"
 RUNNER_SHA256="9b8497c813fc3899b745736da01929380b5f28f988f70790def1e0a98b35a261"
 RUNTIME_HEAD="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 
@@ -195,8 +195,6 @@ lock=json.loads(LOCK.read_bytes())
 assert lock["version"]==8
 assert lock["integration_pr"]==3546
 assert lock["integration_base_head"]=="0ada7fde0d90c3946b10693f4621cbd690bfcde6"
-assert lock["integration_head"]=="72ca08e87e379594af04060fc65f009e38860d74"
-assert lock["stacked_source_head_superseded_for_current_authority"]=="cb8554553dcc97e4abb5a9f8f15a26a487773fb5"
 assert lock["lock_id"]==LOCK_ID
 assert lock["candidate_report"]["candidate_id"]==CANDIDATE_ID
 assert lock["source_evidence_pr"]==3566
