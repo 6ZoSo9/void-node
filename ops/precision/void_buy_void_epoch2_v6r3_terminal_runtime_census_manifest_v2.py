@@ -734,15 +734,29 @@ def fixture_self_test()->None:
             if item["kind"]=="symlink" and item.get("resolved_sha256") is not None
         )
         assert unique_regular_bytes>0 and symlink_rehash_bytes>0
+        # Every successful stable_regular call may reserve one additional
+        # byte for the terminal EOF/growth probe.  Include those conservative
+        # reservations in the positive budget, not only original st_size.
+        ordinary_probe_allowance=sum(
+            1 for item in manifest["objects"].values()
+            if item["kind"]=="regular"
+        )
+        symlink_probe_allowance=sum(
+            1 for item in manifest["objects"].values()
+            if item["kind"]=="symlink" and item.get("resolved_sha256") is not None
+        )
+        ordinary_only_budget=unique_regular_bytes+ordinary_probe_allowance
+        full_hash_budget=(
+            ordinary_only_budget+symlink_rehash_bytes+symlink_probe_allowance
+        )
         try:
-            collect_tree(root,"/fixture",max_hash_bytes=unique_regular_bytes)
+            collect_tree(root,"/fixture",max_hash_bytes=ordinary_only_budget)
         except Hold as exc:
             assert str(exc)=="aggregate_regular_hash_byte_budget_exceeded",str(exc)
         else:
             raise AssertionError("symlink_target_rehash_budget_bypassed")
         assert collect_tree(
-            root,"/fixture",
-            max_hash_bytes=unique_regular_bytes+symlink_rehash_bytes,
+            root,"/fixture",max_hash_bytes=full_hash_budget,
         )==manifest["objects"]
 
         # Reject at the budget boundary before the first regular-file open:
