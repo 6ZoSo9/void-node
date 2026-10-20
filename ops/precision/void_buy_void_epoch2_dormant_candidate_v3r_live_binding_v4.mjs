@@ -164,26 +164,133 @@ function cleanGitEnv(){
 function cleanRootEnv(){
   return {PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C",TZ:"UTC"};
 }
-function run(command,args,options={}){
-  const r=spawnSync(command,args,{
-    cwd:options.cwd??ROOT,
-    env:options.env??cleanRootEnv(),
-    input:options.input,
-    encoding:"utf8",
-    stdio:[options.stdinIgnore===true?"ignore":"pipe","pipe","pipe"],
-    timeout:options.timeout??120_000,
-    maxBuffer:MAX_OUTPUT,
+// Privileged first exec is bound to retained exact tool FDs. Never fall
+// back to a checked-then-reopened executable pathname.
+function requireRuntimeUidNonwritable(candidate,label){
+  if(typeof process.geteuid!=="function"||process.geteuid()!==0)return;
+  const script=[
+    "import fs from 'node:fs';",
+    "const p=process.argv[1];",
+    "try{fs.accessSync(p,fs.constants.W_OK);process.exit(3);}",
+    "catch(e){if(e&&(e.code==='EACCES'||e.code==='EPERM'))process.exit(0);process.exit(4);}",
+  ].join("");
+  const r=spawnSync("/proc/self/exe",["--input-type=module","-e",script,candidate],{
+    uid:RUNTIME_UID,gid:RUNTIME_GID,cwd:"/",
+    env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
+    encoding:"utf8",stdio:["ignore","pipe","pipe"],
+    timeout:10_000,maxBuffer:64*1024,
   });
-  if(r.error)throw new Error("spawn_error:"+safeReason(r.error.message));
-  return r;
+  if(r.error||r.status!==0||r.stdout!==""||r.stderr!=="")
+    throw new Error("trusted_executable_runtime_uid_writable:"+label);
 }
-function assertTrustedExecutable(file){
-  const real=fs.realpathSync(file);
-  const st=fs.lstatSync(real,{bigint:true});
-  if(!st.isFile()||st.isSymbolicLink()||st.uid!==0n||
-     (st.mode&0o022n)!==0n){
-    throw new Error("trusted_executable_invalid:"+path.basename(file));
+function requireRootOwnedExecutableAncestors(real,label){
+  const root=path.parse(real).root;
+  let prefix=root;
+  const check=(p)=>{
+    const st=fs.lstatSync(p,{bigint:true});
+    if(!st.isDirectory()||st.isSymbolicLink()||st.uid!==0n||
+       st.gid!==0n||(st.mode&0o022n)!==0n)
+      throw new Error("trusted_executable_ancestor_invalid:"+label);
+    requireRuntimeUidNonwritable(p,label+"_ancestor");
+  };
+  check(prefix);
+  for(const name of path.relative(root,path.dirname(real)).split(path.sep).filter(Boolean)){
+    prefix=path.join(prefix,name);check(prefix);
   }
+}
+function sameTrustedExecutableGeneration(a,b){
+  return sameFileIdentity(a,b)&&a.mtimeNs===b.mtimeNs&&a.ctimeNs===b.ctimeNs;
+}
+function revalidateRetainedTrustedExecutable(t){
+  requireRootOwnedExecutableAncestors(t.real,t.label);
+  const held=fs.fstatSync(t.fd,{bigint:true});
+  const visible=fs.lstatSync(t.real,{bigint:true});
+  if(!visible.isFile()||visible.isSymbolicLink()||visible.uid!==0n||
+     visible.gid!==0n||visible.nlink!==1n||
+     (visible.mode&0o022n)!==0n||(visible.mode&0o111n)===0n||
+     !sameTrustedExecutableGeneration(t.opened,held)||
+     !sameTrustedExecutableGeneration(held,visible))
+    throw new Error("trusted_executable_generation_changed:"+t.label);
+  requireRuntimeUidNonwritable(t.real,t.label+"_leaf");
+}
+function openRetainedTrustedExecutable(file,label){
+  const real=fs.realpathSync(file);
+  requireRootOwnedExecutableAncestors(real,label);
+  const st=fs.lstatSync(real,{bigint:true});
+  if(!st.isFile()||st.isSymbolicLink()||st.uid!==0n||st.gid!==0n||
+     st.nlink!==1n||(st.mode&0o022n)!==0n||(st.mode&0o111n)===0n)
+    throw new Error("trusted_executable_invalid:"+label);
+  if(!fs.constants.O_NOFOLLOW||!fs.constants.O_NONBLOCK)
+    throw new Error("trusted_executable_open_flags_unavailable");
+  const fd=fs.openSync(real,
+    fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
+  let success=false;
+  try{
+    if(fd<3)throw new Error("trusted_executable_standard_fd_collision:"+label);
+    const opened=fs.fstatSync(fd,{bigint:true});
+    if(!sameTrustedExecutableGeneration(st,opened))
+      throw new Error("trusted_executable_rebound:"+label);
+    const t={fd,real,label,opened};
+    revalidateRetainedTrustedExecutable(t);
+    success=true;return t;
+  }finally{if(!success)fs.closeSync(fd);}
+}
+function closeRetainedTrustedExecutable(t){
+  if(t&&Number.isInteger(t.fd)&&t.fd>=3){fs.closeSync(t.fd);t.fd=-1;}
+}
+function runRetainedTrustedExecutable(t,args,opt={}){
+  revalidateRetainedTrustedExecutable(t);
+  const stdio=[opt.stdinIgnore===true?"ignore":"pipe","pipe","pipe"];
+  while(stdio.length<=t.fd)stdio.push("ignore");
+  stdio[t.fd]=t.fd;
+  if(typeof opt.beforeSpawn==="function")opt.beforeSpawn();
+  revalidateRetainedTrustedExecutable(t);
+  const r=spawnSync("/proc/self/fd/"+String(t.fd),args,{
+    cwd:opt.cwd??"/",env:opt.env??cleanRootEnv(),
+    input:opt.input,encoding:"utf8",stdio,
+    timeout:opt.timeout??60_000,maxBuffer:MAX_OUTPUT,
+  });
+  try{
+    if(r.error)throw new Error("spawn_error:"+safeReason(r.error.message));
+    return r;
+  }finally{revalidateRetainedTrustedExecutable(t);}
+}
+let activeRootExecutionTools=null;
+function openRootExecutionTools(){
+  const setpriv=openRetainedTrustedExecutable(SETPRIV,"setpriv");
+  let gitTool=null,nativeTool=null;
+  try{
+    gitTool=openRetainedTrustedExecutable(GIT,"git");
+    nativeTool=openRetainedTrustedExecutable(FIXED_NATIVE,"native");
+    const tools={
+      setpriv,git:gitTool,native:nativeTool,
+      revalidate(){
+        for(const t of [setpriv,gitTool,nativeTool])
+          revalidateRetainedTrustedExecutable(t);
+      },
+      close(){
+        let failure=null;
+        for(const t of [nativeTool,gitTool,setpriv]){
+          try{revalidateRetainedTrustedExecutable(t);}
+          catch(error){if(!failure)failure=error;}
+          try{closeRetainedTrustedExecutable(t);}
+          catch(error){if(!failure)failure=error;}
+        }
+        if(failure)throw failure;
+      },
+    };
+    tools.revalidate();return tools;
+  }catch(error){
+    for(const t of [nativeTool,gitTool,setpriv])
+      if(t)try{closeRetainedTrustedExecutable(t);}catch{/**/}
+    throw error;
+  }
+}
+function requireActiveRootExecutionTools(){
+  if(activeRootExecutionTools===null)
+    throw new Error("root_execution_tools_not_retained");
+  activeRootExecutionTools.revalidate();
+  return activeRootExecutionTools;
 }
 function sameFileIdentity(left,right){
   return left.dev===right.dev&&left.ino===right.ino&&
