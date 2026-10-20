@@ -96,25 +96,28 @@ def symlink_record(path:Path,display_path:str,real_root:Path,display_root:str)->
     except ValueError:
         in_root=False
     record["resolved_within_inventory_root"]=in_root
-    if in_root:
-        rel=resolved.relative_to(real_root).as_posix()
-        record["resolved_display_path"]=display_root if rel=="." else display_root.rstrip("/")+"/"+rel
-        try:
-            rst=resolved.lstat()
-        except FileNotFoundError:
-            record["resolved_exists"]=False
-        else:
-            record["resolved_exists"]=True
-            record["resolved_kind"]=(
-                "regular" if stat.S_ISREG(rst.st_mode) else
-                "directory" if stat.S_ISDIR(rst.st_mode) else
-                "symlink" if stat.S_ISLNK(rst.st_mode) else "special"
-            )
-            if stat.S_ISREG(rst.st_mode):
-                record["resolved_sha256"]=stable_regular(resolved)["sha256"]
+    if not in_root:
+        raise Hold("symlink_target_outside_inventory_root:"+display_path)
+    rel=resolved.relative_to(real_root).as_posix()
+    record["resolved_display_path"]=display_root if rel=="." else display_root.rstrip("/")+"/"+rel
+    try:
+        rst=resolved.lstat()
+    except FileNotFoundError:
+        record["resolved_exists"]=False
     else:
-        record["resolved_display_path"]=None
-        record["resolved_exists"]=resolved.exists()
+        record["resolved_exists"]=True
+        record["resolved_kind"]=(
+            "regular" if stat.S_ISREG(rst.st_mode) else
+            "directory" if stat.S_ISDIR(rst.st_mode) else
+            "symlink" if stat.S_ISLNK(rst.st_mode) else "special"
+        )
+        if record["resolved_kind"]=="special":
+            raise Hold("symlink_resolved_special_file_forbidden:"+display_path)
+        if stat.S_ISREG(rst.st_mode):
+            record["resolved_sha256"]=stable_regular(resolved)["sha256"]
+    terminal=path.lstat()
+    if not _same_generation(before,terminal):
+        raise Hold("symlink_generation_changed_after_resolution:"+display_path)
     return record
 
 def _display(display_root:str,rel:Path)->str:
@@ -131,6 +134,7 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
     if not real_root.is_dir():
         raise Hold("inventory_root_not_directory")
     objects:dict[str,dict[str,object]]={}
+    directory_generations:dict[Path,os.stat_result]={}
     stack=[real_root]
     while stack:
         current=stack.pop()
@@ -138,7 +142,9 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
         display=_display(display_root,rel)
         if display in objects:
             raise Hold("duplicate_inventory_path")
+        before_dir=current.lstat()
         objects[display]=directory_record(current)
+        directory_generations[current]=before_dir
         if len(objects)>MAX_TREE_ENTRIES:
             raise Hold("tree_entry_bound_exceeded")
         try:
@@ -163,6 +169,10 @@ def collect_tree(real_root:Path,display_root:str)->dict[str,dict[str,object]]:
                 raise Hold("special_file_forbidden:"+display)
             if len(objects)>MAX_TREE_ENTRIES:
                 raise Hold("tree_entry_bound_exceeded")
+    for directory,before in directory_generations.items():
+        after=directory.lstat()
+        if not _same_generation(before,after):
+            raise Hold("directory_generation_changed_during_inventory:"+os.fspath(directory))
     return dict(sorted(objects.items()))
 
 def absence_record(real_root:Path,display_root:str,display_path:str)->dict[str,object]:
@@ -241,6 +251,13 @@ def fixture_self_test()->None:
         require_terminal_equal(manifest,json.loads(canonical(manifest)))
         assert manifest["objects"]["/fixture/python/hashlib.py"]["sha256"]==sha256(b"x=1\n")
         assert manifest["objects"]["/fixture/python/alias.py"]["target_text"]=="hashlib.py"
+        outside=Path(td)/"outside";outside.write_text("x",encoding="utf-8")
+        outside_link=root/"python"/"outside-link"
+        outside_link.symlink_to(outside)
+        try: collect_tree(root,"/fixture")
+        except Hold as exc: assert "symlink_target_outside_inventory_root" in str(exc)
+        else: raise AssertionError("outside_root_symlink_accepted")
+        outside_link.unlink()
         assert manifest["absent"]["/fixture/etc/ld.so.preload"]["exists"] is False
 
         changed=json.loads(canonical(manifest))
