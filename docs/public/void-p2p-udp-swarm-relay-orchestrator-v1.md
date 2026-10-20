@@ -25,7 +25,9 @@ on the next one-second sweep. A route-local adapter exception increments the
 failure counter but does not prevent later independent routes from advancing in
 the same sweep. A synchronous stop or verified-discovery route replacement
 invalidates the current sweep before any further outbound adapter request.
-Relay retirement is outside this lane.
+The scheduler installs its single timer handle before the immediate first sweep:
+synchronous route replacement during start cannot recursively create a nested
+initial sweep or an orphan interval. Relay retirement is outside this lane.
 
 ## Exact field-test configuration
 

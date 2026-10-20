@@ -287,12 +287,8 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
     ) {
       return;
     }
-    try {
-      this.runOnce();
-    } catch (error) {
-      void error;
-      this.sweepFailures += 1;
-    }
+    // Publish the timer handle before callbacks in the immediate sweep can
+    // synchronously replace routes and re-enter ensureTimer().
     this.timer = setInterval(() => {
       try {
         this.runOnce();
@@ -302,6 +298,12 @@ export class VoidUdpSwarmRelayOrchestratorV1 {
       }
     }, VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_SWEEP_MS_V1);
     this.timer.unref?.();
+    try {
+      this.runOnce();
+    } catch (error) {
+      void error;
+      this.sweepFailures += 1;
+    }
   }
 
   private replaceRouteState(

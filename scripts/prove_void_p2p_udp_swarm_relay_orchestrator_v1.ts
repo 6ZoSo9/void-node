@@ -493,6 +493,74 @@ assert.deepEqual(reentrantReplacementCalls, [
 ]);
 replacementInsideReservationAdapter.stop();
 
+
+const originalSetInterval = globalThis.setInterval;
+const originalClearInterval = globalThis.clearInterval;
+const scheduledIntervals: Array<ReturnType<typeof setInterval>> = [];
+const clearedIntervals: Array<ReturnType<typeof setInterval>> = [];
+try {
+  // Disposable scheduler doubles let the proof count every handle without
+  // waiting for wall-clock ticks or leaking a real interval on regression.
+  globalThis.setInterval = ((..._args: Parameters<typeof setInterval>) => {
+    const handle = { unref() { return this; } } as unknown as ReturnType<
+      typeof setInterval
+    >;
+    scheduledIntervals.push(handle);
+    return handle;
+  }) as typeof setInterval;
+  globalThis.clearInterval = ((handle: ReturnType<typeof setInterval>) => {
+    clearedIntervals.push(handle);
+  }) as typeof clearInterval;
+
+  const startedRouteCalls: string[] = [];
+  let startedReplacementOrchestrator: VoidUdpSwarmRelayOrchestratorV1;
+  const startedReplacementNode: VoidUdpSwarmRelayOrchestrationNodeV1 = {
+    ...failureIsolationNode,
+    requestRelayReservation: (relay) => {
+      startedRouteCalls.push(relay);
+      if (relay === failingRelayNodeId) {
+        startedReplacementOrchestrator.replaceVerifiedDiscoveryRoutesV1([
+          { relay_node_id: freshRelayNodeId, target_node_id: targetNodeId },
+        ]);
+      }
+      return "8".repeat(32);
+    },
+  };
+  startedReplacementOrchestrator = new VoidUdpSwarmRelayOrchestratorV1(
+    startedReplacementNode,
+    {
+      enabled: true,
+      routes: [
+        { relay_node_id: failingRelayNodeId, target_node_id: targetNodeId },
+        { relay_node_id: healthyRelayNodeId, target_node_id: relayNodeId },
+      ],
+    },
+  );
+  assert.doesNotThrow(() => startedReplacementOrchestrator.start());
+  assert.equal(scheduledIntervals.length, 1);
+  assert.deepEqual(startedRouteCalls, [failingRelayNodeId]);
+  assert.equal(
+    (startedReplacementOrchestrator.status().counters as Record<string, number>)
+      .sweep_count,
+    1,
+  );
+  assert.equal(startedReplacementOrchestrator.status().route_count, 1);
+  assert.equal(
+    startedReplacementOrchestrator.status().route_source,
+    "verified_discovery",
+  );
+  startedReplacementOrchestrator.runOnce(Date.now() + 1_000);
+  assert.deepEqual(startedRouteCalls, [
+    failingRelayNodeId,
+    freshRelayNodeId,
+  ]);
+  startedReplacementOrchestrator.stop();
+  assert.deepEqual(clearedIntervals, scheduledIntervals);
+} finally {
+  globalThis.setInterval = originalSetInterval;
+  globalThis.clearInterval = originalClearInterval;
+}
+
 console.log(JSON.stringify({
   marker: "VOID_P2P_UDP_SWARM_RELAY_ORCHESTRATOR_V1_PROOF",
   status: "green",
@@ -508,6 +576,7 @@ console.log(JSON.stringify({
     throwing_connect_route_isolated: true,
     reentrant_stop_is_terminal_in_same_sweep: true,
     reentrant_discovery_replacement_fences_stale_routes: true,
+    started_reentrant_discovery_single_scheduler: true,
     later_routes_advance_after_failure: true,
     thrown_upgrade_retries_next_sweep: true,
     returned_upgrade_uses_bounded_backoff: true,
