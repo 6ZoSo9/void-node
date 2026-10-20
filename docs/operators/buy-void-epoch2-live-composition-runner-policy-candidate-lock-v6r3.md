@@ -134,3 +134,37 @@ no install authority.
 No protected install, live credential execution, signing, transaction/payment,
 activation, service mutation, treasury/liquidity action, or funds movement is
 authorized by this source lock.
+
+## Nonblocking sealed-V3 successor generation
+
+Fresh exact source evidence:
+
+```text
+integration_head=72ca08e87e379594af04060fc65f009e38860d74
+integration_tree=b6a52866b3d40d65f721d9465f8b6b18ea2c1339
+compatibility_run=39344749462
+compatibility_job=118374548791
+candidate_run=39344747264
+candidate_job=118374543666
+candidate_identity_job=118374985297
+
+candidate_id=voidbuye2runnerpolcand6r3_aaa50e1bbfe2303045336c03be2bacd504a736a0fd04f97d4f38be7e76fbba7d
+runner_git_blob=11a147d565bd0ee3ff48c4e3cb75d608b59e87b1
+runner_sha256=7f727f23d93e3c2e237f73cad448f9cf825f37f22bcdaf0eb5c050a5cbbf30e8
+runner_bytes=82972
+sealed_v3_git_blob=ad19417c7d25bfab532af3ea92f4a627d4cc857a
+lock_id=voidbuye2runnerpollock6r3_dea4081ea3ee00d2bb94279ceae023bb74f9b2322c74e5b80e73981cfe1a6783
+```
+
+This successor closes the reviewed regular-file→FIFO credential-open liveness seam:
+the sealed V3 credential FD open uses `O_NOFOLLOW|O_NONBLOCK`, requires the
+opened generation to remain a regular file, and its inert self-test races a
+disposable regular fixture to a FIFO and requires immediate fail-closed
+rejection.
+
+The prior accepted candidate `c2d5d08f...` and lock `e65f2b3a...` are
+explicitly superseded. Historical identities are not relabeled.
+
+No protected install, live credential execution, signing, transaction/payment,
+activation, service mutation, treasury/liquidity action, or funds movement is
+authorized by this lock.
