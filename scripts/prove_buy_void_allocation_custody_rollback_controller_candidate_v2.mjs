@@ -12,7 +12,7 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_ROLLBACK_CONTROLLER_PLAN_ID_V2,
   buildBuyVoidAllocationCustodyRollbackChallengeAuthorizationIdV2,
   executeBuyVoidAllocationCustodyRollbackControllerCandidateV2,
-} from "../tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs";
+} from "../tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs";
 
 const ROOT=new URL("../",import.meta.url);
 const SOURCE_REL="tools/void-buy-allocation-custody-rollback-controller-candidate-v2.mjs";
