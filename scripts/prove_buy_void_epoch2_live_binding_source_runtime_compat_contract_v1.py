@@ -32,7 +32,7 @@ EXPECTED = {
     BINDER: "9c29eb4716077e459b9154f39d0f30cf2e56729f",
     BINDER_PREENTRY: "4fdf3f627f407335b9d50800fbbc913d1edae523",
     RUNNER: "499df9b94b5b89354837570da0c7e47ec280025d",
-    RUNNER_V4: "11a147d565bd0ee3ff48c4e3cb75d608b59e87b1",
+    RUNNER_V4: "2f147d8841e96c6bbf83997104e6905ac07f986c",
     LIVE_NATIVE: "5021727f1def1ec11f870d735cab65acc1701a5e",
     QUALIFIER: "74c69fe8a95ed5f361a39971618f43f7c768c865",
     QUALIFIER_REPLACEMENT: "98f8b9fda89e33c50e19008268d97655aad54e6d",
@@ -151,21 +151,23 @@ for required in (
     'canonical_git_dir_worktree_pinned=true',
     'sealed_probe_runtime_release_cwd_required=true',
     'runtime_release_root_custody_required=true',
-    'retained_setpriv_generation_revalidated_path_execution_required=true',
-    'retained_python_generation_revalidated_path_execution_required=true',
+    'retained_setpriv_generation_revalidated_descriptor_execution_required=true',
+    'retained_python_generation_revalidated_descriptor_execution_required=true',
     'retained_git_descriptor_execution_required=true',
     'retained_node_descriptor_execution_required=true',
     'root_tool_ancestor_custody_required=true',
     'runtime_uid_effective_tool_nonwritability_required=true',
+    'retained_procfd_portable_cwd_required=true',
+    'retained_procfd_missing_cwd_errno_distinguished=true',
     'root_tool_terminal_generation_revalidation_required=true',
     "function requireRuntimeUidNonwritable(candidate,label){",
     'const SEALED_BLOB="ad19417c7d25bfab532af3ea92f4a627d4cc857a";',
     "function openRetainedTrustedExecutable(file,label){",
     "function runRetainedTrustedExecutable(tool,args,options={}){",
-    'const executable=tool.real;',
-    'const setprivExecutable=tools.setpriv.real;',
+    'const executable="/proc/self/fd/"+String(tool.fd);',
+    'const setprivExecutable="/proc/self/fd/"+String(tools.setpriv.fd);',
     '"/proc/self/fd/"+String(commandChildFd)',
-    'stdio:["pipe","pipe","pipe","ignore",commandTool.fd]',
+    'stdio[tools.setpriv.fd]=tools.setpriv.fd;',
 ):
     assert required in runner_v4, required
 
@@ -230,10 +232,12 @@ for mode in ("--self-test", "--plan"):
             "git_prompt_and_askpass_disabled=true",
             "credential_content_access=false",
             "nontransaction_signature=false",
-            "retained_setpriv_generation_revalidated_path_execution_required=true",
-            "retained_python_generation_revalidated_path_execution_required=true",
+            "retained_setpriv_generation_revalidated_descriptor_execution_required=true",
+            "retained_python_generation_revalidated_descriptor_execution_required=true",
             "retained_git_descriptor_execution_required=true",
             "retained_node_descriptor_execution_required=true",
+            "retained_procfd_portable_cwd_required=true",
+            "retained_procfd_missing_cwd_errno_distinguished=true",
         ):
             assert line in lines, line
 
@@ -254,6 +258,8 @@ for required in (
     "trusted_tool_generation_revalidated: true",
     "trusted_executable_path_rebind_rejected=true",
     "trusted_executable_writable_ancestor_rejected=true",
+    "credential_regular_to_fifo_race_rejected=true",
+    "credential_open_nonblocking_required=true",
 ):
     assert required in sealed_v3, required
 assert "runtime_source_generation_retained_through_signing: true" not in sealed_v3
@@ -276,8 +282,6 @@ for line in (
     "trusted_systemctl_retained_generation_revalidated_path_execution=true",
     "trusted_executable_path_rebind_rejected=true",
     "trusted_executable_writable_ancestor_rejected=true",
-    "credential_regular_to_fifo_race_rejected=true",
-    "credential_open_nonblocking_required=true",
     "credential_content_read=false",
     "signing_performed=false",
     "transaction_constructed=false",
@@ -366,8 +370,8 @@ print("runner_v4_git_prompt_and_askpass_disabled=true")
 print("runner_v4_canonical_git_dir_worktree_pinned=true")
 print("runner_v4_sealed_probe_runtime_release_cwd=true")
 print("runner_v4_runtime_release_root_custody_required=true")
-print("runner_v4_retained_setpriv_generation_revalidated_path_execution=true")
-print("runner_v4_retained_python_generation_revalidated_path_execution=true")
+print("runner_v4_retained_setpriv_generation_revalidated_descriptor_execution=true")
+print("runner_v4_retained_python_generation_revalidated_descriptor_execution=true")
 print("runner_v4_retained_git_descriptor_execution=true")
 print("runner_v4_retained_node_descriptor_binding_contract=true")
 print("runner_v4_trusted_root_tool_rebind_adversary=true")
