@@ -296,3 +296,57 @@ canary remain mandatory. No source merge, protected host access or financial
 activation follows from this proof.
 
 PROTECT THE CORE.
+
+
+## Source proof optimized-code-object denial — defensive successor
+
+The ELF-parser fixture above has complete source-only native tests, but its
+Python verifier relies on **assert** for Git/SHA-256/lock identity and
+subprocess-result acceptance. Running a verification script with `-O` or
+`-OO` strips those conditions. Independently compiled code objects created
+with `compile(..., optimize=1/2)` can remove them even if the enclosing
+`python3 -I -B -S` interpreter's `sys.flags.optimize` is zero. A printed
+`PROOF_GREEN` must never bypass the assertions it claims to have checked.
+
+The verified Python source in this successor begins after its required
+`from __future__ import annotations` with a built-in `sys` import and
+**pre-stdlib fail-closed** checks: reject nonzero `sys.flags.optimize`,
+`not __debug__`, or missing `-I -B -S` isolation/no-bytecode/no-site.
+The optimized cases exit 2, produce **no stdout**, and print exactly
+`HOLD=optimized_python_forbidden` on stderr before attempting Git, Node,
+binder, compiler or native actions.
+
+The source-only CI invokes the proof through `python3 -I -B -S` and
+requires two genuine optimized-process negatives (`-O`, `-OO`) plus
+two optimized-code-object negatives (compile levels 1 and 2 inside an
+unoptimized `-I -B -S` process). All four must fail closed before the
+normal proof may emit its success marker. The incumbent Binder JS/native
+preentry C bytes, accepted V6R2 lock and nine runtime/source dependency
+pins remain **unchanged**.
+
+```text
+parent_pr=3631
+parent_head=268680e4e00d7adfed4695a3051ddb437510262a
+binder_git_blob=0577da295cc86fd03a4d02fcedc3e8f8ad2e3546
+native_preentry_c_git_blob=53903d0cde07de302848fb67d9c23928cec96f20
+optimized_proof_git_blob=ddb8c20714be8d6feee7eaf0f148fb1fd744491b
+optimized_process_negative_fixtures=2
+optimized_code_object_negative_fixtures=2
+protected_install_authorized=false
+live_execution_authorized=false
+credential_access=false
+signing=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+This change qualifies only an **unoptimized source-proof entry** and its
+synthetic regressions. It does not independently authenticate Python
+interpreter startup, dynamic libraries/import hooks, the installed root
+executable, current host signer or wallet, or the production presale.
+A genuinely distinct security reviewer, host-specific installation and
+operator authorization remain mandatory. Never promote the dormant candidate
+or enable live payments from a source-proof transcript.
+
+PROTECT THE CORE.
