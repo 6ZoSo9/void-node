@@ -1156,8 +1156,10 @@ function proveInstalledBinderReceiptGenerationFixture(){
     }
     if(!rebound)throw new Error("binder_receipt_visible_path_rebind_accepted");
   }finally{
-    if(fd>=0)try{fs.closeSync(fd);}catch{}
-    try{fs.unlinkSync(file);}catch{}
+    // Disposable evidence may not silently swallow cleanup failures.
+    // The private fixture has exactly one file and directory to remove.
+    if(fd>=0)fs.closeSync(fd);
+    if(fs.existsSync(file))fs.unlinkSync(file);
     fs.rmdirSync(dir);
   }
 }
