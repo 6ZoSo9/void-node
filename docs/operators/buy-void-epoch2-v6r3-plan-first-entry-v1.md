@@ -34,6 +34,8 @@ For the future host `--plan` path, the launcher requires:
 - root authentication of the fixed self/policy/planner/Python generations;
 - `PR_SET_NO_NEW_PRIVS`, supplementary-group removal, permanent real/effective/saved
   UID/GID drop to `1000:1000`, and `PR_SET_DUMPABLE=0` before Python;
+- file descriptors 0/1/2 reserved before any trusted open so a closed standard stream
+  cannot steal a trusted planner/Python descriptor number;
 - fixed self path plus root-owned, group/world-nonwritable ancestors and leaves;
 - a second custody/ACL revalidation of self, policy, planner and Python **after** the
   privilege drop under the actual runtime identity;
@@ -43,8 +45,9 @@ For the future host `--plan` path, the launcher requires:
   the host's canonical `/usr/bin/python3` target by realpath, SHA-256 and byte length;
 - planner and Python source executables are copied from authenticated originals into
   **sealed memfds**; the copies are SHA/size checked and write/grow/shrink sealed;
-- retained sealed planner descriptor inherited as `/proc/self/fd/3`;
-- retained sealed Python ELF entered with `fexecve()`;
+- retained sealed planner descriptor mapped to `/proc/self/fd/3` and revalidated
+  **after** the mapping;
+- retained sealed Python ELF mapped/revalidated and entered with `fexecve()`;
 - isolated Python `-I -B -S`, with `site` import disabled;
 - caller stdin replaced with `/dev/null`;
 - a newly constructed loader/Python environment;
@@ -55,34 +58,46 @@ modes.
 
 ## Adversarial proof
 
-Hosted CI:
+The proof has two modes. **Default invocation is nonprivileged**: it compiles/checks the
+source and exits before any `sudo` operation, emitting
+`privileged_fixture_executed=false`.
 
-1. compiles the real launcher statically and requires no `PT_INTERP`;
-2. demonstrates a dynamic `LD_PRELOAD` positive control, then proves the static launcher
+The privileged fixture exists only behind the explicit
+`--isolated-disposable-fixture` flag used on a disposable hosted runner. It never
+changes global `/opt` ownership/mode and never recursively deletes a path. Instead it:
+
+1. compiles the production-default launcher statically and requires no `PT_INTERP`;
+2. compiles a proof-only launcher whose fixed root is a unique absent path under
+   root-custodied `/run`;
+3. refuses the fixture if that unique root already exists;
+4. creates the root and its three files create-only and records their exact generations;
+5. demonstrates a dynamic `LD_PRELOAD` positive control, then proves the static launcher
    does not execute the preload constructor before `main()`;
-3. normalizes the disposable hosted `/opt` ancestry to root:root `0755`, then installs
-   only a disposable root-owned fixture at the exact fixed path;
-4. invokes the real launcher through its fixed path as root, requiring the launcher itself
-   to perform the irreversible drop to numeric UID/GID `1000:1000` before Python;
-5. supplies caller stdin Python and hostile `PYTHONPATH`, requiring neither to execute;
-6. requires the exact planner to clear both its root and exact-UID/GID guards and then
-   HOLD at the later hosted-only `git_failed:rev-parse` boundary, proving Python entered
-   the planner as UID/GID `1000:1000`;
-7. requires the authenticated planner marker to appear, proving Python reached the exact
-   retained planner bytes;
-8. replaces the planner with a same-size modified root-owned file and requires rejection
-   at `planner_identity_invalid` **before Python starts**;
-9. invokes the launcher from a wrong path and requires rejection before Python;
-10. invokes the correct fixed launcher directly as UID/GID `1000:1000` and requires
-   `root_static_first_entry_required` before Python;
-11. supplies hostile `LD_PRELOAD` to the real fixed static launcher and requires it not
-    to propagate to the Python child.
+6. invokes the fixed launcher as root and requires the irreversible drop to numeric
+   UID/GID `1000:1000` before Python;
+7. supplies caller stdin Python plus hostile `PYTHONPATH`/`LD_PRELOAD`, requiring none
+   to become child authority;
+8. requires the exact planner to clear both its root and exact-UID/GID guards and HOLD at
+   the later hosted-only `git_failed:rev-parse` boundary, proving Python entered the
+   planner as UID/GID `1000:1000`;
+9. closes fd0 before the real native first entry and requires the exact authenticated
+   planner to still execute from the revalidated mapped fd3;
+10. replaces the planner with a same-size modified root-owned file and requires
+    `planner_identity_invalid` before Python;
+11. invokes the launcher from a wrong path and requires rejection before Python;
+12. invokes the correct fixed launcher directly as UID/GID `1000:1000` and requires
+    `root_static_first_entry_required` before Python;
+13. verifies the sealed memfd write adversary fails with `EPERM`;
+14. cleans up only if the fixture root and each installed leaf still match the exact
+    generations the proof created, removes those leaves individually, then uses
+    `rmdir` on the empty root.
 
-The launcher self-test also requires a sealed memfd write attempt to fail with `EPERM`.
+If any cleanup generation or directory shape differs, the proof fails closed instead of
+deleting unknown content. The proof contains no global `/opt` mutation, no preclean,
+and no `rm -rf`.
+
 After sealed copies are created and revalidated, the original planner/Python paths are no
 longer execution authority.
-
-The fixture is deleted at the end of the hosted proof.
 
 ## Policy shape
 
@@ -100,7 +115,8 @@ runtime_uid=1000
 runtime_gid=1000
 ```
 
-The host-specific Python identity must be derived and accepted in a separate protected
+The host-specific Python identity **and the core stdlib/lib-dynload/dynamic-loader
+closure reachable under `-I -S`** must be derived and accepted in a separate protected
 candidate/install lane.
 
 The launcher is deliberately privilege-reducing: root exists only to authenticate the
@@ -113,7 +129,8 @@ This source publication is not host authority. Required successor order:
 
 1. exact-head source proof GREEN;
 2. reproducible static launcher candidate and binary identity lock;
-3. host Python + policy identity census/acceptance;
+3. host Python + core stdlib/lib-dynload/dynamic-loader + policy identity
+   census/acceptance;
 4. create-only root-owned installation;
 5. installed read-only qualification of launcher/planner/policy/Python custody;
 6. distinct independent review;
