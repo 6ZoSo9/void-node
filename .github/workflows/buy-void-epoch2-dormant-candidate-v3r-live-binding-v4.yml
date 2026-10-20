@@ -102,13 +102,13 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs)" = \
-            "6571c401af4f83c59dd5c47491247fd1d5cda01a"
+            "d2d648b144d3b406ff845a597fa4b9f54167b6bc"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c)" = \
-            "87d05f03ecb0bd6f3d3bce7a0b18d66cf87fc9c8"
+            "704f3726600690605303d9083976225f4913b446"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py)" = \
-            "674d41e1939996e059c870e41ab73f9888ff262d"
+            "3321e8a0cf05ab2272951b34aef8185fef3caf0d"
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.md)" = \
-            "46c0a31b2fe619f8498ea10c9b323314e6fbdc8f"
+            "dd21593a9e4e3086c08fb22f55ffd1727fa8569e"
 
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
