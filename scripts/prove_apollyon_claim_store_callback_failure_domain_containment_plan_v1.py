@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json"
 MARKER = "VOID_APOLLYON_CLAIM_STORE_CALLBACK_FAILURE_DOMAIN_CONTAINMENT_PLAN_V1_PROOF"
 PARENT = "187a4da4992b7d81330b9474e535b8af631de0d4"
-PLAN_ID = "voidapollyonclaimcallbackcontain1_0a011e3e70b08a343b506d6410e9880d6919407194174bb713911209fac566c4"
+PLAN_ID = "voidapollyonclaimcallbackcontain1_7f9cfdb254519f951589367877a9ad28e1fe376cb813504ee4ded40b84efdae8"
 
 PINS = {
     "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs":
@@ -59,6 +59,8 @@ REQUIREMENTS = [
     "terminal_peer_identity_revalidation_required",
     "terminal_callback_source_identity_revalidation_required",
     "terminal_checks_after_worker_tree_quiescence_before_ack_required",
+    "supervisor_bounded_canonical_receipt_frame_and_eof_required",
+    "supervisor_bounded_stdout_stderr_diagnostic_capture_required",
 ]
 AUTHORITY = [
     "protected_host_execution_authorized",

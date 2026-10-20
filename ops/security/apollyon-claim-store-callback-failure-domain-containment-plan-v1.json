@@ -64,7 +64,9 @@
     "terminal_store_generation_revalidation_required": true,
     "terminal_peer_identity_revalidation_required": true,
     "terminal_callback_source_identity_revalidation_required": true,
-    "terminal_checks_after_worker_tree_quiescence_before_ack_required": true
+    "terminal_checks_after_worker_tree_quiescence_before_ack_required": true,
+    "supervisor_bounded_canonical_receipt_frame_and_eof_required": true,
+    "supervisor_bounded_stdout_stderr_diagnostic_capture_required": true
   },
   "authority": {
     "protected_host_execution_authorized": false,
@@ -80,5 +82,5 @@
     "funds_movement_authorized": false
   },
   "next_gate": "DISTINCT_REVIEW_FAILURE_DOMAIN_PLAN_THEN_BUILD_ISOLATED_RUNTIME_CANDIDATE_V1",
-  "plan_id": "voidapollyonclaimcallbackcontain1_0a011e3e70b08a343b506d6410e9880d6919407194174bb713911209fac566c4"
+  "plan_id": "voidapollyonclaimcallbackcontain1_7f9cfdb254519f951589367877a9ad28e1fe376cb813504ee4ded40b84efdae8"
 }

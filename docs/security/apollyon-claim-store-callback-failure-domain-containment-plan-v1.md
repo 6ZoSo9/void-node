@@ -45,7 +45,7 @@ receipt but before an actual trusted event-loop checkpoint, create a detached
 grandchild/worker thread that survives the first child's exit, or schedule a
 late write between a pre-exit revalidation and the apparent clean exit.
 
-The **future** supervisor must therefore prove all seven additional properties:
+The **future** supervisor must therefore prove all nine additional properties:
 
 1. The completion/checkpoint marker originates from a supervisor-custodied
    control plane unavailable for forgery by arbitrary callback code.
@@ -65,6 +65,16 @@ The **future** supervisor must therefore prove all seven additional properties:
 7. Terminal source/store/peer revalidation occurs *after* worker-tree
    quiescence and *before* acknowledging success, while the supervisor still
    owns the applicable fencing capability.
+8. **Supervisor-owned receipt framing is byte-bounded**, with one canonical
+   success frame of fixed maximum size, unambiguous length/delimiter and final
+   EOF. Oversized/truncated/duplicate/trailing frames and missing EOF are HOLD;
+   a buffered or partially parsed receipt never counts as success.
+9. **Worker stdout, stderr, and diagnostic output are bounded independently**
+   before any parent-side buffering. On overflow, stop accepting output, reap
+   the entire worker tree, and fail closed. If any store mutation may have
+   occurred or its status is unknown, preserve indeterminate classification
+   and the fencing lease through terminal post-exit revalidation. No diagnostic
+   flood can authorize success or trigger an automatic replay.
 
 These are testable requirements for a subsequent implementation, **not**
 existing installed safeguards. Plan/proof CI only checks that omitting or
@@ -85,7 +95,7 @@ training or funds movement.
 
 Content-addressed plan ID (successor to historical `voidapollyonclaimcallbackcontain1_0e0794baead1aa6571c8f0820a32d5951e24dfefb164445c0591c1d94bc5166c`):
 
-`voidapollyonclaimcallbackcontain1_0a011e3e70b08a343b506d6410e9880d6919407194174bb713911209fac566c4`
+`voidapollyonclaimcallbackcontain1_7f9cfdb254519f951589367877a9ad28e1fe376cb813504ee4ded40b84efdae8`
 
 ## Required future runtime properties
 
@@ -93,6 +103,7 @@ The plan requires a separate OS-process failure domain, one request per isolated
 `--unhandled-rejections=strict`, no custom rejection suppression, exact callback-source
 custody, inherited-FD allowlisting, minimal environment, a post-callback event-loop
 checkpoint, clean-exit gating before success acknowledgement, abnormal-exit HOLD,
+**bounded canonical IPC receipt framing and independent stdout/stderr/log capture budgets**,
 post-mutation indeterminate handling without automatic replay, and terminal revalidation of
 store generation, peer identity, and callback source identity.
 

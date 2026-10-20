@@ -50,9 +50,9 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = 848a061a0b246e138ec8ed775ed8a87f159476f6
 
           # Current content-addressed plan, proof and security doc: fail on drift.
-          test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = 729c6486ad9d4da72cbe9f9b28eb242c1a481c42
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = fa7ab86aa2e9c49b6cebe46a761529ea110e9d06
-          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 049428c2eaa33ba895193a12650b4f66b4034abc
+          test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = 9804ab23cee15d0c2db2dde63b49b6e7804be017
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = 8739052108f2073c23f148b122a31a0e04eedb61
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 8002735a8a7836841cb0b574754b872c8fd224be
 
           git diff --check "$PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -72,8 +72,8 @@ jobs:
           set -euo pipefail
           out="$RUNNER_TEMP/apollyon-callback-containment-plan-selftest.log"
           python3 -I -B scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py --self-test | tee "$out"
-          grep -Fx 'runtime_contract_requirements=24' "$out"
-          grep -Fx 'rejected_adversaries=42' "$out"
+          grep -Fx 'runtime_contract_requirements=26' "$out"
+          grep -Fx 'rejected_adversaries=44' "$out"
           grep -Fx 'failure_domain_containment_proven=false' "$out"
           grep -Fx 'trusted_callback_origin_proven=false' "$out"
           grep -Fx 'protected_host_execution_authorized=false' "$out"
