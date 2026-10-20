@@ -106,7 +106,12 @@
     "max_regular_file_bytes": 536870912,
     "census_report_canonical_json_required": true,
     "census_report_max_bytes": 16777216,
-    "census_report_source_only_unaccepted": true
+    "census_report_source_only_unaccepted": true,
+    "nonexistent_sys_path_entries_absence_and_parent_custody_required": true,
+    "exact_import_probe_file_access_closure_required": true,
+    "exact_import_probe_mapped_elf_closure_required": true,
+    "native_dlopen_plugin_and_config_closure_required": true,
+    "observed_runtime_files_must_be_manifest_subset": true
   },
   "acceptance_requirements": {
     "host_specific_report_required": true,
@@ -138,5 +143,5 @@
     "funds_movement": false
   },
   "next_gate": "void_buy_void_epoch2_v6r3_python_runtime_closure_census_v1",
-  "contract_id": "voidbuye2v6r3pyruntimecontract1_e8f3211a483cf12a77f5c66e4a625da5d4f95b1f669cefa2a09711dcc6e6ee01"
+  "contract_id": "voidbuye2v6r3pyruntimecontract1_6b88925643319fd7724f4fd66d115fd5ec9598a3c59a57cbc0a8c51737c8bae8"
 }
