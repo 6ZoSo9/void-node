@@ -41,8 +41,10 @@ For the future host `--plan` path, the launcher requires:
 - planner SHA-256 and byte length matching the constants above **before Python starts**;
 - a root-custodied policy that repeats the exact planner Git/SHA/size identity and binds
   the host's canonical `/usr/bin/python3` target by realpath, SHA-256 and byte length;
-- retained planner descriptor inherited as `/proc/self/fd/3`;
-- retained Python ELF entered with `fexecve()`;
+- planner and Python source executables are copied from authenticated originals into
+  **sealed memfds**; the copies are SHA/size checked and write/grow/shrink sealed;
+- retained sealed planner descriptor inherited as `/proc/self/fd/3`;
+- retained sealed Python ELF entered with `fexecve()`;
 - isolated Python `-I -B -S`, with `site` import disabled;
 - caller stdin replaced with `/dev/null`;
 - a newly constructed loader/Python environment;
@@ -75,6 +77,10 @@ Hosted CI:
    `root_static_first_entry_required` before Python;
 11. supplies hostile `LD_PRELOAD` to the real fixed static launcher and requires it not
     to propagate to the Python child.
+
+The launcher self-test also requires a sealed memfd write attempt to fail with `EPERM`.
+After sealed copies are created and revalidated, the original planner/Python paths are no
+longer execution authority.
 
 The fixture is deleted at the end of the hosted proof.
 
