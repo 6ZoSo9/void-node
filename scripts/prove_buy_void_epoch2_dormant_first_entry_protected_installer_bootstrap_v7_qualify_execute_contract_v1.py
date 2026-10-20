@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "efd54eafce11e3689d4da07e2ff053cd438af473"
+TARGET_BLOB = "64d40d3af89137488c0663c46ddebc5edbaabdc8"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -139,6 +139,8 @@ for required in (
     "planner_output_rebound",
     "planner_output_changed_during_read",
     "planner_output_visible_generation_changed",
+    "planner_output_open_failed",
+    "planner_output_io_failed",
 ):
     assert required in read_source, required
 for forbidden in ("O_WRONLY", "O_RDWR", "O_CREAT", "O_TRUNC"):
@@ -156,6 +158,8 @@ for required in (
     "bootstrap_argv_mismatch",
     "planner_qualification_line_mismatch",
     '_require_exact_keys(body, PLANNER_BODY_KEYS, "planner_body")',
+    "planner_body_installed_qualification_performed_invalid",
+    "planner_body_qualification_requirement_invalid",
 ):
     assert required in validate_source, required
 
@@ -215,6 +219,8 @@ for expected in (
     "qualification_required_result_closed_schema_required=true",
     "qualification_execution_identity_fields_validated=true",
     "rehashed_nested_tamper_rejected=true",
+    "qualification_state_body_fields_bound=true",
+    "planner_output_race_oserror_holds=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
     "qualification_nonroot_required=true",
     "qualification_descriptor_bound_git_object_required=true",
@@ -286,6 +292,8 @@ print("qualification_contract_closed_schema_required=true")
 print("qualification_required_result_closed_schema_required=true")
 print("qualification_execution_identity_fields_validated=true")
 print("rehashed_nested_tamper_rejected=true")
+print("qualification_state_body_fields_bound=true")
+print("planner_output_race_oserror_holds=true")
 print("unconsumed_tool_metadata_not_execution_authority=true")
 print("nonroot_qualification_phase_required=true")
 print("descriptor_bound_qualification_source_required=true")

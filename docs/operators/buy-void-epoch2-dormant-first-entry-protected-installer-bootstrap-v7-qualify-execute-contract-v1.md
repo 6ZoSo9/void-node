@@ -237,3 +237,23 @@ The inert self-test mutates and rehashes the qualifier source path, upgrader
 blob, upgrade-plan blob, interpreter alias, Git-tool alias, unexpected
 qualification key, unexpected required-result key and unexpected top-level
 planner key. Every case must HOLD.
+
+
+## October 20 exact-head planner-state/race repair
+
+The exact-head rereview identified two source-only correctness gaps in the V7
+two-phase handoff. A rehashed planner body could disagree with the duplicated
+top-level qualification-state lines for whether installed qualification had
+already run or remained required, and a pathname replacement/removal race
+between metadata observation and descriptor/open/revalidation could escape as an
+uncaught `OSError`.
+
+The repaired contract now requires the canonical planner body itself to carry
+`installed_qualification_performed=false` and
+`installed_qualification_required_before_bootstrap_plan=true`. Rehashed
+opposite values are rejected. Planner-output open/read/revalidation
+`OSError` paths are translated to `ContractError`, preserving the documented
+machine-readable HOLD boundary instead of a traceback. The inert self-test
+injects both an open race and a post-read visible-path race without performing
+qualification, bootstrap execution, protected installation, service mutation,
+credential access, signing, payment acceptance, activation, or funds movement.

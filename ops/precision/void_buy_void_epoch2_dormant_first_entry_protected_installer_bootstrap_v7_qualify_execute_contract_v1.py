@@ -267,29 +267,35 @@ def _read_stable(path: Path) -> bytes:
         or before.st_size > MAX_PLANNER_OUTPUT_BYTES
     ):
         raise ContractError("planner_output_metadata_invalid")
-    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
     try:
-        opened = os.fstat(fd)
-        if (
-            opened.st_dev != before.st_dev
-            or opened.st_ino != before.st_ino
-            or opened.st_size != before.st_size
-            or opened.st_mtime_ns != before.st_mtime_ns
-            or opened.st_ctime_ns != before.st_ctime_ns
-        ):
-            raise ContractError("planner_output_rebound")
-        chunks: list[bytes] = []
-        remaining = opened.st_size
-        while remaining:
-            chunk = os.read(fd, min(65536, remaining))
-            if not chunk:
-                raise ContractError("planner_output_short_read")
-            chunks.append(chunk)
-            remaining -= len(chunk)
-        if os.read(fd, 1):
-            raise ContractError("planner_output_grew")
-        after = os.fstat(fd)
-        visible = path.lstat()
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise ContractError("planner_output_open_failed") from exc
+    try:
+        try:
+            opened = os.fstat(fd)
+            if (
+                opened.st_dev != before.st_dev
+                or opened.st_ino != before.st_ino
+                or opened.st_size != before.st_size
+                or opened.st_mtime_ns != before.st_mtime_ns
+                or opened.st_ctime_ns != before.st_ctime_ns
+            ):
+                raise ContractError("planner_output_rebound")
+            chunks: list[bytes] = []
+            remaining = opened.st_size
+            while remaining:
+                chunk = os.read(fd, min(65536, remaining))
+                if not chunk:
+                    raise ContractError("planner_output_short_read")
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            if os.read(fd, 1):
+                raise ContractError("planner_output_grew")
+            after = os.fstat(fd)
+            visible = path.lstat()
+        except OSError as exc:
+            raise ContractError("planner_output_io_failed") from exc
         for key in ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns"):
             if getattr(after, key) != getattr(opened, key):
                 raise ContractError("planner_output_changed_during_read")
@@ -594,6 +600,10 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
         raise ContractError("planner_plan_id_body_mismatch")
     if body["schema"] != PLANNER_SCHEMA or body["version"] != 7:
         raise ContractError("planner_schema_invalid")
+    if body["installed_qualification_performed"] is not False:
+        raise ContractError("planner_body_installed_qualification_performed_invalid")
+    if body["installed_qualification_required_before_bootstrap_plan"] is not True:
+        raise ContractError("planner_body_qualification_requirement_invalid")
 
     expected_head = body["expected_head"]
     if not isinstance(expected_head, str) or HEX40.fullmatch(expected_head) is None:
@@ -1086,6 +1096,79 @@ def self_test() -> None:
     _expect_tamper_rejected(
         lambda body: body.__setitem__("unexpected_planner_authority", True)
     )
+    _expect_tamper_rejected(
+        lambda body: body.__setitem__("installed_qualification_performed", True)
+    )
+    _expect_tamper_rejected(
+        lambda body: body.__setitem__(
+            "installed_qualification_required_before_bootstrap_plan", False
+        )
+    )
+
+    class _PlannerRaceStat:
+        st_mode = stat.S_IFREG | 0o600
+        st_nlink = 1
+        st_size = 1
+        st_dev = 11
+        st_ino = 12
+        st_mtime_ns = 13
+        st_ctime_ns = 14
+
+    class _PlannerRacePath:
+        def __init__(self, fail_visible: bool = False):
+            self.calls = 0
+            self.fail_visible = fail_visible
+
+        def __str__(self) -> str:
+            return "/tmp/void-planner-output-race-fixture"
+
+        def is_absolute(self) -> bool:
+            return True
+
+        def lstat(self):
+            self.calls += 1
+            if self.fail_visible and self.calls > 1:
+                raise FileNotFoundError("fixture_visible_race")
+            return _PlannerRaceStat()
+
+    original_open = os.open
+    try:
+        def _open_race(*_args, **_kwargs):
+            raise FileNotFoundError("fixture_open_race")
+
+        os.open = _open_race
+        try:
+            _read_stable(_PlannerRacePath())
+        except ContractError as exc:
+            if str(exc) != "planner_output_open_failed":
+                raise
+        else:
+            raise AssertionError("planner_output_open_race_not_held")
+    finally:
+        os.open = original_open
+
+    original_open = os.open
+    original_fstat = os.fstat
+    original_read = os.read
+    original_close = os.close
+    read_values = [b"x", b""]
+    try:
+        os.open = lambda *_args, **_kwargs: 91
+        os.fstat = lambda _fd: _PlannerRaceStat()
+        os.read = lambda _fd, _size: read_values.pop(0)
+        os.close = lambda _fd: None
+        try:
+            _read_stable(_PlannerRacePath(fail_visible=True))
+        except ContractError as exc:
+            if str(exc) != "planner_output_io_failed":
+                raise
+        else:
+            raise AssertionError("planner_output_visible_race_not_held")
+    finally:
+        os.open = original_open
+        os.fstat = original_fstat
+        os.read = original_read
+        os.close = original_close
 
     print(MARKER + "_SELF_TEST_GREEN")
     print("planner_v7_generation_bound=true")
@@ -1097,6 +1180,8 @@ def self_test() -> None:
     print("qualification_required_result_closed_schema_required=true")
     print("qualification_execution_identity_fields_validated=true")
     print("rehashed_nested_tamper_rejected=true")
+    print("qualification_state_body_fields_bound=true")
+    print("planner_output_race_oserror_holds=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")
     print("qualification_nonroot_required=true")
     print("qualification_descriptor_bound_git_object_required=true")
