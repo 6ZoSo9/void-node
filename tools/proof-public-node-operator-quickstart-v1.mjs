@@ -23,9 +23,14 @@ const page = fs.readFileSync(files.page, 'utf8');
 const connectPack = JSON.parse(fs.readFileSync(files.connectPack, 'utf8'));
 const receiptTemplate = JSON.parse(fs.readFileSync(files.receiptTemplate, 'utf8'));
 
+if (connectPack.example_commands?.verify_peers !== "curl -fsS http://127.0.0.1:4100/p2p/peers | jq .") throw new Error('linked connect pack peer command mismatch');
+
 if (data.marker !== marker) throw new Error('marker mismatch');
 if (data.expected_green_marker !== green) throw new Error('green marker mismatch');
 if (data.status !== 'operator_quickstart_ready') throw new Error('status mismatch');
+if (data.steps?.[3]?.title !== 'Open the manual peer-dial instructions') throw new Error('manual dial instruction label mismatch');
+if (data.steps?.[3]?.route !== '/public-node/connect/public-node-connect-pack-v1.json') throw new Error('manual dial instruction route mismatch');
+if (data.steps?.[4]?.route !== '/health and /p2p/peers on the operator node') throw new Error('peer verification route mismatch');
 if (connectPack.marker !== 'VOID_PUBLIC_NODE_CONNECT_PACK_V1') throw new Error('connect pack marker mismatch');
 if (receiptTemplate.marker !== 'VOID_PUBLIC_NODE_CONNECT_RECEIPT_TEMPLATE_V1') throw new Error('receipt template marker mismatch');
 
@@ -67,6 +72,9 @@ for (const route of [
 const docLower = doc.toLowerCase();
 const htmlLower = html.toLowerCase();
 const pageLower = page.toLowerCase();
+
+if (!doc.includes('/p2p/peers')) throw new Error('doc missing implemented peer route');
+if (doc.includes('/health and /peers on the operator node')) throw new Error('doc retains obsolete peer route');
 
 for (const [surfaceName, surface] of Object.entries({ html, page })) {
   if (!surface.includes('<meta name="viewport" content="width=device-width,initial-scale=1">')) {
