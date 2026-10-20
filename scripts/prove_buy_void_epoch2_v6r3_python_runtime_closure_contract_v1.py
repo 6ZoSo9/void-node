@@ -64,19 +64,45 @@ for key in ("protected_install_authorized","installed_binary_identity_proven","h
 planner_raw=exact(PLANNER,4*1024*1024)
 assert git_blob(planner_raw)==PLANNER_BLOB
 assert sha256(planner_raw)==PLANNER_SHA256 and len(planner_raw)==PLANNER_BYTES
+def vetted_runtime_imports(module:ast.Module)->set[str]:
+    imported:set[str]=set()
+    futures:list[str]=[]
+    for node in module.body:
+        if isinstance(node,ast.Import):
+            for alias in node.names:
+                imported.add(alias.name.split(".",1)[0])
+        elif isinstance(node,ast.ImportFrom):
+            assert node.level==0,"relative_import_forbidden"
+            assert node.module is not None
+            if node.module=="__future__":
+                assert len(node.names)==1,"future_directive_count_invalid"
+                feature=node.names[0]
+                assert feature.name=="annotations" and feature.asname is None,(
+                    "future_directive_not_exact_annotations"
+                )
+                futures.append(feature.name)
+                continue
+            imported.add(node.module.split(".",1)[0])
+    assert futures==["annotations"],"future_directive_generation_invalid"
+    return imported
+
+
 tree=ast.parse(planner_raw.decode("utf-8","strict"))
-imports=set()
-for node in tree.body:
-    if isinstance(node,ast.Import):
-        for alias in node.names:
-            imports.add(alias.name.split(".",1)[0])
-    elif isinstance(node,ast.ImportFrom):
-        assert node.level==0,"relative_import_forbidden"
-        assert node.module is not None
-        if node.module=="__future__":
-            continue
-        imports.add(node.module.split(".",1)[0])
+imports=vetted_runtime_imports(tree)
 assert imports==EXPECTED_IMPORTS,(imports,EXPECTED_IMPORTS)
+for forbidden_import in (
+    "from __future__ import division\\n",
+    "from __future__ import annotations\\nfrom __future__ import division\\n",
+    "from __future__ import annotations as alias\\n",
+    "from __future__ import annotations\\nfrom __future__ import annotations\\n",
+    "from . import anything\\nfrom __future__ import annotations\\n",
+):
+    try:
+        vetted_runtime_imports(ast.parse(forbidden_import))
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("unreviewed_future_or_relative_import_accepted")
 
 raw=exact(CONTRACT,128*1024)
 value=json.loads(raw)
@@ -155,6 +181,8 @@ print(MARKER+"_PROOF_GREEN")
 print("contract_id="+CONTRACT_ID)
 print("first_entry_binary_lock_bound=true")
 print("planner_exact_import_set_bound=true")
+print("planner_future_annotations_only_bound=true")
+print("unreviewed_future_and_relative_imports_rejected=true")
 print("future_directive_not_runtime_import=true")
 print("python_flags_i_b_s_bound=true")
 print("dynamic_loader_transitive_closure_required=true")
