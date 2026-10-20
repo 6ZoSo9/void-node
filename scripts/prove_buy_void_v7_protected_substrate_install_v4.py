@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="234a0ace67297715cab0b9ab69ec86fa089f4e27"
+assert gblob(INS)=="363a4f6cb2de8156d3b9bcbafdb053db8207bf44"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -61,6 +61,7 @@ required=(
     'git_dir_must_be_real_directory',
     'git_metadata_indirection_forbidden',
     'git_config_include_forbidden',
+    'git_includeif_horizontal_whitespace_rejected=true',
     'git_config_core_worktree_forbidden',
     'git_config_promisor_forbidden',
     '"rev-parse", "--git-common-dir"',
@@ -272,6 +273,7 @@ assert "git_http_alternates_rejected=true" in cp.stdout.splitlines()
 assert "git_grafts_rejected=true" in cp.stdout.splitlines()
 assert "git_shallow_rejected=true" in cp.stdout.splitlines()
 assert "git_local_config_include_rejected=true" in cp.stdout.splitlines()
+assert "git_includeif_horizontal_whitespace_rejected=true" in cp.stdout.splitlines()
 assert "git_core_worktree_redirect_rejected=true" in cp.stdout.splitlines()
 assert "git_worktree_config_extension_rejected=true" in cp.stdout.splitlines()
 assert "git_promisor_partial_clone_rejected=true" in cp.stdout.splitlines()
@@ -364,6 +366,7 @@ print("git_object_alternates_rejected=true")
 print("git_http_alternates_rejected=true")
 print("git_grafts_and_shallow_rejected=true")
 print("git_local_config_indirection_rejected=true")
+print("git_includeif_horizontal_whitespace_rejected=true")
 print("git_exact_dir_common_toplevel_bound=true")
 print("git_metadata_provenance_all_privileged_roots_bound=true")
 print("trusted_root_launcher_still_required=true")
