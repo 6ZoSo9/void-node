@@ -98,10 +98,10 @@ historical compatibility V3 output.
 ## Exact source identities
 
 ```text
-binder_git_blob=5c3f2f8f6d49e67017ad30e6c61bd8af6a11a3ab
-binder_sha256=a66dfc54a7cbaed0257119fb5f6ee0d4cd094c31ad0407358219601f466fcf11
-binder_bytes=52936
-native_preentry_git_blob=87a2efeb8ba5ef3d07d79f665931d5ece9976f78
+binder_git_blob=42daad33b05f054d57486ada174b82e18e4ed115
+binder_sha256=39679b4b025a29f735af544b9cec49d4b060113ef03f2a5a5ee1b0bbbf5c716a
+binder_bytes=56856
+native_preentry_git_blob=7e551be76ed5c774978558def29e91f15bfd8cd1
 dormant_candidate_git_blob=e569c9211e01f14c7c00dd1c5041d4dfb0817609
 runtime_dependency_count=9
 ```
@@ -198,10 +198,10 @@ without entering production native/credential/signing paths.
 ```text
 source_parent_pr=3613
 source_parent_head=f956e8268f7528a1b3729c25869d16bce9c2fb62
-binder_git_blob=5c3f2f8f6d49e67017ad30e6c61bd8af6a11a3ab
-binder_sha256=a66dfc54a7cbaed0257119fb5f6ee0d4cd094c31ad0407358219601f466fcf11
-binder_bytes=52936
-native_preentry_git_blob=87a2efeb8ba5ef3d07d79f665931d5ece9976f78
+binder_git_blob=42daad33b05f054d57486ada174b82e18e4ed115
+binder_sha256=39679b4b025a29f735af544b9cec49d4b060113ef03f2a5a5ee1b0bbbf5c716a
+binder_bytes=56856
+native_preentry_git_blob=7e551be76ed5c774978558def29e91f15bfd8cd1
 protected_install_authorized=false
 host_plan_authorized=false
 payment_acceptance=false
@@ -212,4 +212,28 @@ funds_movement=false
 **Required:** exact-head CI and independent security review, then regenerate
 all native candidate/lock/policy identities and complete host qualification.
 Do not treat this source proof as a production credential or payment authority.
+PROTECT THE CORE.
+
+## Accepted native retained-FD first-exec — P1 source-only repair
+
+Parent #3614 prevented configured-path symlink redirection but could still
+execute a substituted root-owned native ELF. This child authenticates the
+already-open native FD before every privileged native first execution.
+
+The source-exact native V6R2 repository candidate lock
+`voidbuye2nativecandlock6r2_ab95f15c8f2731adf6bfd97dfd5467495c90bdb5ee267948efc6a522be74b417`
+(Git blob `bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b`) pins
+SHA-256 `85f9b772e27e1e74199188c838ca107c91cdbc6e08ac20c47e8988c258073de8`
+and exactly 726,976 bytes. The binder reads these bytes from the **retained
+file descriptor**, checks inode/custody again after hashing, and rejects an
+invalid ELF64 LE x86-64 ET_EXEC, script, wrong program headers, PT_INTERP or
+PT_DYNAMIC. A disposable negative test opens a different root-owned Git ELF
+as the native candidate and requires rejection before first exec.
+
+**Installed identity remains unproven.** If Precision has a different actual
+binary generation, this check intentionally HOLDs until a separately accepted
+current lock is reviewed and the full binder/C/preentry hashes are reissued.
+A source test is not permission to invoke installed root services, credentials,
+wallets, signing, RPC, payments, public presale/WC or treasury/funds operations.
+
 PROTECT THE CORE.
