@@ -367,7 +367,7 @@ host execution or large allocations.
 ```text
 parent_pr=3609
 parent_head=50f57c88f86b68e3cba98a04441f51957c3aaa4b
-new_source_git_blob=a3c7c19743f06eeb697a77608bf1f8a7658cf25b
+new_source_git_blob=7a9074709c67cce7c40d2a39ac9153a60bb8dd33
 HOST_EXECUTION_ENABLED=False
 host_census_authorized=false
 host_plan_authorized=false
