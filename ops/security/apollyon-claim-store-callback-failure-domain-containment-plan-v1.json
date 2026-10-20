@@ -1,0 +1,77 @@
+{
+  "schema": "void_apollyon_claim_store_callback_failure_domain_containment_plan_v1",
+  "marker": "VOID_APOLLYON_CLAIM_STORE_CALLBACK_FAILURE_DOMAIN_CONTAINMENT_PLAN_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "stack_parent_pr": 3549,
+  "stack_parent_head": "187a4da4992b7d81330b9474e535b8af631de0d4",
+  "bound_sources": {
+    "core": {
+      "path": "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs",
+      "git_blob_sha1": "2d72a28e9daaeabcab58975a6f362c438c720592"
+    },
+    "transaction_lease": {
+      "path": "tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs",
+      "git_blob_sha1": "445480e625e01e44be8722709d56d5a6541099e2"
+    },
+    "native_bridge": {
+      "path": "tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs",
+      "git_blob_sha1": "69694ab1c8ffd8021817a449255eca956f91a7e8"
+    },
+    "core_proof": {
+      "path": "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs",
+      "git_blob_sha1": "bed4c6fe3896ff48dfbc873d078fac943528fa5f"
+    },
+    "native_proof": {
+      "path": "scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs",
+      "git_blob_sha1": "848a061a0b246e138ec8ed775ed8a87f159476f6"
+    }
+  },
+  "observed_gap": {
+    "rejected_promise_surfaces": [
+      "transaction_acquisition_result",
+      "core_revalidator_result",
+      "transaction_release_result",
+      "native_bridge_revalidator_result"
+    ],
+    "getter_safe_promise_rejection_preserved": true,
+    "caller_promise_constructor_or_species_must_not_be_observed": true,
+    "already_rejected_promise_can_terminate_containing_node_process": true,
+    "trusted_callback_origin_proven": false,
+    "failure_domain_containment_proven": false
+  },
+  "required_future_runtime_contract": {
+    "separate_os_process_failure_domain_required": true,
+    "one_request_per_isolated_process_required": true,
+    "node_unhandled_rejections_strict_required": true,
+    "custom_unhandled_rejection_suppression_forbidden": true,
+    "callback_source_custody_and_exact_identity_required": true,
+    "inherited_descriptor_allowlist_required": true,
+    "minimal_environment_required": true,
+    "no_success_ack_before_child_clean_exit_required": true,
+    "canonical_success_receipt_required_before_clean_exit": true,
+    "post_callback_event_loop_checkpoint_required": true,
+    "nonzero_or_signal_exit_maps_to_hold_required": true,
+    "post_mutation_child_failure_maps_to_indeterminate_required": true,
+    "automatic_replay_after_indeterminate_forbidden": true,
+    "parent_must_ignore_buffered_success_after_abnormal_exit": true,
+    "terminal_store_generation_revalidation_required": true,
+    "terminal_peer_identity_revalidation_required": true,
+    "terminal_callback_source_identity_revalidation_required": true
+  },
+  "authority": {
+    "protected_host_execution_authorized": false,
+    "filesystem_mutation_authorized": false,
+    "service_or_systemd_mutation_authorized": false,
+    "production_claim_publication_authorized": false,
+    "training_start_authorized": false,
+    "training_execution_authorized": false,
+    "credential_access_authorized": false,
+    "private_key_or_wallet_access_authorized": false,
+    "signing_authorized": false,
+    "transaction_authorized": false,
+    "funds_movement_authorized": false
+  },
+  "next_gate": "DISTINCT_REVIEW_FAILURE_DOMAIN_PLAN_THEN_BUILD_ISOLATED_RUNTIME_CANDIDATE_V1",
+  "plan_id": "voidapollyonclaimcallbackcontain1_0e0794baead1aa6571c8f0820a32d5951e24dfefb164445c0591c1d94bc5166c"
+}
