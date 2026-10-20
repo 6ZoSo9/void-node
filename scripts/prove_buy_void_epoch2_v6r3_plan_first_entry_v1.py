@@ -332,45 +332,44 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         require_success(cp, "static_launcher_preload_test")
         assert not preload_sentinel.exists(), "static launcher executed hostile preload"
 
-        require_success(
-            run([SUDO, "-n", "chown", "root:root", "/opt"]),
-            "hosted_opt_root_ownership_normalize",
-        )
-        require_success(
-            run([SUDO, "-n", "chmod", "0755", "/opt"]),
-            "hosted_opt_mode_normalize",
-        )
-        opt_st = Path("/opt").lstat()
-        assert stat.S_ISDIR(opt_st.st_mode) and not stat.S_ISLNK(opt_st.st_mode)
-        assert opt_st.st_uid == 0 and opt_st.st_gid == 0
-        assert stat.S_IMODE(opt_st.st_mode) == 0o755
-
-        require_success(run([SUDO, "-n", "rm", "-rf", "--", os.fspath(FIXED_ROOT)]), "fixture_preclean")
+        # The privileged fixture is create-only at a unique /run path.  Never
+        # preclean, chmod/chown a global ancestor, or overwrite a preexisting root.
+        assert not FIXED_ROOT.exists() and not FIXED_ROOT.is_symlink(), "fixture_root_preexisting"
         require_success(
             run([SUDO, "-n", "install", "-d", "-o", "root", "-g", "root", "-m", "0755",
                  os.fspath(FIXED_ROOT)]),
-            "fixture_root_install",
+            "fixture_root_create_only",
         )
+        fixture_created = True
+        root_st = FIXED_ROOT.lstat()
+        assert stat.S_ISDIR(root_st.st_mode) and not stat.S_ISLNK(root_st.st_mode)
+        assert root_st.st_uid == 0 and root_st.st_gid == 0
+        assert stat.S_IMODE(root_st.st_mode) == 0o755
+        fixture_root_generation = stat_generation(root_st)
+
         for source_path, target_path, mode in (
-            (binary, FIXED_SELF, "0555"),
+            (fixture_binary, FIXED_SELF, "0555"),
             (PLANNER, FIXED_PLANNER, "0444"),
             (policy, FIXED_POLICY, "0444"),
         ):
+            assert not target_path.exists() and not target_path.is_symlink(), (
+                "fixture_target_preexisting:" + os.fspath(target_path)
+            )
             require_success(
                 run([SUDO, "-n", "install", "-o", "root", "-g", "root", "-m", mode,
                      os.fspath(source_path), os.fspath(target_path)]),
-                "fixture_install:" + os.fspath(target_path),
+                "fixture_install_create_only:" + os.fspath(target_path),
             )
+            target_st = target_path.lstat()
+            assert stat.S_ISREG(target_st.st_mode) and not stat.S_ISLNK(target_st.st_mode)
+            assert target_st.st_nlink == 1
+            assert target_st.st_uid == 0 and target_st.st_gid == 0
+            assert stat.S_IMODE(target_st.st_mode) == int(mode, 8)
+            installed_generations[target_path] = stat_generation(target_st)
 
-        for target, mode in (
-            (FIXED_ROOT, 0o755), (FIXED_SELF, 0o555),
-            (FIXED_PLANNER, 0o444), (FIXED_POLICY, 0o444),
-        ):
-            st = target.lstat()
-            assert (stat.S_ISDIR(st.st_mode) if target == FIXED_ROOT else stat.S_ISREG(st.st_mode))
-            if target != FIXED_ROOT: assert st.st_nlink == 1
-            assert st.st_uid == 0 and st.st_gid == 0
-            assert stat.S_IMODE(st.st_mode) == mode
+        assert set(os.listdir(FIXED_ROOT)) == {
+            FIXED_SELF.name, FIXED_PLANNER.name, FIXED_POLICY.name,
+        }
 
         attack_source = b'raise SystemExit("CALLER_STDIN_EXECUTED")\n'
         exec_argv = [
@@ -394,8 +393,23 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
         assert not evil_sentinel.exists(), "hostile PYTHONPATH imported by isolated child"
         assert not preload_sentinel.exists(), "hostile LD_PRELOAD propagated to Python child"
 
+        # Actual native closed-stdin adversary: fd0 must be reserved before any
+        # trusted open, and the authenticated planner must still execute from fd3.
         cp = run([
-            SUDO, "-n", os.fspath(binary), "--plan",
+            SUDO, "-n", "/bin/sh", "-c",
+            'exec 0<&-; exec "$1" --plan',
+            "void-closed-stdin", os.fspath(FIXED_SELF),
+        ], timeout=90)
+        closed_combined = cp.stdout + cp.stderr
+        assert cp.returncode == 2, closed_combined.decode("utf-8", "replace")
+        assert (PLANNER_MARKER + "\n").encode("ascii") in cp.stdout
+        assert b"status=HOLD" in cp.stdout
+        assert b"reason=git_failed:rev-parse" in cp.stdout
+        assert (MARKER + "_HOLD").encode("ascii") not in cp.stderr
+        assert b"planner_python_started=false" not in cp.stderr
+
+        cp = run([
+            SUDO, "-n", os.fspath(fixture_binary), "--plan",
         ])
         assert cp.returncode == 2
         assert b"reason=launcher_fixed_path_required" in cp.stderr
@@ -420,6 +434,9 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
                  os.fspath(tampered_path), os.fspath(FIXED_PLANNER)]),
             "tampered_planner_install",
         )
+        tampered_st = FIXED_PLANNER.lstat()
+        assert stat.S_ISREG(tampered_st.st_mode) and tampered_st.st_uid == 0
+        installed_generations[FIXED_PLANNER] = stat_generation(tampered_st)
         cp = run(exec_argv, input_bytes=attack_source)
         assert cp.returncode == 2
         assert b"reason=planner_identity_invalid" in cp.stderr
@@ -431,8 +448,35 @@ with tempfile.TemporaryDirectory(prefix="void-epoch2-v6r3-plan-first-entry-proof
                  os.fspath(PLANNER), os.fspath(FIXED_PLANNER)]),
             "planner_restore",
         )
+        restored_st = FIXED_PLANNER.lstat()
+        assert stat.S_ISREG(restored_st.st_mode) and restored_st.st_uid == 0
+        installed_generations[FIXED_PLANNER] = stat_generation(restored_st)
     finally:
-        run([SUDO, "-n", "rm", "-rf", "--", os.fspath(FIXED_ROOT)])
+        # Remove only the exact disposable generations created above.  If any
+        # generation or directory shape changed, fail closed and leave it for
+        # runner teardown rather than deleting unknown content.
+        if fixture_created:
+            root_now = FIXED_ROOT.lstat()
+            assert fixture_root_generation is not None
+            assert stat_generation(root_now) == fixture_root_generation, (
+                "fixture_root_generation_changed"
+            )
+            assert set(os.listdir(FIXED_ROOT)) == {
+                FIXED_SELF.name, FIXED_PLANNER.name, FIXED_POLICY.name,
+            }, "fixture_root_entries_changed"
+            for target in (FIXED_PLANNER, FIXED_POLICY, FIXED_SELF):
+                current = target.lstat()
+                assert stat_generation(current) == installed_generations[target], (
+                    "fixture_target_generation_changed:" + os.fspath(target)
+                )
+                require_success(
+                    run([SUDO, "-n", "rm", "--", os.fspath(target)]),
+                    "fixture_generation_bound_remove:" + os.fspath(target),
+                )
+            require_success(
+                run([SUDO, "-n", "rmdir", "--", os.fspath(FIXED_ROOT)]),
+                "fixture_generation_bound_rmdir",
+            )
         try: evil_module.unlink()
         except FileNotFoundError: pass
         try: evil_dir.rmdir()
@@ -449,7 +493,11 @@ print("native_static_first_instruction=true")
 print("native_no_pt_interp=true")
 print("native_ld_preload_blocked_before_main=true")
 print("fixed_root_custody_required=true")
-print("hosted_opt_ancestry_normalized_for_fixture=true")
+print("privileged_fixture_explicit_opt_in=true")
+print("isolated_disposable_fixture_root=true")
+print("preexisting_fixture_root_rejected=true")
+print("generation_bound_nonrecursive_cleanup=true")
+print("closed_stdin_first_entry_green=true")
 print("root_static_first_entry_required=true")
 print("runtime_uid_gid_1000_required=true")
 print("permanent_uid_gid_drop_before_python=true")
