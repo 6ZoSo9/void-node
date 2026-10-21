@@ -1268,23 +1268,61 @@ def _verify_worktree_manifest(root: pathlib.Path, manifest: dict[str, tuple[str,
     if seen != set(manifest):
         raise InstallError("worktree_missing_path")
 
+def _bounded_directory_names(
+    path: pathlib.Path,
+    label: str,
+    limit: int,
+) -> tuple[str, ...]:
+    if limit < 0:
+        raise InstallError(label + "_entry_limit_invalid")
+    names: list[str] = []
+    try:
+        with os.scandir(path) as scan:
+            for entry in scan:
+                if len(names) >= limit:
+                    raise InstallError(label + "_entry_limit")
+                names.append(entry.name)
+    except OSError as exc:
+        raise InstallError(label + "_scandir_failed:" + os.fspath(path)) from exc
+    return tuple(names)
+
+def _require_exact_directory_names(
+    path: pathlib.Path,
+    expected: set[str],
+    label: str,
+) -> tuple[str, ...]:
+    names = _bounded_directory_names(path, label, len(expected) + 1)
+    if set(names) != expected or len(names) != len(expected):
+        raise InstallError(label + "_layout_invalid")
+    return names
+
 def _exact_candidate_git_layout(root: pathlib.Path, owner_uid: int, owner_gid: int) -> dict[str, str]:
     git_dir = root / ".git"
-    if set(os.listdir(git_dir)) != {"HEAD", "config", "index", "info", "objects", "refs"}:
-        raise InstallError("git_layout_invalid")
-    if set(os.listdir(git_dir / "objects")) != {"info", "pack"}:
-        raise InstallError("git_objects_layout_invalid")
-    if os.listdir(git_dir / "objects" / "info"):
-        raise InstallError("git_objects_info_not_empty")
-    if os.listdir(git_dir / "info"):
-        raise InstallError("git_info_not_empty")
-    if set(os.listdir(git_dir / "refs")) != {"heads", "tags"}:
-        raise InstallError("git_refs_layout_invalid")
-    if set(os.listdir(git_dir / "refs" / "heads")) != {"main"}:
-        raise InstallError("git_heads_layout_invalid")
-    if os.listdir(git_dir / "refs" / "tags"):
-        raise InstallError("git_tags_not_empty")
-    packs = sorted(os.listdir(git_dir / "objects" / "pack"))
+    _require_exact_directory_names(
+        git_dir, {"HEAD", "config", "index", "info", "objects", "refs"},
+        "git",
+    )
+    _require_exact_directory_names(
+        git_dir / "objects", {"info", "pack"}, "git_objects"
+    )
+    _require_exact_directory_names(
+        git_dir / "objects" / "info", set(), "git_objects_info"
+    )
+    _require_exact_directory_names(git_dir / "info", set(), "git_info")
+    _require_exact_directory_names(
+        git_dir / "refs", {"heads", "tags"}, "git_refs"
+    )
+    _require_exact_directory_names(
+        git_dir / "refs" / "heads", {"main"}, "git_heads"
+    )
+    _require_exact_directory_names(
+        git_dir / "refs" / "tags", set(), "git_tags"
+    )
+    packs = sorted(
+        _bounded_directory_names(
+            git_dir / "objects" / "pack", "git_pack", 3
+        )
+    )
     if (
         len(packs) != 2
         or len([n for n in packs if n.endswith(".pack")]) != 1
@@ -1388,16 +1426,21 @@ def _content_digest(root: pathlib.Path, expected_uid: int, expected_gid: int, ex
     while pending:
         directory, prefix = pending.pop()
         before = directory.lstat()
-        entries = sorted(os.scandir(directory), key=lambda e: e.name)
+        remaining_nodes = MAX_NODES - nodes
+        names = sorted(
+            _bounded_directory_names(
+                directory, "tree_directory", remaining_nodes + 1
+            )
+        )
+        if len(names) > remaining_nodes:
+            raise InstallError("tree_node_limit")
         after = directory.lstat()
         if _metadata_identity(before) != _metadata_identity(after):
             raise InstallError("tree_directory_changed:" + (prefix or "."))
-        for entry in entries:
-            nodes += 1
-            if nodes > MAX_NODES:
-                raise InstallError("tree_node_limit")
-            child = directory / entry.name
-            rel = entry.name if not prefix else prefix + "/" + entry.name
+        nodes += len(names)
+        for entry_name in names:
+            child = directory / entry_name
+            rel = entry_name if not prefix else prefix + "/" + entry_name
             st = child.lstat()
             if st.st_uid != expected_uid or st.st_gid != expected_gid:
                 raise InstallError("tree_owner_invalid:" + rel)
