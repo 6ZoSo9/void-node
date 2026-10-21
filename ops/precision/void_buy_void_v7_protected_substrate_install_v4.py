@@ -263,7 +263,7 @@ def _metadata_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int
         st.st_size, st.st_mtime_ns, st.st_ctime_ns,
     )
 
-def _read_metadata_file(def _read_metadata_file(path: pathlib.Path, label: str, max_bytes: int = 1024 * 1024) -> tuple[bytes, tuple[int, int, int, int, int, int, int, int, int]]:
+def _read_metadata_file(path: pathlib.Path, label: str, max_bytes: int = 1024 * 1024) -> tuple[bytes, tuple[int, int, int, int, int, int, int, int, int]]:
     before = path.lstat()
     if (
         not stat.S_ISREG(before.st_mode)
@@ -442,7 +442,7 @@ def require_git_metadata_provenance(root: pathlib.Path, label: str, expected_hea
     if observed != expected_head:
         raise InstallError(label + "_direct_main_head_mismatch")
 
-def _write_git_metadata_fixture(def _write_git_metadata_fixture(root: pathlib.Path, config: str = "[core]\nrepositoryformatversion = 0\nbare = false\n") -> None:
+def _write_git_metadata_fixture(root: pathlib.Path, config: str = "[core]\nrepositoryformatversion = 0\nbare = false\n") -> None:
     (root / ".git" / "objects" / "info").mkdir(parents=True)
     (root / ".git" / "info").mkdir(parents=True)
     (root / ".git" / "config").write_text(config, "utf-8")
@@ -840,7 +840,7 @@ def require_worktree_matches_manifest(
 ) -> None:
     _verify_worktree_manifest(root, manifest, label)
 
-def _strict_internal_symlink(def _strict_internal_symlink(path: pathlib.Path, root: pathlib.Path, label: str) -> pathlib.Path:
+def _strict_internal_symlink(path: pathlib.Path, root: pathlib.Path, label: str) -> pathlib.Path:
     try:
         resolved = path.resolve(strict=True)
     except (OSError, RuntimeError) as exc:
@@ -1060,7 +1060,7 @@ def source_target_state(source_digest: tuple[str, int, int]) -> bool:
     )
     return True
 
-def ensure_stage_roots_absent(def ensure_stage_roots_absent() -> None:
+def ensure_stage_roots_absent() -> None:
     for stage in (SOURCE_STAGE, PREENTRY_STAGE, SELECTOR_STAGE):
         if stage.exists() or stage.is_symlink():
             raise InstallError("staging_root_preexisting:" + os.fspath(stage))
@@ -1252,7 +1252,7 @@ def _publish_source(expected_digest: tuple[str, int, int]) -> None:
     _rename_noreplace(SOURCE_STAGE_NAME, SOURCE_NAME, SOURCE_STAGE, "protected_source")
     if not source_target_state(expected_digest): raise InstallError("source_postpublication_verification_failed")
 
-def _publish_binary(def _publish_binary(stage: pathlib.Path, stage_name: str, target_name: str, filename: str, raw: bytes, digest: str, label: str) -> None:
+def _publish_binary(stage: pathlib.Path, stage_name: str, target_name: str, filename: str, raw: bytes, digest: str, label: str) -> None:
     if stage.exists() or stage.is_symlink(): raise InstallError(label + "_stage_preexisting")
     _create_binary_stage(stage, filename, raw, digest); _rename_noreplace(stage_name, target_name, stage, label)
 
