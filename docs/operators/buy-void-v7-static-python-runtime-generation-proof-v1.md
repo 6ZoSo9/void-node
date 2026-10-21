@@ -33,6 +33,16 @@ Focused source proof:
 
 \`scripts/prove_buy_void_v7_static_python_runtime_generation_proof_v1.py\`
 
+## Current implementation HOLD
+
+The source currently refuses every `--run` before candidate bytes are opened or executed with:
+
+`reason=candidate_execution_sandbox_not_implemented`.
+
+This is intentional. An externally supplied executable is untrusted; running it merely as the ordinary VOID/user identity would still expose user-readable/writable files, network access, same-UID processes and process-spawn capability. Those powers are outside this proof's authority.
+
+A later source generation must add and independently review an execution sandbox that confines candidate filesystem access to the private runtime/scratch tree, provides no network capability, forbids process spawning and same-UID process inspection/control, sets `NoNewPrivileges`, and preserves the resource/output limits below. Until then, no candidate execution receipt can exist.
+
 ## Candidate inputs
 
 The \`--run\` path requires all six explicit candidate bindings:
@@ -111,7 +121,7 @@ Candidate processes receive bounded CPU, address space, output-file size and des
 
 ## Result semantics
 
-A successful candidate run emits:
+**Current source cannot emit candidate GREEN because `--run` is sandbox-HOLD.** After a separately reviewed sandbox implementation closes that boundary, a successful candidate run is intended to emit:
 
 \`status=RUNTIME_CLOSURE_GREEN\`
 
