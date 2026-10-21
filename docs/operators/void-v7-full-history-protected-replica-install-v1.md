@@ -145,6 +145,13 @@ Python surrogate escapes therefore becomes a normal `InstallError` and enters
 the same retained-stage/publication reconciliation path; it cannot escape through
 a later digest `UnicodeEncodeError`.
 
+Line-oriented receipt integrity is bound at the same boundary. Candidate path
+components containing ASCII controls, DEL, NEL (`U+0085`), line separator
+(`U+2028`) or paragraph separator (`U+2029`) are rejected before copy.
+Terminal exception reasons are independently sanitized onto one bounded printable
+line, so an attacker-controlled filename cannot inject a forged receipt field or
+visually split/overwrite the HOLD reason.
+
 Candidate traversal is also resource-bounded before protected publication.
 The root copy path never calls `listdir()` or sorts/materializes a complete
 attacker-controlled directory. It consumes `os.scandir(fd)` incrementally,
