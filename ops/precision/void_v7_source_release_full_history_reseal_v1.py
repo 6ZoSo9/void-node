@@ -735,7 +735,13 @@ def _verify_candidate_metadata_fds(
     candidate_fd: int,
     git_fd: int,
     objects_fd: int,
+    pack_fd: int,
+    refs_fd: int,
+    heads_fd: int,
+    tags_fd: int,
     index_fd: int,
+    pack_name: str,
+    pack_index_name: str,
 ) -> None:
     git_visible = os.stat(".git", dir_fd=candidate_fd, follow_symlinks=False)
     if _identity(git_visible) != _identity(os.fstat(git_fd)) or not stat.S_ISDIR(git_visible.st_mode):
@@ -743,17 +749,72 @@ def _verify_candidate_metadata_fds(
     objects_visible = os.stat("objects", dir_fd=git_fd, follow_symlinks=False)
     if _identity(objects_visible) != _identity(os.fstat(objects_fd)) or not stat.S_ISDIR(objects_visible.st_mode):
         raise ResealError("candidate_objects_dir_generation_changed")
+    pack_visible = os.stat("pack", dir_fd=objects_fd, follow_symlinks=False)
+    if (
+        _identity(pack_visible) != _identity(os.fstat(pack_fd))
+        or not stat.S_ISDIR(pack_visible.st_mode)
+    ):
+        raise ResealError("candidate_pack_dir_generation_changed")
+    refs_visible = os.stat("refs", dir_fd=git_fd, follow_symlinks=False)
+    if (
+        _identity(refs_visible) != _identity(os.fstat(refs_fd))
+        or not stat.S_ISDIR(refs_visible.st_mode)
+    ):
+        raise ResealError("candidate_refs_dir_generation_changed")
+    heads_visible = os.stat("heads", dir_fd=refs_fd, follow_symlinks=False)
+    if (
+        _identity(heads_visible) != _identity(os.fstat(heads_fd))
+        or not stat.S_ISDIR(heads_visible.st_mode)
+    ):
+        raise ResealError("candidate_heads_dir_generation_changed")
+    tags_visible = os.stat("tags", dir_fd=refs_fd, follow_symlinks=False)
+    if (
+        _identity(tags_visible) != _identity(os.fstat(tags_fd))
+        or not stat.S_ISDIR(tags_visible.st_mode)
+    ):
+        raise ResealError("candidate_tags_dir_generation_changed")
+    if set(os.listdir(git_fd)) != {"HEAD", "config", "index", "info", "objects", "refs"}:
+        raise ResealError("candidate_git_directory_layout_invalid")
+    if set(os.listdir(objects_fd)) != {"info", "pack"}:
+        raise ResealError("candidate_objects_directory_layout_invalid")
+    if set(os.listdir(pack_fd)) != {pack_name, pack_index_name}:
+        raise ResealError("candidate_pack_directory_layout_invalid")
+    if set(os.listdir(refs_fd)) != {"heads", "tags"}:
+        raise ResealError("candidate_refs_directory_layout_invalid")
+    if set(os.listdir(heads_fd)) != {"main"}:
+        raise ResealError("candidate_heads_directory_layout_invalid")
+    if os.listdir(tags_fd):
+        raise ResealError("candidate_tags_directory_not_empty")
     for name in ("commondir", "config.worktree", "shallow"):
         _entry_absent_at(git_fd, name, "candidate")
     info_fd = _open_directory_at(git_fd, "info", "candidate_git_info")
     object_info_fd = _open_directory_at(objects_fd, "info", "candidate_object_info")
     try:
+        if os.listdir(info_fd):
+            raise ResealError("candidate_git_info_not_empty")
+        if os.listdir(object_info_fd):
+            raise ResealError("candidate_object_info_not_empty")
         _entry_absent_at(info_fd, "grafts", "candidate")
         _entry_absent_at(object_info_fd, "alternates", "candidate")
         _entry_absent_at(object_info_fd, "http-alternates", "candidate")
     finally:
         os.close(object_info_fd)
         os.close(info_fd)
+    for name in (pack_name, pack_index_name):
+        st = os.stat(name, dir_fd=pack_fd, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_nlink != 1
+            or st.st_uid != os.getuid()
+        ):
+            raise ResealError("candidate_pack_file_generation_invalid")
+    head_raw = _read_regular_at(git_fd, "HEAD", "candidate_head", max_bytes=256)
+    if head_raw != b"ref: refs/heads/main\n":
+        raise ResealError("candidate_head_content_invalid")
+    main_raw = _read_regular_at(heads_fd, "main", "candidate_main_ref", max_bytes=256)
+    if main_raw != (TARGET_HEAD + "\n").encode("ascii"):
+        raise ResealError("candidate_main_ref_content_invalid")
     _entry_absent_at(git_fd, "logs", "candidate")
     index_visible = os.stat("index", dir_fd=git_fd, follow_symlinks=False)
     index_retained = os.fstat(index_fd)
@@ -775,12 +836,21 @@ def verify_candidate_lease(
     candidate_identity: tuple[int, int, int, int, int],
     git_fd: int,
     objects_fd: int,
+    pack_fd: int,
+    refs_fd: int,
+    heads_fd: int,
+    tags_fd: int,
     index_fd: int,
+    pack_name: str,
+    pack_index_name: str,
 ) -> None:
     _revalidate_candidate_lease(
         output, parent_fd, parent_identity, candidate_fd, candidate_identity
     )
-    _verify_candidate_metadata_fds(candidate_fd, git_fd, objects_fd, index_fd)
+    _verify_candidate_metadata_fds(
+        candidate_fd, git_fd, objects_fd, pack_fd, refs_fd, heads_fd, tags_fd,
+        index_fd, pack_name, pack_index_name,
+    )
     if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "--is-shallow-repository", index_file_fd=index_fd) != "false":
         raise ResealError("candidate_repository_shallow")
     if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "HEAD", index_file_fd=index_fd) != TARGET_HEAD:
@@ -807,7 +877,10 @@ def verify_candidate_lease(
     _revalidate_candidate_lease(
         output, parent_fd, parent_identity, candidate_fd, candidate_identity
     )
-    _verify_candidate_metadata_fds(candidate_fd, git_fd, objects_fd, index_fd)
+    _verify_candidate_metadata_fds(
+        candidate_fd, git_fd, objects_fd, pack_fd, refs_fd, heads_fd, tags_fd,
+        index_fd, pack_name, pack_index_name,
+    )
 
 def _receipt_safe_path(path: Path, label: str) -> str:
     raw = os.fspath(path)
@@ -1002,7 +1075,7 @@ def build(output: Path) -> None:
     verify_source()
     output = _validate_output(output)
 
-    parent_fd = candidate_fd = git_fd = objects_fd = pack_fd = refs_fd = heads_fd = index_tmp_fd = index_fd = -1
+    parent_fd = candidate_fd = git_fd = objects_fd = pack_fd = refs_fd = heads_fd = tags_fd = index_tmp_fd = index_fd = -1
     worktree_directory_fds: dict[tuple[bytes, ...], int] = {}
     worktree_directory_ids: dict[
         tuple[bytes, ...], tuple[int, int, int, int, int]
@@ -1052,6 +1125,8 @@ def build(output: Path) -> None:
         os.mkdir("tags", mode=0o700, dir_fd=refs_fd)
         heads_fd = _open_directory_at(refs_fd, "heads", "candidate_heads")
         _reject_mountpoint_alias(output / ".git" / "refs" / "heads", "candidate_heads")
+        tags_fd = _open_directory_at(refs_fd, "tags", "candidate_tags")
+        _reject_mountpoint_alias(output / ".git" / "refs" / "tags", "candidate_tags")
 
         _revalidate_candidate_lease(
             output, parent_fd, parent_identity, candidate_fd, candidate_identity
@@ -1168,7 +1243,13 @@ def build(output: Path) -> None:
             candidate_identity,
             git_fd,
             objects_fd,
+            pack_fd,
+            refs_fd,
+            heads_fd,
+            tags_fd,
             index_fd,
+            pack_name,
+            index_name,
         )
         _verify_materialized_candidate_worktree(
             candidate_fd,
@@ -1205,7 +1286,7 @@ def build(output: Path) -> None:
                     os.close(fd)
                 except OSError:
                     pass
-        for fd in (index_fd, index_tmp_fd, heads_fd, refs_fd, pack_fd, objects_fd, git_fd, candidate_fd, parent_fd):
+        for fd in (index_fd, index_tmp_fd, tags_fd, heads_fd, refs_fd, pack_fd, objects_fd, git_fd, candidate_fd, parent_fd):
             if fd >= 0:
                 try:
                     os.close(fd)
@@ -1228,6 +1309,9 @@ def build(output: Path) -> None:
     print("regular_files_only_tree_contract=true")
     print("terminal_worktree_manifest_revalidation=true")
     print("terminal_index_comparison_read_only=true")
+    print("git_metadata_descriptor_revalidation=true")
+    print("git_metadata_exact_layout=true")
+    print("pack_and_ref_aliases_rejected=true")
     print("candidate_cleanup_attempted=false")
     print("candidate_retained_on_success=true")
     print("source_repository_mutation=false")
