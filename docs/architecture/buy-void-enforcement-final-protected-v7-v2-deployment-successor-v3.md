@@ -28,3 +28,8 @@ The current-row derivation now matches the deployment installer's row semantics 
 ### Reachable-history portability
 
 V3 no longer executes the historical Dispatch V2 proof. That proof contains frozen historical-generation checks whose Git objects need not be reachable from a minimal clone of the V3 candidate history. V3 now pins the exact reachable Dispatch V2 proof blob as provenance, statically binds its reviewed range-index successor and negative-authority contract, and independently derives the current 49-row inventory from current worktree bytes plus HEAD tree identity. V3 `--self-test` and `--derive` therefore require no mutable remote ref or unreachable historical Git object.
+
+
+### Independent reachable-history hosted evidence
+
+V3 hosted derivation is isolated from the historical V2 matrix. Each Node 22/24/26 V3 job creates a temporary Git bundle whose only positive ref is the exact V3 HEAD, clones that bundle, verifies historical Dispatch commit `af9646827b25e8103004f96525623ba248b41d2a` is absent, and then runs V3 self-test/derive inside that reachable-history-only clone. The historical V2 jobs remain unchanged and cannot block V3 artifact publication or V3 cross-node equality.
