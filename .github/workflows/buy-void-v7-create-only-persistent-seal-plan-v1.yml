@@ -49,9 +49,9 @@ jobs:
           sort "$RUNNER_TEMP/expected" > "$RUNNER_TEMP/expected.sorted"
           diff -u "$RUNNER_TEMP/expected.sorted" "$RUNNER_TEMP/actual"
           git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
-          test "$(git rev-parse HEAD:ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json)" = "1a7c526bb236d1f7032401766617c2b45d22a9c3"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_create_only_persistent_seal_plan_v1.mjs)" = "616f3c7d5d4072008f61505b0c552a63d57dcd1a"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-create-only-persistent-seal-plan-v1.md)" = "be60db4b9ca8154f9a249b6e64cf472d762d14a4"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json)" = "5347ec8a20aceb8470e6736767dbc72c33da1208"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_create_only_persistent_seal_plan_v1.mjs)" = "fffe1e613ac27cc56542add94ed95184bc735d5c"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-create-only-persistent-seal-plan-v1.md)" = "56ad0a1819e7788cc6acd7ccf15b200f45a13ffb"
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:

@@ -4,7 +4,7 @@ import fs from "node:fs";
 import {execFileSync} from "node:child_process";
 
 const PLAN_PATH="ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json";
-const PLAN_ID="voidv7createonlysealplan1_792de040abebf3e158a6a591cd74478dc2ab3ba21a396b504a542af08594022c";
+const PLAN_ID="voidv7createonlysealplan1_75281a6e6c25053a7c6e5e249eed2b8c49e99733429d8b82631e3a6fdf9bb85e";
 const SOURCE_BASE="0d93be0a7ae1395449a386d4fbe14bb680f51c3f";
 const LAUNCHER="ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c";
 const LAUNCHER_PROOF="scripts/prove_buy_void_v7_protected_substrate_root_launcher_v2.py";
@@ -41,21 +41,25 @@ const REQUIRED=[
   "installer_must_prove_its_own_fd_table_contains_no_writable_descriptor_to_staged_trusted_inodes_before_publication",
   "trusted_files_must_be_reopened_read_only_nofollow_nonblocking_after_write_fd_close",
   "read_only_reopen_must_revalidate_dev_ino_owner_mode_nlink_size_and_sha256",
+  "accepted_destination_size_and_sha256_must_equal_pre_copy_pinned_source_size_and_sha256_before_publication",
   "stage_tree_must_have_no_group_or_world_writable_ancestor_or_leaf",
   "ordinary_runtime_uid_must_have_no_write_authority_to_stage_or_final_tree",
   "same_uid_process_must_not_be_able_to_obtain_destination_write_descriptor_before_publication",
   "same_uid_source_stale_write_descriptor_adversary_required",
-  "same_uid_source_mutation_after_authentication_must_not_change_copied_destination_bytes",
+  "same_uid_source_mutation_after_authentication_must_not_produce_accepted_destination_bytes_different_from_pre_copy_pinned_size_and_sha256",
   "same_uid_post_publication_write_open_must_fail",
   "same_uid_retained_destination_write_descriptor_must_be_proven_impossible_by_fresh_inode_creation_and_private_stage",
   "publication_must_move_the_complete_closed_tree_with_same_filesystem_atomic_noreplace_semantics",
+  "publication_must_use_kernel_atomic_noreplace_without_check_then_rename_authority",
   "publication_must_not_replace_or merge_with_existing_final_tree",
   "retained_final_parent_must_be_fsynced_after_publication",
   "crash_after_publish_before_parent_fsync_must_recover_by_revalidation_then_parent_fsync",
   "failure_before_publication_must_leave_only_root_private_non_authoritative_stage",
   "idempotent_existing_final_acceptance_requires_exact_receipt_inode_metadata_and_all_file_hashes",
   "mismatched_existing_final_tree_must_hold_without_repair_in_place",
-  "durable_install_receipt_must_bind_installer_generation_source_generation_root_inode_and_every_trusted_file_identity",
+  "durable_install_receipt_must_bind_installer_generation_source_generation_root_inode_and_every_trusted_payload_file_identity_excluding_receipt_self_hash",
+  "install_receipt_inode_owner_mode_nlink_size_and_schema_must_be_verified_separately_without_self_hash_cycle",
+  "every_published_trusted_payload_file_and_receipt_must_have_nlink_exactly_one",
   "launcher_entry_must_reverify_receipt_bound_inodes_and_hashes_with_retained_descriptors",
   "launcher_entry_must_terminally_revalidate_visible_path_generation_before_exec",
   "launcher_v3_policy_must_select_exactly_one_reviewed_seal_mode",
@@ -129,8 +133,12 @@ assert.equal(new Set(REQUIRED).size,REQUIRED.length);
 for(const required of [
   "every_trusted_destination_inode_must_be_created_fresh_with_o_creat_o_excl_o_nofollow_o_cloexec",
   "all_destination_writable_descriptors_must_be_closed_before_publication",
+  "accepted_destination_size_and_sha256_must_equal_pre_copy_pinned_source_size_and_sha256_before_publication",
   "same_uid_retained_destination_write_descriptor_must_be_proven_impossible_by_fresh_inode_creation_and_private_stage",
   "publication_must_move_the_complete_closed_tree_with_same_filesystem_atomic_noreplace_semantics",
+  "publication_must_use_kernel_atomic_noreplace_without_check_then_rename_authority",
+  "install_receipt_inode_owner_mode_nlink_size_and_schema_must_be_verified_separately_without_self_hash_cycle",
+  "every_published_trusted_payload_file_and_receipt_must_have_nlink_exactly_one",
   "fs_immutable_fl_must_not_be_accepted_as_retained_handle_seal",
   "read_only_bind_mount_must_not_be_accepted_as_retained_handle_seal",
   "new_launcher_generation_required_for_alternative_seal_mode",
@@ -166,6 +174,10 @@ console.log("existing_launcher_v2_unchanged=true");
 console.log("launcher_v2_alternative_seal_accepted=false");
 console.log("fs_immutable_fl_accepted=false");
 console.log("candidate_alternative_kernel_verified_reads=false");
+console.log("pinned_source_identity_must_equal_accepted_destination=true");
+console.log("kernel_atomic_noreplace_required=true");
+console.log("receipt_self_hash_cycle_forbidden=true");
+console.log("published_payload_and_receipt_nlink_one_required=true");
 console.log("new_launcher_generation_authorized=false");
 console.log("bootstrap_installer_implementation_authorized=false");
 console.log("host_capability_probe_authorized=false");

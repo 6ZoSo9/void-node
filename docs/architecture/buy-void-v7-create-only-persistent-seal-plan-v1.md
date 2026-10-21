@@ -4,7 +4,7 @@
 
 Plan only. This does not change the landed trusted launcher V2 and does not install anything.
 
-Plan ID: `voidv7createonlysealplan1_792de040abebf3e158a6a591cd74478dc2ab3ba21a396b504a542af08594022c`.
+Plan ID: `voidv7createonlysealplan1_75281a6e6c25053a7c6e5e249eed2b8c49e99733429d8b82631e3a6fdf9bb85e`.
 
 Base: `main@0d93be0a7ae1395449a386d4fbe14bb680f51c3f`.
 
@@ -30,13 +30,14 @@ For each destination the future installer must:
 4. fsync data, set final root ownership/mode, and fsync metadata;
 5. close every writable destination descriptor;
 6. prove its own descriptor table contains no writable handle to any trusted staged inode;
-7. reopen each file read-only/no-follow/nonblocking and revalidate device, inode, owner, mode, nlink, size and SHA-256.
+7. reopen each file read-only/no-follow/nonblocking and revalidate device, inode, owner, mode, nlink, size and SHA-256;
+8. require the accepted destination size and SHA-256 to equal the exact pre-copy pinned source size and SHA-256 before any publication.
 
-Only after the complete tree and a closed installation receipt are read-only revalidated may the whole tree be published with same-filesystem atomic **no-replace** semantics. The retained final parent is then fsynced and the visible generation is revalidated.
+Only after the complete tree and a closed installation receipt are read-only revalidated may the whole tree be published with same-filesystem kernel-atomic **no-replace** semantics. A check-for-absence followed by an ordinary replace-capable rename is not authority. The retained final parent is then fsynced and the visible generation is revalidated.
 
 ## Same-UID adversary
 
-A future executable proof must let the ordinary runtime UID retain a writable descriptor to the **source** before installation, then mutate/truncate/replace that source after authentication. The already-created destination bytes must remain unchanged.
+A future executable proof must let the ordinary runtime UID retain a writable descriptor to the **source** before installation, then mutate/truncate/replace that source after authentication. A retained source descriptor is not a snapshot: mutation may change bytes observed during copy. Therefore any destination whose final size or SHA-256 differs from the pre-copy pinned source identity must HOLD before publication; mutated source bytes must never become an accepted published generation.
 
 The same UID must be unable to obtain a writable descriptor to the destination before publication because the stage is root-private and the destination inode did not exist beforehand. After publication, ordinary write-open attempts must fail.
 
@@ -48,7 +49,7 @@ Before publication, a crash may leave only a root-private non-authoritative stag
 
 If atomic publication occurs but final-parent fsync fails, retry must revalidate the complete published tree and receipt, fsync the retained parent, and revalidate again before accepting idempotent success.
 
-An existing final root is accepted only when the trusted installation receipt and every bound inode/hash/mode are exact. Any mismatch HOLDs without repair in place.
+An existing final root is accepted only when the trusted installation receipt and every bound inode/hash/mode are exact. The receipt payload manifest must bind every trusted payload file but must exclude a receipt self-hash cycle; the receipt file itself is separately required to be a fresh single-link root-owned closed file with exact schema/size/mode/inode checks. Every published trusted payload file and the receipt must have nlink exactly one. Any mismatch HOLDs without repair in place.
 
 ## Launcher generation
 
