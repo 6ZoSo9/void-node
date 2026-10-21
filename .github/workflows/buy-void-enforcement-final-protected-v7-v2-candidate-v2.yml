@@ -388,8 +388,8 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs)" = "8ea7786299422f7fc3fbfd7474b5e92d869e92c2"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "245ce93ebfb53478211fab765489e88d8fa23c4a"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs)" = "518408d5d467f477ab27f37b61ca9479d2f72928"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v3.md)" = "c550c41fc644c1a98882029546e62501aa13e96c"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs)" = "0a2293c624b698062fb2fe3ba07b95d632eaa9ab"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v3.md)" = "f9edf89530db7ecbc6619d224ea891bd02954397"
           git diff --check "$CANDIDATE_HEAD" "$EXPECTED_HEAD" --
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Prove V3 acceptance lock

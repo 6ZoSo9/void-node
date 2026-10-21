@@ -46,7 +46,7 @@ The reviewed current 49-row inventory SHA-256 is
 ## Current lock identities
 
 - lock Git blob: `245ce93ebfb53478211fab765489e88d8fa23c4a`;
-- lock proof Git blob: `518408d5d467f477ab27f37b61ca9479d2f72928`.
+- lock proof Git blob: `0a2293c624b698062fb2fe3ba07b95d632eaa9ab`.
 
 ## Defensive proof-input boundary — October 21, 2026
 

@@ -124,11 +124,12 @@ function proveReadExactBoundary(){
     fs.rmSync(dep,{force:true});
     fs.writeFileSync(dep,"good",{mode:0o600});
     const beforeFifo=fs.lstatSync(dep);
-    fs.renameSync(dep,dep+".fifo-original");
-    run("/usr/bin/mkfifo",[dep],{timeout:5000});
-    fs.chmodSync(dep,0o600);
     assert.throws(
-      ()=>readExactAt(temp,"dep",8,{beforeOpen:()=>{}}),
+      ()=>readExactAt(temp,"dep",8,{beforeOpen:absolute=>{
+        fs.renameSync(absolute,absolute+".fifo-original");
+        run("/usr/bin/mkfifo",[absolute],{timeout:5000});
+        fs.chmodSync(absolute,0o600);
+      }}),
       /invalid_opened_file:dep/
     );
     fs.rmSync(dep,{force:true});
