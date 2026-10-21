@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import gzip
 import hashlib
 import importlib.util
 import os
@@ -10,7 +11,7 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py"
-TARGET_BLOB = "123d0e1e6e57355850aeb9aa80f8632807ca5734"
+TARGET_BLOB = "37f12a67aa0c2e63af15faf9127fd1ff907c4b72"
 MARKER = "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_PROOF"
 
 
@@ -54,6 +55,10 @@ for required in (
     'target_mount_selection_ambiguous',
     'def _mount_for_target(',
     'def _kernel_config_value(',
+    'def _gzip_decompress_bounded(',
+    'stream.read(maximum + 1)',
+    'kernel_config_uncompressed_limit',
+    'kernel_config_decompression_memory_error',
     'def _parse_major_minor(',
     'mount_source_device_number_mismatch',
     'ext4_opened_device_number_mismatch',
@@ -190,6 +195,20 @@ assert no_extents["magic_valid"] is True
 assert no_extents["verity_feature_enabled"] is True
 assert no_extents["extents_enabled"] is False
 
+compressed_limit_adversary = gzip.compress(
+    b"A" * (module.MAX_CONFIG_BYTES + 1),
+    compresslevel=9,
+)
+assert len(compressed_limit_adversary) < module.MAX_CONFIG_BYTES
+try:
+    module._gzip_decompress_bounded(
+        compressed_limit_adversary, module.MAX_CONFIG_BYTES
+    )
+except module.CensusError as exc:
+    assert str(exc) == "kernel_config_uncompressed_limit", str(exc)
+else:
+    raise AssertionError("high_ratio_gzip_expansion_not_rejected")
+
 assert module._kernel_config_value("CONFIG_FS_VERITY=y\n", "CONFIG_FS_VERITY") == "y"
 assert module._kernel_config_value("CONFIG_FS_VERITY=m\n", "CONFIG_FS_VERITY") == "m"
 assert module._kernel_config_value("# CONFIG_FS_VERITY is not set\n", "CONFIG_FS_VERITY") == "n"
@@ -229,6 +248,7 @@ for required in (
     "ext4_verity_ro_compat_bit_bound=true",
     "ext4_extents_incompat_bit_bound=true",
     "kernel_config_fsverity_parser_bound=true",
+    "kernel_config_gzip_output_bounded=true",
     "external_subprocess=false",
     "ioctl_invocation=false",
     "read_only=true",
@@ -292,6 +312,8 @@ print("target_mount_st_dev_binding_required=true")
 print("stacked_mount_ambiguity_rejected=true")
 print("mountinfo_descriptor_read_only_bound=true")
 print("kernel_config_fsverity_observation_bound=true")
+print("kernel_config_gzip_output_bounded=true")
+print("high_ratio_gzip_expansion_rejected=true")
 print("ext4_superblock_magic_bound=true")
 print("ext4_verity_ro_compat_bit_bound=true")
 print("ext4_extents_incompat_bit_bound=true")
