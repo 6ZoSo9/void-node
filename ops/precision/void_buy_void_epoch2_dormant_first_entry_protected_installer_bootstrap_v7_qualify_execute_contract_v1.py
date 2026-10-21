@@ -328,9 +328,12 @@ def _planner_lines(raw: bytes) -> dict[str, str]:
         text = raw.decode("ascii")
     except UnicodeDecodeError as exc:
         raise ContractError("planner_output_not_ascii") from exc
-    if not text.endswith("\n"):
+    if (
+        not text.endswith("\n")
+        or any(separator in text for separator in ("\r", "\v", "\f", "\x1c", "\x1d", "\x1e"))
+    ):
         raise ContractError("planner_output_framing_invalid")
-    lines = text.splitlines()
+    lines = text[:-1].split("\n")
     if not lines or lines[0] != PLANNER_MARKER:
         raise ContractError("planner_marker_invalid")
     values: dict[str, str] = {}
@@ -843,6 +846,7 @@ def source_plan() -> None:
     print("qualification_json_duplicate_keys_rejected_required=true")
     print("executable_artifact_path_depth_max=128")
     print("planner_next_action_exact_required=true")
+    print("planner_output_literal_lf_framing_required=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")
     print("root_boundary_implementation=separately_reviewed_operator_boundary_required")
     print("qualification_execution_performed=false")
@@ -1456,6 +1460,18 @@ def self_test() -> None:
         else:
             raise AssertionError("planner_body_parser_failure_not_held")
 
+    lf_fixture = _fixture_output()
+    for separator in (b"\x0b", b"\x0c", b"\x1c", b"\x1d", b"\x1e", b"\r"):
+        alternate = lf_fixture.replace(b"\n", separator)
+        alternate = alternate[:-1] + b"\n"
+        try:
+            validate_planner_output(alternate)
+        except ContractError as exc:
+            if str(exc) != "planner_output_framing_invalid":
+                raise
+        else:
+            raise AssertionError("alternate_planner_record_separator_accepted")
+
     try:
         validate_planner_output(
             _raw_line_fixture("bootstrap_argv_json", "9" * 10000)
@@ -1493,6 +1509,7 @@ def self_test() -> None:
     print("planner_json_parser_failures_hold=true")
     print("planner_hold_reason_line_injection_rejected=true")
     print("planner_json_parser_version_independent_hold=true")
+    print("planner_output_literal_lf_framing_required=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")
     print("qualification_nonroot_required=true")
     print("qualification_descriptor_bound_git_object_required=true")

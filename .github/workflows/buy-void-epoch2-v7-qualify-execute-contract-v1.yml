@@ -66,11 +66,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            7dce4d08b66e4ab82696aeea780d883b9dbc363a
+            dab45181313541d84dee84383cfcf9297e69bad3
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            0474b788f0c6dff6e75e9f608e8e0748cc52f24a
+            ab0d7ee7a61d046bb6a07e934d937ee913dd86a2
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-v7-qualify-execute-contract-v1.md)" = \
-            569845a207a3ba8f37f436461cc4a207d344426c
+            4f271e0444fd7e475aca7006232c61c7841faed6
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
             1a093dbac8e424364ec623cc98fafc5c6dac824f
@@ -133,6 +133,7 @@ jobs:
             'planner_json_parser_failures_hold=true'
             'planner_hold_reason_line_injection_rejected=true'
             'planner_json_parser_version_independent_hold=true'
+            'planner_output_literal_lf_framing_required=true'
             'unconsumed_tool_metadata_not_execution_authority=true'
             'nonroot_qualification_phase_required=true'
             'descriptor_bound_qualification_source_required=true'
@@ -179,6 +180,7 @@ jobs:
             'qualification_json_duplicate_keys_rejected_required=true'
             'executable_artifact_path_depth_max=128'
             'planner_next_action_exact_required=true'
+            'planner_output_literal_lf_framing_required=true'
             'unconsumed_tool_metadata_not_execution_authority=true'
             'root_boundary_implementation=separately_reviewed_operator_boundary_required'
             'qualification_execution_performed=false'

@@ -422,3 +422,18 @@ classifications produced across supported Python JSON implementations:
 an object. Either outcome remains HOLD; no malformed planner input is accepted.
 
 No execution or economic authority changes.
+
+
+## October 20 literal-LF planner framing repair
+
+Exact-head rereview found that Python `splitlines()` recognizes additional ASCII
+record separators that the pinned V7 planner never emits. The contract now
+requires a final LF, rejects CR, vertical tab, form feed, and ASCII file/group/
+record separators, and splits records only on literal `\n`.
+
+The self-test rewrites an otherwise canonical planner transcript with each
+alternate separator while retaining a final LF; every variant must HOLD with
+`planner_output_framing_invalid`.
+
+This closes parser permissiveness only. It adds no execution or economic
+authority.

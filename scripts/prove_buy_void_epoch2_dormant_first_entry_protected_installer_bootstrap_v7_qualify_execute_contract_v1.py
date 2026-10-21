@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "7dce4d08b66e4ab82696aeea780d883b9dbc363a"
+TARGET_BLOB = "dab45181313541d84dee84383cfcf9297e69bad3"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -148,6 +148,11 @@ for required in (
 for forbidden in ("O_WRONLY", "O_RDWR", "O_CREAT", "O_TRUNC"):
     assert forbidden not in read_source, forbidden
 
+planner_lines_source = ast.get_source_segment(source, functions["_planner_lines"]) or ""
+assert 'text[:-1].split("\\n")' in planner_lines_source
+for separator_literal in ('"\\r"', '"\\v"', '"\\f"', '"\\x1c"', '"\\x1d"', '"\\x1e"'):
+    assert separator_literal in planner_lines_source
+
 validate_source = (
     ast.get_source_segment(source, functions["validate_planner_output"]) or ""
 )
@@ -263,6 +268,7 @@ for expected in (
     "planner_json_parser_failures_hold=true",
     "planner_hold_reason_line_injection_rejected=true",
     "planner_json_parser_version_independent_hold=true",
+    "planner_output_literal_lf_framing_required=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
     "qualification_nonroot_required=true",
     "qualification_descriptor_bound_git_object_required=true",
@@ -313,6 +319,7 @@ for expected in (
     "qualification_json_duplicate_keys_rejected_required=true",
     "executable_artifact_path_depth_max=128",
     "planner_next_action_exact_required=true",
+    "planner_output_literal_lf_framing_required=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
     "root_boundary_implementation=separately_reviewed_operator_boundary_required",
     "qualification_execution_performed=false",
@@ -355,6 +362,7 @@ print("planner_output_race_oserror_holds=true")
 print("planner_json_parser_failures_hold=true")
 print("planner_hold_reason_line_injection_rejected=true")
 print("planner_json_parser_version_independent_hold=true")
+print("planner_output_literal_lf_framing_required=true")
 print("unconsumed_tool_metadata_not_execution_authority=true")
 print("nonroot_qualification_phase_required=true")
 print("descriptor_bound_qualification_source_required=true")
