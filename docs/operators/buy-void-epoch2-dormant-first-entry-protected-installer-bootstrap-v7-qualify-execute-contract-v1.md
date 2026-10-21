@@ -28,14 +28,14 @@ Exact reviewed planner source:
 - path:
   `ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py`;
 - Git blob:
-  `597dd61923d349980cd30bcf190fee354ff1c1f2`.
+  `1a093dbac8e424364ec623cc98fafc5c6dac824f`.
 
 Exact reviewed planner proof:
 
 - path:
   `scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py`;
 - Git blob:
-  `656075f1941e9cca302ebfd40efad09d979b4f25`.
+  `23fc707919b4e954f5377745424585f028ca40b3`.
 
 The captured planner output must contain canonical
 `plan_body_json` and a matching
@@ -208,11 +208,11 @@ installed bootstrap or repaired qualifier against a real host.
 ## Final V7 dependency generation
 
 This contract is reviewed against exact parent #3518
-`81e4b587b63a88e599630bedfbc31c6b2722dd5e`.
+`200ca3f8db27a7d328294964d6903a6061cad38a`.
 
 Bound dependency blobs:
-- V7 planner: `597dd61923d349980cd30bcf190fee354ff1c1f2`;
-- V7 planner proof: `656075f1941e9cca302ebfd40efad09d979b4f25`;
+- V7 planner: `1a093dbac8e424364ec623cc98fafc5c6dac824f`;
+- V7 planner proof: `23fc707919b4e954f5377745424585f028ca40b3`;
 - repaired installed qualifier: `132e03eaea440f3f8c59aeaca879596c677c6bcf`.
 
 The parent-relative review surface is exactly this contract's four ADD-only files.
@@ -224,7 +224,7 @@ longer incorrectly searched inside `validate_planner_output()`.
 ## October 20 closed-schema repair
 
 Current exact parent #3518:
-`81e4b587b63a88e599630bedfbc31c6b2722dd5e`.
+`200ca3f8db27a7d328294964d6903a6061cad38a`.
 
 This generation closes the open-schema review finding. Recomputing the planner
 plan ID no longer legitimizes altered nested identities or extra authority-like
@@ -361,3 +361,21 @@ without changing the canonical plan body or plan ID, and requires HOLD for both
 This strengthens transcript binding only. It adds no qualification execution,
 root-plan execution, service mutation, credential/signing, transaction/payment,
 activation, treasury/liquidity action, or funds movement authority.
+
+
+## October 20 physical-artifact parent rebind
+
+This two-phase contract is now rebound to reviewed V7 planner parent
+`200ca3f8db27a7d328294964d6903a6061cad38a`, planner blob `1a093dbac8e424364ec623cc98fafc5c6dac824f`, and planner-proof blob
+`23fc707919b4e954f5377745424585f028ca40b3`.
+
+That parent generation requires physical launcher/native ancestor directories,
+retained-parent relative `O_NOFOLLOW|O_NONBLOCK` leaf opens, post-read ancestry
+revalidation, and machine-readable HOLD for the exercised leaf/parent
+disappearance races. This child does not duplicate or weaken those checks; it
+binds the exact reviewed planner generation that performs them.
+
+The existing type-exact duplicated structured-output checks remain unchanged.
+No qualification/root-plan execution, service mutation, credential/signing,
+transaction/payment, activation, treasury/liquidity action, or funds movement
+authority is added.

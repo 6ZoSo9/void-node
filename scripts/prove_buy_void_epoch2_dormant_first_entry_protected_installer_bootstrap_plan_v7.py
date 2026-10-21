@@ -8,6 +8,7 @@ import io
 import json
 from pathlib import Path
 import subprocess
+import tempfile
 import types
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +24,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-TARGET_BLOB = "597dd61923d349980cd30bcf190fee354ff1c1f2"
+TARGET_BLOB = "1a093dbac8e424364ec623cc98fafc5c6dac824f"
 
 PREDECESSOR_REL = (
     "ops/precision/"
@@ -167,7 +168,6 @@ unchanged_functions = (
     "_directory_identity",
     "_open_checkout_root",
     "repository_blob",
-    "stable_artifact",
     "_safe_tool",
     "_checkout_refs",
     "checkout_snapshot",
@@ -180,6 +180,30 @@ for name in unchanged_functions:
         "inherited_function_drift",
         name,
     )
+
+for name in ("_artifact_path_parts", "_open_physical_artifact_parent", "stable_artifact"):
+    assert name in target_functions, name
+assert target_functions["stable_artifact"] != predecessor_functions["stable_artifact"]
+artifact_parent_source = target_functions["_open_physical_artifact_parent"]
+artifact_source = target_functions["stable_artifact"]
+for required in (
+    "os.O_DIRECTORY",
+    "os.O_NOFOLLOW",
+    "follow_symlinks=False",
+    "_parent_not_physical_directory",
+    "_parent_rebound",
+    'raise PlanError(label + "_parent_rebound") from exc',
+):
+    assert required in artifact_parent_source, required
+for required in (
+    "_open_physical_artifact_parent(path, label)",
+    "os.O_NONBLOCK",
+    "dir_fd=parent_fd",
+    "_parent_generation_changed",
+):
+    assert required in artifact_source, required
+assert artifact_source.count("_open_physical_artifact_parent(path, label)") >= 2
+assert artifact_source.count('raise PlanError(label + "_changed") from exc') >= 2
 
 for required in (
     "PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V7",
@@ -325,6 +349,140 @@ def fake_artifact(
     }
 
 
+module.os.geteuid = lambda: 1000
+
+with tempfile.TemporaryDirectory(prefix="void-v7-artifact-physical-parent-") as td:
+    temp = Path(td)
+    physical = temp / "physical"
+    physical.mkdir()
+    artifact = physical / "artifact"
+    artifact_bytes = b"\x7fELF" + (b"\x00" * 60)
+    artifact.write_bytes(artifact_bytes)
+    artifact.chmod(0o555)
+    artifact_sha256 = hashlib.sha256(artifact_bytes).hexdigest()
+    artifact_blob = module.git_blob(artifact_bytes)
+    accepted_artifact = module.stable_artifact(
+        artifact,
+        expected_bytes=len(artifact_bytes),
+        expected_sha256=artifact_sha256,
+        expected_git_blob=artifact_blob,
+        label="physical_artifact_fixture",
+    )
+    assert accepted_artifact["sha256"] == artifact_sha256
+
+    alias = temp / "alias"
+    alias.symlink_to(physical, target_is_directory=True)
+    try:
+        module.stable_artifact(
+            alias / "artifact",
+            expected_bytes=len(artifact_bytes),
+            expected_sha256=artifact_sha256,
+            expected_git_blob=artifact_blob,
+            label="symlink_parent_fixture",
+        )
+    except module.PlanError as exc:
+        assert str(exc) == "symlink_parent_fixture_parent_not_physical_directory"
+    else:
+        raise AssertionError("symlinked_artifact_parent_accepted")
+
+    original_stat = module.os.stat
+
+    def expect_leaf_lookup_failure(reject_at, fixture_label):
+        leaf_calls = [0]
+
+        def disappearing_stat(path, *args, **kwargs):
+            if (
+                path == b"artifact"
+                and kwargs.get("dir_fd") is not None
+                and kwargs.get("follow_symlinks") is False
+            ):
+                leaf_calls[0] += 1
+                if leaf_calls[0] == reject_at:
+                    raise FileNotFoundError("fixture_disappearance")
+            return original_stat(path, *args, **kwargs)
+
+        module.os.stat = disappearing_stat
+        try:
+            try:
+                module.stable_artifact(
+                    artifact,
+                    expected_bytes=len(artifact_bytes),
+                    expected_sha256=artifact_sha256,
+                    expected_git_blob=artifact_blob,
+                    label=fixture_label,
+                )
+            except module.PlanError as exc:
+                assert str(exc) == fixture_label + "_changed"
+            else:
+                raise AssertionError("artifact_lookup_failure_not_held:" + fixture_label)
+        finally:
+            module.os.stat = original_stat
+
+    expect_leaf_lookup_failure(2, "artifact_postread_disappearance_fixture")
+    expect_leaf_lookup_failure(3, "artifact_rewalk_disappearance_fixture")
+
+    parent_visible_calls = [0]
+
+    def disappearing_parent_stat(path, *args, **kwargs):
+        if (
+            path == b"physical"
+            and kwargs.get("dir_fd") is not None
+            and kwargs.get("follow_symlinks") is False
+        ):
+            parent_visible_calls[0] += 1
+            if parent_visible_calls[0] == 2:
+                raise FileNotFoundError("fixture_parent_disappearance")
+        return original_stat(path, *args, **kwargs)
+
+    module.os.stat = disappearing_parent_stat
+    try:
+        try:
+            module.stable_artifact(
+                artifact,
+                expected_bytes=len(artifact_bytes),
+                expected_sha256=artifact_sha256,
+                expected_git_blob=artifact_blob,
+                label="artifact_parent_disappearance_fixture",
+            )
+        except module.PlanError as exc:
+            assert str(exc) == "artifact_parent_disappearance_fixture_parent_rebound"
+        else:
+            raise AssertionError("artifact_parent_lookup_failure_not_held")
+    finally:
+        module.os.stat = original_stat
+
+    original_parent_open = module._open_physical_artifact_parent
+    parent_calls = [0]
+
+    def shifted_parent_open(path, label):
+        result = original_parent_open(path, label)
+        parent_calls[0] += 1
+        if parent_calls[0] == 2:
+            fd, leaf, ancestry, raw_path = result
+            changed = list(ancestry)
+            tail = list(changed[-1])
+            tail[1] += 1
+            changed[-1] = tuple(tail)
+            return fd, leaf, tuple(changed), raw_path
+        return result
+
+    module._open_physical_artifact_parent = shifted_parent_open
+    try:
+        try:
+            module.stable_artifact(
+                artifact,
+                expected_bytes=len(artifact_bytes),
+                expected_sha256=artifact_sha256,
+                expected_git_blob=artifact_blob,
+                label="artifact_parent_race_fixture",
+            )
+        except module.PlanError as exc:
+            assert str(exc) == "artifact_parent_race_fixture_parent_generation_changed"
+        else:
+            raise AssertionError("artifact_parent_generation_change_accepted")
+    finally:
+        module._open_physical_artifact_parent = original_parent_open
+
 module.stable_artifact = fake_artifact
 module._safe_tool = lambda value, label, maximum: {
     "path": str(value),
@@ -337,7 +495,6 @@ module._safe_tool = lambda value, label, maximum: {
     "dev": 4,
     "ino": 5 if label == "qualification_python" else 6,
 }
-module.os.geteuid = lambda: 1000
 
 launcher = Path("/tmp/accepted-launcher-v2")
 native = Path("/tmp/accepted-native-v2")
@@ -447,7 +604,13 @@ print("workflow_dispatch_exact_parent_bound=true")
 print("workflow_dispatch_first_parent_inference_absent=true")
 print("predecessor_v6_plan_bound=true")
 print("predecessor_v6_proof_bound=true")
-print("inherited_hardened_functions_unchanged=true")
+print("inherited_nonartifact_hardened_functions_unchanged=true")
+print("artifact_admission_strengthened=true")
+print("artifact_physical_ancestor_required=true")
+print("artifact_parent_generation_revalidated=true")
+print("artifact_leaf_open_nonblocking=true")
+print("artifact_lookup_failure_holds=true")
+print("artifact_parent_lookup_failure_holds=true")
 print("repaired_qualifier_blob_bound=true")
 print("repaired_qualifier_contract_loaded=true")
 print("qualification_nonroot_execution_required=true")
