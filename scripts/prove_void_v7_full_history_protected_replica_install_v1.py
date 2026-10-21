@@ -53,7 +53,7 @@ for required in (
     'def _verify_full_history_root(',
     'def _verify_live_shallow_release()',
     'def _copy_candidate_to_stage(',
-    'def _rename_noreplace()',
+    'def _rename_noreplace(',
     'def _reconcile_publication_receipt()',
     'def _require_privileged_source_custody()',
     'def _runtime_uid_child_call(',
