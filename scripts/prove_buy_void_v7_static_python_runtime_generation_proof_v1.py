@@ -7,7 +7,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_v7_static_python_runtime_generation_proof_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "889b37ec6126d2e2ca62c988b07b989a4bf3ca80"
+TARGET_BLOB = "1219563d191e708bedd3a47909cb7dca1cb8d0e1"
 V5_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v5.py"
 V5_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 MARKER = "VOID_BUY_VOID_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF_V1_PROOF"
@@ -73,6 +73,8 @@ required = (
     'code = compile(raw, synthetic, "exec", dont_inherit=True, optimize=0)',
     'sys.argv = [synthetic, "--self-test"]',
     'root_execution_forbidden',
+    'candidate_execution_sandbox_not_implemented',
+    'candidate_execution_sandbox_required=true',
     'candidate_execution_performed',
     '"fsverity_host_readiness_established": False',
     '"protected_host_install": False',
@@ -120,6 +122,7 @@ for marker in (
     "static_elf_pt_interp_forbidden=true",
     "static_elf_pt_dynamic_forbidden=true",
     "runtime_import_closure_proof_required=true",
+    "candidate_execution_sandbox_required=true",
     "fsverity_host_readiness_established=false",
     "protected_host_install=false",
     "protected_v5_apply=false",
