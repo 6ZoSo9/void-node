@@ -437,3 +437,30 @@ This is source/CI proof only. It does not install or execute V4 on Precision,
 enable fs-verity, install the trusted launcher, perform protected /opt apply,
 mutate services, access credentials/signers, accept payments, activate
 presale/WC, or move treasury/liquidity/funds.
+
+
+## Privileged dynamic-Git authority removal — reviewed source manifest V1
+
+A later exact-head security review found that dropping `/usr/bin/git` to UID/GID 1000 before exec prevents root code execution, but does **not** make its stdout trustworthy: an attacker-writable dynamic loader or DSO could still forge repository evidence that the root installer consumes.
+
+This generation removes dynamic Git from Installer V4's privileged authority path instead of trying to enumerate or seal a host-specific loader/library closure.
+
+The fixed active source generation is now authenticated by a compile-bound reviewed manifest:
+
+- source HEAD: `4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb`;
+- source tree: `de12c9d2d5e475d435d21da3b047d7b63b69e2b7`;
+- manifest path: `ops/security/void-v7-reviewed-source-tree-manifest-v1.json`;
+- manifest Git blob: `b332f14d57c3b598b34eb83fb354538405d29f00`;
+- manifest bytes: `1586656`;
+- manifest SHA-256: `90b026f1e17006367fb72ec2306c418392cb2a2dab6279ec01874c71b84cb99d`;
+- tracked blob entries: `11648`.
+
+V4 reads the manifest itself through a retained no-follow descriptor, checks exact byte length and SHA-256, validates the closed schema and strictly sorted path/mode/blob/size rows, and hashes every visible source-release worktree leaf directly against that reviewed manifest. Extra, missing, mode-changed, size-changed, symlink-changed, and content-changed worktree paths HOLD.
+
+For the root-custodied installer checkout, V4 directly reads the symbolic `.git/HEAD` plus the loose or packed `refs/heads/main` value and directly Git-blob-hashes every source artifact it actually consumes (candidate lock, materializer, predecessor installer, installed qualifier, and reviewed source manifest). Git config/alternates/grafts/shallow/indirection rejection remains direct filesystem inspection. The historical predecessor merge/tree values remain operation-plan lineage metadata; they are no longer asserted through a dynamic Git subprocess.
+
+For source release, stage, and protected target, repository metadata is checked directly and the worktree is authenticated from the compile-bound manifest. No `subprocess`, `/usr/bin/git`, dynamic Git observer, or root-trusted Git stdout remains in Installer V4.
+
+Hosted proof reconstructs the manifest from `git ls-tree` only as **nonprivileged CI evidence** and requires byte-for-byte equality with the committed manifest; that CI use is not part of protected-host authority.
+
+This is source/CI-only. It performs no protected publication, host fs-verity enablement, service mutation, credential/key access, signing, transaction/payment, activation, treasury/liquidity action, or funds movement.

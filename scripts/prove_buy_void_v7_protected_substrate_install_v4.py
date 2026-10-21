@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import ast, os, pathlib, shutil, stat, subprocess, sys, tempfile
+import ast, hashlib, json, os, pathlib, shutil, stat, subprocess, sys, tempfile
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 MARKER="VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4_PROOF"
@@ -8,20 +8,48 @@ INS=ROOT/"ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
 MAT=ROOT/"scripts/materialize_buy_void_v7_protected_substrate_v2.py"
 PRED=ROOT/"ops/precision/void_buy_void_v7_protected_substrate_install_v3.py"
 LOCK=ROOT/"ops/security/buy-void-v7-protected-substrate-candidate-lock-v1.json"
+MANIFEST=ROOT/"ops/security/void-v7-reviewed-source-tree-manifest-v1.json"
 QUAL=ROOT/"ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py"
 PRED_QUAL=ROOT/"ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py"
 
 def gblob(path:pathlib.Path)->str:
-    cp=subprocess.run(["/usr/bin/git","hash-object",str(path)],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=20)
-    if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
-    return cp.stdout.strip()
+    raw=path.read_bytes()
+    h=hashlib.sha1()
+    h.update(b"blob "+str(len(raw)).encode("ascii")+b"\0"+raw)
+    return h.hexdigest()
 
-assert gblob(INS)=="94112afa2f805e0a6ce881a490c1c64e31e0413e"
+assert gblob(INS)==assert gblob(INS)=="d79f256126f834870923b8f08a62b4e583fe7c20"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
 assert gblob(QUAL)=="ea3c31180810ea4efe4341683742827dcf6ac5ac"
 assert gblob(PRED_QUAL)=="56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
+assert gblob(MANIFEST)=="b332f14d57c3b598b34eb83fb354538405d29f00"
+manifest_raw=MANIFEST.read_bytes()
+assert len(manifest_raw)==1586656
+assert hashlib.sha256(manifest_raw).hexdigest()=="90b026f1e17006367fb72ec2306c418392cb2a2dab6279ec01874c71b84cb99d"
+manifest=json.loads(manifest_raw)
+assert manifest["schema"]=="void_v7_reviewed_source_tree_manifest_v1"
+assert manifest["source_head"]=="4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
+assert manifest["source_tree"]=="de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
+assert manifest["entry_count"]==11648==len(manifest["entries"])
+
+cp_tree=subprocess.run(
+    ["/usr/bin/git","ls-tree","-r","-l","-z","--full-tree","de12c9d2d5e475d435d21da3b047d7b63b69e2b7"],
+    cwd=ROOT,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,timeout=60,
+)
+assert cp_tree.returncode==0 and cp_tree.stderr==b""
+observed=[]
+for record in cp_tree.stdout.split(b"\0"):
+    if not record:
+        continue
+    meta, raw_path=record.split(b"\t",1)
+    mode, kind, oid, raw_size=meta.split(b" ",3)
+    assert kind==b"blob"
+    observed.append([
+        raw_path.decode("utf-8"),mode.decode("ascii"),oid.decode("ascii"),int(raw_size)
+    ])
+assert observed==manifest["entries"]
 
 src=INS.read_text("utf-8")
 qsrc=QUAL.read_text("utf-8")
@@ -62,7 +90,6 @@ required=(
     'installed_qualifier_v3_bound=true',
     'immutable_source_release_root_mode_0555_required=true',
     'protected_source_root_mode_0755_required=true',
-    'def require_git_metadata_provenance(root: pathlib.Path, label: str) -> None:',
     'git_dir_must_be_real_directory',
     'git_metadata_indirection_forbidden',
     'git_config_include_forbidden',
@@ -71,18 +98,19 @@ required=(
     'git_config_core_attributesfile_forbidden',
     'git_config_filter_forbidden',
     'git_local_config_exact_allowlist_required=true',
-    'git_raw_head_tree_manifest_required=true',
     'git_ignored_untracked_rejected_by_manifest=true',
-    'def require_worktree_matches_tree(root: pathlib.Path, expected_tree: str, label: str) -> None:',
     'def _verify_worktree_manifest(',
+    'def require_worktree_matches_manifest(',
+    'def _load_reviewed_source_manifest()',
+    'def _direct_main_head(',
+    'SOURCE_MANIFEST_REL = "ops/security/void-v7-reviewed-source-tree-manifest-v1.json"',
+    'SOURCE_MANIFEST_SHA256 = "90b026f1e17006367fb72ec2306c418392cb2a2dab6279ec01874c71b84cb99d"',
+    'SOURCE_MANIFEST_ENTRY_COUNT = 11648',
+    'reviewed_source_tree_manifest_required=true',
+    'reviewed_source_manifest_sha256_bound=true',
+    'privileged_dynamic_git_authority=false',
+    'direct_repository_metadata_required_for_all_roots=true',
     'git_config_promisor_forbidden',
-    '"rev-parse", "--git-common-dir"',
-    '"rev-parse", "--is-shallow-repository"',
-    'require_git_metadata_provenance(ROOT, "checkout")',
-    'require_git_metadata_provenance(SOURCE_RELEASE, "source_release")',
-    'require_git_metadata_provenance(SOURCE_STAGE, "source_stage")',
-    'require_git_metadata_provenance(SOURCE_TARGET, "protected_source")',
-    'git_metadata_provenance_required_for_all_roots=true',
     'def install_parent_custody()',
     'def install_parent_fd_matches(',
     '"install_parent_custody_exact": True',
@@ -115,17 +143,6 @@ required=(
     'def _require_runtime_uid_nonwritable(',
     'os.fork()',
     'os.setgroups([])',
-    'def _open_trusted_tool_lease(',
-    'def _revalidate_trusted_tool_lease(',
-    'def _run_runtime_observer_tool(',
-    'f"/proc/self/fd/{tool_fd}"',
-    'pass_fds=(tool_fd,)',
-    'preexec_fn=_drop_to_runtime_identity_preexec',
-    'PR_SET_NO_NEW_PRIVS = 38',
-    'def _drop_to_runtime_identity_preexec() -> None:',
-    'prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)',
-    'os.setgid(RUNTIME_GID)',
-    'os.setuid(RUNTIME_UID)',
     'os.access(raw_path, os.W_OK, effective_ids=True)',
     '_require_runtime_uid_nonwritable(runtime_paths, "privileged_source")',
     '_require_runtime_uid_nonwritable(runtime_paths, "install_parent")',
@@ -153,17 +170,13 @@ assert 'RUN_INSTALLED_QUALIFICATION_V2' not in src
 assert 'FIXED_PYTHON' not in src
 assert '_RUNTIME_WRITE_AUDIT_CODE' not in src
 assert 'FIXED_SETPRIV' not in src
-assert 'setpriv_fd' not in src
-assert '"--no-new-privs"' not in src
-assert 'preexec_fn=_drop_to_runtime_identity_preexec' in src
-observer_drop=src[src.index('def _drop_to_runtime_identity_preexec'):src.index('def _run_runtime_observer_tool(')]
-assert observer_drop.index('prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)') < observer_drop.index('os.setgroups([])')
-assert observer_drop.index('os.setgroups([])') < observer_drop.index('os.setgid(RUNTIME_GID)') < observer_drop.index('os.setuid(RUNTIME_UID)')
-observer_run=src[src.index('def _run_runtime_observer_tool('):src.index('def _read_metadata_file(')]
-assert 'f"/proc/self/fd/{tool_fd}"' in observer_run
-assert 'pass_fds=(tool_fd,)' in observer_run
-assert 'preexec_fn=_drop_to_runtime_identity_preexec' in observer_run
-assert 'setpriv' not in observer_run.lower()
+assert 'FIXED_GIT' not in src
+assert 'import subprocess' not in src
+assert 'subprocess.run(' not in src
+assert 'def _run_runtime_observer_tool(' not in src
+assert 'git_text(' not in src
+assert 'git_bytes(' not in src
+assert 'git_is_ancestor(' not in src
 tree_body=src[src.index('def tree_digest('):src.index('def candidate_fd_metadata_valid(')]
 dir_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_directories, "tree_directories")')
 reg_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_regulars, "tree_regulars")')
@@ -329,12 +342,12 @@ assert "git_core_worktree_redirect_rejected=true" in cp.stdout.splitlines()
 assert "git_core_attributesfile_rejected=true" in cp.stdout.splitlines()
 assert "git_filter_driver_rejected=true" in cp.stdout.splitlines()
 assert "git_local_config_exact_allowlist_required=true" in cp.stdout.splitlines()
-assert "git_raw_head_tree_manifest_required=true" in cp.stdout.splitlines()
+assert "reviewed_source_tree_manifest_required=true" in cp.stdout.splitlines()
 assert "git_ignored_untracked_rejected_by_manifest=true" in cp.stdout.splitlines()
 assert "git_worktree_config_extension_rejected=true" in cp.stdout.splitlines()
 assert "git_promisor_partial_clone_rejected=true" in cp.stdout.splitlines()
-assert "git_exact_dir_common_toplevel_required=true" in cp.stdout.splitlines()
-assert "git_metadata_provenance_required_for_all_roots=true" in cp.stdout.splitlines()
+assert "direct_symbolic_main_ref_required=true" in cp.stdout.splitlines()
+assert "direct_repository_metadata_required_for_all_roots=true" in cp.stdout.splitlines()
 assert "acl_aware_runtime_uid_nonwritability_required=true" in cp.stdout.splitlines()
 assert "tree_root_acl_audit_precedes_first_scandir=true" in cp.stdout.splitlines()
 assert "tree_directory_acl_audit_precedes_descent=true" in cp.stdout.splitlines()
@@ -346,8 +359,8 @@ assert "installed_binary_acl_audit_precedes_hash=true" in cp.stdout.splitlines()
 assert "installed_binary_descriptor_hash_required=true" in cp.stdout.splitlines()
 assert "tree_regular_fifo_race_rejected_nonblocking=true" in cp.stdout.splitlines()
 assert "tree_regular_symlink_race_rejected_nofollow=true" in cp.stdout.splitlines()
-assert "trusted_tool_root_descriptor_execution_required=true" in cp.stdout.splitlines()
-assert "trusted_tool_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
+assert "privileged_dynamic_git_authority=false" in cp.stdout.splitlines()
+assert "reviewed_source_manifest_sha256_bound=true" in cp.stdout.splitlines()
 assert "runtime_write_audit_external_helper_free=true" in cp.stdout.splitlines()
 assert "source_release_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
 assert "source_release_ancestor_generation_revalidation_required=true" in cp.stdout.splitlines()
@@ -358,13 +371,13 @@ assert "immutable_source_release_root_mode_0555_required=true" in cp.stdout.spli
 assert "protected_source_root_mode_0755_required=true" in cp.stdout.splitlines()
 assert "installed_qualifier_v3_bound=true" in cp.stdout.splitlines()
 assert "accepted_v1_lock_install_authority=false" in cp.stdout.splitlines()
-assert "git_metadata_provenance_required_for_all_roots=true" in cp.stdout.splitlines()
+assert "direct_repository_metadata_required_for_all_roots=true" in cp.stdout.splitlines()
 assert "git_external_metadata_and_object_indirection_rejected=true" in cp.stdout.splitlines()
 assert "git_local_config_exact_allowlist_required=true" in cp.stdout.splitlines()
-assert "git_raw_head_tree_manifest_required=true" in cp.stdout.splitlines()
+assert "reviewed_source_tree_manifest_required=true" in cp.stdout.splitlines()
 assert "acl_aware_runtime_uid_nonwritability_required=true" in cp.stdout.splitlines()
-assert "trusted_tool_root_descriptor_execution_required=true" in cp.stdout.splitlines()
-assert "trusted_tool_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
+assert "privileged_dynamic_git_authority=false" in cp.stdout.splitlines()
+assert "reviewed_source_manifest_sha256_bound=true" in cp.stdout.splitlines()
 assert "runtime_write_audit_external_helper_free=true" in cp.stdout.splitlines()
 assert "source_release_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
 assert "source_release_ancestor_generation_revalidation_required=true" in cp.stdout.splitlines()

@@ -6,6 +6,7 @@ on:
       - ".github/workflows/buy-void-v7-protected-substrate-install-v4.yml"
       - "docs/operators/buy-void-v7-protected-substrate-install-v4.md"
       - "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
+      - "ops/security/void-v7-reviewed-source-tree-manifest-v1.json"
       - "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py"
       - "scripts/prove_buy_void_v7_protected_substrate_install_v4.py"
   workflow_dispatch:
@@ -34,10 +35,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           case "$EVENT_NAME" in
             pull_request) base="$PR_BASE" ;;
-            workflow_dispatch) base="b6eeb1f0b8d80ab26df6d965a1b5f4f861e6a52a" ;;
+            workflow_dispatch) base="e99772502c80fefafef3b6a836a408b66ddded76" ;;
             *) exit 1 ;;
           esac
-          test "$base" = "b6eeb1f0b8d80ab26df6d965a1b5f4f861e6a52a"
+          test "$base" = "e99772502c80fefafef3b6a836a408b66ddded76"
           git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
           expected="$RUNNER_TEMP/expected.txt"
           actual="$RUNNER_TEMP/actual.txt"
@@ -45,6 +46,7 @@ jobs:
             '.github/workflows/buy-void-v7-protected-substrate-install-v4.yml' \
             'docs/operators/buy-void-v7-protected-substrate-install-v4.md' \
             'ops/precision/void_buy_void_v7_protected_substrate_install_v4.py' \
+            'ops/security/void-v7-reviewed-source-tree-manifest-v1.json' \
             'scripts/prove_buy_void_v7_protected_substrate_install_v4.py' \
             | sort > "$expected"
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
@@ -54,9 +56,10 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-protected-substrate-candidate-lock-v1.json)" = "831f6e3f79a62a334662cebc6d2c39133bc7a309"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v2.py)" = "56a7ca798553766af525d9fb1ccbe58b70fe9c1d"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v3.py)" = "ea3c31180810ea4efe4341683742827dcf6ac5ac"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v4.py)" = "3dbc556b01d3f3577c8579553e6ac639be161020"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v4.md)" = "b30e7423ac7299fc6f2f793c0b7142616b5ebc60"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "d79f256126f834870923b8f08a62b4e583fe7c20"
+          test "$(git rev-parse HEAD:ops/security/void-v7-reviewed-source-tree-manifest-v1.json)" = "b332f14d57c3b598b34eb83fb354538405d29f00"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v4.py)" = "7091e2fa9445324165211fbfa2b4c550e7d193fa"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v4.md)" = "ae7a4a1d4e58c966c2e31bae32a89b3eb94a62ae"
           git diff --check "$base" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
@@ -97,18 +100,15 @@ jobs:
           grep -Fx 'git_http_alternates_rejected=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'git_grafts_and_shallow_rejected=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'git_local_config_indirection_rejected=true' "$RUNNER_TEMP/proof.log"
-          grep -Fx 'git_exact_dir_common_toplevel_bound=true' "$RUNNER_TEMP/proof.log"
-          grep -Fx 'git_metadata_provenance_all_privileged_roots_bound=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'direct_symbolic_main_ref_required=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'direct_repository_metadata_all_privileged_roots_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'trusted_root_launcher_still_required=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'mode_only_nonwritable_is_insufficient_model=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'installer_acl_aware_runtime_uid_write_audit_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'runtime_uid_cleared_groups_write_audit_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'runtime_write_audit_external_helper_free_bound=true' "$RUNNER_TEMP/proof.log"
-          grep -Fx 'runtime_observer_root_time_setpriv_exec_removed=true' "$RUNNER_TEMP/proof.log"
-          grep -Fx 'runtime_observer_no_new_privs_before_uid_drop_bound=true' "$RUNNER_TEMP/proof.log"
-          grep -Fx 'runtime_observer_direct_uid_gid_drop_before_tool_exec_bound=true' "$RUNNER_TEMP/proof.log"
-          grep -Fx 'trusted_tool_root_descriptor_execution_bound=true' "$RUNNER_TEMP/proof.log"
-          grep -Fx 'trusted_tool_ancestor_acl_custody_bound=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'privileged_dynamic_git_authority=false' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'reviewed_source_manifest_sha256_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'trusted_tool_terminal_revalidation_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'source_release_ancestor_acl_custody_bound=true' "$RUNNER_TEMP/proof.log"
           grep -Fx 'source_release_ancestor_generation_revalidation_bound=true' "$RUNNER_TEMP/proof.log"
@@ -130,43 +130,3 @@ jobs:
           grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/proof.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/proof.log"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-
-
-      - name: Prove root observer drops identity before dynamic exec
-        run: |
-          set -euo pipefail
-          sudo -n /usr/bin/python3 -I -B - <<'PY'
-          import pathlib
-          import types
-
-          target = pathlib.Path("ops/precision/void_buy_void_v7_protected_substrate_install_v4.py")
-          source = target.read_text("utf-8")
-          module = types.ModuleType("void_v7_runtime_drop_fixture")
-          module.__file__ = str(target)
-          module.__package__ = ""
-          exec(compile(source, str(target), "exec", dont_inherit=True), module.__dict__)
-
-          cp = module._run_runtime_observer_tool(
-              pathlib.Path("/usr/bin/cat"),
-              ["/proc/self/status"],
-              text=True,
-              timeout=10,
-              env={"PATH":"/usr/bin:/bin","LANG":"C","LC_ALL":"C","TZ":"UTC"},
-          )
-          assert cp.returncode == 0, cp.returncode
-          assert cp.stderr == "", cp.stderr
-          fields = {}
-          for line in cp.stdout.splitlines():
-              if ":" in line:
-                  key, value = line.split(":", 1)
-                  fields[key] = value.strip()
-          assert fields["Uid"].split() == ["1000", "1000", "1000", "1000"], fields.get("Uid")
-          assert fields["Gid"].split() == ["1000", "1000", "1000", "1000"], fields.get("Gid")
-          assert fields.get("Groups", "") == "", fields.get("Groups")
-          assert fields["NoNewPrivs"] == "1", fields.get("NoNewPrivs")
-          print("VOID_V7_RUNTIME_OBSERVER_DIRECT_DROP_ROOT_FIXTURE_GREEN")
-          print("root_time_setpriv_exec=false")
-          print("observer_uid_gid_1000=true")
-          print("observer_supplementary_groups_empty=true")
-          print("observer_no_new_privs=true")
-          PY

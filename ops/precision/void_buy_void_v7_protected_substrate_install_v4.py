@@ -32,7 +32,6 @@ import os
 import pathlib
 import shutil
 import stat
-import subprocess
 import tempfile
 from typing import Any
 
@@ -56,6 +55,10 @@ QUALIFIER_BLOB = "ea3c31180810ea4efe4341683742827dcf6ac5ac"
 
 SOURCE_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 SOURCE_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
+SOURCE_MANIFEST_REL = "ops/security/void-v7-reviewed-source-tree-manifest-v1.json"
+SOURCE_MANIFEST_BYTES = 1586656
+SOURCE_MANIFEST_SHA256 = "90b026f1e17006367fb72ec2306c418392cb2a2dab6279ec01874c71b84cb99d"
+SOURCE_MANIFEST_ENTRY_COUNT = 11648
 SOURCE_RELEASE = pathlib.Path("/opt/void-node-live/releases/" + SOURCE_HEAD)
 INSTALL_PARENT = pathlib.Path("/opt")
 SOURCE_NAME = "void-buy-void-v7-reviewed-v1"
@@ -82,8 +85,6 @@ SELECTOR_SHA256 = "048564b0a351a5ba3b9f980962d9261fa14a49823b5075ca4794bbeefecbb
 SELECTOR_BYTES = 26680
 RUNTIME_UID = 1000
 RUNTIME_GID = 1000
-FIXED_GIT = pathlib.Path("/usr/bin/git")
-PR_SET_NO_NEW_PRIVS = 38
 MAX_NODES = 250000
 MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
@@ -262,192 +263,7 @@ def _metadata_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int
         st.st_size, st.st_mtime_ns, st.st_ctime_ns,
     )
 
-def _trusted_tool_ancestor_snapshot(path: pathlib.Path, label: str) -> tuple[pathlib.Path, tuple[tuple[str, int, int, int, int, int, int], ...]]:
-    try:
-        resolved = path.resolve(strict=True)
-    except OSError as exc:
-        raise InstallError(label + "_tool_unavailable") from exc
-    if not resolved.is_absolute():
-        raise InstallError(label + "_tool_not_absolute")
-    current = resolved.parent
-    rows: list[tuple[str, int, int, int, int, int, int]] = []
-    audit_paths = [resolved]
-    while True:
-        st = os.lstat(current)
-        mode = stat.S_IMODE(st.st_mode)
-        if (
-            not stat.S_ISDIR(st.st_mode)
-            or stat.S_ISLNK(st.st_mode)
-            or st.st_uid != 0
-            or st.st_gid != 0
-            or mode & 0o022
-        ):
-            raise InstallError(label + "_tool_ancestor_custody_invalid:" + os.fspath(current))
-        rows.append((os.fspath(current), st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink))
-        audit_paths.append(current)
-        if current == current.parent:
-            break
-        current = current.parent
-    _runtime_uid_write_audit_builtin(audit_paths, label + "_tool")
-    return resolved, tuple(rows)
-
-def _read_tool_fd(fd: int, max_bytes: int, label: str) -> bytes:
-    os.lseek(fd, 0, os.SEEK_SET)
-    chunks: list[bytes] = []
-    total = 0
-    while True:
-        part = os.read(fd, 1024 * 1024)
-        if not part:
-            break
-        total += len(part)
-        if total > max_bytes:
-            raise InstallError(label + "_tool_size_limit")
-        chunks.append(part)
-    os.lseek(fd, 0, os.SEEK_SET)
-    return b"".join(chunks)
-
-def _open_trusted_tool_lease(
-    path: pathlib.Path,
-    label: str,
-    max_bytes: int = 512 * 1024 * 1024,
-) -> tuple[int, pathlib.Path, tuple[int, int, int, int, int, int, int, int, int], tuple[tuple[str, int, int, int, int, int, int], ...], str]:
-    resolved, ancestors = _trusted_tool_ancestor_snapshot(path, label)
-    before = os.lstat(resolved)
-    if (
-        not stat.S_ISREG(before.st_mode)
-        or stat.S_ISLNK(before.st_mode)
-        or before.st_uid != 0
-        or before.st_gid != 0
-        or before.st_nlink != 1
-        or stat.S_IMODE(before.st_mode) & 0o022
-        or stat.S_IMODE(before.st_mode) & 0o111 == 0
-    ):
-        raise InstallError(label + "_tool_leaf_custody_invalid")
-    fd = os.open(resolved, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
-    try:
-        opened = os.fstat(fd)
-        identity = _metadata_identity(opened)
-        if identity != _metadata_identity(before):
-            raise InstallError(label + "_tool_open_generation_mismatch")
-        raw = _read_tool_fd(fd, max_bytes, label)
-        visible = os.lstat(resolved)
-        if _metadata_identity(os.fstat(fd)) != identity or _metadata_identity(visible) != identity:
-            raise InstallError(label + "_tool_generation_changed_during_hash")
-        resolved2, ancestors2 = _trusted_tool_ancestor_snapshot(resolved, label)
-        if resolved2 != resolved or ancestors2 != ancestors:
-            raise InstallError(label + "_tool_ancestor_generation_changed")
-        return fd, resolved, identity, ancestors, sha256_bytes(raw)
-    except BaseException:
-        os.close(fd)
-        raise
-
-def _revalidate_trusted_tool_lease(
-    fd: int,
-    resolved: pathlib.Path,
-    identity: tuple[int, int, int, int, int, int, int, int, int],
-    ancestors: tuple[tuple[str, int, int, int, int, int, int], ...],
-    digest: str,
-    label: str,
-    max_bytes: int = 512 * 1024 * 1024,
-) -> None:
-    if _metadata_identity(os.fstat(fd)) != identity:
-        raise InstallError(label + "_tool_retained_generation_changed")
-    visible = os.lstat(resolved)
-    if _metadata_identity(visible) != identity:
-        raise InstallError(label + "_tool_visible_generation_changed")
-    resolved2, ancestors2 = _trusted_tool_ancestor_snapshot(resolved, label)
-    if resolved2 != resolved or ancestors2 != ancestors:
-        raise InstallError(label + "_tool_ancestor_generation_changed")
-    if sha256_bytes(_read_tool_fd(fd, max_bytes, label)) != digest:
-        raise InstallError(label + "_tool_retained_sha256_changed")
-
-def _drop_to_runtime_identity_preexec() -> None:
-    libc = ctypes.CDLL(None, use_errno=True)
-    prctl = getattr(libc, "prctl", None)
-    if prctl is None:
-        raise OSError("prctl_unavailable")
-    prctl.argtypes = [
-        ctypes.c_int,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-        ctypes.c_ulong,
-    ]
-    prctl.restype = ctypes.c_int
-    if prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
-        err = ctypes.get_errno()
-        raise OSError(err, "pr_set_no_new_privs_failed")
-    os.setgroups([])
-    os.setgid(RUNTIME_GID)
-    os.setuid(RUNTIME_UID)
-    if (
-        os.getuid() != RUNTIME_UID
-        or os.geteuid() != RUNTIME_UID
-        or os.getgid() != RUNTIME_GID
-        or os.getegid() != RUNTIME_GID
-        or os.getgroups() != []
-    ):
-        raise OSError("runtime_identity_drop_incomplete")
-
-def _run_runtime_observer_tool(
-    tool: pathlib.Path,
-    args: list[str],
-    *,
-    input_data: bytes | None = None,
-    text: bool,
-    timeout: int,
-    env: dict[str, str],
-) -> subprocess.CompletedProcess[Any]:
-    if os.geteuid() == RUNTIME_UID and os.getegid() == RUNTIME_GID:
-        if (
-            os.getuid() != RUNTIME_UID
-            or os.getgid() != RUNTIME_GID
-            or os.getgroups() != []
-        ):
-            raise InstallError("repository_observer_identity_invalid")
-        return subprocess.run(
-            [os.fspath(tool), *args],
-            input=input_data,
-            stdin=None if input_data is not None else subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=text,
-            check=False,
-            timeout=timeout,
-            env=env,
-        )
-    if os.geteuid() != 0 or os.getuid() != 0:
-        raise InstallError("repository_observer_identity_invalid")
-    tool_fd = -1
-    try:
-        tool_fd, tool_path, tool_identity, tool_ancestors, tool_sha = _open_trusted_tool_lease(
-            tool, "observer_tool"
-        )
-        try:
-            cp = subprocess.run(
-                [f"/proc/self/fd/{tool_fd}", *args],
-                input=input_data,
-                stdin=None if input_data is not None else subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=text,
-                check=False,
-                timeout=timeout,
-                env=env,
-                pass_fds=(tool_fd,),
-                preexec_fn=_drop_to_runtime_identity_preexec,
-            )
-        except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired) as exc:
-            raise InstallError("runtime_observer_execution_failed") from exc
-        _revalidate_trusted_tool_lease(
-            tool_fd, tool_path, tool_identity, tool_ancestors, tool_sha, "observer_tool"
-        )
-        return cp
-    finally:
-        if tool_fd >= 0:
-            os.close(tool_fd)
-
-def _read_metadata_file(path: pathlib.Path, label: str, max_bytes: int = 1024 * 1024) -> tuple[bytes, tuple[int, int, int, int, int, int, int, int, int]]:
+def _read_metadata_file(def _read_metadata_file(path: pathlib.Path, label: str, max_bytes: int = 1024 * 1024) -> tuple[bytes, tuple[int, int, int, int, int, int, int, int, int]]:
     before = path.lstat()
     if (
         not stat.S_ISREG(before.st_mode)
@@ -572,48 +388,61 @@ def _direct_git_metadata_snapshot(root: pathlib.Path, label: str) -> tuple[objec
         sha256_bytes(config_raw),
     )
 
-def _git_probe_text(root: pathlib.Path, *args: str) -> str:
-    git_args = [
-        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
-        "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
-        "--no-replace-objects", "-C", os.fspath(root), *args,
-    ]
-    cp = _run_runtime_observer_tool(
-        FIXED_GIT, git_args, text=True, timeout=30, env=_git_env()
-    )
-    if cp.returncode != 0 or cp.stderr != "":
-        raise InstallError("git_provenance_probe_failed:" + (args[0] if args else "unknown"))
-    return cp.stdout.strip()
-
-def _resolve_git_reported(root: pathlib.Path, value: str, label: str) -> pathlib.Path:
-    candidate = pathlib.Path(value)
-    if not candidate.is_absolute():
-        candidate = root / candidate
+def _parse_direct_oid(raw: bytes, label: str) -> str:
     try:
-        return candidate.resolve(strict=True)
-    except OSError as exc:
-        raise InstallError(label + "_git_reported_path_unavailable") from exc
+        text = raw.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise InstallError(label + "_ref_not_ascii") from exc
+    if not text.endswith("\n") or text.count("\n") != 1:
+        raise InstallError(label + "_ref_not_canonical")
+    oid = text[:-1]
+    if len(oid) != 40 or any(ch not in "0123456789abcdef" for ch in oid):
+        raise InstallError(label + "_ref_oid_invalid")
+    return oid
 
-def require_git_metadata_provenance(root: pathlib.Path, label: str) -> None:
+def _direct_main_head(root: pathlib.Path, label: str) -> str:
+    git_dir = root / ".git"
+    head_raw, _ = _read_metadata_file(git_dir / "HEAD", label + "_git_HEAD", 256)
+    if head_raw != b"ref: refs/heads/main\n":
+        raise InstallError(label + "_git_HEAD_not_symbolic_main")
+    loose = git_dir / "refs" / "heads" / "main"
+    if loose.exists() or loose.is_symlink():
+        raw, _ = _read_metadata_file(loose, label + "_git_main_ref", 256)
+        return _parse_direct_oid(raw, label + "_git_main")
+    packed = git_dir / "packed-refs"
+    raw, _ = _read_metadata_file(packed, label + "_git_packed_refs", 8 * 1024 * 1024)
+    try:
+        text = raw.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise InstallError(label + "_git_packed_refs_not_ascii") from exc
+    found: list[str] = []
+    for line in text.splitlines():
+        if not line or line.startswith("#") or line.startswith("^"):
+            continue
+        parts = line.split(" ")
+        if len(parts) != 2:
+            raise InstallError(label + "_git_packed_refs_row_invalid")
+        oid, ref = parts
+        if ref == "refs/heads/main":
+            if len(oid) != 40 or any(ch not in "0123456789abcdef" for ch in oid):
+                raise InstallError(label + "_git_main_ref_oid_invalid")
+            found.append(oid)
+    if len(found) != 1:
+        raise InstallError(label + "_git_main_ref_missing_or_duplicate")
+    return found[0]
+
+def require_git_metadata_provenance(root: pathlib.Path, label: str, expected_head: str) -> None:
+    if len(expected_head) != 40 or any(ch not in "0123456789abcdef" for ch in expected_head):
+        raise InstallError(label + "_expected_head_invalid")
     before = _direct_git_metadata_snapshot(root, label)
-    expected_git_dir = (root / ".git").resolve(strict=True)
-    observed_git_dir = _resolve_git_reported(root, _git_probe_text(root, "rev-parse", "--git-dir"), label)
-    observed_common_dir = _resolve_git_reported(root, _git_probe_text(root, "rev-parse", "--git-common-dir"), label)
-    observed_top = _resolve_git_reported(root, _git_probe_text(root, "rev-parse", "--show-toplevel"), label)
-    shallow = _git_probe_text(root, "rev-parse", "--is-shallow-repository")
+    observed = _direct_main_head(root, label)
     after = _direct_git_metadata_snapshot(root, label)
     if before != after:
         raise InstallError(label + "_git_metadata_generation_changed")
-    if observed_git_dir != expected_git_dir:
-        raise InstallError(label + "_git_dir_not_in_tree")
-    if observed_common_dir != expected_git_dir:
-        raise InstallError(label + "_git_common_dir_not_in_tree")
-    if observed_top != root.resolve(strict=True):
-        raise InstallError(label + "_git_toplevel_mismatch")
-    if shallow != "false":
-        raise InstallError(label + "_git_shallow_forbidden")
+    if observed != expected_head:
+        raise InstallError(label + "_direct_main_head_mismatch")
 
-def _write_git_metadata_fixture(root: pathlib.Path, config: str = "[core]\nrepositoryformatversion = 0\nbare = false\n") -> None:
+def _write_git_metadata_fixture(def _write_git_metadata_fixture(root: pathlib.Path, config: str = "[core]\nrepositoryformatversion = 0\nbare = false\n") -> None:
     (root / ".git" / "objects" / "info").mkdir(parents=True)
     (root / ".git" / "info").mkdir(parents=True)
     (root / ".git" / "config").write_text(config, "utf-8")
@@ -697,79 +526,90 @@ def revalidate_source_release_ancestor_custody(
 def canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
 
-def _git_env() -> dict[str, str]:
-    return {
-        "PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LANG": "C", "LC_ALL": "C", "TZ": "UTC",
-        "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null",
-        "GIT_NO_REPLACE_OBJECTS": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0",
-        "GIT_ASKPASS": "/bin/false", "GIT_NO_LAZY_FETCH": "1", "GIT_PROTOCOL_FROM_USER": "0",
-        "GIT_ALLOW_PROTOCOL": "", "GIT_PAGER": "",
-    }
+def _read_bound_repo_blob(
+    root: pathlib.Path,
+    rel: str,
+    expected_blob: str,
+    label: str,
+    max_bytes: int = MAX_FILE_BYTES,
+) -> bytes:
+    if not rel or rel.startswith("/") or any(part in ("", ".", "..") for part in rel.split("/")):
+        raise InstallError(label + "_relative_path_invalid")
+    raw, _ = _read_metadata_file(root / rel, label, max_bytes)
+    if git_blob_sha1(raw) != expected_blob:
+        raise InstallError(label + "_git_blob_mismatch")
+    return raw
 
-def git_text(root: pathlib.Path, *args: str) -> str:
-    git_args = [
-        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
-        "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
-        "--no-replace-objects", "-C", os.fspath(root), *args,
-    ]
-    cp = _run_runtime_observer_tool(
-        FIXED_GIT, git_args, text=True, timeout=60, env=_git_env()
+def _load_reviewed_source_manifest() -> dict[str, tuple[str, str, int]]:
+    raw, _ = _read_metadata_file(
+        ROOT / SOURCE_MANIFEST_REL,
+        "reviewed_source_manifest",
+        SOURCE_MANIFEST_BYTES,
     )
-    if cp.returncode != 0 or cp.stderr != "":
-        raise InstallError("git_observation_failed:" + (args[0] if args else "unknown"))
-    return cp.stdout.strip()
-
-def git_bytes(root: pathlib.Path, *args: str) -> bytes:
-    git_args = [
-        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
-        "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
-        "--no-replace-objects", "-C", os.fspath(root), *args,
-    ]
-    cp = _run_runtime_observer_tool(
-        FIXED_GIT, git_args, text=False, timeout=60, env=_git_env()
-    )
-    if cp.returncode != 0 or cp.stderr != b"":
-        raise InstallError("git_observation_failed:" + (args[0] if args else "unknown"))
-    return cp.stdout
-
-def git_is_ancestor(root: pathlib.Path, base: str, head: str) -> bool:
-    git_args = [
-        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
-        "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
-        "--no-replace-objects", "-C", os.fspath(root), "merge-base", "--is-ancestor", base, head,
-    ]
-    cp = _run_runtime_observer_tool(
-        FIXED_GIT, git_args, text=False, timeout=20, env=_git_env()
-    )
-    if cp.returncode not in (0, 1) or cp.stdout or cp.stderr:
-        raise InstallError("git_ancestor_observation_failed")
-    return cp.returncode == 0
+    if len(raw) != SOURCE_MANIFEST_BYTES:
+        raise InstallError("reviewed_source_manifest_size_mismatch")
+    if sha256_bytes(raw) != SOURCE_MANIFEST_SHA256:
+        raise InstallError("reviewed_source_manifest_sha256_mismatch")
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise InstallError("reviewed_source_manifest_json_invalid") from exc
+    if not isinstance(parsed, dict) or set(parsed) != {
+        "schema", "version", "source_head", "source_tree", "entry_count", "entries"
+    }:
+        raise InstallError("reviewed_source_manifest_shape_invalid")
+    if (
+        parsed.get("schema") != "void_v7_reviewed_source_tree_manifest_v1"
+        or parsed.get("version") != 1
+        or parsed.get("source_head") != SOURCE_HEAD
+        or parsed.get("source_tree") != SOURCE_TREE
+        or parsed.get("entry_count") != SOURCE_MANIFEST_ENTRY_COUNT
+    ):
+        raise InstallError("reviewed_source_manifest_identity_mismatch")
+    rows = parsed.get("entries")
+    if not isinstance(rows, list) or len(rows) != SOURCE_MANIFEST_ENTRY_COUNT:
+        raise InstallError("reviewed_source_manifest_entries_invalid")
+    result: dict[str, tuple[str, str, int]] = {}
+    previous = ""
+    for row in rows:
+        if not isinstance(row, list) or len(row) != 4:
+            raise InstallError("reviewed_source_manifest_row_invalid")
+        rel, mode, oid, size = row
+        if (
+            not isinstance(rel, str)
+            or not rel
+            or rel.startswith("/")
+            or any(part in ("", ".", "..") for part in rel.split("/"))
+            or rel.split("/", 1)[0] == ".git"
+            or rel <= previous
+            or mode not in ("100644", "100755", "120000")
+            or not isinstance(oid, str)
+            or len(oid) != 40
+            or any(ch not in "0123456789abcdef" for ch in oid)
+            or not isinstance(size, int)
+            or isinstance(size, bool)
+            or size < 0
+            or size > MAX_FILE_BYTES
+        ):
+            raise InstallError("reviewed_source_manifest_row_invalid")
+        result[rel] = (mode, oid, size)
+        previous = rel
+    return result
 
 def verify_repository(expected_head: str) -> None:
-    require_git_metadata_provenance(ROOT, "checkout")
-    if len(expected_head) != 40 or any(ch not in "0123456789abcdef" for ch in expected_head):
-        raise InstallError("expected_head_invalid")
-    if git_text(ROOT, "rev-parse", "--verify", "HEAD") != expected_head:
-        raise InstallError("checkout_head_mismatch")
-    if git_text(ROOT, "branch", "--show-current") != "main":
-        raise InstallError("checkout_branch_not_main")
-    if git_text(ROOT, "status", "--porcelain=v1", "--untracked-files=all") != "":
-        raise InstallError("checkout_not_clean")
-    if not git_is_ancestor(ROOT, PREDECESSOR_MERGE, expected_head):
-        raise InstallError("predecessor_v3_installer_merge_not_current_ancestor")
-    if git_text(ROOT, "rev-parse", PREDECESSOR_MERGE + "^{tree}") != PREDECESSOR_TREE:
-        raise InstallError("predecessor_v3_installer_merge_tree_mismatch")
+    require_git_metadata_provenance(ROOT, "checkout", expected_head)
     for rel, blob in {
-        LOCK_REL: LOCK_BLOB, MATERIALIZER_REL: MATERIALIZER_BLOB,
-        PREDECESSOR_INSTALLER_REL: PREDECESSOR_INSTALLER_BLOB, QUALIFIER_REL: QUALIFIER_BLOB,
+        LOCK_REL: LOCK_BLOB,
+        MATERIALIZER_REL: MATERIALIZER_BLOB,
+        PREDECESSOR_INSTALLER_REL: PREDECESSOR_INSTALLER_BLOB,
+        QUALIFIER_REL: QUALIFIER_BLOB,
     }.items():
-        if git_text(ROOT, "rev-parse", "HEAD:" + rel) != blob:
-            raise InstallError("accepted_dependency_blob_mismatch:" + rel)
+        _read_bound_repo_blob(ROOT, rel, blob, "accepted_dependency:" + rel)
+    _load_reviewed_source_manifest()
 
 def accepted_lock(expected_head: str) -> dict[str, Any]:
-    raw = git_bytes(ROOT, "show", expected_head + ":" + LOCK_REL)
-    if git_blob_sha1(raw) != LOCK_BLOB:
-        raise InstallError("accepted_lock_blob_mismatch")
+    del expected_head
+    raw = _read_bound_repo_blob(ROOT, LOCK_REL, LOCK_BLOB, "accepted_lock")
     try:
         lock = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -805,16 +645,10 @@ def verify_source_release() -> None:
     ancestors = source_release_ancestor_custody()
     if SOURCE_RELEASE.resolve() != SOURCE_RELEASE or not SOURCE_RELEASE.is_dir() or SOURCE_RELEASE.is_symlink():
         raise InstallError("source_release_path_invalid")
-    require_git_metadata_provenance(SOURCE_RELEASE, "source_release")
-    if git_text(SOURCE_RELEASE, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD:
-        raise InstallError("source_release_head_mismatch")
-    if git_text(SOURCE_RELEASE, "rev-parse", "--verify", "HEAD^{tree}") != SOURCE_TREE:
-        raise InstallError("source_release_tree_mismatch")
-    if git_text(SOURCE_RELEASE, "symbolic-ref", "--short", "-q", "HEAD") != "main":
-        raise InstallError("source_release_branch_not_main")
-    require_worktree_matches_tree(SOURCE_RELEASE, SOURCE_TREE, "source_release")
-    if git_text(SOURCE_RELEASE, "status", "--porcelain=v1", "--untracked-files=all") != "":
-        raise InstallError("source_release_not_clean")
+    require_git_metadata_provenance(SOURCE_RELEASE, "source_release", SOURCE_HEAD)
+    require_worktree_matches_manifest(
+        SOURCE_RELEASE, _load_reviewed_source_manifest(), "source_release"
+    )
     revalidate_source_release_ancestor_custody(ancestors)
 
 def _read_regular_sha256_exact(
@@ -976,11 +810,11 @@ def _verify_worktree_manifest(
             expected = manifest.get(rel)
             if expected is None:
                 raise InstallError(label + "_worktree_extra_path:" + rel)
-            mode, oid = expected
+            mode, oid, expected_size = expected
             if stat.S_ISREG(st.st_mode) and not stat.S_ISLNK(st.st_mode):
                 actual_mode = "100755" if stat.S_IMODE(st.st_mode) & stat.S_IXUSR else "100644"
-                if mode != actual_mode:
-                    raise InstallError(label + "_worktree_mode_mismatch:" + rel)
+                if mode != actual_mode or st.st_size != expected_size:
+                    raise InstallError(label + "_worktree_mode_or_size_mismatch:" + rel)
                 identity = _metadata_identity(st)
                 if _read_regular_git_blob_sha1_exact(child, identity, label + "_worktree_blob") != oid:
                     raise InstallError(label + "_worktree_blob_mismatch:" + rel)
@@ -988,6 +822,8 @@ def _verify_worktree_manifest(
                 if mode != "120000":
                     raise InstallError(label + "_worktree_mode_mismatch:" + rel)
                 target_raw = os.fsencode(os.readlink(child))
+                if len(target_raw) != expected_size:
+                    raise InstallError(label + "_worktree_symlink_size_mismatch:" + rel)
                 if git_blob_sha1(target_raw) != oid:
                     raise InstallError(label + "_worktree_symlink_blob_mismatch:" + rel)
             else:
@@ -997,16 +833,14 @@ def _verify_worktree_manifest(
         missing = sorted(set(manifest) - seen)
         raise InstallError(label + "_worktree_missing_path:" + (missing[0] if missing else "unknown"))
 
-def require_worktree_matches_tree(root: pathlib.Path, expected_tree: str, label: str) -> None:
-    if len(expected_tree) != 40 or any(ch not in "0123456789abcdef" for ch in expected_tree):
-        raise InstallError(label + "_expected_tree_invalid")
-    manifest = _parse_git_tree_manifest(
-        git_bytes(root, "ls-tree", "-rz", "--full-tree", expected_tree),
-        label,
-    )
+def require_worktree_matches_manifest(
+    root: pathlib.Path,
+    manifest: dict[str, tuple[str, str, int]],
+    label: str,
+) -> None:
     _verify_worktree_manifest(root, manifest, label)
 
-def _strict_internal_symlink(path: pathlib.Path, root: pathlib.Path, label: str) -> pathlib.Path:
+def _strict_internal_symlink(def _strict_internal_symlink(path: pathlib.Path, root: pathlib.Path, label: str) -> pathlib.Path:
     try:
         resolved = path.resolve(strict=True)
     except (OSError, RuntimeError) as exc:
@@ -1220,15 +1054,13 @@ def source_target_state(source_digest: tuple[str, int, int]) -> bool:
         raise InstallError("protected_source_target_metadata_invalid")
     if tree_digest(SOURCE_TARGET, PROTECTED_SOURCE_ROOT_MODE) != source_digest:
         raise InstallError("protected_source_target_generation_mismatch")
-    require_git_metadata_provenance(SOURCE_TARGET, "protected_source")
-    if git_text(SOURCE_TARGET, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD or git_text(SOURCE_TARGET, "rev-parse", "--verify", "HEAD^{tree}") != SOURCE_TREE:
-        raise InstallError("protected_source_target_git_generation_mismatch")
-    require_worktree_matches_tree(SOURCE_TARGET, SOURCE_TREE, "protected_source")
-    if git_text(SOURCE_TARGET, "symbolic-ref", "--short", "-q", "HEAD") != "main" or git_text(SOURCE_TARGET, "status", "--porcelain=v1", "--untracked-files=all") != "":
-        raise InstallError("protected_source_target_not_clean_main")
+    require_git_metadata_provenance(SOURCE_TARGET, "protected_source", SOURCE_HEAD)
+    require_worktree_matches_manifest(
+        SOURCE_TARGET, _load_reviewed_source_manifest(), "protected_source"
+    )
     return True
 
-def ensure_stage_roots_absent() -> None:
+def ensure_stage_roots_absent(def ensure_stage_roots_absent() -> None:
     for stage in (SOURCE_STAGE, PREENTRY_STAGE, SELECTOR_STAGE):
         if stage.exists() or stage.is_symlink():
             raise InstallError("staging_root_preexisting:" + os.fspath(stage))
@@ -1261,8 +1093,9 @@ def collect_plan(native_path: pathlib.Path, selector_path: pathlib.Path, expecte
         "selector_candidate": {"sha256": sha256_bytes(selector_raw), "bytes": len(selector_raw)},
         "installed_state": {"protected_source_exact": source_exact, "native_preentry_exact": preentry_exact, "selector_exact": selector_exact},
         "install_parent_custody_exact": True,
-        "git_metadata_provenance_self_contained": True,
-        "git_metadata_indirection_rejected": True,
+        "direct_repository_metadata_closed": True,
+        "reviewed_source_manifest_exact": True,
+        "privileged_dynamic_git_authority": False,
         "create_only": True, "resumable_exact_components": True, "mismatched_component_holds": True,
         "partial_publication_possible": True, "no_rollback_after_publication": True,
         "service_mutation": False, "systemd_mutation": False, "credential_access": False, "private_key_access": False,
@@ -1412,16 +1245,14 @@ def _publish_source(expected_digest: tuple[str, int, int]) -> None:
     verify_source_release()
     revalidate_source_release_ancestor_custody(source_ancestors)
     if tree_digest(SOURCE_STAGE, PROTECTED_SOURCE_ROOT_MODE) != expected_digest: raise InstallError("source_stage_digest_mismatch")
-    require_git_metadata_provenance(SOURCE_STAGE, "source_stage")
-    if git_text(SOURCE_STAGE, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD or git_text(SOURCE_STAGE, "rev-parse", "--verify", "HEAD^{tree}") != SOURCE_TREE:
-        raise InstallError("source_stage_git_generation_invalid")
-    require_worktree_matches_tree(SOURCE_STAGE, SOURCE_TREE, "source_stage")
-    if git_text(SOURCE_STAGE, "status", "--porcelain=v1", "--untracked-files=all") != "":
-        raise InstallError("source_stage_not_clean")
+    require_git_metadata_provenance(SOURCE_STAGE, "source_stage", SOURCE_HEAD)
+    require_worktree_matches_manifest(
+        SOURCE_STAGE, _load_reviewed_source_manifest(), "source_stage"
+    )
     _rename_noreplace(SOURCE_STAGE_NAME, SOURCE_NAME, SOURCE_STAGE, "protected_source")
     if not source_target_state(expected_digest): raise InstallError("source_postpublication_verification_failed")
 
-def _publish_binary(stage: pathlib.Path, stage_name: str, target_name: str, filename: str, raw: bytes, digest: str, label: str) -> None:
+def _publish_binary(def _publish_binary(stage: pathlib.Path, stage_name: str, target_name: str, filename: str, raw: bytes, digest: str, label: str) -> None:
     if stage.exists() or stage.is_symlink(): raise InstallError(label + "_stage_preexisting")
     _create_binary_stage(stage, filename, raw, digest); _rename_noreplace(stage_name, target_name, stage, label)
 
@@ -1440,12 +1271,12 @@ def source_plan() -> None:
     print("immutable_source_release_root_mode_0555_required=true")
     print("protected_source_root_mode_0755_required=true")
     print("installed_qualifier_v3_bound=true")
-    print("git_metadata_provenance_required_for_all_roots=true")
+    print("direct_repository_metadata_required_for_all_roots=true")
     print("git_external_metadata_and_object_indirection_rejected=true")
     print("git_local_config_exact_allowlist_required=true")
-    print("git_raw_head_tree_manifest_required=true")
-    print("trusted_tool_root_descriptor_execution_required=true")
-    print("trusted_tool_ancestor_acl_custody_required=true")
+    print("reviewed_source_tree_manifest_required=true")
+    print("reviewed_source_manifest_sha256_bound=true")
+    print("privileged_dynamic_git_authority=false")
     print("runtime_write_audit_external_helper_free=true")
     print("source_release_ancestor_acl_custody_required=true")
     print("source_release_ancestor_generation_revalidation_required=true")
@@ -1560,9 +1391,9 @@ def self_test() -> None:
         link = manifest_root / "link"
         link.symlink_to("plain.txt")
         manifest = {
-            "plain.txt": ("100644", git_blob_sha1(plain.read_bytes())),
-            "sub/run.sh": ("100755", git_blob_sha1(executable.read_bytes())),
-            "link": ("120000", git_blob_sha1(b"plain.txt")),
+            "link": ("120000", git_blob_sha1(b"plain.txt"), len(b"plain.txt")),
+            "plain.txt": ("100644", git_blob_sha1(plain.read_bytes()), plain.stat().st_size),
+            "sub/run.sh": ("100755", git_blob_sha1(executable.read_bytes()), executable.stat().st_size),
         }
         _verify_worktree_manifest(manifest_root, manifest, "self_test_manifest")
         ignored = manifest_root / "ignored.tmp"
@@ -1585,14 +1416,16 @@ def self_test() -> None:
     print("git_core_attributesfile_rejected=true")
     print("git_filter_driver_rejected=true")
     print("git_local_config_exact_allowlist_required=true")
-    print("git_raw_head_tree_manifest_required=true")
+    reviewed_manifest = _load_reviewed_source_manifest()
+    assert len(reviewed_manifest) == SOURCE_MANIFEST_ENTRY_COUNT
+    print("reviewed_source_tree_manifest_required=true")
+    print("reviewed_source_manifest_sha256_bound=true")
+    print("privileged_dynamic_git_authority=false")
     print("git_ignored_untracked_rejected_by_manifest=true")
     print("git_worktree_config_extension_rejected=true")
     print("git_promisor_partial_clone_rejected=true")
-    print("git_exact_dir_common_toplevel_required=true")
-    print("git_metadata_provenance_required_for_all_roots=true")
-    print("trusted_tool_root_descriptor_execution_required=true")
-    print("trusted_tool_ancestor_acl_custody_required=true")
+    print("direct_symbolic_main_ref_required=true")
+    print("direct_repository_metadata_required_for_all_roots=true")
     print("runtime_write_audit_external_helper_free=true")
     print("source_release_ancestor_acl_custody_required=true")
     print("source_release_ancestor_generation_revalidation_required=true")
@@ -1669,7 +1502,7 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (InstallError, OSError, subprocess.SubprocessError, UnicodeError) as exc:
+    except (InstallError, OSError, UnicodeError) as exc:
         print(MARKER); print("status=HOLD"); print("reason=" + str(exc)); print("published_components=" + ",".join(_PUBLISHED))
         print("partial_publication_possible=true"); print("no_rollback_after_publication=true")
         print("protected_filesystem_mutation=" + str(_WRITE_PERFORMED).lower()); print("service_mutation=false"); print("systemd_mutation=false")
