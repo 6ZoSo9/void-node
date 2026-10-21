@@ -660,6 +660,12 @@ def build(output: Path) -> None:
 
         os.mkdir(output.name, mode=0o700, dir_fd=parent_fd)
         _CANDIDATE_CREATED = True
+        # Creating a child directory intentionally increments the parent's
+        # link count. Rebind the retained parent lease to that known mutation,
+        # then require the visible pathname to name the same generation before
+        # any subsequent candidate write.
+        parent_identity = _identity(os.fstat(parent_fd))
+        _revalidate_parent_lease(output, parent_fd, parent_identity)
         candidate_fd = os.open(
             output.name,
             os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
