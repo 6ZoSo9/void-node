@@ -15,7 +15,7 @@ or accept a production launcher/runtime/source payload manifest.
   `9dde5523dca6ab240626430ce1c2b82f1cfe7f20`
 - future requirements: **70**
 - bootstrap source Git blob:
-  `96cd93b4111d3be03d23e383101b69ad26da544e`
+  `a49639a005d5b9dbcdfe585f34c184a1701fb500`
 
 The existing launcher V2 remains unchanged and fs-verity-only. This bootstrap
 candidate does not create or authorize launcher V3.
@@ -52,7 +52,9 @@ and a 64 MiB manifest. Entries are strictly sorted and use only:
 - directories, exact mode `0555`;
 - regular files, exact mode `0444` or `0555`.
 
-Symlinks and implicit parent directories are rejected.
+Symlinks, implicit parent directories, leading blank lines and consecutive
+blank lines are rejected; the line-oriented manifest has one canonical textual
+shape for a given entry sequence.
 
 For each regular file, the engine:
 
@@ -126,6 +128,7 @@ The focused proof:
 - authenticates this exact C source blob and the landed plan blob;
 - builds a static binary and verifies no PT_INTERP / dynamic NEEDED entries;
 - requires normal self-test and source-plan GREEN;
+- feeds a noncanonical blank-line manifest and requires pre-publication HOLD;
 - requires normal `--apply` to HOLD because no production manifest lock exists;
 - exercises the seccomp barrier against fork, io_uring and shared-writable mmap;
 - publishes a disposable exact fixture and proves exact idempotence;
