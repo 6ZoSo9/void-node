@@ -46,12 +46,22 @@ It:
 10. derives the executing account home from the OS passwd record rather than
     process `HOME`, forbids UID 0, requires the home to be exactly a direct
     `/home/<passwd-name>` child beneath a physical root-custodied `/home`,
-    requires `Downloads` to be a physical current-UID directory, and rejects
-    symlinked/aliased output parents;
+    requires `Downloads` and every admitted output parent to be physical
+    current-UID directories, and rejects symlinked **or mount-point** aliases;
 11. rejects any output path that resolves at or beneath the canonical source
     checkout before candidate creation, so `.git` or worktree writes cannot be
     mislabeled as `source_repository_mutation=false`;
-12. rejects C0, DEL, NEL (`U+0085`), Unicode line separator (`U+2028`) and
+12. creates the candidate relative to a retained validated parent descriptor,
+    retains the exact candidate, `.git`, object-store, pack, refs and heads
+    directory descriptors, and sends Git candidate operations through
+    `/proc/self/fd/*` with `GIT_OBJECT_DIRECTORY` pinned to the retained object
+    store; path replacement therefore cannot redirect helper writes;
+13. revalidates the complete Downloads ancestor chain, mount-point census and
+    visible inode identities at mutation boundaries and before GREEN;
+14. performs generation-bound descriptor cleanup after failure and reports
+    attempted/completed/residual-unknown cleanup state instead of silently
+    ignoring cleanup errors;
+15. rejects C0, DEL, NEL (`U+0085`), Unicode line separator (`U+2028`) and
     paragraph separator (`U+2029`) in operator-supplied output paths before
     any candidate directory is created or any line-oriented receipt can contain
     that path.
