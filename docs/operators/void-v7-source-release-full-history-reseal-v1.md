@@ -61,11 +61,10 @@ It:
     redirect helper writes;
 13. revalidates the complete Downloads ancestor chain, mount-point census and
     visible inode identities at mutation boundaries and before GREEN;
-14. performs generation-bound descriptor cleanup after failure, binds every
-    traversed cleanup directory to the retained candidate's Linux mount ID via
-    `/proc/self/fdinfo`, refuses cross-mount descent, and reports
-    attempted/completed/residual-unknown cleanup state instead of silently
-    ignoring cleanup errors;
+14. keeps failure cleanup deliberately non-recursive: it validates retained
+    parent/candidate mount IDs and visible root generation, removes only an
+    exact **empty** candidate root, and otherwise retains nonempty candidate
+    contents for inspection with explicit residual-state and cleanup receipts;
 15. rejects C0, DEL, NEL (`U+0085`), Unicode line separator (`U+2028`) and
     paragraph separator (`U+2029`) in operator-supplied output paths before
     any candidate directory is created or any line-oriented receipt can contain
@@ -79,6 +78,11 @@ guard, so one filesystem path cannot inject a second line or forge an
 authority/status field. A spoofed process `HOME`, protected/runtime passwd home, symlinked `Downloads`,
 or output beneath the source checkout cannot redirect the candidate write
 boundary.
+
+Failure rollback has no recursive deletion authority. A nonempty retained
+candidate is reported as `retained_needs_inspection` and left untouched; a
+missing or substituted visible root reports residual state as unknown rather
+than deleting through an unproven generation.
 
 ## Authority boundary
 
