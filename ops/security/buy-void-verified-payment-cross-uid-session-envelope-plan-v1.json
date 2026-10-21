@@ -27,11 +27,11 @@
   },
   "future_release_requirements": [
     "same_original_claim_owner",
-    "same_claim_nonce_and_staging_name",
+    "same_claim_nonce_staging_pid_and_process_start",
     "same_request_id",
     "same_payment_verified_event_sha256",
     "same_web_and_custody_artifact_generations",
-    "monotone_phase_sequence",
+    "exact_phase_transition_and_seq_increment",
     "protected_phase_witness_sha256",
     "repeated_descriptor_bound_observation_unchanged",
     "coordinated_storage_rollback_excluded",
@@ -91,7 +91,50 @@
       "retain_claim": true
     }
   },
-  "plan_id": "voidbuyxuid1_57fb5e84d83c9fbe98337525263d93309c06ffd96b752a1ee273847bfc91c5f6",
+  "phase_transition_policy": {
+    "allowed": {
+      "allocation_durable": [
+        "terminal_revalidated",
+        "uncertain"
+      ],
+      "allocation_publication_uncertain": [
+        "allocation_durable",
+        "uncertain"
+      ],
+      "claim_acquired": [
+        "pre_mutation_rejected",
+        "payment_append_uncertain",
+        "uncertain"
+      ],
+      "payment_append_uncertain": [
+        "payment_durable_allocation_missing",
+        "allocation_publication_uncertain",
+        "allocation_durable",
+        "uncertain"
+      ],
+      "payment_durable_allocation_missing": [
+        "allocation_publication_uncertain",
+        "allocation_durable",
+        "uncertain"
+      ],
+      "pre_mutation_rejected": [
+        "terminal_revalidated",
+        "uncertain"
+      ],
+      "terminal_revalidated": [],
+      "uncertain": [
+        "pre_mutation_rejected",
+        "payment_durable_allocation_missing",
+        "allocation_publication_uncertain",
+        "allocation_durable"
+      ]
+    },
+    "phase_seq_rule": "exact_increment_by_one",
+    "previous_envelope_sha256_required_after_phase0": true,
+    "recovery_from_uncertain_requires_protected_witness": true,
+    "terminal_phase": "terminal_revalidated"
+  },
+  "plan_id": "voidbuyxuid1_af49f625a1b1db2e198125aea83379e715cd56ce60ee5967e176d2fe085bf384",
   "repository": "6ZoSo9/void-node",
   "schema": "void.buy.verified_payment.cross_uid_session_envelope_plan.v1",
   "session_envelope_contract": {
@@ -100,10 +143,14 @@
       "claim_staging_name",
       "claim_owner_role",
       "claim_owner_uid",
+      "claim_pid",
+      "claim_process_start_ticks",
+      "claim_created_at_utc",
       "web_uid",
       "custody_uid",
       "shared_gid"
     ],
+    "claim_created_at_utc_release_authority": false,
     "generation_fields": [
       "claim_generation_sha256",
       "web_artifact_generation_sha256",
@@ -121,7 +168,7 @@
       "previous_envelope_sha256",
       "protected_phase_witness_sha256"
     ],
-    "session_id_derivation": "sha256(canonical_json_of_claim_lineage_phase0_and_artifact_generations)",
+    "session_id_derivation": "sha256(canonical_json_of_claim_incarnation_lineage_phase0_and_artifact_generations)",
     "session_id_format": "voidbuysess1_<64_lowercase_hex_sha256>",
     "trusted_clock_release_authority": false
   },

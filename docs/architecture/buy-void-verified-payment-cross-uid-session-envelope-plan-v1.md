@@ -2,81 +2,65 @@
 
 Status: **source-only plan / production HOLD**.
 
-This plan fills the missing design seam between the existing web/custody cross-UID
-claim and any future phase-aware release/recovery implementation. It does not
-mount the operator route, start the custody service, release a live claim,
-recover custody, accept a payment, activate presale, or move funds.
+This plan defines the missing common-host/session envelope and phase-aware
+release/recovery contract between the existing web/custody cross-UID claim and
+any future protected recovery implementation. It does not mount a route,
+release a claim, recover custody, accept a payment, activate presale, or move
+funds.
 
 ## Exact source generation
 
 - source base: `f1702672f2399355758e7a07fdd8f0ffb8dc1d33`
 - source base tree: `fa74ce8645ee2f452343d95fdc459ae479fe73ef`
-- plan ID: `voidbuyxuid1_57fb5e84d83c9fbe98337525263d93309c06ffd96b752a1ee273847bfc91c5f6`
-- plan blob: `aead984c39a264ef23e00c9a2a95787760dce684`
-- proof blob: `5bf036decaa0aaf30302ef4d7dacf0dacea97da7`
+- plan ID: `voidbuyxuid1_af49f625a1b1db2e198125aea83379e715cd56ce60ee5967e176d2fe085bf384`
+- plan blob: `a4c3ef95869f817be8ec8af29957ff918c379efa`
+- proof blob: `107a050ac6eea86a632d9d8d594bb56251def353`
 - source bindings: **11**
 
-The plan binds the current source identities for the cross-UID lock, failure
-reconciliation, web writer/failure binding, verified-allocation dispatcher and
-handoff, allocation publication/replay/ledger contracts, and custody service V2.
+## Claim/incarnation binding
 
-It deliberately does **not** claim complete transitive runtime closure.
+The existing capacity-lock claim already binds UID/role, PID, process-start
+ticks, nonce, staging name, creation timestamp, custody/web UIDs and shared GID.
+A future session envelope must carry that incarnation instead of reducing claim
+ownership to a bearer token.
 
-## Session envelope contract
+`claim_created_at_utc` is provenance only. Trusted-clock release authority is
+false; wall-clock age cannot release a claim.
 
-A future installed implementation must bind the existing claim semantics rather
-than inventing a bearer token. The envelope therefore carries:
+## Closed phase graph
 
-- the existing claim nonce, staging name, owner role/UID, participant UIDs and
-  shared GID;
-- request ID plus exact payment-event, allocation-record and allocation-tip
-  lineage;
-- a monotone phase sequence and previous-envelope commitment;
-- exact web/custody artifact generations; and
-- a protected phase-witness commitment.
+Every envelope after phase 0 must increment `phase_seq` by exactly one and bind
+the previous envelope SHA-256. Only the closed transition graph in the plan is
+allowed. This prevents a writer from jumping directly from `claim_acquired`
+to `terminal_revalidated`.
 
-The proposed session ID is content-addressed from the immutable claim/lineage
-phase-0 tuple and artifact generations. A clock alone cannot authorize release.
+Recovery from `uncertain` additionally requires a protected phase witness.
+The two future release-candidate labels (`pre_mutation_rejected` and
+`terminal_revalidated`) still retain the claim in this plan and grant no
+release authority.
 
-## Phase model
-
-All phases retain the existing outer claim in this plan. The current source
-classifier outcomes map as follows:
+## Current reconciliation mapping
 
 - `held` → retain;
-- `observed_no_target_capacity_effect` → retain until a protected pre-mutation
-  witness exists;
+- `observed_no_target_capacity_effect` → retain until protected pre-mutation
+  witness;
 - `verified_allocation_missing` → retain and require exclusive recovery;
-- `allocation_present` → retain until terminal revalidation plus protected
-  witness evidence.
-
-`pre_mutation_rejected` and `terminal_revalidated` are only *future release
-candidates*. They are **not release authority** in V1.
-
-## Required future release evidence
-
-A later implementation must prove the same original claim owner, claim
-nonce/staging identity, request/payment lineage, web/custody artifact
-generations, monotone phase sequence, protected phase witness, repeated
-descriptor-bound observations, rollback exclusion, exact allocation handoff
-when an allocation effect is possible, terminal owner revalidation and durable
-parent fsync.
+- `allocation_present` → retain until terminal revalidation and protected
+  witness.
 
 ## Explicit current HOLDs
 
-The plan intentionally records these current negatives:
-
-1. the cross-UID claim reader is not yet proven FIFO-swap nonblocking;
+1. cross-UID claim read FIFO nonblocking is not verified;
 2. custody service V2 reserve/recover is disabled;
 3. protected phase witness is missing;
 4. external high-water witness is missing;
-5. the authenticated allocation-required operator route is unmounted;
+5. allocation-required operator route is unmounted;
 6. direct web private-root write authority is forbidden;
-7. trusted clock binding is absent; and
+7. trusted clock is unbound; and
 8. deployed artifact generation is unverified.
 
-A change that fixes one HOLD must create a reviewed source successor. It must not
-silently reinterpret this plan as live authority.
+Any repair of a HOLD requires a reviewed successor. It cannot silently promote
+this plan.
 
 ## Authority
 
