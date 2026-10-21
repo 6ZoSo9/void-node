@@ -461,13 +461,14 @@ static void verify_tree(int rootfd,manifest_v1 *m,const char *receipt,size_t rec
 static int fixture_apply(const char *source_root,const char *parent_path,const char *final_name,const char *stage_name){
     fixture_mode=true;expected_owner=getuid();expected_group=getgid();if(!clean_abs(source_root)||!clean_abs(parent_path)||!clean_rel(final_name)||strchr(final_name,'/')||!clean_rel(stage_name)||strchr(stage_name,'/'))hold("fixture_paths_invalid");
     char manifest_path[PATH_MAX],payload_path[PATH_MAX];if(snprintf(manifest_path,sizeof(manifest_path),"%s/%s",source_root,FIXED_MANIFEST_NAME)>=(int)sizeof(manifest_path)||snprintf(payload_path,sizeof(payload_path),"%s/%s",source_root,FIXED_PAYLOAD_NAME)>=(int)sizeof(payload_path))hold("fixture_path_too_long");
-    manifest_v1 m=parse_manifest(manifest_path);int payloadfd=open(payload_path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(payloadfd<0)hold("payload_root_open_failed");int pfd=open(parent_path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(pfd<0){close(payloadfd);hold("final_parent_open_failed");}
+    manifest_v1 m=parse_manifest(manifest_path);int payloadfd=open(payload_path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(payloadfd<0)hold("payload_root_open_failed");
     char selfhash[65];self_sha(selfhash);size_t receipt_cap=MAX_RECEIPT_BYTES;char *receipt=malloc(receipt_cap);unsigned char *io=malloc(IO_BUFFER_BYTES);if(!receipt||!io)hold("fixture_buffer_alloc_failed");
+    install_write_barrier();
+    int pfd=open(parent_path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(pfd<0){close(payloadfd);hold("final_parent_open_failed");}
     struct stat existing;if(!fstatat(pfd,final_name,&existing,AT_SYMLINK_NOFOLLOW)){
         int finalfd=openat(pfd,final_name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(finalfd<0)hold("existing_final_open_failed");for(size_t i=0;i<m.count;i++)verify_entry(finalfd,&m.entries[i]);struct stat rst;if(fstat(finalfd,&rst))hold("existing_final_stat_failed");size_t rs=build_receipt(receipt,receipt_cap,&m,rst,selfhash);verify_receipt_exact(finalfd,receipt,rs);if(fsync(pfd))hold("existing_parent_fsync_failed");close(finalfd);printf("%s_FIXTURE_ALREADY_GREEN\n",MARKER);receipt_common(stdout);free(io);free(receipt);close(payloadfd);close(pfd);free_manifest(&m);return 0;
     }else if(errno!=ENOENT)hold("final_state_observation_failed");
     if(!fstatat(pfd,stage_name,&existing,AT_SYMLINK_NOFOLLOW)||errno!=ENOENT)hold("stage_preexisting");if(mkdirat(pfd,stage_name,0700))hold("stage_create_failed");int stagefd=openat(pfd,stage_name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(stagefd<0)hold("stage_open_failed");if(fchown(stagefd,expected_owner,expected_group)||fchmod(stagefd,0700))hold("stage_private_metadata_failed");
-    install_write_barrier();
     for(size_t i=0;i<m.count;i++)if(m.entries[i].kind=='D')mkdir_rel(stagefd,m.entries[i].path,0700);
     for(size_t i=0;i<m.count;i++)if(m.entries[i].kind=='F')copy_file(payloadfd,stagefd,&m.entries[i],io);
     capture_directory_identities(stagefd,&m);
