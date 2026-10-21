@@ -1336,6 +1336,18 @@ def _seal_verified_stage_for_publication() -> None:
         finally:
             os.close(fd)
 
+_RECEIPT_LINE_SEPARATORS = frozenset(("\u0085", "\u2028", "\u2029"))
+
+def _receipt_safe_text(value: str, limit: int = 500) -> str:
+    out: list[str] = []
+    for ch in value[:limit]:
+        code = ord(ch)
+        if code < 0x20 or code == 0x7F or ch in _RECEIPT_LINE_SEPARATORS:
+            out.append("_")
+        else:
+            out.append(ch)
+    return "".join(out)
+
 def _require_utf8_copy_component(name: str) -> None:
     try:
         raw = name.encode("utf-8", "strict")
@@ -1344,6 +1356,13 @@ def _require_utf8_copy_component(name: str) -> None:
         raise InstallError("copy_entry_name_not_utf8") from exc
     if roundtrip != name or name in ("", ".", "..") or "/" in name:
         raise InstallError("copy_entry_name_invalid")
+    if any(
+        ord(ch) < 0x20
+        or ord(ch) == 0x7F
+        or ch in _RECEIPT_LINE_SEPARATORS
+        for ch in name
+    ):
+        raise InstallError("copy_entry_name_control_forbidden")
 
 def _copy_candidate_tree_iterative(
     src_root_fd: int,
@@ -1843,6 +1862,31 @@ def self_test() -> None:
             raise
     else:
         raise AssertionError("invalid_utf8_copy_component_not_rejected")
+    for unsafe_component in (
+        "line\nbreak",
+        "carriage\rreturn",
+        "unit\x1fseparator",
+        "delete\x7fchar",
+        "nel\u0085separator",
+        "unicode\u2028line",
+        "unicode\u2029paragraph",
+    ):
+        try:
+            _require_utf8_copy_component(unsafe_component)
+        except InstallError as exc:
+            if str(exc) != "copy_entry_name_control_forbidden":
+                raise
+        else:
+            raise AssertionError("receipt_unsafe_copy_component_not_rejected")
+    unsafe_reason = "prefix\rforged=true\u0085next\u2028third\u2029fourth\nlast"
+    safe_reason = _receipt_safe_text(unsafe_reason)
+    if any(
+        ord(ch) < 0x20
+        or ord(ch) == 0x7F
+        or ch in _RECEIPT_LINE_SEPARATORS
+        for ch in safe_reason
+    ):
+        raise AssertionError("receipt_reason_sanitizer_failed")
     with tempfile.TemporaryDirectory(prefix="void-v7-acl-self-test-") as acl_td:
         acl_path = pathlib.Path(acl_td) / "probe"
         acl_path.write_bytes(b"x")
@@ -1867,6 +1911,8 @@ def self_test() -> None:
     print("candidate_copy_incremental_enumeration_required=true")
     print("candidate_copy_iterative_depth_bound_required=true")
     print("candidate_utf8_path_components_required=true")
+    print("candidate_receipt_safe_path_components_required=true")
+    print("terminal_reason_line_sanitization_required=true")
     print("rename_noreplace_publication_required=true")
     print("trusted_root_launcher_required=true")
     print("service_mutation=false")
@@ -1919,7 +1965,7 @@ if __name__ == "__main__":
             globals()["_PUBLICATION"] = "unknown"
         print(MARKER)
         print("status=HOLD")
-        print("reason=" + str(exc).replace("\n", "_")[:500])
+        print("reason=" + _receipt_safe_text(str(exc)))
         print("write_boundary_entered=" + str(_WRITE_BOUNDARY_ENTERED).lower())
         print("publication=" + _PUBLICATION)
         print("stage_retained_needs_inspection=" + str(_STAGE_RETAINED).lower())
