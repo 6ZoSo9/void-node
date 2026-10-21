@@ -186,9 +186,16 @@ def inspect_stdlib_zip_infos(infos: list[zipfile.ZipInfo]) -> dict[str, object]:
         unix_mode = (info.external_attr >> 16) & 0xFFFF
         if stat.S_ISLNK(unix_mode):
             symlink = True
-        elif not info.is_dir():
-            # ZIP archives may omit file-type bits. Reject explicit special
-            # file types and never count directories as importable .py files.
+        elif info.is_dir():
+            # A trailing slash alone does not prove the encoded type is a
+            # directory. Reject a FIFO/device/socket or explicit regular file
+            # masquerading as a directory entry.
+            if stat.S_IFMT(unix_mode) not in (0, stat.S_IFDIR):
+                raise CensusError("stdlib_zip_nonregular_file_forbidden")
+        else:
+            # ZIPs may omit the type bits; absent type or regular is allowed.
+            # All other explicit types are refused. A directory suffix never
+            # counts as a required .py file.
             if stat.S_IFMT(unix_mode) not in (0, stat.S_IFREG):
                 raise CensusError("stdlib_zip_nonregular_file_forbidden")
             regular_files.add(name)
@@ -473,6 +480,20 @@ def self_test() -> None:
     else:
         raise AssertionError("special_zip_member_accepted_as_regular")
 
+    # The reverse mismatch must also be rejected: ZipInfo.is_dir() derives
+    # solely from '/', while external_attr can advertise a FIFO or device.
+    valid_directory = zipfile.ZipInfo("docs/")
+    valid_directory.external_attr = (stat.S_IFDIR | 0o755) << 16
+    assert inspect_stdlib_zip_infos([valid_directory])["entry_count"] == 1
+    malformed_directory = zipfile.ZipInfo("docs/")
+    malformed_directory.external_attr = (stat.S_IFIFO | 0o644) << 16
+    try:
+        inspect_stdlib_zip_infos([malformed_directory])
+    except CensusError as exc:
+        assert str(exc) == "stdlib_zip_nonregular_file_forbidden"
+    else:
+        raise AssertionError("special_zip_member_accepted_as_directory")
+
     # Construct a corrupt UTF-8-flagged central-directory filename entirely
     # in memory. No candidate file, ZIP payload or code is executed.
     utf8_archive = io.BytesIO()
@@ -540,6 +561,7 @@ def self_test() -> None:
     print("unsanitized_zip_member_name_required=true")
     print("stdlib_zip_canonical_raw_components_required=true")
     print("stdlib_zip_required_regular_files_only=true")
+    print("stdlib_zip_directory_suffix_mode_checked=true")
     print("stdlib_zip_invalid_utf8_names_hold=true")
     print("stdlib_zip_unsupported_versions_hold=true")
     print("stdlib_zip_directory_preflight_bounded=true")

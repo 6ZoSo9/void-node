@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_v7_host_capability_census_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "db7521b11d476d43e5fa1ae6f616948a70b1758d"
+TARGET_BLOB = "917d03e6877aed90cdb0117e229db1938b0c36f6"
 LAUNCHER_REL = "ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v1.c"
 LAUNCHER_BLOB = "3b6402a1df523842720a24b719c2b3e86c18ed42"
 MARKER = "VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1_PROOF"
@@ -69,7 +69,8 @@ for required in (
     '"stdlib_zip_nonregular_file_forbidden"',
     '"stdlib_zip_canonical_raw_components_required=true"',
     '"stdlib_zip_required_regular_files_only=true"',
-    'except (zipfile.BadZipFile, UnicodeError) as exc:',
+    '"stdlib_zip_directory_suffix_mode_checked=true"',
+    '"special_zip_member_accepted_as_directory"',
     '"stdlib_zip_invalid_utf8_names_hold=true"',
     '"stdlib_zip_unsupported_versions_hold=true"',
     '"stdlib_zip_directory_preflight_bounded=true"',
@@ -126,6 +127,7 @@ for line in (
     "unsanitized_zip_member_name_required=true",
     "stdlib_zip_canonical_raw_components_required=true",
     "stdlib_zip_required_regular_files_only=true",
+    "stdlib_zip_directory_suffix_mode_checked=true",
     "stdlib_zip_invalid_utf8_names_hold=true",
     "stdlib_zip_unsupported_versions_hold=true",
     "stdlib_zip_directory_preflight_bounded=true",
@@ -149,6 +151,7 @@ print("launcher_blob=" + LAUNCHER_BLOB)
 print("unsanitized_zip_member_name_required=true")
 print("stdlib_zip_canonical_raw_components_required=true")
 print("stdlib_zip_required_regular_files_only=true")
+print("stdlib_zip_directory_suffix_mode_checked=true")
 print("stdlib_zip_invalid_utf8_names_hold=true")
 print("stdlib_zip_unsupported_versions_hold=true")
 print("stdlib_zip_directory_preflight_bounded=true")
