@@ -11,7 +11,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V5_PROOF"
 V5 = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_install_v5.py"
 Q4 = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py"
-V5_BLOB = "e8c3538aa3c3cc5e8a122a9b0ab1123deb1a7876"
+V5_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 Q4_BLOB = "69b1ff028487a139470671cf0afb8937a299897d"
 
 
@@ -128,6 +128,9 @@ for forbidden in (
 publish_body = v5[v5.index("def _publish_source("):v5.index("def _publish_binary(")]
 assert "_copy_tree(SOURCE_RELEASE, SOURCE_STAGE)" in publish_body
 assert "LIVE_RELEASE" not in publish_body
+assert "def _publish_source(expected_digest: tuple[str, int, int], expected_full_history_content_sha256: str)" in publish_body
+assert "verify_source_release(expected_full_history_content_sha256)" in publish_body
+assert "verify_source_release()" not in publish_body
 
 # The trusted full-history digest participates in plan identity and is replayed
 # through both plan and apply.
@@ -135,16 +138,19 @@ collect_body = v5[v5.index("def collect_plan("):v5.index("def _copy_regular(")]
 assert '"expected_full_history_content_sha256": expected_full_history_content_sha256' in collect_body
 apply_body = v5[v5.index("def apply("):v5.index("def main(")]
 assert apply_body.count("expected_full_history_content_sha256") >= 3
+assert '_publish_source(result["source_digest"], expected_full_history_content_sha256)' in apply_body
+assert 'next_action=RUN_INSTALLED_QUALIFICATION_V3' not in apply_body
+assert 'next_action=RUN_INSTALLED_QUALIFICATION_V4' in apply_body
 
 v5_self = run(sys.executable, "-I", "-B", str(V5), "--self-test")
 assert "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V5_SELF_TEST_GREEN" in v5_self.splitlines()
-assert "trusted_full_history_content_sha256_required=true" in v5_self.splitlines()
-assert "live_shallow_release_cross_binding_required=true" in v5_self.splitlines()
 assert "installed_qualifier_v4_bound=true" in v5_self.splitlines()
 
 v5_plan = run(sys.executable, "-I", "-B", str(V5), "--source-plan")
 assert "mode=source-plan" in v5_plan.splitlines()
 assert "trusted_full_history_content_sha256_required=true" in v5_plan.splitlines()
+assert "live_shallow_release_cross_binding_required=true" in v5_plan.splitlines()
+assert "live_release_acl_aware_tree_custody_required=true" in v5_plan.splitlines()
 assert "protected_full_history_replica_source_required=true" in v5_plan.splitlines()
 assert "live_runtime_release_mutation=false" in v5_plan.splitlines()
 assert "funds_movement=false" in v5_plan.splitlines()
@@ -168,6 +174,9 @@ print("qualifier_v4_blob=" + Q4_BLOB)
 print("live_shallow_release_is_cross_binding_only=true")
 print("full_history_replica_is_protected_source_authority=true")
 print("trusted_full_history_digest_participates_in_plan_id=true")
+print("first_install_publish_replays_trusted_full_history_digest=true")
+print("successful_apply_advances_to_qualifier_v4=true")
+print("self_test_and_source_plan_phase_contracts_distinct=true")
 print("qualifier_v4_reauthenticates_full_history_digest=true")
 print("external_repository_observer=false")
 print("protected_filesystem_mutation=false")
