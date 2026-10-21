@@ -111,6 +111,16 @@ function proveReadExactBoundary(){
     assert.throws(()=>readExactAt(temp,"dep",8),/invalid_file:dep/);
 
     fs.rmSync(dep,{force:true});
+    fs.writeFileSync(dep,"good",{mode:0o600});
+    assert.throws(
+      ()=>readExactAt(temp,"dep",8,{beforeOpen:absolute=>{
+        fs.renameSync(absolute,absolute+".symlink-race-original");
+        fs.symlinkSync("target",absolute);
+      }}),
+      err=>err&&err.code==="ELOOP"
+    );
+
+    fs.rmSync(dep,{force:true});
     fs.writeFileSync(dep,"123456789",{mode:0o600});
     assert.throws(()=>readExactAt(temp,"dep",8),/invalid_file:dep/);
   }finally{
@@ -209,6 +219,7 @@ console.log("descriptor_bounded_read_required=true");
 console.log("nofollow_dependency_open_required=true");
 console.log("replacement_generation_rejected=true");
 console.log("symlink_dependency_rejected=true");
+console.log("symlink_swap_race_rejected=true");
 console.log("v3_lock_source_identity_accepted=true");
 console.log("historical_v2_lock_preserved=true");
 console.log("deployment_apply_performed=false");
