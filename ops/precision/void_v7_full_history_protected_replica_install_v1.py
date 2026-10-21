@@ -698,6 +698,12 @@ class _PackReader:
             raise InstallError(self.label + "_idx_pack_checksum_mismatch")
         if _sha1_fd_prefix(self.pack_fd, pack_size - 20, self.label + "_pack_sha1") != pack_trailer:
             raise InstallError(self.label + "_pack_checksum_mismatch")
+        canonical_stem = "pack-" + pack_trailer.hex()
+        if (
+            self.pack_path.name != canonical_stem + ".pack"
+            or self.idx_path.name != canonical_stem + ".idx"
+        ):
+            raise InstallError(self.label + "_pack_filename_digest_mismatch")
         header = _pread_exact(self.pack_fd, 0, 12, self.label + "_pack_header")
         if header[:4] != b"PACK":
             raise InstallError(self.label + "_pack_magic_invalid")
