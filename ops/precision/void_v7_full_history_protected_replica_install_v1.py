@@ -649,6 +649,28 @@ def _require_privileged_source_custody() -> None:
     source_root = pathlib.Path(os.path.abspath(os.fspath(ROOT)))
     if source_root.resolve(strict=True) != source_root:
         raise InstallError("privileged_source_root_alias_forbidden")
+
+    ancestors: list[tuple[pathlib.Path, tuple[int, int, int, int, int, int, int, int, int]]] = []
+    current = source_root
+    while True:
+        st = current.lstat()
+        if (
+            not stat.S_ISDIR(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_uid != 0
+            or st.st_gid != 0
+            or stat.S_IMODE(st.st_mode) & 0o022
+        ):
+            raise InstallError("privileged_source_ancestor_custody_invalid:" + os.fspath(current))
+        ancestors.append((current, _metadata_identity(st)))
+        if current == current.parent:
+            break
+        current = current.parent
+
+    for path, expected in ancestors:
+        if _metadata_identity(path.lstat()) != expected:
+            raise InstallError("privileged_source_ancestor_generation_changed:" + os.fspath(path))
+
     pending = [source_root]
     checked = 0
     while pending:
@@ -681,6 +703,10 @@ def _require_privileged_source_custody() -> None:
                 pending.append(path)
             elif not stat.S_ISREG(pst.st_mode):
                 raise InstallError("privileged_source_kind_invalid:" + os.fspath(path))
+
+    for path, expected in ancestors:
+        if _metadata_identity(path.lstat()) != expected:
+            raise InstallError("privileged_source_ancestor_generation_changed_terminal:" + os.fspath(path))
 
 def _copy_regular(src: pathlib.Path, dst: pathlib.Path, executable: bool) -> None:
     before = src.lstat()
