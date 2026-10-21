@@ -8,7 +8,7 @@ V1/V2 candidate and lock remain immutable. V3 re-derives current 49-row source i
 - candidate set SHA-256: `95a11602e5f2639d33b378293b92863ea7f9f37020ad18dec49d3d4ac6289fd4`
 - candidate JSON SHA-256: `df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6`
 - candidate Git blob: `79998af4763b6afca84ffe4e8d14d9a6ff535dfd`
-- proof Git blob: `32e26490378a4af6912c593e2910adf6874ab737`
+- proof Git blob: `8ea7786299422f7fc3fbfd7474b5e92d869e92c2`
 
 The candidate remains unaccepted. Exact V3 derivation is executed inside the existing protected V2 Node 22/24/26 matrix so the V2 historical candidate/lock checks and V3 successor evidence are exercised together. A V3 lock may be added only after those hosted V3 outputs are byte-identical and their real evidence IDs are recorded. No deployment/apply, service/runtime, credentials/signing, payment/activation, treasury/liquidity or funds authority.
 
@@ -23,3 +23,8 @@ The V3 proof does not import the TypeScript deployment installer directly under 
 ### Exact worktree mode parity
 
 The current-row derivation now matches the deployment installer's row semantics exactly for executable identity: the stable visible file mode is captured together with the retained byte generation, reduced to 100644/100755 from the visible executable bits, and required to equal the HEAD tree mode before the candidate row is emitted. Tree mode is no longer accepted as a substitute for the worktree mode.
+
+
+### Reachable-history portability
+
+V3 no longer executes the historical Dispatch V2 proof. That proof contains frozen historical-generation checks whose Git objects need not be reachable from a minimal clone of the V3 candidate history. V3 now pins the exact reachable Dispatch V2 proof blob as provenance, statically binds its reviewed range-index successor and negative-authority contract, and independently derives the current 49-row inventory from current worktree bytes plus HEAD tree identity. V3 `--self-test` and `--derive` therefore require no mutable remote ref or unreachable historical Git object.

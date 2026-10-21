@@ -27,7 +27,28 @@ function currentRows(oldRows){
 }
 function derive(){git(["merge-base","--is-ancestor",BASE,"HEAD"]);assert.deepEqual(git(["diff","--name-only",BASE,"HEAD","--"]).split("\n").filter(Boolean).sort(),DELTA);
  pin(INSTALLER,INSTALLER_BLOB,256*1024);const v2=JSON.parse(pin(V2,V2_BLOB,64*1024)),l2=JSON.parse(pin(LOCK2,LOCK2_BLOB,64*1024));assert.equal(l2.candidate_enforcement_identity_accepted,true);
- pin(DISPATCH,DISPATCH_BLOB,256*1024);const d=JSON.parse(String(run(process.execPath,[path.join(ROOT,DISPATCH),"--receipt"]).stdout||""));assert.equal(d.reviewed_protected_drift_count,1);assert.equal(d.reviewed_range_index_successor_bound,true);assert.equal(d.current_generation_integration_verified,true);assert.equal(d.public_presale_activation,false);assert.equal(d.funds_movement,false);
+ const dispatchSource=pin(DISPATCH,DISPATCH_BLOB,256*1024).toString("utf8");
+ const dispatchTokens=[
+  'path:"src/index.ts"',
+  'frozen_blob:"123ec1792a027f93d4c9030749a0e7e136a75a44"',
+  'current_blob:"7df1f21c730b554c414c88c550a4475234485370"',
+  'mode:"100644"',
+  'assert.equal(reviewedProtectedDriftCount,1,"reviewed_protected_drift_count")',
+  'protected_path_identity_preserved:false',
+  'frozen_protected_inventory_preserved:true',
+  'reviewed_range_index_successor_bound:true',
+  'frozen_candidate_rederived_on_current_head:false',
+  'current_built_census_identity_matches_frozen_v4:true',
+  'provider_source_identity_preserved:true',
+  'current_generation_integration_verified:true',
+  'deployed_artifact_generation_verified:false',
+  'runtime_mount_authority:false',
+  'production_source_finality_authority_ready:false',
+  'public_presale_activation:false',
+  'funds_movement:false',
+ ];
+ for(const token of dispatchTokens)assert.ok(dispatchSource.includes(token),"dispatch_v2_contract_token_missing:"+token);
+ assert.ok(!dispatchSource.includes('current_blob:"123ec1792a027f93d4c9030749a0e7e136a75a44"'),"dispatch_v2_current_index_regressed");
  const old=v2.current_enforcement_tracked_source_inventory_v1,rows=currentRows(old);let drift=0;for(let i=0;i<rows.length;i++){assert.equal(rows[i].path,old[i].path);assert.equal(rows[i].git_mode,old[i].git_mode);if(rows[i].git_blob_sha1!==old[i].git_blob_sha1){drift++;assert.equal(rows[i].path,"src/index.ts");assert.equal(old[i].git_blob_sha1,OLD_INDEX);assert.equal(rows[i].git_blob_sha1,NEW_INDEX);}}assert.equal(drift,1);assert.equal(sha(Buffer.from(canonical(rows))),INV);
  const tr={predecessor_candidate_path:V2,predecessor_candidate_git_blob_sha1:V2_BLOB,predecessor_lock_path:LOCK2,predecessor_lock_git_blob_sha1:LOCK2_BLOB,dispatch_v2_proof_path:DISPATCH,dispatch_v2_proof_git_blob_sha1:DISPATCH_BLOB,frozen_protected_inventory_sha256:v2.current_enforcement_tracked_source_inventory_sha256,reviewed_protected_drift_count:1,reviewed_range_index_successor_bound:true,predecessor_index_git_blob_sha1:OLD_INDEX,current_index_git_blob_sha1:NEW_INDEX,predecessor_candidate_preserved:true,current_candidate_rederived:true};
  const b={...v2,schema:"void_buy_void_enforcement_final_protected_v7_v2_candidate_v3",marker:"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V3",version:3,current_enforcement_parent:BASE,current_enforcement_tracked_source_inventory_v1:rows,current_enforcement_tracked_source_inventory_count:49,current_enforcement_tracked_source_inventory_sha256:INV,current_enforcement_tracked_source_inventory_verified:true,current_enforcement_parent_path_identity_preserved:true,candidate_enforcement_identity_accepted:false,deployed_artifact_generation_verified:false,runtime_mount_authority:false,production_source_finality_authority_ready:false,public_presale_activation:false,funds_movement:false,successor_transition:tr};delete b.candidate_enforcement_set_sha256;return {...b,candidate_enforcement_set_sha256:sha(Buffer.from(canonical(b)))};
