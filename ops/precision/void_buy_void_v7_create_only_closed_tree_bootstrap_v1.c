@@ -348,3 +348,73 @@ static void install_write_barrier(void){
         SC_DENY_NR(__NR_sendmmsg),
 #endif
 #ifdef __NR_setuid
+        SC_DENY_NR(__NR_setuid),
+#endif
+#ifdef __NR_setgid
+        SC_DENY_NR(__NR_setgid),
+#endif
+#ifdef __NR_setreuid
+        SC_DENY_NR(__NR_setreuid),
+#endif
+#ifdef __NR_setregid
+        SC_DENY_NR(__NR_setregid),
+#endif
+#ifdef __NR_setresuid
+        SC_DENY_NR(__NR_setresuid),
+#endif
+#ifdef __NR_setresgid
+        SC_DENY_NR(__NR_setresgid),
+#endif
+#ifdef __NR_setgroups
+        SC_DENY_NR(__NR_setgroups),
+#endif
+#ifdef __NR_setfsuid
+        SC_DENY_NR(__NR_setfsuid),
+#endif
+#ifdef __NR_setfsgid
+        SC_DENY_NR(__NR_setfsgid),
+#endif
+#ifdef __NR_mmap
+        BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_mmap,0,5),
+        BPF_STMT(BPF_LD|BPF_W|BPF_ABS,offsetof(struct seccomp_data,args[2])),
+        BPF_JUMP(BPF_JMP|BPF_JSET|BPF_K,PROT_WRITE,0,3),
+        BPF_STMT(BPF_LD|BPF_W|BPF_ABS,offsetof(struct seccomp_data,args[3])),
+        BPF_JUMP(BPF_JMP|BPF_JSET|BPF_K,MAP_SHARED,0,1),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
+#endif
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ALLOW)
+    };
+    struct sock_fprog prog={.len=(unsigned short)(sizeof(filter)/sizeof(filter[0])),.filter=filter};
+    if(prctl(PR_SET_SECCOMP,SECCOMP_MODE_FILTER,&prog))hold("seccomp_install_failed");
+    write_boundary_entered=true;
+}
+
+static int rename_noreplace(int pfd,const char *oldn,const char *newn){
+#ifdef SYS_renameat2
+    return (int)syscall(SYS_renameat2,pfd,oldn,pfd,newn,RENAME_NOREPLACE);
+#else
+    errno=ENOSYS;return -1;
+#endif
+}
+static retained_file_v1 open_source_regular(int payloadfd,const char *path,uint64_t expected_size,const char expected_sha[65]){
+    char parent[PATH_MAX],leaf[NAME_MAX+1];split_parent(path,parent,leaf);int dfd=open_dir_path_at(payloadfd,parent);if(dfd<0)hold("source_parent_open_failed");struct stat before,opened;if(fstatat(dfd,leaf,&before,AT_SYMLINK_NOFOLLOW)||!S_ISREG(before.st_mode)||S_ISLNK(before.st_mode)||before.st_nlink!=1||(uint64_t)before.st_size!=expected_size){close(dfd);hold("source_file_metadata_invalid");}int fd=openat(dfd,leaf,O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);close(dfd);if(fd<0||fstat(fd,&opened)||opened.st_dev!=before.st_dev||opened.st_ino!=before.st_ino||opened.st_size!=before.st_size){if(fd>=0)close(fd);hold("source_file_rebound");}char sha[65];sha_fd_exact(fd,expected_size,sha);if(strcmp(sha,expected_sha)){close(fd);hold("source_file_pre_copy_hash_mismatch");}return (retained_file_v1){.fd=fd,.st=opened};
+}
+static void mkdir_rel(int rootfd,const char *path,mode_t mode){char parent[PATH_MAX],leaf[NAME_MAX+1];split_parent(path,parent,leaf);int dfd=open_dir_path_at(rootfd,parent);if(mkdirat(dfd,leaf,0700)){close(dfd);hold("destination_mkdir_failed");}int fd=openat(dfd,leaf,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);close(dfd);if(fd<0)hold("destination_dir_open_failed");if(fchown(fd,expected_owner,expected_group)||fchmod(fd,mode)){close(fd);hold("destination_dir_metadata_failed");}struct stat st;if(fstat(fd,&st)||!S_ISDIR(st.st_mode)||st.st_uid!=expected_owner||st.st_gid!=expected_group||st.st_nlink<2||((st.st_mode&07777)!=mode)){close(fd);hold("destination_dir_metadata_invalid");}close(fd);}
+static void copy_file(int srcroot,int dstroot,entry_v1 *e,unsigned char *buffer){
+    retained_file_v1 src=open_source_regular(srcroot,e->path,e->size,e->sha256);
+#ifdef VOID_V7_CLOSED_TREE_TEST_HOOKS
+    const char *marker=getenv("VOID_V7_TEST_PIN_MARKER");
+    if(fixture_mode&&marker&&clean_abs(marker)){
+        int mfd=open(marker,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC|O_NOFOLLOW,0600);
+        if(mfd<0)hold("test_pin_marker_create_failed");
+        if(write(mfd,"pinned\n",7)!=7||fsync(mfd)){close(mfd);hold("test_pin_marker_write_failed");}
+        close(mfd);
+    }
+    const char *delay=getenv("VOID_V7_TEST_DELAY_AFTER_SOURCE_PIN_MS");if(fixture_mode&&delay){uint64_t ms=0;if(decu64(delay,5000,&ms)&&ms){struct timespec ts={.tv_sec=(time_t)(ms/1000),.tv_nsec=(long)((ms%1000)*1000000)};nanosleep(&ts,NULL);}}
+#endif
+    if(lseek(src.fd,0,SEEK_SET)<0){close(src.fd);hold("source_rewind_failed");}
+    char parent[PATH_MAX],leaf[NAME_MAX+1];split_parent(e->path,parent,leaf);int dfd=open_dir_path_at(dstroot,parent);int out=openat(dfd,leaf,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC|O_NOFOLLOW,0600);close(dfd);if(out<0){close(src.fd);hold("destination_create_failed");}
+    sha256_ctx copied;sha_init(&copied);uint64_t left=e->size;while(left){size_t want=left>IO_BUFFER_BYTES?IO_BUFFER_BYTES:(size_t)left;ssize_t n=read(src.fd,buffer,want);if(n<0&&errno==EINTR)continue;if(n<=0){close(out);close(src.fd);hold("source_changed_during_copy");}size_t off=0;while(off<(size_t)n){ssize_t w=write(out,buffer+off,(size_t)n-off);if(w<0&&errno==EINTR)continue;if(w<=0){close(out);close(src.fd);hold("destination_write_failed");}off+=(size_t)w;}sha_update(&copied,buffer,(size_t)n);left-=(uint64_t)n;}
+    unsigned char extra;if(read(src.fd,&extra,1)!=0){close(out);close(src.fd);hold("source_grew_during_copy");}char copy_sha[65];sha_final(&copied,copy_sha);if(strcmp(copy_sha,e->sha256)){close(out);close(src.fd);hold("source_mutation_changed_copy");}
+    if(fsync(out)||fchown(out,expected_owner,expected_group)||fchmod(out,e->mode)||fsync(out)){close(out);close(src.fd);hold("destination_finalize_failed");}struct stat st;if(fstat(out,&st)||!S_ISREG(st.st_mode)||st.st_uid!=expected_owner||st.st_gid!=expected_group||st.st_nlink!=1||(uint64_t)st.st_size!=e->size||(st.st_mode&07777)!=e->mode){close(out);close(src.fd);hold("destination_final_metadata_invalid");}e->dev=st.st_dev;e->ino=st.st_ino;e->nlink=st.st_nlink;close(out);close(src.fd);
+    int verify_parent=open_dir_path_at(dstroot,parent);int verify=openat(verify_parent,leaf,O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);close(verify_parent);if(verify<0)hold("destination_reopen_failed");char sha[65];sha_fd_exact(verify,e->size,sha);struct stat vst;if(fstat(verify,&vst)||vst.st_dev!=e->dev||vst.st_ino!=e->ino||vst.st_nlink!=1||strcmp(sha,e->sha256)){close(verify);hold("destination_reopen_verification_failed");}close(verify);
