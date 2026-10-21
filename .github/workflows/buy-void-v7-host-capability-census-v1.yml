@@ -1,0 +1,73 @@
+name: Buy VOID V7 host capability census v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/buy-void-v7-host-capability-census-v1.yml'
+      - 'docs/operators/buy-void-v7-host-capability-census-v1.md'
+      - 'ops/precision/void_buy_void_v7_host_capability_census_v1.py'
+      - 'scripts/prove_buy_void_v7_host_capability_census_v1.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-v7-host-capability-census-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact stacked source generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          STACK_BASE: 48830177ac85663d9a95e180e5cb8e08e53e6227
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test "$(git merge-base "$STACK_BASE" "$EXPECTED_HEAD")" = "$STACK_BASE"
+            cat > "$RUNNER_TEMP/expected-delta" <<'EOF'
+          A	.github/workflows/buy-void-v7-host-capability-census-v1.yml
+          A	docs/operators/buy-void-v7-host-capability-census-v1.md
+          A	ops/precision/void_buy_void_v7_host_capability_census_v1.py
+          A	scripts/prove_buy_void_v7_host_capability_census_v1.py
+          EOF
+            git diff --name-status "$STACK_BASE" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual-delta"
+            sort "$RUNNER_TEMP/expected-delta" > "$RUNNER_TEMP/expected-delta.sorted"
+            diff -u "$RUNNER_TEMP/expected-delta.sorted" "$RUNNER_TEMP/actual-delta"
+            git diff --check "$STACK_BASE" "$EXPECTED_HEAD" --
+          else
+            git merge-base --is-ancestor "$STACK_BASE" "$EXPECTED_HEAD"
+            git diff --check "$STACK_BASE" "$EXPECTED_HEAD" --
+          fi
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c)" = "0aa8d3a990de662b8c3c9928d4c31452d8299ca7"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_host_capability_census_v1.py)" = "3efe934886e8fef40b192f1ba1b45d17699e3d85"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_host_capability_census_v1.py)" = "aca211add9f4a093bf46def8a370d3dd96eabca0"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-host-capability-census-v1.md)" = "140a054900bc7edd1db57ee2430442458ece1753"
+
+      - name: Python syntax
+        run: |
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for rel in (
+              "ops/precision/void_buy_void_v7_host_capability_census_v1.py",
+              "scripts/prove_buy_void_v7_host_capability_census_v1.py",
+          ):
+              raw = Path(rel).read_bytes()
+              compile(raw, rel, "exec", dont_inherit=True, optimize=0)
+          PY
+
+      - name: Focused read-only proof
+        run: |
+          python3 -I -B scripts/prove_buy_void_v7_host_capability_census_v1.py
