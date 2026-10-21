@@ -32,10 +32,15 @@ regular-file opens append `O_NONBLOCK`, preserving existing read/write
 selection and `O_NOFOLLOW`. Create-exclusive opens and directory behavior are
 unchanged.
 
-New source blob: `ddbe5410ea657b831b79e3ae883e1482ab4a1465`.
+New source blob: `d1320be22fe55af24017b84f0655fbcde82dbee9`.
 Historical source bytes can be reconstructed by removing exactly the added
 nonblocking constant/availability check and reversing the two open flags; the
-proof asserts exact historical Git-blob identity.
+proof asserts exact historical Git-blob identity. The additional exported
+`testOnlyReadPrivateCapacitySidecarBytesV1` wrapper invokes the *existing*
+production private-sidecar reader using only its current process UID and a
+provided pathname. It performs no write, publication, or operator event and
+has no HTTP mount. Its sole purpose is to test the actual sidecar path with
+disposable files.
 
 ## Inert regression
 
@@ -46,9 +51,13 @@ production open boundary** after replacing the initial regular leaf. An
 instrumented open asserts `O_NONBLOCK|O_NOFOLLOW` before creating the FIFO, so
 regressing the flags fails immediately instead of hanging CI. The real helper
 must reach its existing regular-file type check and reject; the test does not
-rewrite or unlink the displaced regular file. Both code paths' exact
-nonblocking open sites are also source-checked, and all four source insertions
-are inverted to authenticate the original source blob.
+rewrite or unlink the displaced regular file. The proof also tests a normal
+private sidecar read through the new test-only wrapper, then performs an
+identical **regular-to-FIFO swap at the production sidecar open boundary**.
+The actual sidecar helper must reject the FIFO before reading bytes, with the
+original sidecar retained under its displaced test name. Both nonblocking open
+sites remain source-checked, and all five source edits (including the test-only
+wrapper) are inverted to authenticate the original source blob.
 
 The proof's only filesystem changes are its own temporary test directory.
 No root privileges, protected installed paths, network, credentials, signer,

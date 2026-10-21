@@ -476,6 +476,29 @@ function openPinnedPrivateSidecarV1(
   }
 }
 
+// Test-only unprivileged entrypoint to the *same* retained private-sidecar
+// reader used by the production post-publication verification. It neither
+// creates/changes sidecars nor authorizes an operator event.
+export function testOnlyReadPrivateCapacitySidecarBytesV1(
+  filePath: string,
+  code: string,
+): Buffer {
+  const directory = openPinnedRequestDirectoryV1(path.dirname(filePath));
+  try {
+    const sidecar = openPinnedPrivateSidecarV1(
+      directory, path.basename(filePath), code,
+    );
+    if (sidecar === null) fail(code + "_missing");
+    try {
+      return readPinnedLedgerBytesV1(sidecar, code).bytes;
+    } finally {
+      fs.closeSync(sidecar.fd);
+    }
+  } finally {
+    fs.closeSync(directory.fd);
+  }
+}
+
 function assertPinnedLedgerVisibleV1(
   ledger: PinnedLedgerV1,
   code: string,

@@ -8,12 +8,13 @@ import { fileURLToPath } from "node:url";
 
 import {
   testOnlyReadStrictCapacityLedgerFileV1,
+  testOnlyReadPrivateCapacitySidecarBytesV1,
 } from "../src/economic/buy_void_verified_payment_capacity_admission_v1.js";
 
 // Current-main source-only repair. Never touch Precision ledger/custody roots.
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = "src/economic/buy_void_verified_payment_capacity_admission_v1.ts";
-const SOURCE_BLOB = "ddbe5410ea657b831b79e3ae883e1482ab4a1465";
+const SOURCE_BLOB = "d1320be22fe55af24017b84f0655fbcde82dbee9";
 const OLD_SOURCE_BLOB = "ac8bf352979e0e24d2cab45c3b23949e1bd2b026";
 const code = fs.readFileSync(path.join(ROOT,...SOURCE.split("/")), "utf8");
 const gitBlob = (bytes:Buffer):string =>
@@ -23,7 +24,7 @@ const gitBlob = (bytes:Buffer):string =>
 assert.equal(gitBlob(Buffer.from(code,"utf8")),SOURCE_BLOB,
   "exact_reviewed_capacity_writer_source_required");
 
-// Derive the historic source by reversing ONLY the four reviewed insertions.
+// Derive the historic source by reversing ONLY the five reviewed insertions.
 // Unexpected changes cannot be hidden by a text assertion or old SHA echo.
 function revertOnce(text:string,from:string,to:string,label:string):string {
   const pos=text.indexOf(from);
@@ -46,6 +47,9 @@ historic=revertOnce(historic,
   "    fd = fs.openSync(pinnedPath, fs.constants.O_RDONLY | O_NOFOLLOW | O_NONBLOCK);\n",
   "    fd = fs.openSync(pinnedPath, fs.constants.O_RDONLY | O_NOFOLLOW);\n",
   "sidecar_open");
+historic=revertOnce(historic,
+  "// Test-only unprivileged entrypoint to the *same* retained private-sidecar\n// reader used by the production post-publication verification. It neither\n// creates/changes sidecars nor authorizes an operator event.\nexport function testOnlyReadPrivateCapacitySidecarBytesV1(\n  filePath: string,\n  code: string,\n): Buffer {\n  const directory = openPinnedRequestDirectoryV1(path.dirname(filePath));\n  try {\n    const sidecar = openPinnedPrivateSidecarV1(\n      directory, path.basename(filePath), code,\n    );\n    if (sidecar === null) fail(code + \"_missing\");\n    try {\n      return readPinnedLedgerBytesV1(sidecar, code).bytes;\n    } finally {\n      fs.closeSync(sidecar.fd);\n    }\n  } finally {\n    fs.closeSync(directory.fd);\n  }\n}\n\n",
+  "","test_only_sidecar_helper");
 assert.equal(gitBlob(Buffer.from(historic,"utf8")),OLD_SOURCE_BLOB,
   "historical_capacity_writer_bytes_must_match");
 
@@ -130,6 +134,57 @@ try {
     "unrelated_regular_file_preserved");
   assert.equal(fs.lstatSync(request).isFIFO(),true,
     "adversarial_fifo_must_not_be_replaced_by_reader");
+
+  // Exercise the *actual* retained private-sidecar opener, including its
+  // ordinary regular-file path and a late regular-to-FIFO substitution.
+  const sidecar=path.join(tmp,"operator-event-test.json");
+  const sidecarDisplaced=sidecar+".regular";
+  const sidecarCode="buy_void_verified_payment_capacity_private_sidecar_test";
+  const sidecarBytes=Buffer.from('{"synthetic":"noncustomer"}\n',"utf8");
+  fs.writeFileSync(sidecar,sidecarBytes,{mode:0o600});
+  assert.deepEqual(
+    testOnlyReadPrivateCapacitySidecarBytesV1(sidecar,sidecarCode),
+    sidecarBytes,
+    "regular_private_sidecar_must_still_read_exact_bytes",
+  );
+  const sidecarOpenOriginal=fs.openSync;
+  let sidecarSwapObserved=0;
+  try {
+    (fs as any).openSync=function(...args:any[]):number {
+      const candidate=String(args[0]);
+      if (candidate.endsWith("/operator-event-test.json")) {
+        const flags=Number(args[1]);
+        assert.ok((flags&fs.constants.O_NONBLOCK)!==0,
+          "sidecar_open_must_be_nonblocking_before_fifo_swap");
+        assert.ok((flags&fs.constants.O_NOFOLLOW)!==0,
+          "sidecar_open_must_remain_nofollow");
+        sidecarSwapObserved++;
+        assert.equal(sidecarSwapObserved,1,"one_exact_sidecar_open");
+        fs.renameSync(sidecar,sidecarDisplaced);
+        const mkfifo=spawnSync("/usr/bin/mkfifo",["-m","600",sidecar],{
+          timeout:3000,encoding:"utf8",
+          env:{PATH:"/usr/bin:/bin",LANG:"C",LC_ALL:"C"},
+        });
+        assert.equal(mkfifo.error,undefined,"bounded_sidecar_fifo_creation");
+        assert.equal(mkfifo.status,0,"synthetic_sidecar_fifo_create_failed");
+        assert.equal(fs.lstatSync(sidecar).isFIFO(),true,
+          "sidecar_fifo_fixture_not_created");
+      }
+      return (sidecarOpenOriginal as any).apply(fs,args);
+    };
+    assert.throws(
+      ()=>testOnlyReadPrivateCapacitySidecarBytesV1(sidecar,sidecarCode),
+      /buy_void_verified_payment_capacity_private_sidecar_test_conflict/u,
+      "private_sidecar_fifo_must_fail_closed_without_blocking",
+    );
+  } finally {
+    (fs as any).openSync=sidecarOpenOriginal;
+  }
+  assert.equal(sidecarSwapObserved,1,"real_private_sidecar_open_exercised");
+  assert.equal(fs.lstatSync(sidecarDisplaced).isFile(),true,
+    "displaced_private_sidecar_regular_file_preserved");
+  assert.equal(fs.lstatSync(sidecar).isFIFO(),true,
+    "private_sidecar_fifo_not_removed_or_rewritten");
 } finally {
   fs.rmSync(tmp,{recursive:true,force:true});
 }
@@ -138,6 +193,7 @@ console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_CAPACITY_FIFO_NONBLOCKING_V2_GREEN")
 console.log("historical_capacity_source_reconstructed=true");
 console.log("two_retained_regular_file_opens_nonblocking=true");
 console.log("fifo_swap_at_real_production_open_rejected=true");
+console.log("fifo_private_sidecar_swap_at_real_production_open_rejected=true");
 console.log("descriptor_type_and_generation_checks_preserved=true");
 console.log("test_only_temp_filesystem_mutation=true");
 console.log("protected_host_read=false");
