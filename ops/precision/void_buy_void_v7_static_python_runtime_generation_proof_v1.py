@@ -234,6 +234,31 @@ def _run_child(argv: list[str], *, cwd: Path, pass_fds: tuple[int, ...] = ()) ->
         out.seek(0); err.seek(0)
         return rc, out.read(MAX_CHILD_OUTPUT + 1), err.read(MAX_CHILD_OUTPUT + 1)
 
+V5_BOOTSTRAP = r'''
+import os
+import sys
+
+synthetic = sys.argv[1]
+fd = int(sys.argv[2], 10)
+os.lseek(fd, 0, os.SEEK_SET)
+chunks = []
+while True:
+    part = os.read(fd, 1024 * 1024)
+    if not part:
+        break
+    chunks.append(part)
+raw = b"".join(chunks)
+sys.argv = [synthetic, "--self-test"]
+namespace = {
+    "__name__": "__main__",
+    "__file__": synthetic,
+    "__package__": None,
+    "__cached__": None,
+}
+code = compile(raw, synthetic, "exec", dont_inherit=True, optimize=0)
+exec(code, namespace, namespace)
+'''
+
 PROBE = r'''
 import ctypes
 import _ctypes
@@ -400,9 +425,16 @@ def run(args: argparse.Namespace) -> int:
             repo_root = Path(__file__).resolve().parents[2]
             v5_raw = _read_v5_source(repo_root)
             v5_fd = _sealed_memfd(v5_raw, "void-v7-v5-source")
+            synthetic_v5 = root / "synthetic-repo" / V5_REL
+            synthetic_v5.parent.mkdir(parents=True, mode=0o700)
             try:
                 v5_rc, v5_out, v5_err = _run_child(
-                    [os.fspath(python_target), "-I", "-B", "-S", "/proc/self/fd/" + str(v5_fd), "--self-test"],
+                    [
+                        os.fspath(python_target),
+                        "-I", "-B", "-S", "-c", V5_BOOTSTRAP,
+                        os.fspath(synthetic_v5),
+                        str(v5_fd),
+                    ],
                     cwd=root,
                     pass_fds=(v5_fd,),
                 )
