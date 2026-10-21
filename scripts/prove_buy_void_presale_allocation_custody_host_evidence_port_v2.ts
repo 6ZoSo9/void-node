@@ -60,6 +60,66 @@ function pinnedRead(relative,max=256*1024){
 }
 const text=pinnedRead(SOURCE).toString("utf8");
 assert.equal(blob(Buffer.from(text,"utf8")),SOURCE_BLOB,"exact_new_port_source_blob");
+// Prove exact derivation from historical #3515 *bytes*, not just from a
+// comment that repeats an expected Git SHA. Reconstruct the immutable V1
+// source by reverting every explicitly reviewed implementation-port edit.
+function replaceExactlyOnce(value:string,from:string,to:string,label:string):string{
+  const at=value.indexOf(from);
+  assert.ok(at>=0&&value.indexOf(from,at+from.length)===-1,
+    "historical_reconstruction_mapping_not_unique:"+label);
+  return value.slice(0,at)+to+value.slice(at+from.length);
+}
+let reconstructedHistoricalSource=text;
+reconstructedHistoricalSource=replaceExactlyOnce(
+  reconstructedHistoricalSource,
+  "../../tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v2.mjs",
+  "../../tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v1.mjs",
+  "rollback_observer_path",
+);
+reconstructedHistoricalSource=replaceExactlyOnce(
+  reconstructedHistoricalSource,
+  "../../tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v2.mjs",
+  "../../tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v1.mjs",
+  "installation_observer_path",
+);
+const portDeclaration=[
+  "// Source implementation V2 preserves the historically reviewed V1 receipt",
+  "// semantics. This current-main portability candidate has NO host-run authority.",
+  "// It cannot be used for root host collection until separately rebound to a",
+  "// reviewed complete source generation and explicitly authorized.",
+  "export const VOID_BUY_VOID_CUSTODY_HOST_PORT_IMPLEMENTATION_V2 =",
+  '  "VOID_BUY_VOID_CUSTODY_HOST_PORT_IMPLEMENTATION_V2";',
+  "export const VOID_BUY_VOID_CUSTODY_HOST_PORT_RUNTIME_ACCEPTED_V2 = false;",
+  "",
+].join("\n")+"\n";
+reconstructedHistoricalSource=replaceExactlyOnce(
+  reconstructedHistoricalSource,portDeclaration,"","port_declaration",
+);
+const firstInstructionHold=[
+  "  // First instruction in the exported collection API; rejects --run, direct",
+  "  // imports and test-only process identity overrides BEFORE any host reads.",
+  "  if (!VOID_BUY_VOID_CUSTODY_HOST_PORT_RUNTIME_ACCEPTED_V2)",
+  '    fail("allocation_custody_current_main_port_not_accepted");',
+  "",
+].join("\n");
+reconstructedHistoricalSource=replaceExactlyOnce(
+  reconstructedHistoricalSource,firstInstructionHold,"","first_instruction_hold",
+);
+const selfTestMarkers=[
+  '  console.log("source_port_implementation_v2=true");',
+  '  console.log("current_main_port_runtime_accepted=false");',
+  '  console.log("host_collection_run_enabled=false");',
+  "",
+].join("\n");
+reconstructedHistoricalSource=replaceExactlyOnce(
+  reconstructedHistoricalSource,selfTestMarkers,"","port_self_test_markers",
+);
+assert.equal(
+  blob(Buffer.from(reconstructedHistoricalSource,"utf8")),
+  HISTORICAL_SOURCE_BLOB,
+  "historical_v1_collector_provenance_mismatch",
+);
+
 for(const [relative,expected] of Object.entries(SOURCE_V2_OBSERVER_BLOBS))
   assert.equal(blob(pinnedRead(relative,128*1024)),expected,"exact_dependency_blob:"+relative);
 assert.equal(MARKER,"VOID_BUY_VOID_PRESALE_ALLOCATION_CUSTODY_HOST_EVIDENCE_V1");
@@ -204,6 +264,7 @@ for(const negative of [
 
 console.log("VOID_BUY_VOID_PRESALE_CUSTODY_MAIN_PORT_V2_PROOF_GREEN");
 console.log("historical_collector_source_sha1="+HISTORICAL_SOURCE_BLOB);
+console.log("historical_source_reconstructed_and_blob_bound=true");
 console.log("new_port_source_sha1="+SOURCE_BLOB);
 console.log("v1_evidence_schema_preserved=true");
 console.log("v2_observer_sources_content_bound=true");
