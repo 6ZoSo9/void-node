@@ -263,7 +263,8 @@ static bool parse_request_inner(int argc,char **argv,request_v2 *out,const char 
         else if(!strcmp(key,"--expected-plan-id"))ok=set_arg_once(&r.expected_plan_id,value,reason);
         else if(!strcmp(key,"--confirm"))ok=set_arg_once(&r.confirm,value,reason);
         else {*reason="argument_invalid";return false;}
-        if(!ok)return false;i+=2;
+        if(!ok)return false;
+        i+=2;
     }
     if(!hexn(r.expected_head,40)||!hexn(r.expected_tree,40)||!hexn(r.expected_full_history_content_sha256,64)||
        !r.native_path||r.native_path[0]!='/'||!r.selector_path||r.selector_path[0]!='/'){
