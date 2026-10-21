@@ -57,7 +57,7 @@ V4_INSTALLER_BLOB = "4448acb51cbc15d845550a55cd11c38f4185a7b3"
 FULL_HISTORY_INSTALLER_REL = "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
 FULL_HISTORY_INSTALLER_BLOB = "a4d5762fe0e1c41b0919b8abb827123e556552ca"
 QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py"
-QUALIFIER_BLOB = "09039f7e33ca0e252c31cb6fa49f783254e05fb2"
+QUALIFIER_BLOB = "46cacce75bb0af27de88212aee44c74cd084e595"
 
 SOURCE_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 SOURCE_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
