@@ -117,6 +117,25 @@ Apply:
 The live runtime release is never renamed, deleted, chmodded, chowned, written,
 fetched into, or otherwise mutated.
 
+### Untrusted-candidate privilege confinement
+
+When apply runs as root, operation-bound plan recomputation is executed in a
+forked child that drops supplementary groups and switches to UID/GID 1000 before
+reading the user-space candidate, live release, or repository state. The root
+parent accepts only a bounded JSON result from that child.
+
+The root copy path does not recurse through candidate pathnames. It opens the
+candidate root once with `O_DIRECTORY|O_NOFOLLOW`, retains that descriptor, and
+opens every child directory relative to retained parent descriptors with
+`O_NOFOLLOW`. Regular files are opened relative to retained descriptors with
+`O_NOFOLLOW`, generation-checked before/after the read, and written only into
+the retained root-owned stage descriptor graph.
+
+Creating the stage is the only expected install-parent namespace transition.
+The install-parent device/inode/owner/mode must remain stable, and its directory
+link count may change only by the single stage-directory transition permitted by
+the contract. All higher ancestors remain exact.
+
 ## Failure truth
 
 The installer has **no automatic recursive cleanup authority** for a nonempty
