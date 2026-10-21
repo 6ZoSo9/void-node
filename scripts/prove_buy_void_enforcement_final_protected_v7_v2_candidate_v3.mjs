@@ -7,19 +7,22 @@ const sha=b=>crypto.createHash("sha256").update(b).digest("hex"),blob=b=>crypto.
 function canonical(v){if(v===null||typeof v==="boolean"||typeof v==="string")return JSON.stringify(v);if(typeof v==="number"){assert.ok(Number.isSafeInteger(v));return String(v);}if(Array.isArray(v))return "["+v.map(canonical).join(",")+"]";return "{"+Object.keys(v).sort().map(k=>JSON.stringify(k)+":"+canonical(v[k])).join(",")+"}";}
 function run(c,a){const r=spawnSync(c,a,{cwd:ROOT,encoding:null,stdio:["ignore","pipe","pipe"],timeout:180000,maxBuffer:16*1024*1024,env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC",NODE_ENV:"test",GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null",GIT_CONFIG_SYSTEM:"/dev/null",GIT_NO_REPLACE_OBJECTS:"1",GIT_OPTIONAL_LOCKS:"0",GIT_TERMINAL_PROMPT:"0"}});assert.equal(r.error,undefined,String(r.error||""));assert.equal(r.status,0,String(r.stderr||r.stdout||""));return r;}
 const git=a=>String(run("/usr/bin/git",["--no-replace-objects","-C",ROOT,...a]).stdout||"").trim();
-function read(p,max=256*1024){const a=path.join(ROOT,...p.split("/")),s=fs.lstatSync(a);assert.ok(s.isFile()&&!s.isSymbolicLink()&&s.nlink===1&&s.size>0&&s.size<=max);const b=fs.readFileSync(a),t=fs.lstatSync(a);for(const k of ["dev","ino","size","mtimeMs","ctimeMs","nlink"])assert.equal(t[k],s[k]);return b;}
+function readStable(p,max=256*1024){const a=path.join(ROOT,...p.split("/")),s=fs.lstatSync(a);assert.ok(s.isFile()&&!s.isSymbolicLink()&&s.nlink===1&&s.size>0&&s.size<=max);const b=fs.readFileSync(a),t=fs.lstatSync(a);for(const k of ["dev","ino","size","mtimeMs","ctimeMs","nlink","mode"])assert.equal(t[k],s[k],"file_changed:"+p+":"+k);return {bytes:b,stat:t};}
+function read(p,max=256*1024){return readStable(p,max).bytes;}
 function pin(p,h,m){const b=read(p,m);assert.equal(blob(b),h);assert.equal(git(["rev-parse","HEAD:"+p]),h);return b;}
 function currentRows(oldRows){
   assert.ok(Array.isArray(oldRows));assert.equal(oldRows.length,49);
   return oldRows.map(old=>{
     assert.ok(old&&typeof old==="object"&&!Array.isArray(old));
     assert.equal(typeof old.path,"string");assert.match(old.path,/^[A-Za-z0-9._/-]+$/u);
-    const b=read(old.path,4*1024*1024),visible=blob(b),head=git(["rev-parse","HEAD:"+old.path]);
+    const observed=readStable(old.path,4*1024*1024),b=observed.bytes,visible=blob(b),head=git(["rev-parse","HEAD:"+old.path]);
     assert.equal(visible,head,"worktree_head_blob_mismatch:"+old.path);
     const entry=git(["ls-tree","HEAD","--",old.path]);
     const m=entry.match(/^(100644|100755) blob ([0-9a-f]{40})\t(.+)$/u);
     assert.ok(m,"tree_entry_invalid:"+old.path);assert.equal(m[2],head);assert.equal(m[3],old.path);
-    return {path:old.path,git_blob_sha1:head,git_mode:m[1]};
+    const visibleMode=(observed.stat.mode&0o111)!==0?"100755":"100644";
+    assert.equal(visibleMode,m[1],"worktree_tree_mode_mismatch:"+old.path);
+    return {path:old.path,git_blob_sha1:head,git_mode:visibleMode};
   });
 }
 function derive(){git(["merge-base","--is-ancestor",BASE,"HEAD"]);assert.deepEqual(git(["diff","--name-only",BASE,"HEAD","--"]).split("\n").filter(Boolean).sort(),DELTA);

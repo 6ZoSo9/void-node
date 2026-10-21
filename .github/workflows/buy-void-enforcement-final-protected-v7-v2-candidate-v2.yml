@@ -107,8 +107,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs)" = "2ae7e642b4dc38b80b4e55ef3fdea18a3d0eb7c4"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v3.md)" = "4f0f349f41be96180794acf76f624927ef9eae8a"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs)" = "32e26490378a4af6912c593e2910adf6874ab737"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v3.md)" = "e951ab474eb7a67aba07a8b9081be82d35e7ac12"
           v3="$RUNNER_TEMP/final-protected-v7-v2-candidate-v3-${{ matrix.node }}.json"
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs --self-test
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs --derive > "$v3"
