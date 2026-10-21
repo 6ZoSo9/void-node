@@ -26,6 +26,8 @@ Run this census only as the ordinary Precision user.
 
 V1 explicitly rejects UID/EUID 0. That avoids recreating the privileged first-instruction problem that the trusted-root launcher is intended to close.
 
+Before mount selection, V1 requires `/opt` itself to be a real directory at its canonical absolute path. A symlinked or aliased `/opt` is HOLD; V1 does not follow it to a different filesystem. The target directory inode generation is snapshotted before the probes and revalidated after them, alongside the terminal mountinfo row.
+
 The census uses:
 
 - bounded direct reads of `/proc/self/mountinfo`, `/proc/filesystems`, and readable kernel-config sources;
@@ -38,6 +40,8 @@ The census uses:
 
 For ext4 only, V1 attempts a direct `O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK` read of the mounted block device's superblock and checks:
 
+- `/opt` is a canonical real directory, not a symlink/alias;
+- the target directory generation remains unchanged through the probe;
 - the resolved block device's major/minor matches mountinfo's mounted-device `major:minor`;
 - the opened descriptor's `st_rdev` still matches that same mounted-device number;
 - ext4 magic `0xEF53`;
@@ -45,7 +49,7 @@ For ext4 only, V1 attempts a direct `O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK` r
 - read-only-compatible `VERITY` bit `0x8000`;
 - a terminal re-read of `/proc/self/mountinfo` still selects the identical `/opt` mount row after the kernel/device probes.
 
-Any device-number drift or mount-generation drift is HOLD.
+Any target-path generation drift, device-number drift, or mount-generation drift is HOLD.
 
 If the ordinary user cannot read the block device, the census reports HOLD. **That HOLD must not be worked around with sudo against the ordinary checkout.** The missing privileged feature observation must later be performed only through a separately reviewed trusted first-instruction host lane.
 
@@ -83,6 +87,7 @@ GREEN means V1 directly observed all of its conservative ext4 requirements:
 
 - designated Precision hostname;
 - ordinary-user execution;
+- canonical non-symlink `/opt` target with stable inode generation;
 - writable `/opt` mount;
 - no DAX request;
 - observed kernel `CONFIG_FS_VERITY` support;
