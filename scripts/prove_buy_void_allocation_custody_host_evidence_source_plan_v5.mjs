@@ -152,7 +152,7 @@ const planDigest=crypto.createHash("sha256")
 assert.equal(parsed.plan_id,"voidbuycusthostsrcplan5_"+planDigest);
 
 assert.ok(Array.isArray(parsed.source_bindings));
-assert.equal(parsed.source_bindings.length,26);
+assert.equal(parsed.source_bindings.length,31);
 const seen=new Set();
 let previous="";
 for(const row of parsed.source_bindings){
@@ -167,7 +167,40 @@ for(const row of parsed.source_bindings){
   assert.equal(gitBlob(bytes),row.git_blob_sha1,"source_blob_drift:"+row.path);
 }
 
-const expectedComposition={"authenticated_user_manager_v4_source_bound":true,"custody_service_v2_source_bound":true,"historical_v1_storage_mount_double_census_semantics_bound":true,"polkit_deny_profile_source_bound":true,"presale_custody_collector_v2_source_bound":true,"rollback_second_control_source_bound":true,"socket_runtime_directory_policy_source_bound":true,"stable_request_root_policy_source_bound":true};
+
+const serviceDirectImports=Object.freeze([
+  ["../dist/economic/buy_void_allocation_reservation_ledger_v1.js",
+    "src/economic/buy_void_allocation_reservation_ledger_v1.ts"],
+  ["../dist/economic/buy_void_allocation_reservation_high_water_v1.js",
+    "src/economic/buy_void_allocation_reservation_high_water_v1.ts"],
+  ["../dist/economic/buy_void_verified_allocation_replay_binding_v1.js",
+    "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"],
+  ["../src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs",
+    "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"],
+  ["../src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs",
+    "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"],
+  ["../src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs",
+    "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"],
+]);
+const serviceText=new TextDecoder("utf-8",{fatal:true}).decode(
+  readBoundedRegular("tools/void-buy-allocation-custody-service-v2.mjs")
+);
+for(const [importRelative,sourceRelative] of serviceDirectImports){
+  assert.equal(seen.has(sourceRelative),true,
+    "custody_service_direct_source_binding_missing:"+sourceRelative);
+  assert.equal(serviceText.includes('from "'+importRelative+'"'),true,
+    "custody_service_direct_import_missing:"+importRelative);
+}
+for(const relative of [
+  "ops/security/buy-void-user-manager-query-elf-lock-v6.json",
+  "scripts/prove_void_buy_user_manager_cap_last_cap_projection_v6.mjs",
+  "scripts/prove_void_buy_user_manager_query_elf_lock_v6.mjs",
+  "scripts/prove_void_buy_void_user_manager_query_live_qualification_v6.py",
+]){
+  assert.equal(seen.has(relative),true,"user_manager_v6_contract_binding_missing:"+relative);
+}
+
+const expectedComposition={"authenticated_user_manager_v4_historical_semantics_bound":true,"authenticated_user_manager_v6_acceptance_contract_bound":true,"custody_service_v2_source_bound":true,"historical_v1_storage_mount_double_census_semantics_bound":true,"polkit_deny_profile_source_bound":true,"presale_custody_collector_v2_source_bound":true,"rollback_second_control_source_bound":true,"socket_runtime_directory_policy_source_bound":true,"stable_request_root_policy_source_bound":true};
 assert.deepEqual(parsed.source_composition,expectedComposition);
 const expectedAuthority={"complete_host_evidence_collector":false,"custody_service_v2_live_config_verified":false,"double_census_stability_live_verified":false,"evidence_generation_monotonicity_proven":false,"external_transport_authenticated":false,"external_witness_storage_proven":false,"filesystem_write":false,"funds_movement":false,"host_mutation":false,"host_read_performed":false,"independent_custody_proven":false,"payment_acceptance":false,"polkit_runtime_control_denial_live_verified":false,"production_host_evidence_authority":false,"public_presale_activation":false,"request_root_host_profile_live_verified":false,"service_mutation":false,"socket_runtime_directory_live_verified":false,"source_only_plan":true,"storage_mount_evidence_live_verified":false,"trusted_verification_clock_proven":false};
 assert.deepEqual(parsed.authority,expectedAuthority);
@@ -187,8 +220,11 @@ for(const relative of [...seen,...SELF_PATHS]){
 }
 
 console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_SOURCE_PLAN_V5_PROOF_GREEN");
-console.log("source_binding_count=26");
+console.log("source_binding_count=31");
 console.log("custody_service_v2_direct_source_closure_bound=true");
+console.log("custody_service_v2_direct_import_count=6");
+console.log("authenticated_user_manager_v4_historical_semantics_bound=true");
+console.log("authenticated_user_manager_v6_acceptance_contract_bound=true");
 console.log("declared_base_tree_verified=true");
 console.log("declared_base_ancestor_verified=true");
 console.log("exact_four_add_only_scope_verified=true");

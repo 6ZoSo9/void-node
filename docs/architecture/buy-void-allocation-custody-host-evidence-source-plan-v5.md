@@ -20,9 +20,9 @@ This V5 plan instead binds the modern source contracts already reviewed on the
 - parent head: `ea20cb6bf7420692315df71623ffb38ed1810fcf`;
 - parent tree: `7291e5d11162742cff4de925800160ce598f98af`;
 - plan ID:
-  `voidbuycusthostsrcplan5_f55814a2b9b00a7a372195387c600dd466ec64f970f4497d858551a0640b88af`.
+  `voidbuycusthostsrcplan5_a7324e498bc36ad8cd425065752e581f330642b875cc415043488848dd1e4095`.
 
-The plan content-binds 26 source/proof/workflow artifacts.
+The plan content-binds 31 source/proof/workflow artifacts.
 
 The executable proof also binds the source generation itself: the declared #3666
 base commit must have the declared tree, must be an ancestor of the exact
@@ -33,12 +33,16 @@ four V5 files as additions only. Extra, deleted, renamed, or modified paths HOLD
 
 The exact bound source generation covers:
 
-1. authenticated user-manager V4 evidence, including the current private query
-   source and its historical-preservation workflow;
-2. custody service V2 source and source proof, plus its five direct runtime
-   source dependencies: allocation high-water binding, verified-allocation
-   replay binding, allocation-roots observer, payment-ledgers observer, and
-   cross-UID capacity lock;
+1. authenticated user-manager V4 evidence as historical semantics only; the
+   historical V4 proof remains frozen and is not executable qualification of
+   today's private-query C generation. Current manager acceptance is instead
+   source-bound through the existing V6 ELF lock, V6 lock proof, cap-last-cap
+   projection, and V6 live-qualification contract, all of which pin the current
+   private-query source generation;
+2. custody service V2 source and source proof, plus all six direct local runtime
+   source dependencies: allocation-reservation ledger classifier, allocation
+   high-water binding, verified-allocation replay binding, allocation-roots
+   observer, payment-ledgers observer, and cross-UID capacity lock;
 3. stable request-root source policy and proof;
 4. RuntimeDirectory/socket source policy and proof;
 5. Polkit deny source profile and proof;
@@ -72,6 +76,9 @@ In particular all of these remain false:
 The V1 host collector is bound only because its storage/mount/statfs/double-
 census semantics remain the reviewed donor for a future user-manager-aware
 collector. Its historical system-manager runtime assumptions are not promoted.
+Likewise, the historical V4 manager proof is not promoted as executable current
+qualification; current C-generation acceptance must flow through the bound V6
+contracts, and live query/host execution remains false.
 
 ## Next gate
 
