@@ -157,9 +157,19 @@ host Git for plan or staged-generation verification. Before any dynamic Git
 process can run, the forked verifier sets `PR_SET_NO_NEW_PRIVS=1`, clears
 supplementary groups, switches GID and UID to 1000, and requires all
 real/effective/saved UID and GID slots to equal 1000 with no supplementary
-groups. A compromised runtime-user loader/DSO therefore cannot regain privilege
-through a setuid/setgid exec. The root parent performs only descriptor-based
-copy, ownership/mode sealing, fsync and the create-only rename.
+groups. It then explicitly clears Linux ambient capabilities and uses
+`capset(2)` to zero its permitted, effective and inheritable capability sets.
+The child reads `/proc/self/status` and requires `CapInh`, `CapPrm`,
+`CapEff` and `CapAmb` all to be zero and `NoNewPrivs` to remain 1 before
+it may read the candidate/stage or execute Git.
+
+This capability clearing is required even if the trusted launcher inherited a
+capability-preserving securebits configuration such as
+`SECBIT_NO_SETUID_FIXUP`; UID/GID equality alone is not accepted as proof of a
+non-privileged verifier. A compromised runtime-user loader/DSO therefore starts
+with neither root identity nor retained Linux capabilities. The root parent
+performs only descriptor-based copy, ownership/mode sealing, fsync and the
+create-only rename.
 
 Apply installs handlers for SIGTERM, SIGHUP and SIGQUIT. Those signals raise into
 the same terminal failure path used by ordinary exceptions. The conservative
@@ -216,7 +226,8 @@ shares GID 1000 receives no access; the temporary authority is tied to the exact
 numeric UID.
 
 A forked verifier then sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups,
-drops every UID/GID slot to 1000, and runs the complete non-shallow
+drops every UID/GID slot to 1000, clears and verifies all permitted/effective/
+inheritable/ambient capability sets, and only then runs the complete non-shallow
 Git/object/index/worktree verification against that exact ACL-bound stage. The
 root parent verifies the ACL bytes and metadata before the child is admitted.
 
