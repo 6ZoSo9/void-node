@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "40492c2cea422eb04606ab0be750246396b46611"
+TARGET_BLOB = "4892ea4ed17884ae3b9c0ff01fa4a00618375a0c"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -56,7 +56,18 @@ for required in (
     'def _rename_noreplace()',
     'def _reconcile_publication_receipt()',
     'def _require_privileged_source_custody()',
+    'def _runtime_uid_child_call(',
     'def _collect_plan_for_apply(',
+    'def _verify_stage_for_apply(',
+    'root_required_for_runtime_uid_child',
+    'apply_root_dynamic_git_exec=false',
+    'termination_signal_reconciliation_required=true',
+    'install_parent_publication_lease_required=true',
+    'signal.SIGTERM',
+    'signal.SIGHUP',
+    'signal.SIGQUIT',
+    'install_parent_descriptor_identity_mismatch',
+    'install_parent_descriptor_generation_changed',
     'os.setgid(RUNTIME_GID)',
     'os.setuid(RUNTIME_UID)',
     'def _copy_regular_at(',
@@ -82,6 +93,13 @@ assert 'privileged_source_ancestor_generation_changed:' in text
 assert 'privileged_source_ancestor_generation_changed_terminal:' in text
 assert 'privileged_source_owner_invalid:' in text
 assert 'privileged_source_writable:' in text
+apply_start = text.index("def apply(")
+apply_end = text.index("def _termination_signal_handler(")
+apply_text = text[apply_start:apply_end]
+assert "_git_run(" not in apply_text
+assert "git_text(" not in apply_text
+assert "git_bytes(" not in apply_text
+assert "_verify_full_history_root(" not in apply_text
 
 # No live-root replacement primitive is allowed in this create-only lane.
 assert "RENAME_EXCHANGE" not in text
@@ -123,6 +141,9 @@ for marker in (
     "trusted_root_launcher_required=true",
     "apply_plan_runtime_uid_drop_required=true",
     "candidate_copy_descriptor_relative=true",
+    "apply_root_dynamic_git_exec=false",
+    "termination_signal_reconciliation_required=true",
+    "install_parent_publication_lease_required=true",
     "service_mutation=false",
     "credential_access=false",
     "transaction=false",
@@ -170,6 +191,9 @@ print("direct_mutable_checkout_privileged_apply_forbidden=true")
 print("apply_plan_runtime_uid_drop_bound=true")
 print("candidate_copy_descriptor_relative_bound=true")
 print("install_parent_stage_transition_bound=true")
+print("root_dynamic_git_exec_forbidden_bound=true")
+print("termination_signal_reconciliation_bound=true")
+print("install_parent_publication_lease_bound=true")
 print("live_release_replacement_forbidden=true")
 print("source_plan_inert=true")
 print("service_mutation=false")
