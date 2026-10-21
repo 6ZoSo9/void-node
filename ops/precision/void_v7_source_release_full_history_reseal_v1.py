@@ -36,6 +36,14 @@ CONFIG_TEXT = (
 )
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 MAX_OUTPUT = 64 * 1024 * 1024
+MAX_MOUNTINFO_BYTES = 8 * 1024 * 1024
+MOUNTINFO_PATH = Path("/proc/self/mountinfo")
+
+_CANDIDATE_CREATED = False
+_CLEANUP_ATTEMPTED = False
+_CLEANUP_COMPLETED = False
+_CLEANUP_RESIDUAL_UNKNOWN = False
+_CLEANUP_REASON = "none"
 
 class ResealError(RuntimeError):
     pass
@@ -73,7 +81,13 @@ def _git_args(root: Path, *args: str):
         *args,
     ]
 
-def _run(root: Path, *args: str, input_data: bytes | None = None, allowed=(0,)) -> bytes:
+def _run(
+    root: Path,
+    *args: str,
+    input_data: bytes | None = None,
+    allowed=(0,),
+    pass_fds: tuple[int, ...] = (),
+) -> bytes:
     try:
         cp = subprocess.run(
             _git_args(root, *args),
@@ -84,6 +98,7 @@ def _run(root: Path, *args: str, input_data: bytes | None = None, allowed=(0,)) 
             env=_env(),
             timeout=180,
             check=False,
+            pass_fds=pass_fds,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ResealError("git_exec_or_timeout:" + (args[0] if args else "unknown")) from exc
@@ -98,6 +113,179 @@ def _text(root: Path, *args: str) -> str:
         return _run(root, *args).decode("utf-8", "strict").strip()
     except UnicodeDecodeError as exc:
         raise ResealError("git_output_not_utf8") from exc
+
+def _identity(st: os.stat_result) -> tuple[int, int, int, int, int, int]:
+    return (st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink)
+
+def _decode_mountinfo_path(raw: bytes) -> Path:
+    out = bytearray()
+    index = 0
+    while index < len(raw):
+        if raw[index] != 0x5C:
+            out.append(raw[index])
+            index += 1
+            continue
+        if index + 3 >= len(raw):
+            raise ResealError("mountinfo_escape_truncated")
+        digits = raw[index + 1:index + 4]
+        if any(value < ord("0") or value > ord("7") for value in digits):
+            raise ResealError("mountinfo_escape_invalid")
+        value = int(digits.decode("ascii"), 8)
+        if value not in (0x09, 0x0A, 0x20, 0x5C):
+            raise ResealError("mountinfo_escape_unsupported")
+        out.append(value)
+        index += 4
+    path = Path(os.fsdecode(bytes(out)))
+    if not path.is_absolute():
+        raise ResealError("mountinfo_mountpoint_not_absolute")
+    return path
+
+def _mount_points() -> frozenset[Path]:
+    try:
+        raw = MOUNTINFO_PATH.read_bytes()
+    except OSError as exc:
+        raise ResealError("mountinfo_unavailable") from exc
+    if len(raw) > MAX_MOUNTINFO_BYTES:
+        raise ResealError("mountinfo_too_large")
+    points: set[Path] = set()
+    for line in raw.splitlines():
+        fields = line.split(b" ")
+        if len(fields) < 6:
+            raise ResealError("mountinfo_line_invalid")
+        points.add(_decode_mountinfo_path(fields[4]))
+    if Path("/") not in points:
+        raise ResealError("mountinfo_root_missing")
+    return frozenset(points)
+
+def _reject_mountpoint_alias(
+    path: Path,
+    label: str,
+    mount_points: frozenset[Path] | None = None,
+) -> None:
+    points = _mount_points() if mount_points is None else mount_points
+    if path in points:
+        raise ResealError(label + "_mountpoint_alias_forbidden")
+
+def _candidate_git_args(git_fd: int, work_fd: int, *args: str) -> list[str]:
+    return [
+        "/usr/bin/git",
+        "-c", "core.hooksPath=/dev/null",
+        "-c", "core.fsmonitor=false",
+        "-c", "core.untrackedCache=false",
+        "-c", "submodule.recurse=false",
+        "-c", "pack.writeReverseIndex=false",
+        "--no-replace-objects",
+        "--git-dir=/proc/self/fd/" + str(git_fd),
+        "--work-tree=/proc/self/fd/" + str(work_fd),
+        *args,
+    ]
+
+def _candidate_run(
+    work_fd: int,
+    git_fd: int,
+    objects_fd: int,
+    *args: str,
+    input_data: bytes | None = None,
+    allowed=(0,),
+    extra_fds: tuple[int, ...] = (),
+) -> bytes:
+    env = _env()
+    env["GIT_OBJECT_DIRECTORY"] = "/proc/self/fd/" + str(objects_fd)
+    retained = tuple(dict.fromkeys((work_fd, git_fd, objects_fd, *extra_fds)))
+    try:
+        cp = subprocess.run(
+            _candidate_git_args(git_fd, work_fd, *args),
+            input=input_data,
+            stdin=None if input_data is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            timeout=180,
+            check=False,
+            pass_fds=retained,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise ResealError("candidate_git_exec_or_timeout:" + (args[0] if args else "unknown")) from exc
+    if cp.returncode not in allowed or cp.stderr:
+        raise ResealError("candidate_git_failed:" + (args[0] if args else "unknown"))
+    if len(cp.stdout) > MAX_OUTPUT:
+        raise ResealError("candidate_git_output_too_large")
+    return cp.stdout
+
+def _candidate_text(work_fd: int, git_fd: int, objects_fd: int, *args: str) -> str:
+    try:
+        return _candidate_run(work_fd, git_fd, objects_fd, *args).decode("utf-8", "strict").strip()
+    except UnicodeDecodeError as exc:
+        raise ResealError("candidate_git_output_not_utf8") from exc
+
+def _write_new_regular_at(dir_fd: int, name: str, data: bytes, mode: int, label: str) -> None:
+    fd = os.open(
+        name,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+        mode,
+        dir_fd=dir_fd,
+    )
+    try:
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_nlink != 1 or st.st_uid != os.getuid():
+            raise ResealError(label + "_created_file_metadata_invalid")
+        view = memoryview(data)
+        offset = 0
+        while offset < len(view):
+            written = os.write(fd, view[offset:])
+            if written <= 0:
+                raise ResealError(label + "_short_write")
+            offset += written
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+def _read_regular_at(dir_fd: int, name: str, label: str, max_bytes: int = 1024 * 1024) -> bytes:
+    fd = os.open(name, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=dir_fd)
+    try:
+        st = os.fstat(fd)
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or st.st_nlink != 1
+            or st.st_size < 0
+            or st.st_size > max_bytes
+        ):
+            raise ResealError(label + "_file_metadata_invalid")
+        chunks: list[bytes] = []
+        remaining = st.st_size
+        while remaining:
+            part = os.read(fd, min(65536, remaining))
+            if not part:
+                raise ResealError(label + "_short_read")
+            chunks.append(part)
+            remaining -= len(part)
+        if os.read(fd, 1):
+            raise ResealError(label + "_file_grew")
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
+
+def _entry_absent_at(dir_fd: int, name: str, label: str) -> None:
+    try:
+        os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return
+    raise ResealError(label + "_forbidden_metadata:" + name)
+
+def _open_directory_at(dir_fd: int, name: str, label: str) -> int:
+    try:
+        fd = os.open(
+            name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=dir_fd,
+        )
+    except OSError as exc:
+        raise ResealError(label + "_directory_open_failed") from exc
+    st = os.fstat(fd)
+    if not stat.S_ISDIR(st.st_mode):
+        os.close(fd)
+        raise ResealError(label + "_directory_kind_invalid")
+    return fd
 
 def _parents(root: Path, commit: str) -> tuple[str, ...]:
     raw = _text(root, "cat-file", "-p", commit)
@@ -163,36 +351,122 @@ def verify_source() -> dict[str, object]:
         "reachable_commits": EXPECTED_REACHABLE_COMMITS,
     }
 
-def verify_candidate(root: Path) -> None:
-    if root.resolve(strict=True) != root or not root.is_dir() or root.is_symlink():
-        raise ResealError("candidate_root_invalid")
-    g = root / ".git"
-    if not g.is_dir() or g.is_symlink():
-        raise ResealError("candidate_git_dir_not_physical")
-    if (g / "objects").is_symlink() or not (g / "objects").is_dir():
-        raise ResealError("candidate_objects_dir_invalid")
-    for path in _forbidden_metadata(root):
-        if path.exists() or path.is_symlink():
-            raise ResealError("candidate_forbidden_git_metadata:" + path.name)
-    _config_exact(root)
-    if _text(root, "rev-parse", "--is-shallow-repository") != "false":
+def _candidate_parents(work_fd: int, git_fd: int, objects_fd: int, commit: str) -> tuple[str, ...]:
+    raw = _candidate_text(work_fd, git_fd, objects_fd, "cat-file", "-p", commit)
+    parents = tuple(line[7:] for line in raw.splitlines() if line.startswith("parent "))
+    if any(HEX40.fullmatch(parent) is None for parent in parents):
+        raise ResealError("candidate_parent_shape_invalid")
+    return parents
+
+def _candidate_complete_graph(work_fd: int, git_fd: int, objects_fd: int) -> None:
+    missing = _candidate_text(
+        work_fd, git_fd, objects_fd,
+        "rev-list", "--objects", "--missing=print", TARGET_HEAD,
+    )
+    if any(line.startswith("?") for line in missing.splitlines()):
+        raise ResealError("candidate_missing_reachable_object")
+    count = int(_candidate_text(work_fd, git_fd, objects_fd, "rev-list", "--count", TARGET_HEAD))
+    if count != EXPECTED_REACHABLE_COMMITS:
+        raise ResealError("candidate_reachable_commit_count_mismatch")
+
+def _revalidate_parent_lease(output: Path, parent_fd: int, expected: tuple[int, int, int, int, int, int]) -> None:
+    try:
+        visible = output.parent.lstat()
+    except OSError as exc:
+        raise ResealError("output_parent_generation_unavailable") from exc
+    if _identity(os.fstat(parent_fd)) != expected or _identity(visible) != expected:
+        raise ResealError("output_parent_generation_changed")
+    _reject_mountpoint_alias(output.parent, "output_parent")
+
+def _revalidate_candidate_lease(
+    output: Path,
+    parent_fd: int,
+    parent_identity: tuple[int, int, int, int, int, int],
+    candidate_fd: int,
+    candidate_identity: tuple[int, int, int, int, int, int],
+) -> None:
+    _revalidate_parent_lease(output, parent_fd, parent_identity)
+    try:
+        visible_at_parent = os.stat(output.name, dir_fd=parent_fd, follow_symlinks=False)
+        visible_path = output.lstat()
+    except OSError as exc:
+        raise ResealError("candidate_visible_generation_unavailable") from exc
+    current = _identity(os.fstat(candidate_fd))
+    if (
+        current != candidate_identity
+        or _identity(visible_at_parent) != candidate_identity
+        or _identity(visible_path) != candidate_identity
+        or not stat.S_ISDIR(visible_at_parent.st_mode)
+        or stat.S_ISLNK(visible_at_parent.st_mode)
+    ):
+        raise ResealError("candidate_visible_generation_changed")
+    _reject_mountpoint_alias(output, "candidate_root")
+    _reject_source_checkout_overlap(output)
+
+def _verify_candidate_metadata_fds(
+    candidate_fd: int,
+    git_fd: int,
+    objects_fd: int,
+) -> None:
+    git_visible = os.stat(".git", dir_fd=candidate_fd, follow_symlinks=False)
+    if _identity(git_visible) != _identity(os.fstat(git_fd)) or not stat.S_ISDIR(git_visible.st_mode):
+        raise ResealError("candidate_git_dir_generation_changed")
+    objects_visible = os.stat("objects", dir_fd=git_fd, follow_symlinks=False)
+    if _identity(objects_visible) != _identity(os.fstat(objects_fd)) or not stat.S_ISDIR(objects_visible.st_mode):
+        raise ResealError("candidate_objects_dir_generation_changed")
+    for name in ("commondir", "config.worktree", "shallow"):
+        _entry_absent_at(git_fd, name, "candidate")
+    info_fd = _open_directory_at(git_fd, "info", "candidate_git_info")
+    object_info_fd = _open_directory_at(objects_fd, "info", "candidate_object_info")
+    try:
+        _entry_absent_at(info_fd, "grafts", "candidate")
+        _entry_absent_at(object_info_fd, "alternates", "candidate")
+        _entry_absent_at(object_info_fd, "http-alternates", "candidate")
+    finally:
+        os.close(object_info_fd)
+        os.close(info_fd)
+    config_raw = _read_regular_at(git_fd, "config", "candidate_git_config")
+    if config_raw.decode("utf-8", "strict") != CONFIG_TEXT:
+        raise ResealError("git_config_not_exact_closed_form")
+
+def verify_candidate_lease(
+    output: Path,
+    parent_fd: int,
+    parent_identity: tuple[int, int, int, int, int, int],
+    candidate_fd: int,
+    candidate_identity: tuple[int, int, int, int, int, int],
+    git_fd: int,
+    objects_fd: int,
+) -> None:
+    _revalidate_candidate_lease(
+        output, parent_fd, parent_identity, candidate_fd, candidate_identity
+    )
+    _verify_candidate_metadata_fds(candidate_fd, git_fd, objects_fd)
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "--is-shallow-repository") != "false":
         raise ResealError("candidate_repository_shallow")
-    if _text(root, "rev-parse", "HEAD") != TARGET_HEAD:
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "HEAD") != TARGET_HEAD:
         raise ResealError("candidate_head_mismatch")
-    if _text(root, "rev-parse", "HEAD^{tree}") != TARGET_TREE:
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "HEAD^{tree}") != TARGET_TREE:
         raise ResealError("candidate_tree_mismatch")
-    if _text(root, "symbolic-ref", "--quiet", "--short", "HEAD") != "main":
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "symbolic-ref", "--quiet", "--short", "HEAD") != "main":
         raise ResealError("candidate_branch_not_main")
-    if _parents(root, TARGET_HEAD) != TARGET_PARENTS:
+    if _candidate_parents(candidate_fd, git_fd, objects_fd, TARGET_HEAD) != TARGET_PARENTS:
         raise ResealError("candidate_parent_set_mismatch")
-    _complete_graph(root)
-    if _text(root, "status", "--porcelain=v1", "--untracked-files=all") != "":
+    _candidate_complete_graph(candidate_fd, git_fd, objects_fd)
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "status", "--porcelain=v1", "--untracked-files=all") != "":
         raise ResealError("candidate_worktree_not_clean")
-    if _text(root, "write-tree") != TARGET_TREE:
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "write-tree") != TARGET_TREE:
         raise ResealError("candidate_index_tree_mismatch")
-    fsck = _run(root, "fsck", "--full", "--strict", "--no-reflogs", TARGET_HEAD)
+    fsck = _candidate_run(
+        candidate_fd, git_fd, objects_fd,
+        "fsck", "--full", "--strict", "--no-reflogs", TARGET_HEAD,
+    )
     if fsck:
         raise ResealError("candidate_fsck_output_nonempty")
+    _revalidate_candidate_lease(
+        output, parent_fd, parent_identity, candidate_fd, candidate_identity
+    )
+    _verify_candidate_metadata_fds(candidate_fd, git_fd, objects_fd)
 
 def _receipt_safe_path(path: Path, label: str) -> str:
     raw = os.fspath(path)
@@ -222,6 +496,7 @@ def _require_physical_user_directory(path: Path, label: str) -> Path:
         raise ResealError(label + "_directory_owner_invalid")
     if resolved != path:
         raise ResealError(label + "_directory_alias_forbidden")
+    _reject_mountpoint_alias(path, label)
     return path
 
 def _require_physical_account_home_root() -> Path:
@@ -241,6 +516,7 @@ def _require_physical_account_home_root() -> Path:
         or resolved != root
     ):
         raise ResealError("account_home_root_not_physical_root_custodied")
+    _reject_mountpoint_alias(root, "account_home_root")
     return root
 
 def _validate_account_home_location(home: Path, account_name: str) -> None:
@@ -313,25 +589,106 @@ def _validate_output(output: Path) -> Path:
         raise ResealError("output_path_not_canonical")
     return output
 
+def _cleanup_fd_tree(directory_fd: int) -> None:
+    entries = list(os.scandir(directory_fd))
+    for entry in entries:
+        st = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
+        if stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode):
+            child_fd = os.open(
+                entry.name,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=directory_fd,
+            )
+            try:
+                _cleanup_fd_tree(child_fd)
+            finally:
+                os.close(child_fd)
+            os.rmdir(entry.name, dir_fd=directory_fd)
+        else:
+            os.unlink(entry.name, dir_fd=directory_fd)
+
+def _cleanup_candidate(
+    parent_fd: int,
+    candidate_fd: int,
+    candidate_name: str,
+    candidate_identity: tuple[int, int, int, int, int, int],
+) -> tuple[bool, bool, bool, str]:
+    try:
+        _cleanup_fd_tree(candidate_fd)
+    except OSError as exc:
+        return (True, False, True, "candidate_tree_cleanup_failed:" + exc.__class__.__name__)
+    try:
+        visible = os.stat(candidate_name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        if os.fstat(candidate_fd).st_nlink == 0:
+            return (True, True, False, "candidate_already_unlinked")
+        return (True, False, True, "candidate_root_name_missing")
+    except OSError as exc:
+        return (True, False, True, "candidate_root_observation_failed:" + exc.__class__.__name__)
+    if _identity(visible) != candidate_identity:
+        return (True, False, True, "candidate_root_generation_mismatch")
+    try:
+        os.rmdir(candidate_name, dir_fd=parent_fd)
+    except OSError as exc:
+        return (True, False, True, "candidate_root_remove_failed:" + exc.__class__.__name__)
+    return (True, True, False, "candidate_removed")
+
 def build(output: Path) -> None:
+    global _CANDIDATE_CREATED
+    global _CLEANUP_ATTEMPTED, _CLEANUP_COMPLETED, _CLEANUP_RESIDUAL_UNKNOWN, _CLEANUP_REASON
+
     verify_source()
     output = _validate_output(output)
-    output.mkdir(mode=0o700)
+
+    parent_fd = candidate_fd = git_fd = objects_fd = pack_fd = refs_fd = heads_fd = -1
+    parent_identity = candidate_identity = None
     try:
-        subprocess.run(
-            ["/usr/bin/git", "init", "--quiet", os.fspath(output)],
-            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            env=_env(), timeout=30, check=True,
+        parent_fd = os.open(
+            output.parent,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
         )
-        (output / ".git" / "config").write_text(CONFIG_TEXT, "utf-8")
-        pack_dir = output / ".git" / "objects" / "pack"
-        pack_prefix = pack_dir / "pack"
+        parent_identity = _identity(os.fstat(parent_fd))
+        _revalidate_parent_lease(output, parent_fd, parent_identity)
+
+        os.mkdir(output.name, mode=0o700, dir_fd=parent_fd)
+        _CANDIDATE_CREATED = True
+        candidate_fd = os.open(
+            output.name,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=parent_fd,
+        )
+        candidate_identity = _identity(os.fstat(candidate_fd))
+        _revalidate_candidate_lease(
+            output, parent_fd, parent_identity, candidate_fd, candidate_identity
+        )
+
+        os.mkdir(".git", mode=0o700, dir_fd=candidate_fd)
+        git_fd = _open_directory_at(candidate_fd, ".git", "candidate_git")
+        for name in ("objects", "refs", "info"):
+            os.mkdir(name, mode=0o700, dir_fd=git_fd)
+        objects_fd = _open_directory_at(git_fd, "objects", "candidate_objects")
+        os.mkdir("info", mode=0o700, dir_fd=objects_fd)
+        os.mkdir("pack", mode=0o700, dir_fd=objects_fd)
+        pack_fd = _open_directory_at(objects_fd, "pack", "candidate_pack")
+        refs_fd = _open_directory_at(git_fd, "refs", "candidate_refs")
+        os.mkdir("heads", mode=0o700, dir_fd=refs_fd)
+        os.mkdir("tags", mode=0o700, dir_fd=refs_fd)
+        heads_fd = _open_directory_at(refs_fd, "heads", "candidate_heads")
+
+        _write_new_regular_at(git_fd, "config", CONFIG_TEXT.encode("utf-8"), 0o644, "candidate_config")
+        _write_new_regular_at(git_fd, "HEAD", b"ref: refs/heads/main\n", 0o644, "candidate_head")
+        _revalidate_candidate_lease(
+            output, parent_fd, parent_identity, candidate_fd, candidate_identity
+        )
+
+        pack_prefix = "/proc/self/fd/" + str(pack_fd) + "/pack"
         pack_id_raw = _run(
             ROOT,
             "pack-objects",
             "--revs",
-            os.fspath(pack_prefix),
+            pack_prefix,
             input_data=(TARGET_HEAD + "\n").encode("ascii"),
+            pass_fds=(pack_fd,),
         )
         try:
             pack_id = pack_id_raw.decode("ascii", "strict").strip()
@@ -339,27 +696,90 @@ def build(output: Path) -> None:
             raise ResealError("pack_id_not_ascii") from exc
         if HEX40.fullmatch(pack_id) is None:
             raise ResealError("pack_id_invalid")
-        pack_path = pack_dir / ("pack-" + pack_id + ".pack")
-        index_path = pack_dir / ("pack-" + pack_id + ".idx")
-        expected_entries = {pack_path.name, index_path.name}
-        actual_entries = {entry.name for entry in pack_dir.iterdir()}
+        pack_name = "pack-" + pack_id + ".pack"
+        index_name = "pack-" + pack_id + ".idx"
+        expected_entries = {pack_name, index_name}
+        actual_entries = set(os.listdir(pack_fd))
         if actual_entries != expected_entries:
             raise ResealError("pack_directory_layout_invalid")
-        _run(output, "verify-pack", "-s", os.fspath(index_path))
-        _run(output, "update-ref", "refs/heads/main", TARGET_HEAD)
-        _run(output, "symbolic-ref", "HEAD", "refs/heads/main")
-        _run(output, "reset", "--hard", TARGET_HEAD)
-        (output / ".git" / "config").write_text(CONFIG_TEXT, "utf-8")
-        verify_candidate(output)
+        pack_stat = os.stat(pack_name, dir_fd=pack_fd, follow_symlinks=False)
+        index_stat = os.stat(index_name, dir_fd=pack_fd, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(pack_stat.st_mode)
+            or not stat.S_ISREG(index_stat.st_mode)
+            or pack_stat.st_nlink != 1
+            or index_stat.st_nlink != 1
+        ):
+            raise ResealError("pack_file_metadata_invalid")
+        _run(
+            ROOT,
+            "verify-pack",
+            "-s",
+            "/proc/self/fd/" + str(pack_fd) + "/" + index_name,
+            pass_fds=(pack_fd,),
+        )
+
+        _write_new_regular_at(
+            heads_fd,
+            "main",
+            (TARGET_HEAD + "\n").encode("ascii"),
+            0o644,
+            "candidate_main_ref",
+        )
+        _revalidate_candidate_lease(
+            output, parent_fd, parent_identity, candidate_fd, candidate_identity
+        )
+
+        _candidate_run(
+            candidate_fd, git_fd, objects_fd,
+            "reset", "--hard", TARGET_HEAD,
+        )
+        _revalidate_candidate_lease(
+            output, parent_fd, parent_identity, candidate_fd, candidate_identity
+        )
+        verify_candidate_lease(
+            output,
+            parent_fd,
+            parent_identity,
+            candidate_fd,
+            candidate_identity,
+            git_fd,
+            objects_fd,
+        )
     except BaseException:
-        shutil.rmtree(output, ignore_errors=True)
+        if parent_fd >= 0 and candidate_fd >= 0 and candidate_identity is not None:
+            (
+                _CLEANUP_ATTEMPTED,
+                _CLEANUP_COMPLETED,
+                _CLEANUP_RESIDUAL_UNKNOWN,
+                _CLEANUP_REASON,
+            ) = _cleanup_candidate(
+                parent_fd, candidate_fd, output.name, candidate_identity
+            )
+        elif _CANDIDATE_CREATED:
+            _CLEANUP_ATTEMPTED = False
+            _CLEANUP_COMPLETED = False
+            _CLEANUP_RESIDUAL_UNKNOWN = True
+            _CLEANUP_REASON = "candidate_created_before_descriptor_lease"
         raise
+    finally:
+        for fd in (heads_fd, refs_fd, pack_fd, objects_fd, git_fd, candidate_fd, parent_fd):
+            if fd >= 0:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+
     print(MARKER)
     print("status=FULL_HISTORY_RESEAL_CANDIDATE_GREEN")
     print("output=" + _receipt_safe_path(output, "output"))
     print("target_head=" + TARGET_HEAD)
     print("target_tree=" + TARGET_TREE)
     print("reachable_commits=" + str(EXPECTED_REACHABLE_COMMITS))
+    print("descriptor_bound_candidate_mutation=true")
+    print("mountpoint_alias_rejection=true")
+    print("candidate_cleanup_attempted=false")
+    print("candidate_retained_on_success=true")
     print("source_repository_mutation=false")
     print("protected_filesystem_mutation=false")
     print("network=false")
@@ -418,6 +838,36 @@ def self_test() -> None:
             raise
     else:
         raise AssertionError("source_checkout_output_fixture_not_rejected")
+    fake_mount = Path("/home/test/Downloads/bind")
+    try:
+        _reject_mountpoint_alias(fake_mount, "self_test_mount", frozenset((Path("/"), fake_mount)))
+    except ResealError as exc:
+        if str(exc) != "self_test_mount_mountpoint_alias_forbidden":
+            raise
+    else:
+        raise AssertionError("mountpoint_alias_fixture_not_rejected")
+    with tempfile.TemporaryDirectory(prefix="void-v7-reseal-cleanup-self-test-") as td:
+        parent = Path(td)
+        parent_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            os.mkdir("candidate", mode=0o700, dir_fd=parent_fd)
+            candidate_fd = os.open(
+                "candidate",
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=parent_fd,
+            )
+            try:
+                candidate_identity = _identity(os.fstat(candidate_fd))
+                _write_new_regular_at(candidate_fd, "probe", b"x", 0o600, "self_test_cleanup")
+                attempted, completed, residual, reason = _cleanup_candidate(
+                    parent_fd, candidate_fd, "candidate", candidate_identity
+                )
+                if not attempted or not completed or residual or reason != "candidate_removed":
+                    raise AssertionError("cleanup_success_fixture_failed")
+            finally:
+                os.close(candidate_fd)
+        finally:
+            os.close(parent_fd)
     print(MARKER + "_SELF_TEST_GREEN")
     print("receipt_line_separators_rejected=true")
     print("passwd_account_home_required=true")
@@ -426,6 +876,9 @@ def self_test() -> None:
     print("physical_downloads_root_required=true")
     print("output_parent_aliases_rejected=true")
     print("source_checkout_output_rejected=true")
+    print("mountpoint_aliases_rejected=true")
+    print("descriptor_bound_candidate_mutation=true")
+    print("cleanup_failure_receipt_bound=true")
     print("exact_target_commit_tree_parents_bound=true")
     print("complete_reachable_object_graph_required=true")
     print("single_process_pack_and_index_generation=true")
@@ -472,5 +925,10 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except (ResealError, OSError, subprocess.SubprocessError, ValueError) as exc:
         print(MARKER); print("status=HOLD"); print("reason=" + re.sub(r"[^A-Za-z0-9_:./-]", "_", str(exc)[:500]))
+        print("candidate_created=" + str(_CANDIDATE_CREATED).lower())
+        print("candidate_cleanup_attempted=" + str(_CLEANUP_ATTEMPTED).lower())
+        print("candidate_cleanup_completed=" + str(_CLEANUP_COMPLETED).lower())
+        print("candidate_cleanup_residual_unknown=" + str(_CLEANUP_RESIDUAL_UNKNOWN).lower())
+        print("candidate_cleanup_reason=" + re.sub(r"[^A-Za-z0-9_:.-]", "_", _CLEANUP_REASON[:300]))
         print("source_repository_mutation=false"); print("protected_filesystem_mutation=false"); print("network=false")
         print("protected_replace_authorized=false"); raise SystemExit(2)
