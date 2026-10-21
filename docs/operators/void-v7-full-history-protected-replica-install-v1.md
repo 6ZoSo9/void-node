@@ -302,6 +302,18 @@ used only for tiny metadata leaves such as `HEAD`, config, the main ref, and
 the live shallow marker. Candidate/stage worktree regulars and Git
 `index`/`.pack`/`.idx` leaves use the streaming path.
 
+The built-in pack parser separately needs bounded temporary memory for one
+compressed pack entry and for decoded-object reuse. Before an indexed entry is
+read into memory, its `end - offset` span must be positive and no larger than
+`MAX_PACK_ENTRY_BYTES = MAX_GIT_OBJECT_BYTES + 2 MiB` (130 MiB with the
+current 128 MiB decoded-object ceiling). Oversized indexed spans HOLD before
+the allocation. Decoded objects remain individually bounded by
+`MAX_GIT_OBJECT_BYTES`; the LRU additionally has both the existing
+256-object ceiling and a 64 MiB aggregate decoded-byte ceiling. These limits
+prevent a checksum-valid hostile pack/index from turning a small declared
+object into a near-pack-sized read or retaining roughly a gigabyte of cached
+decoded objects.
+
 Focused CI executes a large sparse regular-file authentication fixture under a
 constrained address-space limit and verifies both SHA-256 and Git-blob SHA-1.
 This proves the authentication path does not require memory proportional to the
