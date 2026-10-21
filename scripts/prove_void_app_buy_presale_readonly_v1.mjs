@@ -172,6 +172,9 @@ for (const required of [
   "BUY_RECEIPT_MAX_CLOCK_SKEW_MS = 5000",
   "BUY_RECEIPT_MAX_LIVE_LEASE_MS = 5 * 60 * 1000",
   "instructionExpiresAtMs",
+  "document.addEventListener('visibilitychange'",
+  "window.addEventListener('pageshow'",
+  "window.addEventListener('focus'",
 ]) {
   assert.ok(client.includes(required), `missing launch gate/client binding: ${required}`);
 }
@@ -250,13 +253,20 @@ const replaceBuyView = () => {
   buyViewNode = {};
 };
 const fetchCalls = [];
+const windowEventHandlers = new Map();
+const documentEventHandlers = new Map();
 let syntheticMonoMs = 100000;
 const sandbox = {
   performance: { now: () => syntheticMonoMs },
   console,
   location: { hash: "#/buy" },
-  window: { addEventListener() {} },
+  window: {
+    addEventListener(name, handler) {
+      windowEventHandlers.set(name, handler);
+    },
+  },
   document: {
+    visibilityState: "visible",
     querySelector(selector) {
       if (selector === "[data-buy-submit]") return submitButton;
       if (selector === "[data-buy-amount]") return amountInput;
@@ -280,7 +290,9 @@ const sandbox = {
       }
       return [];
     },
-    addEventListener() {},
+    addEventListener(name, handler) {
+      documentEventHandlers.set(name, handler);
+    },
     getElementById() { return null; },
   },
   MutationObserver: class {
@@ -1532,7 +1544,28 @@ try {
       // performance.now(): this is untrusted, never extended validity.
       sandbox.__buyTestWallMs += 20000;
     }
-    buyTest.updateSubmit();
+    // Synthetic timers never fire. A suspended tab can retain the previous
+    // text until a page-visible, bfcache pageshow, or focus event rechecks it.
+    assert.match(buyResultNode.textContent, new RegExp(id, "u"),
+      name + ": old instructions remain before the resume signal");
+    if (change === "deadline") {
+      const onVisibilityChange = documentEventHandlers.get("visibilitychange");
+      assert.equal(typeof onVisibilityChange, "function");
+      sandbox.document.visibilityState = "hidden";
+      onVisibilityChange();
+      assert.match(buyResultNode.textContent, new RegExp(id, "u"),
+        name + ": hidden event must not revive or rewrite receipt");
+      sandbox.document.visibilityState = "visible";
+      onVisibilityChange();
+    } else if (change === "rollback") {
+      const onPageShow = windowEventHandlers.get("pageshow");
+      assert.equal(typeof onPageShow, "function");
+      onPageShow({ persisted: true });
+    } else {
+      const onFocus = windowEventHandlers.get("focus");
+      assert.equal(typeof onFocus, "function");
+      onFocus();
+    }
     assert.match(buyResultNode.textContent,
       /REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS/u, name);
     assert.doesNotMatch(buyResultNode.textContent,
@@ -2181,6 +2214,7 @@ console.log("buy_receipt_canonical_creation_envelope_bound=true");
 console.log("buy_receipt_request_id_bounded_and_safe=true");
 console.log("buy_receipt_deadline_bound_to_launch_authority=true");
 console.log("expired_payment_instructions_never_restored=true");
+console.log("resume_visibility_pageshow_focus_recheck_expiry_without_post=true");
 console.log("server_timestamp_and_monotonic_instruction_deadline_bound=true");
 console.log("wall_rollback_suspension_and_skew_fail_closed=true");
 console.log("same_intent_repost_after_receipt_blocked=1");
