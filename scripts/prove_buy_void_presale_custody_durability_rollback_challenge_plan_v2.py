@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from pathlib import Path
@@ -13,6 +14,12 @@ PLAN_REL = "ops/security/buy-void-presale-custody-durability-rollback-challenge-
 PLAN_BLOB = "fa361bbcf54583547261f78abb0ef68052de280b"
 PLAN_ID = "voidbuycustodychallengeplan2_ce86a3cf5790e583941b88178a288c448caf0bccc0816a4c85495b6e55971734"
 MARKER = "VOID_BUY_VOID_PRESALE_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2"
+OWNED_PATHS = (
+    ".github/workflows/buy-void-presale-custody-durability-rollback-challenge-plan-v2.yml",
+    "docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v2.md",
+    "ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json",
+    "scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v2.py",
+)
 V1_PLAN_REL = "ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json"
 V1_PLAN_BLOB = "5face2022dc2cbc573e32e99f88623f381a8a174"
 V1_PLAN_ID = "voidbuycustodychallengeplan1_dd868e3fb6ebdbf894c1170d0ecc153d61e198d9c20279a05c3309957add9006"
@@ -115,6 +122,12 @@ def git(*args: str) -> str:
 
 assert git("rev-parse", PARENT_HEAD + "^{tree}") == PARENT_TREE
 assert git("merge-base", PARENT_HEAD, "HEAD") == PARENT_HEAD
+scope = tuple(sorted(
+    line for line in git("diff", "--name-status", PARENT_HEAD, "HEAD", "--").splitlines()
+    if line
+))
+expected_scope = tuple(sorted("A\t" + path for path in OWNED_PATHS))
+assert scope == expected_scope, ("source_scope_not_exact_four_add_only", scope)
 
 plan_raw = (ROOT / PLAN_REL).read_bytes()
 assert git_blob(plan_raw) == PLAN_BLOB
@@ -167,13 +180,66 @@ assert tuple(sorted(authority)) == tuple(sorted(FALSE_AUTHORITY))
 for key in FALSE_AUTHORITY:
     assert authority[key] is False, key
 
-assert plan["next_gate"] == "DISTINCTLY_REVIEW_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2_BEFORE_PROTECTED_HOST_ADAPTER_V1"
+EXPECTED_NEXT_GATE = "DISTINCTLY_REVIEW_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2_BEFORE_PROTECTED_HOST_ADAPTER_V1"
+assert plan["next_gate"] == EXPECTED_NEXT_GATE
+
+def assert_semantic_policy(candidate: dict) -> None:
+    assert candidate["predecessor_v1"]["immutable"] is True
+    assert candidate["predecessor_v1"]["plan_id"] == V1_PLAN_ID
+    assert candidate["predecessor_v1"]["required_future_evidence_count"] == 20
+    assert (
+        candidate["preserved_v1_required_future_evidence"]
+        == v1["durability_contract"]["required_future_evidence"]
+    )
+    assert candidate["preserved_v1_challenge_scope"] == v1["challenge_scope"]
+    assert all(candidate["controller_additional_required_future_evidence"].values())
+    assert all(candidate["lease_cleanup_contract"].values())
+    candidate_authority = candidate["authority"]
+    assert tuple(sorted(candidate_authority)) == tuple(sorted(FALSE_AUTHORITY))
+    for key in FALSE_AUTHORITY:
+        assert candidate_authority[key] is False, key
+    assert candidate["next_gate"] == EXPECTED_NEXT_GATE
+
+assert_semantic_policy(plan)
+
+def must_reject(mutator, label: str) -> None:
+    candidate = copy.deepcopy(plan)
+    mutator(candidate)
+    try:
+        assert_semantic_policy(candidate)
+    except AssertionError:
+        return
+    raise AssertionError("semantic_negative_not_rejected:" + label)
+
+must_reject(
+    lambda candidate: candidate["authority"].__setitem__(
+        "protected_host_adapter_authorized", True
+    ),
+    "adapter_authority",
+)
+must_reject(
+    lambda candidate: candidate["lease_cleanup_contract"].__setitem__(
+        "release_forbidden_before_terminal_lease_revalidation_and_evidence_origin_authentication",
+        False,
+    ),
+    "early_lease_release",
+)
+must_reject(
+    lambda candidate: candidate["preserved_v1_required_future_evidence"].pop(
+        "evidence_origin_authentication_required"
+    ),
+    "immutable_v1_requirement_removed",
+)
 
 print(MARKER + "_PROOF_GREEN")
 print("plan_id=" + PLAN_ID)
 print("predecessor_v1_plan_immutable=true")
 print("preserved_v1_required_future_evidence_count=20")
 print("controller_candidate_bound=true")
+print("exact_four_add_only_scope=true")
+print("semantic_authority_negative_fixture=true")
+print("lease_cleanup_negative_fixture=true")
+print("immutable_v1_semantic_negative_fixture=true")
 print("controller_capability_count=16")
 print("controller_additional_requirement_count=11")
 print("lease_cleanup_requirement_count=6")
