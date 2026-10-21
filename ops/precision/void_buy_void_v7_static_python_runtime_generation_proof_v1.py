@@ -986,12 +986,14 @@ def run(args: argparse.Namespace) -> int:
             _copy_fd_exact(stdlib_fd, zip_target, size=stdlib_size, mode=0o400, label="stdlib_candidate")
 
             probe_rc, probe_out, probe_err = _run_child(
-                [os.fspath(python_target), "-I", "-B", "-S", "-c", PROBE, os.fspath(root)],
-                cwd=root,
+                ["/bin/python3.12-static", "-I", "-B", "-S", "-c", PROBE, "/"],
+                mount_root=root,
+                python_snapshot_fd=python_fd,
+                stdlib_snapshot_fd=stdlib_fd,
             )
             if probe_rc != 0 or probe_err:
                 raise RuntimeProofError("candidate_probe_failed")
-            probe = _check_probe(probe_out, root)
+            probe = _check_probe(probe_out)
 
             repo_root = Path(__file__).resolve().parents[2]
             v5_raw = _read_v5_source(repo_root)
@@ -1001,12 +1003,14 @@ def run(args: argparse.Namespace) -> int:
             try:
                 v5_rc, v5_out, v5_err = _run_child(
                     [
-                        os.fspath(python_target),
+                        "/bin/python3.12-static",
                         "-I", "-B", "-S", "-c", V5_BOOTSTRAP,
-                        os.fspath(synthetic_v5),
+                        "/synthetic-repo/" + V5_REL,
                         str(v5_fd),
                     ],
-                    cwd=root,
+                    mount_root=root,
+                    python_snapshot_fd=python_fd,
+                    stdlib_snapshot_fd=stdlib_fd,
                     pass_fds=(v5_fd,),
                 )
             finally:
