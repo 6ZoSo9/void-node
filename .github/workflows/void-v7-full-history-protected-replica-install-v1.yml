@@ -27,9 +27,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "a27a08d169337351bdf92c5e42b7069bfb4d273e"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "299302964e4dbeb4d5cc4b6b67736794c1c9f5d2"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "0d9879ab147c1703da9e50dc1249334e1e2bd4b0"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "158df3f1d0fc0040bb10d2cb63df12ea788a1748"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "b9e829e12d76fcde3fccd4a0c95e52c05d990240"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "2eab16104ff30110bc9bf18abc5567111fa4f4fa"
 
           test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
@@ -233,6 +233,12 @@ jobs:
                           raise
                   else:
                       raise SystemExit("fixture_plan_node_race_not_rejected")
+                  created = list(dst.iterdir())
+                  if len(created) != node_limit:
+                      raise SystemExit(
+                          "fixture_plan_node_budget_materialization_mismatch:"
+                          + str(len(created))
+                      )
               finally:
                   os.close(dst_fd)
                   os.close(src_fd)
@@ -288,6 +294,71 @@ jobs:
                   os.close(src_fd)
 
           print("VOID_V7_OPERATION_BOUND_COPY_BUDGET_FIXTURE_GREEN")
+          PY
+
+      - name: Exercise bounded-memory large-file authentication
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import hashlib
+          import os
+          import pathlib
+          import resource
+          import runpy
+          import tempfile
+
+          mod = runpy.run_path(
+              "ops/precision/void_v7_full_history_protected_replica_install_v1.py",
+              run_name="void_v7_stream_hash_fixture",
+          )
+          stream_hashes = mod["_stream_regular_hashes_stable"]
+
+          size = 96 * 1024 * 1024
+          limit = 160 * 1024 * 1024
+          resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-stream-hash-fixture-"
+          ) as td:
+              path = pathlib.Path(td) / "large-zero"
+              fd = os.open(
+                  path,
+                  os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC,
+                  0o600,
+              )
+              try:
+                  os.ftruncate(fd, size)
+              finally:
+                  os.close(fd)
+
+              observed_size, observed_sha256, observed_blob, _identity = (
+                  stream_hashes(
+                      path,
+                      "fixture_large_regular",
+                      maximum=size,
+                      git_blob=True,
+                  )
+              )
+              if observed_size != size:
+                  raise SystemExit("fixture_stream_size_mismatch")
+
+              sha256 = hashlib.sha256()
+              blob = hashlib.sha1()
+              blob.update(b"blob " + str(size).encode("ascii") + b"\0")
+              chunk = b"\0" * (1024 * 1024)
+              remaining = size
+              while remaining:
+                  part = chunk if remaining >= len(chunk) else chunk[:remaining]
+                  sha256.update(part)
+                  blob.update(part)
+                  remaining -= len(part)
+
+              if observed_sha256 != sha256.hexdigest():
+                  raise SystemExit("fixture_stream_sha256_mismatch")
+              if observed_blob != blob.hexdigest():
+                  raise SystemExit("fixture_stream_git_blob_mismatch")
+
+          print("VOID_V7_STREAMING_AUTH_MEMORY_BOUND_FIXTURE_GREEN")
           PY
 
       - name: Exercise hostile-securebits capability drop
@@ -364,6 +435,8 @@ jobs:
           grep -Fx 'candidate_copy_operation_bound_node_budget_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'candidate_copy_operation_bound_byte_budget_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'candidate_copy_exact_planned_counts_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'large_file_authentication_streamed=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'byte_returning_reads_tiny_metadata_only=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'candidate_receipt_safe_path_components_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'candidate_printable_path_components_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'terminal_reason_line_sanitization_required=true' "$RUNNER_TEMP/source-plan.log"
