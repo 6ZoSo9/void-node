@@ -87,7 +87,7 @@ descriptor read of the accepted receipt.
 If any post-create step fails before commit, the root-only 0600 residue is left
 untouched and the operation HOLDs. It is never removed by a compare-then-unlink
 pathname sequence. A later retry rejects such an uncommitted residue instead of
-guessing ownership. If a failure occurs only after the receipt is sealed 0444 but before the retained parent fsync completes, an exact retry re-verifies the committed receipt, fsyncs the retained parent, re-verifies it again, and only then returns idempotent success. A concurrent foreign substitution is likewise never deleted
+guessing ownership. If a failure occurs after the receipt is sealed 0444 but before its post-seal file fsync or retained-parent fsync completes, an exact retry re-verifies the committed receipt, fsyncs that exact receipt descriptor, revalidates it, fsyncs the retained parent, re-verifies it again, and only then returns idempotent success. A concurrent foreign substitution is likewise never deleted
 by this installer. The adversarial proof covers symlink-parent zero collateral
 mutation, restrictive parent preservation, new-parent grandparent fsync,
 post-create failures at chown/write/fsync/chmod, foreign final-path substitution,

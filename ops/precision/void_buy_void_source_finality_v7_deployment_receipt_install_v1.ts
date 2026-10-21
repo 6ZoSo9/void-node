@@ -341,6 +341,7 @@ export function readObservedRegularFileV1(
   before:fs.Stats,
   maxBytes:number,
   label:string,
+  fsyncAfterRead=false,
 ):Buffer{
   assert.ok(Number.isSafeInteger(maxBytes)&&maxBytes>0,label+"_max_invalid");
   let fd=-1;
@@ -368,6 +369,7 @@ export function readObservedRegularFileV1(
     }
     assert.ok(total<=maxBytes,label+"_size_limit");
     assert.equal(total,opened.size,label+"_short_or_grown_read");
+    if(fsyncAfterRead)fs.fsyncSync(fd);
 
     const after=fs.fstatSync(fd);
     assert.ok(sameTrackedFileIdentityV1(after,opened),
@@ -705,7 +707,7 @@ function verifyFinalBoundV1(
   assert.equal(visible.mode&0o777,0o444,"receipt_leaf_mode_invalid");
   assert.ok(visible.size>0&&visible.size<=64*1024,"receipt_leaf_size_invalid");
   const got=readObservedRegularFileV1(
-    absolute,visible,64*1024,"receipt_leaf",
+    absolute,visible,64*1024,"receipt_leaf",true,
   );
   assert.ok(got.equals(expected),"receipt_leaf_bytes_mismatch");
   assertReceiptParentStableV1(binding);

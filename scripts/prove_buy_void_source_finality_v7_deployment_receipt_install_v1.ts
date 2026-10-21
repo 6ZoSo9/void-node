@@ -445,6 +445,90 @@ if(rootCapable){
     assert.ok(retryParentFsyncs>=1,"idempotent_parent_fsync_missing");
   }
 
+  // If the second file fsync fails after mode 0444 is visible, retry must
+  // fsync the exact receipt inode before it fsyncs the retained parent.
+  {
+    const receipt=path.join(root,"postseal-recovery","deployment-receipt.json");
+    const originalOpen=(fs as any).openSync;
+    const originalFsync=(fs as any).fsyncSync;
+    let createFd=-1;
+    let createFsyncs=0;
+    let injected=false;
+    try{
+      (fs as any).openSync=function(...args:any[]){
+        const fd=originalOpen.apply(fs,args);
+        const flags=Number(args[1]);
+        if(
+          Number.isInteger(flags)&&
+          (flags&fs.constants.O_CREAT)!==0&&
+          (flags&fs.constants.O_EXCL)!==0
+        )createFd=fd;
+        return fd;
+      };
+      (fs as any).fsyncSync=function(fd:number){
+        if(createFd>=0&&fd===createFd){
+          createFsyncs+=1;
+          if(!injected&&createFsyncs===2){
+            injected=true;
+            throw Object.assign(
+              new Error("synthetic_postseal_file_fsync_failure"),{code:"EIO"},
+            );
+          }
+        }
+        return originalFsync.call(fs,fd);
+      };
+      assert.throws(()=>installRootCustodiedReceiptV1({
+        absolute_path:receipt,bytes:built.bytes,
+      }),/synthetic_postseal_file_fsync_failure/u);
+    }finally{
+      (fs as any).openSync=originalOpen;
+      (fs as any).fsyncSync=originalFsync;
+    }
+    assert.equal(injected,true);
+    const residue=fs.lstatSync(receipt);
+    assert.equal(residue.mode&0o777,0o444);
+    assert.equal(residue.nlink,1);
+
+    let retryParentFd=-1;
+    let retryReceiptFd=-1;
+    const durabilityOrder:string[]=[];
+    try{
+      (fs as any).openSync=function(...args:any[]){
+        const fd=originalOpen.apply(fs,args);
+        const target=String(args[0]);
+        const flags=Number(args[1]);
+        if(
+          Number.isInteger(flags)&&
+          (flags&fs.constants.O_DIRECTORY)!==0&&
+          target.endsWith("/postseal-recovery")
+        )retryParentFd=fd;
+        if(
+          Number.isInteger(flags)&&
+          (flags&fs.constants.O_DIRECTORY)===0&&
+          (flags&fs.constants.O_CREAT)===0&&
+          target.endsWith("/deployment-receipt.json")
+        )retryReceiptFd=fd;
+        return fd;
+      };
+      (fs as any).fsyncSync=function(fd:number){
+        if(retryReceiptFd>=0&&fd===retryReceiptFd)durabilityOrder.push("file");
+        else if(retryParentFd>=0&&fd===retryParentFd)durabilityOrder.push("parent");
+        return originalFsync.call(fs,fd);
+      };
+      const retry=installRootCustodiedReceiptV1({
+        absolute_path:receipt,bytes:built.bytes,
+      });
+      assert.equal(retry.created,false);
+      assert.equal(retry.already_matching,true);
+    }finally{
+      (fs as any).openSync=originalOpen;
+      (fs as any).fsyncSync=originalFsync;
+    }
+    assert.ok(durabilityOrder.length>=2,"postseal_retry_fsyncs_missing");
+    assert.equal(durabilityOrder[0],"file","receipt_fsync_must_precede_parent");
+    assert.ok(durabilityOrder.includes("parent"),"postseal_parent_fsync_missing");
+  }
+
   // Production code never deletes a pathname after creation. If a privileged
   // concurrent actor substitutes the visible final path during a failure, that
   // foreign inode is left untouched and the operation HOLDs.
@@ -580,6 +664,8 @@ console.log("failed_publication_residue_preserved="+String(rootCapable));
 console.log("pathname_cleanup_after_final_create=false");
 console.log("existing_receipt_bounded_read="+String(rootCapable));
 console.log("idempotent_parent_fsync_recovery="+String(rootCapable));
+console.log("idempotent_receipt_file_fsync_recovery="+String(rootCapable));
+console.log("receipt_file_fsync_precedes_parent=true");
 console.log("symlink_parent_no_collateral_mutation="+String(rootCapable));
 console.log("restrictive_parent_mode_preserved="+String(rootCapable));
 console.log("new_parent_grandparent_fsync_required="+String(rootCapable));
