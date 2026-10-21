@@ -10,9 +10,9 @@ the accepted V3 candidate and lock unchanged.
 
 - production tool: `e0a682ea4038ca22e3a3b97da2cac29874096c46`
 - production proof: `e634e666d3a190368ddb031f936ebbb6347b7196`
-- Dispatch V3 proof: `3c710609632f9568ff93b26047df5d4c0a0f9711`
-- Dispatch V3 document: `201855e799814a5b4fcf41ff6a92cd2607e73cbf`
-- focused plan proof: `9385562cf7652507c3f162e47fdc85da2c1b668a`
+- Dispatch V3 proof: `fba37e94a90b3d4278fd3fba10fbe6313f2f0625`
+- Dispatch V3 document: `7567775b241a798752c1c36091d7059a75299b85`
+- focused plan proof: `9298ab67c31b4651795b88cabd9dc549dcffc27e`
 
 The frozen V3 candidate still records the predecessor tool blob
 `3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0`. The planner must therefore exit 2 with:
@@ -21,7 +21,8 @@ The frozen V3 candidate still records the predecessor tool blob
 
 A separate V4 candidate and acceptance lock are required before the deployment
 receipt planner may return `PLAN_GREEN` again. Dispatch V3 continues to expose
-the established nonprotected-drift count of three for existing CI consumers.
+the established nonprotected-drift count of three and frozen-V4-census proof
+preservation field for existing CI consumers.
 
 ## Non-authority
 
