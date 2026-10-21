@@ -27,9 +27,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "c88d458d01c8a2733dfc491ba69d3ab0d92ca1f9"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "7825cadea14215a13e54af2d831509607dd8cf47"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "22d1108f299ccebbd81edc3d41dad862d70957e7"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "e02221c7478fac3c65f34410fd3e203ffb31bdd7"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "44ee13f7ea2730352e4ddeed7fa9158bd30e227e"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "ae19891d31c7cf4ac3640c52704a3dcb4225d667"
 
           test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
@@ -81,6 +81,7 @@ jobs:
           )
           InstallError = mod["InstallError"]
           walk = mod["_copy_candidate_tree_iterative"]
+          planned_limits = mod["_planned_candidate_copy_limits"]
 
           if os.geteuid() != 0 or os.getuid() != 0:
               raise SystemExit("fixture_root_required")
@@ -160,6 +161,133 @@ jobs:
                   os.close(src_fd)
 
           print("VOID_V7_BOUNDED_COPY_WALKER_FIXTURE_GREEN")
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-copy-plan-exact-fixture-"
+          ) as td:
+              root = pathlib.Path(td)
+              src = root / "src"
+              dst = root / "dst"
+              src.mkdir()
+              dst.mkdir()
+              (src / "x").write_bytes(b"x")
+              node_limit, byte_limit = planned_limits({
+                  "nodes": 1,
+                  "regular_file_bytes": 1,
+              })
+              src_fd = os.open(
+                  src,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              dst_fd = os.open(
+                  dst,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  observed = walk(
+                      src_fd,
+                      dst_fd,
+                      node_limit=node_limit,
+                      depth_limit=8,
+                      total_limit=byte_limit,
+                  )
+                  if observed != (node_limit, byte_limit):
+                      raise SystemExit("fixture_exact_plan_counts_mismatch")
+              finally:
+                  os.close(dst_fd)
+                  os.close(src_fd)
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-copy-plan-node-race-fixture-"
+          ) as td:
+              root = pathlib.Path(td)
+              src = root / "src"
+              dst = root / "dst"
+              src.mkdir()
+              dst.mkdir()
+              (src / "a").write_bytes(b"")
+              (src / "b").write_bytes(b"")
+              node_limit, byte_limit = planned_limits({
+                  "nodes": 1,
+                  "regular_file_bytes": 0,
+              })
+              src_fd = os.open(
+                  src,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              dst_fd = os.open(
+                  dst,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  try:
+                      walk(
+                          src_fd,
+                          dst_fd,
+                          node_limit=node_limit,
+                          depth_limit=8,
+                          total_limit=byte_limit,
+                      )
+                  except InstallError as exc:
+                      if str(exc) != "copy_node_limit":
+                          raise
+                  else:
+                      raise SystemExit("fixture_plan_node_race_not_rejected")
+              finally:
+                  os.close(dst_fd)
+                  os.close(src_fd)
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-copy-plan-byte-race-fixture-"
+          ) as td:
+              root = pathlib.Path(td)
+              src = root / "src"
+              dst = root / "dst"
+              src.mkdir()
+              dst.mkdir()
+              inflated = src / "inflated"
+              fd = os.open(
+                  inflated,
+                  os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC,
+                  0o600,
+              )
+              try:
+                  os.ftruncate(fd, 4096)
+              finally:
+                  os.close(fd)
+              node_limit, byte_limit = planned_limits({
+                  "nodes": 1,
+                  "regular_file_bytes": 1024,
+              })
+              src_fd = os.open(
+                  src,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              dst_fd = os.open(
+                  dst,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  try:
+                      walk(
+                          src_fd,
+                          dst_fd,
+                          node_limit=node_limit,
+                          depth_limit=8,
+                          total_limit=byte_limit,
+                      )
+                  except InstallError as exc:
+                      if str(exc) != "copy_total_bytes_limit":
+                          raise
+                  else:
+                      raise SystemExit("fixture_plan_byte_race_not_rejected")
+                  if (dst / "inflated").exists():
+                      raise SystemExit("fixture_inflated_destination_created")
+              finally:
+                  os.close(dst_fd)
+                  os.close(src_fd)
+
+          print("VOID_V7_OPERATION_BOUND_COPY_BUDGET_FIXTURE_GREEN")
           PY
 
       - name: Exercise hostile-securebits capability drop
@@ -233,6 +361,9 @@ jobs:
           grep -Fx 'candidate_copy_descriptor_relative=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'candidate_copy_incremental_enumeration_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'candidate_copy_iterative_depth_bound_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_copy_operation_bound_node_budget_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_copy_operation_bound_byte_budget_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_copy_exact_planned_counts_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'candidate_receipt_safe_path_components_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'terminal_reason_line_sanitization_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'apply_root_dynamic_git_exec=false' "$RUNNER_TEMP/source-plan.log"
