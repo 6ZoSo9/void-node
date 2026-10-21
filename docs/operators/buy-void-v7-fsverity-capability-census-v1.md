@@ -42,6 +42,8 @@ For ext4 only, V1 attempts a direct `O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK` r
 
 - `/opt` is a canonical real directory, not a symlink/alias;
 - the target directory generation remains unchanged through the probe;
+- among longest-prefix mountinfo rows, the selected visible row's `major:minor` matches the canonical target directory's `st_dev`;
+- if multiple longest-prefix rows still match that same device, selection is ambiguous and the census HOLDS rather than guessing mount order;
 - the resolved block device's major/minor matches mountinfo's mounted-device `major:minor`;
 - the opened descriptor's `st_rdev` still matches that same mounted-device number;
 - ext4 magic `0xEF53`;
@@ -49,7 +51,7 @@ For ext4 only, V1 attempts a direct `O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK` r
 - read-only-compatible `VERITY` bit `0x8000`;
 - a terminal re-read of `/proc/self/mountinfo` still selects the identical `/opt` mount row after the kernel/device probes.
 
-Any target-path generation drift, device-number drift, or mount-generation drift is HOLD.
+Any target-path generation drift, visible-mount ambiguity, target/mount device-number mismatch, block-device drift, or mount-generation drift is HOLD.
 
 If the ordinary user cannot read the block device, the census reports HOLD. **That HOLD must not be worked around with sudo against the ordinary checkout.** The missing privileged feature observation must later be performed only through a separately reviewed trusted first-instruction host lane.
 
@@ -88,6 +90,7 @@ GREEN means V1 directly observed all of its conservative ext4 requirements:
 - designated Precision hostname;
 - ordinary-user execution;
 - canonical non-symlink `/opt` target with stable inode generation;
+- unambiguous visible mount row bound to the target directory's `st_dev`;
 - writable `/opt` mount;
 - no DAX request;
 - observed kernel `CONFIG_FS_VERITY` support;
