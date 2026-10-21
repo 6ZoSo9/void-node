@@ -422,6 +422,28 @@ static void copy_file(int srcroot,int dstroot,entry_v1 *e,unsigned char *buffer)
 static void verify_entry(int rootfd,entry_v1 *e){
     char parent[PATH_MAX],leaf[NAME_MAX+1];split_parent(e->path,parent,leaf);int dfd=open_dir_path_at(rootfd,parent);struct stat st;if(fstatat(dfd,leaf,&st,AT_SYMLINK_NOFOLLOW)){close(dfd);hold("verify_entry_missing");}if(e->kind=='D'){if(!S_ISDIR(st.st_mode)||S_ISLNK(st.st_mode)||st.st_uid!=expected_owner||st.st_gid!=expected_group||(st.st_mode&07777)!=0555){close(dfd);hold("verify_directory_invalid");}e->dev=st.st_dev;e->ino=st.st_ino;e->nlink=st.st_nlink;close(dfd);return;}if(!S_ISREG(st.st_mode)||S_ISLNK(st.st_mode)||st.st_uid!=expected_owner||st.st_gid!=expected_group||st.st_nlink!=1||(uint64_t)st.st_size!=e->size||(st.st_mode&07777)!=e->mode){close(dfd);hold("verify_file_metadata_invalid");}int fd=openat(dfd,leaf,O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);close(dfd);if(fd<0)hold("verify_file_open_failed");char sha[65];sha_fd_exact(fd,e->size,sha);struct stat aft;if(fstat(fd,&aft)||aft.st_dev!=st.st_dev||aft.st_ino!=st.st_ino||strcmp(sha,e->sha256)){close(fd);hold("verify_file_content_invalid");}e->dev=st.st_dev;e->ino=st.st_ino;e->nlink=st.st_nlink;close(fd);
 }
+static entry_v1 *manifest_find(manifest_v1 *m,const char *path){
+    size_t lo=0,hi=m->count;
+    while(lo<hi){size_t mid=lo+(hi-lo)/2;int c=strcmp(m->entries[mid].path,path);if(c<0)lo=mid+1;else if(c>0)hi=mid;else return &m->entries[mid];}
+    return NULL;
+}
+static void verify_directory_entries_exact(int rootfd,manifest_v1 *m,const char *prefix){
+    int fd=prefix&&*prefix?open_dir_path_at(rootfd,prefix):dup(rootfd);if(fd<0)hold("layout_dir_open_failed");
+    DIR *dir=fdopendir(fd);if(!dir){close(fd);hold("layout_fdopendir_failed");}
+    errno=0;struct dirent *de;
+    while((de=readdir(dir))){
+        if(!strcmp(de->d_name,".")||!strcmp(de->d_name,".."))continue;
+        if((!prefix||!*prefix)&&!strcmp(de->d_name,RECEIPT_NAME))continue;
+        char rel[PATH_MAX];int n=(prefix&&*prefix)?snprintf(rel,sizeof(rel),"%s/%s",prefix,de->d_name):snprintf(rel,sizeof(rel),"%s",de->d_name);
+        if(n<0||n>=(int)sizeof(rel)||!manifest_find(m,rel)){closedir(dir);hold("unexpected_tree_entry");}
+    }
+    if(errno){closedir(dir);hold("layout_readdir_failed");}
+    closedir(dir);
+}
+static void verify_exact_layout(int rootfd,manifest_v1 *m){
+    verify_directory_entries_exact(rootfd,m,"");
+    for(size_t i=0;i<m->count;i++)if(m->entries[i].kind=='D')verify_directory_entries_exact(rootfd,m,m->entries[i].path);
+}
 static void capture_directory_identities(int rootfd,manifest_v1 *m){
     for(size_t i=0;i<m->count;i++){
         entry_v1 *e=&m->entries[i];
@@ -456,7 +478,7 @@ static void verify_receipt_exact(int rootfd,const char *expected,size_t size){
     unsigned char extra;if(read(fd,&extra,1)!=0){close(fd);hold("receipt_grew");}
     close(fd);
 }
-static void verify_tree(int rootfd,manifest_v1 *m,const char *receipt,size_t receipt_size){struct stat rootst;if(fstat(rootfd,&rootst)||!S_ISDIR(rootst.st_mode)||rootst.st_uid!=expected_owner||rootst.st_gid!=expected_group||(rootst.st_mode&07777)!=0555)hold("final_root_metadata_invalid");for(size_t i=0;i<m->count;i++)verify_entry(rootfd,&m->entries[i]);verify_receipt_exact(rootfd,receipt,receipt_size);}
+static void verify_tree(int rootfd,manifest_v1 *m,const char *receipt,size_t receipt_size){struct stat rootst;if(fstat(rootfd,&rootst)||!S_ISDIR(rootst.st_mode)||rootst.st_uid!=expected_owner||rootst.st_gid!=expected_group||(rootst.st_mode&07777)!=0555)hold("final_root_metadata_invalid");for(size_t i=0;i<m->count;i++)verify_entry(rootfd,&m->entries[i]);verify_exact_layout(rootfd,m);verify_receipt_exact(rootfd,receipt,receipt_size);}
 
 static int fixture_apply(const char *source_root,const char *parent_path,const char *final_name,const char *stage_name){
     fixture_mode=true;expected_owner=getuid();expected_group=getgid();if(!clean_abs(source_root)||!clean_abs(parent_path)||!clean_rel(final_name)||strchr(final_name,'/')||!clean_rel(stage_name)||strchr(stage_name,'/'))hold("fixture_paths_invalid");
@@ -466,14 +488,14 @@ static int fixture_apply(const char *source_root,const char *parent_path,const c
     install_write_barrier();
     int pfd=open(parent_path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(pfd<0){close(payloadfd);hold("final_parent_open_failed");}
     struct stat existing;if(!fstatat(pfd,final_name,&existing,AT_SYMLINK_NOFOLLOW)){
-        int finalfd=openat(pfd,final_name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(finalfd<0)hold("existing_final_open_failed");for(size_t i=0;i<m.count;i++)verify_entry(finalfd,&m.entries[i]);struct stat rst;if(fstat(finalfd,&rst))hold("existing_final_stat_failed");size_t rs=build_receipt(receipt,receipt_cap,&m,rst,selfhash);verify_receipt_exact(finalfd,receipt,rs);if(fsync(pfd))hold("existing_parent_fsync_failed");close(finalfd);printf("%s_FIXTURE_ALREADY_GREEN\n",MARKER);receipt_common(stdout);free(io);free(receipt);close(payloadfd);close(pfd);free_manifest(&m);return 0;
+        int finalfd=openat(pfd,final_name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(finalfd<0)hold("existing_final_open_failed");for(size_t i=0;i<m.count;i++)verify_entry(finalfd,&m.entries[i]);struct stat rst;if(fstat(finalfd,&rst))hold("existing_final_stat_failed");size_t rs=build_receipt(receipt,receipt_cap,&m,rst,selfhash);verify_tree(finalfd,&m,receipt,rs);if(fsync(pfd))hold("existing_parent_fsync_failed");close(finalfd);printf("%s_FIXTURE_ALREADY_GREEN\n",MARKER);receipt_common(stdout);free(io);free(receipt);close(payloadfd);close(pfd);free_manifest(&m);return 0;
     }else if(errno!=ENOENT)hold("final_state_observation_failed");
     if(!fstatat(pfd,stage_name,&existing,AT_SYMLINK_NOFOLLOW)||errno!=ENOENT)hold("stage_preexisting");if(mkdirat(pfd,stage_name,0700))hold("stage_create_failed");int stagefd=openat(pfd,stage_name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(stagefd<0)hold("stage_open_failed");if(fchown(stagefd,expected_owner,expected_group)||fchmod(stagefd,0700))hold("stage_private_metadata_failed");
     for(size_t i=0;i<m.count;i++)if(m.entries[i].kind=='D')mkdir_rel(stagefd,m.entries[i].path,0700);
     for(size_t i=0;i<m.count;i++)if(m.entries[i].kind=='F')copy_file(payloadfd,stagefd,&m.entries[i],io);
     capture_directory_identities(stagefd,&m);
     struct stat stage_st;if(fstat(stagefd,&stage_st))hold("stage_stat_failed");size_t receipt_size=build_receipt(receipt,receipt_cap,&m,stage_st,selfhash);entry_v1 receipt_state={0};create_receipt(stagefd,receipt,receipt_size,&receipt_state);
-    close_tree_dirs(stagefd,&m);for(size_t i=0;i<m.count;i++)verify_entry(stagefd,&m.entries[i]);verify_receipt_exact(stagefd,receipt,receipt_size);require_no_writable_dest_fds(&m,&receipt_state,stagefd);require_single_thread();require_no_shared_writable_mapping();fsync_dirs(stagefd,&m);
+    close_tree_dirs(stagefd,&m);verify_tree(stagefd,&m,receipt,receipt_size);require_no_writable_dest_fds(&m,&receipt_state,stagefd);require_single_thread();require_no_shared_writable_mapping();fsync_dirs(stagefd,&m);
     if(rename_noreplace(pfd,stage_name,final_name)){hold("publication_rename_noreplace_failed");}publication_performed=true;
 #ifdef VOID_V7_CLOSED_TREE_TEST_HOOKS
     if(fixture_mode&&getenv("VOID_V7_TEST_EXIT_AFTER_RENAME")) _exit(73);
