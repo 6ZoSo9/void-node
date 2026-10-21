@@ -122,6 +122,20 @@ with tempfile.TemporaryDirectory(prefix="void-v7-reseal-proof-") as td:
     assert built.returncode == 2
     assert "reason=output_outside_downloads" in built.stdout.splitlines()
 
+source_overlap_output = ROOT / ".git" / "void-v7-reseal-forbidden"
+assert not source_overlap_output.exists()
+source_overlap = subprocess.run(
+    [
+        sys.executable, "-I", "-B", str(TARGET),
+        "--build", "--output", str(source_overlap_output),
+    ],
+    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    text=True, timeout=120, check=False,
+)
+assert source_overlap.returncode == 2
+assert "reason=output_under_source_checkout" in source_overlap.stdout.splitlines()
+assert not source_overlap_output.exists()
+
 for separator in ("\n", "\x85", "\u2028", "\u2029"):
     bad_receipt_output = (
         account_home
