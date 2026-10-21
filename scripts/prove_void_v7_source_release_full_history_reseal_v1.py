@@ -14,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "36853095668c704a3186b4d1dfbed535599a53c1"
+TARGET_BLOB = "60ef11390ec18fcaef44f9161a980badd922b190"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -63,6 +63,8 @@ for required in (
     'GIT_OBJECT_DIRECTORY',
     'pass_fds=',
     'def _cleanup_candidate(',
+    'def _fd_mount_id(',
+    'cleanup_descendant_mount_boundary_forbidden',
     'candidate_cleanup_residual_unknown',
     'descriptor_bound_candidate_mutation=true',
     'mountpoint_alias_rejection=true',
@@ -95,6 +97,7 @@ assert "source_checkout_output_rejected=true" in selftest.stdout.splitlines()
 assert "mountpoint_aliases_rejected=true" in selftest.stdout.splitlines()
 assert "descriptor_bound_candidate_mutation=true" in selftest.stdout.splitlines()
 assert "cleanup_failure_receipt_bound=true" in selftest.stdout.splitlines()
+assert "cleanup_mount_boundary_rejection_bound=true" in selftest.stdout.splitlines()
 
 account_home = Path(pwd.getpwuid(os.getuid()).pw_dir)
 spoofed_env = dict(os.environ)
@@ -187,6 +190,7 @@ print("source_checkout_output_rejection_bound=true")
 print("mountpoint_alias_rejection_bound=true")
 print("descriptor_bound_candidate_mutation_bound=true")
 print("truthful_candidate_cleanup_receipt_bound=true")
+print("cleanup_mount_boundary_rejection_bound=true")
 print("protected_filesystem_mutation=false")
 print("network=false")
 print("protected_replace_authorized=false")
