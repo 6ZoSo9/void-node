@@ -626,18 +626,28 @@ class _PackReader:
         self.pack_path = pack_path
         self.idx_path = idx_path
         self.label = label
-        self.pack_fd, self.pack_identity = _open_stable_regular(
-            pack_path, label + "_pack", MAX_FILE_BYTES
-        )
-        self.idx_fd, self.idx_identity = _open_stable_regular(
-            idx_path, label + "_idx", MAX_INDEX_BYTES
-        )
+        self.pack_fd = -1
+        self.idx_fd = -1
         self.cache: collections.OrderedDict[str, tuple[str, bytes]] = collections.OrderedDict()
-        self._load_index()
+        try:
+            self.pack_fd, self.pack_identity = _open_stable_regular(
+                pack_path, label + "_pack", MAX_FILE_BYTES
+            )
+            self.idx_fd, self.idx_identity = _open_stable_regular(
+                idx_path, label + "_idx", MAX_INDEX_BYTES
+            )
+            self._load_index()
+        except BaseException:
+            self.close()
+            raise
 
     def close(self) -> None:
-        os.close(self.idx_fd)
-        os.close(self.pack_fd)
+        if self.idx_fd >= 0:
+            os.close(self.idx_fd)
+            self.idx_fd = -1
+        if self.pack_fd >= 0:
+            os.close(self.pack_fd)
+            self.pack_fd = -1
 
     def _load_index(self) -> None:
         pack_size = os.fstat(self.pack_fd).st_size
@@ -906,14 +916,18 @@ class _ObjectStore:
             raise InstallError(label + "_single_pack_required")
         if len(stems) > MAX_PACKS:
             raise InstallError(label + "_pack_count_limit")
-        for stem, exts in sorted(stems.items()):
-            if exts != {"pack", "idx"}:
-                raise InstallError(label + "_pack_pair_incomplete")
-            self.packs.append(_PackReader(
-                pack_dir / (stem + ".pack"),
-                pack_dir / (stem + ".idx"),
-                label + "_" + stem,
-            ))
+        try:
+            for stem, exts in sorted(stems.items()):
+                if exts != {"pack", "idx"}:
+                    raise InstallError(label + "_pack_pair_incomplete")
+                self.packs.append(_PackReader(
+                    pack_dir / (stem + ".pack"),
+                    pack_dir / (stem + ".idx"),
+                    label + "_" + stem,
+                ))
+        except BaseException:
+            self.close()
+            raise
 
     def close(self) -> None:
         for pack in self.packs:
