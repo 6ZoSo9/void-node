@@ -41,7 +41,7 @@ Census source Git blob:
 
 Focused proof Git blob:
 
-\`7ed7fd7f64b4a5f54b8d828af484106d6ef747ad\`
+\`aca211add9f4a093bf46def8a370d3dd96eabca0\`
 
 ## fs-verity capability observation
 
