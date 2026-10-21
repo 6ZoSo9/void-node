@@ -1021,6 +1021,69 @@ assert.equal(submitButton.disabled, true, "same-generation render retains succes
 buyTest.updateSubmit();
 assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
 
+// Wallet-app return and browser history restoration must preserve a *valid*
+// same-generation checkout receipt. The expiry fix must not invent a fresh
+// readiness GET, retry the request POST, or discard still-valid instructions.
+// Earlier expiry fixtures prove the opposite (expired receipt) behavior.
+const onBuyVisibilityChange = documentEventHandlers.get("visibilitychange");
+const onBuyPageshow = windowEventHandlers.get("pageshow");
+const onBuyFocus = windowEventHandlers.get("focus");
+for (const handler of [onBuyVisibilityChange, onBuyPageshow, onBuyFocus]) {
+  assert.equal(typeof handler, "function", "resume handler must be installed");
+}
+const validReceiptBeforeResume = buyResultNode.textContent;
+const networkCallsBeforeResume = fetchCalls.length;
+assert.match(validReceiptBeforeResume,
+  /REQUEST CREATED — VERIFY BEFORE PAYMENT[\s\S]*buyvoid_ethereum_open_v1/u);
+sandbox.document.visibilityState = "hidden";
+onBuyVisibilityChange();
+assert.equal(buyResultNode.textContent, validReceiptBeforeResume,
+  "background visibility event must preserve valid instructions");
+sandbox.document.visibilityState = "visible";
+onBuyVisibilityChange();
+assert.equal(buyResultNode.textContent, validReceiptBeforeResume,
+  "wallet-app return within unchanged live lease must preserve receipt");
+onBuyPageshow({ persisted: true });
+assert.equal(buyResultNode.textContent, validReceiptBeforeResume,
+  "bfcache pageshow within valid lease must preserve receipt");
+onBuyFocus();
+assert.equal(buyResultNode.textContent, validReceiptBeforeResume,
+  "focus within valid lease must preserve receipt");
+assert.equal(fetchCalls.length, networkCallsBeforeResume,
+  "resume events must issue neither readiness GET nor checkout POST");
+assert.equal(submitButton.disabled, true,
+  "same valid Buy intent remains no-retry after resume");
+
+// A browser event fired outside the Buy route must not touch any stale Buy
+// content. Also refuse to render against an absent Buy DOM on the Buy route.
+sandbox.location.hash = "#/home";
+const inactiveRouteSentinel = "non_buy_route_receipt_must_not_be_rewritten";
+buyResultNode.textContent = inactiveRouteSentinel;
+onBuyVisibilityChange();
+onBuyPageshow({ persisted: true });
+onBuyFocus();
+assert.equal(buyResultNode.textContent, inactiveRouteSentinel,
+  "resume signals cannot render Buy content on non-Buy routes");
+sandbox.location.hash = "#/buy";
+const activeBuyNodeBeforeNoDom = buyViewNode;
+buyViewNode = null;
+const absentBuyDomSentinel = "missing_buy_view_must_not_be_rewritten";
+buyResultNode.textContent = absentBuyDomSentinel;
+onBuyVisibilityChange();
+onBuyPageshow({ persisted: true });
+onBuyFocus();
+assert.equal(buyResultNode.textContent, absentBuyDomSentinel,
+  "resume signals cannot render into a missing Buy view");
+buyViewNode = activeBuyNodeBeforeNoDom;
+buyTest.updateSubmit();
+assert.equal(buyResultNode.textContent, validReceiptBeforeResume,
+  "returning to unchanged Buy DOM still restores the matching valid receipt");
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, networkCallsBeforeResume,
+  "resume/reentry events and same-intent submit must never repeat POST");
+assert.equal(submitButton.disabled, true,
+  "same-intent receipt remains fenced after all resume events");
+
 // A confirmed request must not vanish when readiness briefly changes to
 // HOLD or SOLD OUT. Never display payment instructions while closed.
 const soldOutSnapshot = buyTest.validateSnapshot(
@@ -2215,6 +2278,8 @@ console.log("buy_receipt_request_id_bounded_and_safe=true");
 console.log("buy_receipt_deadline_bound_to_launch_authority=true");
 console.log("expired_payment_instructions_never_restored=true");
 console.log("resume_visibility_pageshow_focus_recheck_expiry_without_post=true");
+console.log("resume_still_valid_wallet_app_bfcache_focus_preserves_receipt_no_network=true");
+console.log("resume_non_buy_route_and_missing_dom_no_render=true");
 console.log("server_timestamp_and_monotonic_instruction_deadline_bound=true");
 console.log("wall_rollback_suspension_and_skew_fail_closed=true");
 console.log("same_intent_repost_after_receipt_blocked=1");
