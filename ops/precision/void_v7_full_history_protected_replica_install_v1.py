@@ -21,6 +21,7 @@ if (
     raise RuntimeError("python_isolated_unoptimized_mode_required")
 
 import argparse
+import collections
 import ctypes
 import errno
 import hashlib
@@ -30,18 +31,18 @@ import pathlib
 import signal
 import stat
 import struct
-import subprocess
 import tempfile
+import zlib
 from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MARKER = _BOOTSTRAP_MARKER
 
-BASE_HEAD = "e99772502c80fefafef3b6a836a408b66ddded76"
+BASE_HEAD = "6a577bc61bd95524597e534b37a531c5b60ee7c1"
 BUILDER_REL = "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
 BUILDER_BLOB = "030182d544a92cd6c67868fa4c4f3e83188e4249"
 V4_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
-V4_BLOB = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
+V4_BLOB = "4448acb51cbc15d845550a55cd11c38f4185a7b3"
 ATOMIC_REL = "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
 ATOMIC_BLOB = "3fe1158a0fdf19fa4307c2a8122314b75ee36345"
 
@@ -73,8 +74,13 @@ PLAN_SCHEMA = "void_v7_full_history_protected_replica_install_plan_v1"
 PLAN_PREFIX = "voidv7fullhistoryreplicainstall1_"
 CONFIRM_TOKEN = "INSTALL_VOID_V7_FULL_HISTORY_PROTECTED_REPLICA_V1_CREATE_ONLY"
 
-FIXED_GIT = "/usr/bin/git"
 MAX_NODES = 250000
+MAX_PACKS = 64
+MAX_PACK_CACHE_OBJECTS = 256
+MAX_PACK_DELTA_DEPTH = 128
+MAX_INDEX_BYTES = 64 * 1024 * 1024
+MAX_INDEX_PATH_BYTES = 4096
+PACK_IDX_MAGIC = b"\xfftOc"
 MAX_COPY_DEPTH = 128
 MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
@@ -249,87 +255,154 @@ def _remove_runtime_uid_read_acl_fd(
     else:
         raise InstallError(label + "_access_acl_postremove_still_present")
 
-def _git_env() -> dict[str, str]:
-    return {
-        "PATH": "/usr/bin:/bin",
-        "HOME": "/nonexistent",
-        "LANG": "C",
-        "LC_ALL": "C",
-        "TZ": "UTC",
-        "GIT_CONFIG_NOSYSTEM": "1",
-        "GIT_CONFIG_GLOBAL": "/dev/null",
-        "GIT_CONFIG_SYSTEM": "/dev/null",
-        "GIT_NO_REPLACE_OBJECTS": "1",
-        "GIT_OPTIONAL_LOCKS": "0",
-        "GIT_TERMINAL_PROMPT": "0",
-        "GIT_ASKPASS": "/bin/false",
-        "GIT_NO_LAZY_FETCH": "1",
-        "GIT_PROTOCOL_FROM_USER": "0",
-        "GIT_ALLOW_PROTOCOL": "",
-        "GIT_PAGER": "",
-    }
-
-def _git_run(root: pathlib.Path, *args: str, allowed: tuple[int, ...] = (0,), timeout: int = 120) -> subprocess.CompletedProcess[bytes]:
-    cp = subprocess.run(
-        [
-            FIXED_GIT,
-            "-c", "safe.directory=" + os.fspath(root),
-            "-c", "core.hooksPath=/dev/null",
-            "-c", "core.fsmonitor=false",
-            "-c", "core.untrackedCache=false",
-            "-c", "submodule.recurse=false",
-            "--no-replace-objects",
-            "-C", os.fspath(root),
-            *args,
-        ],
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=_git_env(),
-        timeout=timeout,
-        check=False,
-    )
-    if cp.returncode not in allowed:
-        raise InstallError("git_failed:" + (args[0] if args else "unknown"))
-    if cp.returncode == 0 and cp.stderr:
-        raise InstallError("git_stderr:" + (args[0] if args else "unknown"))
-    return cp
-
-def git_text(root: pathlib.Path, *args: str) -> str:
+def _direct_git_root(root: pathlib.Path, label: str) -> pathlib.Path:
+    root_abs = pathlib.Path(os.path.abspath(os.fspath(root)))
     try:
-        return _git_run(root, *args).stdout.decode("utf-8", "strict").strip()
-    except UnicodeDecodeError as exc:
-        raise InstallError("git_output_not_utf8") from exc
+        if root_abs.resolve(strict=True) != root_abs:
+            raise InstallError(label + "_root_alias_forbidden")
+    except OSError as exc:
+        raise InstallError(label + "_root_unavailable") from exc
+    git_dir = root_abs / ".git"
+    st = git_dir.lstat()
+    if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode):
+        raise InstallError(label + "_git_dir_invalid")
+    if git_dir.resolve(strict=True) != git_dir:
+        raise InstallError(label + "_git_dir_alias_forbidden")
+    for path in (
+        git_dir / "commondir",
+        git_dir / "config.worktree",
+        git_dir / "info" / "grafts",
+        git_dir / "objects" / "info" / "alternates",
+        git_dir / "objects" / "info" / "http-alternates",
+    ):
+        if path.exists() or path.is_symlink():
+            raise InstallError(label + "_git_indirection_forbidden:" + path.name)
+    return git_dir
 
-def git_bytes(root: pathlib.Path, *args: str) -> bytes:
-    return _git_run(root, *args).stdout
+def _direct_main_ref(root: pathlib.Path, label: str) -> str:
+    git_dir = _direct_git_root(root, label)
+    head, head_id = _read_regular_stable(git_dir / "HEAD", label + "_head", 4096)
+    if head != b"ref: refs/heads/main\n":
+        raise InstallError(label + "_head_not_main")
+    ref_path = git_dir / "refs" / "heads" / "main"
+    ref, ref_id = _read_regular_stable(ref_path, label + "_main_ref", 4096)
+    if (
+        len(ref) != 41
+        or not ref.endswith(b"\n")
+        or any(ch not in b"0123456789abcdef" for ch in ref[:-1])
+    ):
+        raise InstallError(label + "_main_ref_invalid")
+    head2, head_id2 = _read_regular_stable(git_dir / "HEAD", label + "_head_terminal", 4096)
+    ref2, ref_id2 = _read_regular_stable(ref_path, label + "_main_ref_terminal", 4096)
+    if head2 != head or head_id2 != head_id or ref2 != ref or ref_id2 != ref_id:
+        raise InstallError(label + "_ref_generation_changed")
+    return ref[:-1].decode("ascii")
 
-def git_ancestor(root: pathlib.Path, base: str, head: str) -> bool:
-    cp = _git_run(root, "merge-base", "--is-ancestor", base, head, allowed=(0, 1))
-    if cp.stdout or cp.stderr:
-        raise InstallError("git_ancestor_output_invalid")
-    return cp.returncode == 0
+def _direct_blob_identity(path: pathlib.Path, expected_blob: str, label: str) -> None:
+    _size, _sha256, observed, _identity = _stream_regular_hashes_stable(
+        path, label, git_blob=True
+    )
+    if observed != expected_blob:
+        raise InstallError(label + "_blob_mismatch")
 
-def verify_repository(expected_head: str) -> None:
-    if len(expected_head) != 40 or any(ch not in "0123456789abcdef" for ch in expected_head):
-        raise InstallError("expected_head_invalid")
-    if git_text(ROOT, "rev-parse", "HEAD") != expected_head:
+def _git_tree_oid_from_worktree(root: pathlib.Path, label: str) -> str:
+    nodes = 0
+    total = 0
+    root_before = root.lstat()
+    if not stat.S_ISDIR(root_before.st_mode) or stat.S_ISLNK(root_before.st_mode):
+        raise InstallError(label + "_worktree_root_invalid")
+    root_identity = _metadata_identity(root_before)
+
+    def walk(directory: pathlib.Path, depth: int) -> str:
+        nonlocal nodes, total
+        if depth > MAX_COPY_DEPTH:
+            raise InstallError(label + "_worktree_depth_limit")
+        before = directory.lstat()
+        if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+            raise InstallError(label + "_worktree_directory_invalid")
+        directory_identity = _metadata_identity(before)
+        names: list[str] = []
+        with os.scandir(directory) as scan:
+            for entry in scan:
+                nodes += 1
+                if nodes > MAX_NODES:
+                    raise InstallError(label + "_worktree_node_limit")
+                names.append(entry.name)
+        rows: list[tuple[bytes, bytes]] = []
+        for name in names:
+            if directory == root and name == ".git":
+                gst = (directory / name).lstat()
+                if not stat.S_ISDIR(gst.st_mode) or stat.S_ISLNK(gst.st_mode):
+                    raise InstallError(label + "_git_dir_generation_invalid")
+                continue
+            try:
+                raw_name = os.fsencode(name)
+                raw_name.decode("utf-8", "strict")
+            except UnicodeError as exc:
+                raise InstallError(label + "_worktree_name_not_utf8") from exc
+            if not raw_name or b"/" in raw_name or b"\0" in raw_name:
+                raise InstallError(label + "_worktree_name_invalid")
+            child = directory / name
+            st = child.lstat()
+            identity = _metadata_identity(st)
+            if stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode):
+                oid = walk(child, depth + 1)
+                mode = b"40000"
+                sort_key = raw_name + b"/"
+            elif stat.S_ISREG(st.st_mode) and not stat.S_ISLNK(st.st_mode):
+                if st.st_size > MAX_FILE_BYTES:
+                    raise InstallError(label + "_worktree_file_size_limit")
+                total += st.st_size
+                if total > MAX_TOTAL_BYTES:
+                    raise InstallError(label + "_worktree_total_bytes_limit")
+                _n, _sha, oid, _id = _stream_regular_hashes_stable(
+                    child, label + "_worktree_blob", git_blob=True
+                )
+                if oid is None:
+                    raise InstallError(label + "_worktree_blob_missing")
+                mode = b"100755" if stat.S_IMODE(st.st_mode) & stat.S_IXUSR else b"100644"
+                sort_key = raw_name + b"\0"
+            elif stat.S_ISLNK(st.st_mode):
+                target_raw = os.fsencode(os.readlink(child))
+                if len(target_raw) > MAX_FILE_BYTES:
+                    raise InstallError(label + "_worktree_symlink_size_limit")
+                if _metadata_identity(child.lstat()) != identity:
+                    raise InstallError(label + "_worktree_symlink_generation_changed")
+                oid = git_blob_sha1(target_raw)
+                mode = b"120000"
+                sort_key = raw_name + b"\0"
+            else:
+                raise InstallError(label + "_worktree_kind_invalid")
+            rows.append((sort_key, mode + b" " + raw_name + b"\0" + bytes.fromhex(oid)))
+        if _metadata_identity(directory.lstat()) != directory_identity:
+            raise InstallError(label + "_worktree_directory_generation_changed")
+        body = b"".join(row for _key, row in sorted(rows, key=lambda item: item[0]))
+        h = hashlib.sha1()
+        h.update(b"tree " + str(len(body)).encode("ascii") + b"\0")
+        h.update(body)
+        return h.hexdigest()
+
+    oid = walk(root, 0)
+    if _metadata_identity(root.lstat()) != root_identity:
+        raise InstallError(label + "_worktree_root_generation_changed")
+    return oid
+
+def verify_repository(expected_head: str, expected_tree: str) -> None:
+    for value, label in ((expected_head, "expected_head"), (expected_tree, "expected_tree")):
+        if len(value) != 40 or any(ch not in "0123456789abcdef" for ch in value):
+            raise InstallError(label + "_invalid")
+    if _direct_main_ref(ROOT, "checkout") != expected_head:
         raise InstallError("checkout_head_mismatch")
-    if git_text(ROOT, "symbolic-ref", "--quiet", "--short", "HEAD") != "main":
-        raise InstallError("checkout_branch_not_main")
-    if git_text(ROOT, "status", "--porcelain=v1", "--untracked-files=all") != "":
-        raise InstallError("checkout_not_clean")
-    if git_text(ROOT, "rev-parse", "--is-shallow-repository") != "false":
+    if (ROOT / ".git" / "shallow").exists() or (ROOT / ".git" / "shallow").is_symlink():
         raise InstallError("checkout_shallow")
-    if not git_ancestor(ROOT, BASE_HEAD, expected_head):
-        raise InstallError("accepted_reseal_merge_not_ancestor")
+    if _git_tree_oid_from_worktree(ROOT, "checkout") != expected_tree:
+        raise InstallError("checkout_tree_mismatch")
     for rel, blob in {
         BUILDER_REL: BUILDER_BLOB,
         V4_REL: V4_BLOB,
         ATOMIC_REL: ATOMIC_BLOB,
     }.items():
-        if git_text(ROOT, "rev-parse", "HEAD:" + rel) != blob:
-            raise InstallError("dependency_blob_mismatch:" + rel)
+        _direct_blob_identity(ROOT / rel, blob, "dependency:" + rel)
 
 def _read_regular_stable(
     path: pathlib.Path,
@@ -435,6 +508,720 @@ def _stream_regular_hashes_stable(
     finally:
         os.close(fd)
 
+def _pread_exact(fd: int, offset: int, size: int, label: str) -> bytes:
+    if offset < 0 or size < 0:
+        raise InstallError(label + "_range_invalid")
+    out = bytearray()
+    while len(out) < size:
+        part = os.pread(fd, size - len(out), offset + len(out))
+        if not part:
+            raise InstallError(label + "_short_read")
+        out.extend(part)
+    return bytes(out)
+
+def _sha1_fd_prefix(fd: int, size: int, label: str) -> bytes:
+    if size < 0:
+        raise InstallError(label + "_size_invalid")
+    h = hashlib.sha1()
+    offset = 0
+    while offset < size:
+        part = os.pread(fd, min(COPY_CHUNK, size - offset), offset)
+        if not part:
+            raise InstallError(label + "_short_read")
+        h.update(part)
+        offset += len(part)
+    return h.digest()
+
+def _open_stable_regular(path: pathlib.Path, label: str, maximum: int) -> tuple[int, tuple[int, int, int, int, int, int, int, int, int]]:
+    before = path.lstat()
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_nlink != 1
+        or before.st_size < 0
+        or before.st_size > maximum
+    ):
+        raise InstallError(label + "_metadata_invalid")
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    opened = os.fstat(fd)
+    identity = _metadata_identity(opened)
+    if identity != _metadata_identity(before):
+        os.close(fd)
+        raise InstallError(label + "_rebound")
+    return fd, identity
+
+def _apply_git_delta(base: bytes, delta: bytes, label: str) -> bytes:
+    def varint(pos: int) -> tuple[int, int]:
+        value = 0
+        shift = 0
+        while True:
+            if pos >= len(delta) or shift > 63:
+                raise InstallError(label + "_delta_varint_invalid")
+            byte = delta[pos]
+            pos += 1
+            value |= (byte & 0x7f) << shift
+            if not (byte & 0x80):
+                return value, pos
+            shift += 7
+
+    base_size, pos = varint(0)
+    result_size, pos = varint(pos)
+    if base_size != len(base) or result_size > MAX_FILE_BYTES:
+        raise InstallError(label + "_delta_size_invalid")
+    out = bytearray()
+    while pos < len(delta):
+        op = delta[pos]
+        pos += 1
+        if op & 0x80:
+            offset = 0
+            size = 0
+            if op & 0x01:
+                if pos >= len(delta): raise InstallError(label + "_delta_copy_truncated")
+                offset |= delta[pos]; pos += 1
+            if op & 0x02:
+                if pos >= len(delta): raise InstallError(label + "_delta_copy_truncated")
+                offset |= delta[pos] << 8; pos += 1
+            if op & 0x04:
+                if pos >= len(delta): raise InstallError(label + "_delta_copy_truncated")
+                offset |= delta[pos] << 16; pos += 1
+            if op & 0x08:
+                if pos >= len(delta): raise InstallError(label + "_delta_copy_truncated")
+                offset |= delta[pos] << 24; pos += 1
+            if op & 0x10:
+                if pos >= len(delta): raise InstallError(label + "_delta_copy_truncated")
+                size |= delta[pos]; pos += 1
+            if op & 0x20:
+                if pos >= len(delta): raise InstallError(label + "_delta_copy_truncated")
+                size |= delta[pos] << 8; pos += 1
+            if op & 0x40:
+                if pos >= len(delta): raise InstallError(label + "_delta_copy_truncated")
+                size |= delta[pos] << 16; pos += 1
+            if size == 0:
+                size = 0x10000
+            if offset < 0 or size < 0 or offset + size > len(base):
+                raise InstallError(label + "_delta_copy_range_invalid")
+            out.extend(base[offset:offset + size])
+        elif op:
+            if pos + op > len(delta):
+                raise InstallError(label + "_delta_insert_truncated")
+            out.extend(delta[pos:pos + op])
+            pos += op
+        else:
+            raise InstallError(label + "_delta_opcode_zero")
+        if len(out) > result_size:
+            raise InstallError(label + "_delta_result_overflow")
+    if len(out) != result_size:
+        raise InstallError(label + "_delta_result_size_mismatch")
+    return bytes(out)
+
+class _PackReader:
+    def __init__(self, pack_path: pathlib.Path, idx_path: pathlib.Path, label: str):
+        self.pack_path = pack_path
+        self.idx_path = idx_path
+        self.label = label
+        self.pack_fd, self.pack_identity = _open_stable_regular(
+            pack_path, label + "_pack", MAX_FILE_BYTES
+        )
+        self.idx_fd, self.idx_identity = _open_stable_regular(
+            idx_path, label + "_idx", MAX_INDEX_BYTES
+        )
+        self.cache: collections.OrderedDict[str, tuple[str, bytes]] = collections.OrderedDict()
+        self._load_index()
+
+    def close(self) -> None:
+        os.close(self.idx_fd)
+        os.close(self.pack_fd)
+
+    def _load_index(self) -> None:
+        pack_size = os.fstat(self.pack_fd).st_size
+        idx_size = os.fstat(self.idx_fd).st_size
+        if pack_size < 32 or idx_size < 8 + 1024 + 40:
+            raise InstallError(self.label + "_pack_or_index_too_small")
+        if _pread_exact(self.idx_fd, 0, 4, self.label + "_idx_magic") != PACK_IDX_MAGIC:
+            raise InstallError(self.label + "_idx_magic_invalid")
+        if struct.unpack(">I", _pread_exact(self.idx_fd, 4, 4, self.label + "_idx_version"))[0] != 2:
+            raise InstallError(self.label + "_idx_version_invalid")
+        fanout_raw = _pread_exact(self.idx_fd, 8, 1024, self.label + "_idx_fanout")
+        fanout = list(struct.unpack(">256I", fanout_raw))
+        if any(fanout[i] > fanout[i + 1] for i in range(255)):
+            raise InstallError(self.label + "_idx_fanout_invalid")
+        count = fanout[-1]
+        if count <= 0 or count > MAX_NODES:
+            raise InstallError(self.label + "_idx_object_count_invalid")
+        names_off = 8 + 1024
+        names_raw = _pread_exact(self.idx_fd, names_off, count * 20, self.label + "_idx_names")
+        oids = [names_raw[i * 20:(i + 1) * 20] for i in range(count)]
+        if any(oids[i] >= oids[i + 1] for i in range(count - 1)):
+            raise InstallError(self.label + "_idx_names_not_strictly_sorted")
+        cumulative = 0
+        cursor = 0
+        for byte in range(256):
+            while cursor < count and oids[cursor][0] <= byte:
+                cursor += 1
+            cumulative = cursor
+            if fanout[byte] != cumulative:
+                raise InstallError(self.label + "_idx_fanout_name_mismatch")
+        crc_off = names_off + count * 20
+        crcs = struct.unpack(
+            ">" + "I" * count,
+            _pread_exact(self.idx_fd, crc_off, count * 4, self.label + "_idx_crc")
+        )
+        off_off = crc_off + count * 4
+        off32 = struct.unpack(
+            ">" + "I" * count,
+            _pread_exact(self.idx_fd, off_off, count * 4, self.label + "_idx_offsets")
+        )
+        large_count = sum(1 for value in off32 if value & 0x80000000)
+        large_off = off_off + count * 4
+        expected_idx_size = large_off + large_count * 8 + 40
+        if idx_size != expected_idx_size:
+            raise InstallError(self.label + "_idx_size_invalid")
+        large = ()
+        if large_count:
+            large = struct.unpack(
+                ">" + "Q" * large_count,
+                _pread_exact(self.idx_fd, large_off, large_count * 8, self.label + "_idx_large_offsets")
+            )
+        pack_checksum = _pread_exact(self.idx_fd, idx_size - 40, 20, self.label + "_idx_pack_checksum")
+        idx_checksum = _pread_exact(self.idx_fd, idx_size - 20, 20, self.label + "_idx_checksum")
+        if _sha1_fd_prefix(self.idx_fd, idx_size - 20, self.label + "_idx_sha1") != idx_checksum:
+            raise InstallError(self.label + "_idx_checksum_mismatch")
+        pack_trailer = _pread_exact(self.pack_fd, pack_size - 20, 20, self.label + "_pack_trailer")
+        if pack_checksum != pack_trailer:
+            raise InstallError(self.label + "_idx_pack_checksum_mismatch")
+        if _sha1_fd_prefix(self.pack_fd, pack_size - 20, self.label + "_pack_sha1") != pack_trailer:
+            raise InstallError(self.label + "_pack_checksum_mismatch")
+        header = _pread_exact(self.pack_fd, 0, 12, self.label + "_pack_header")
+        if header[:4] != b"PACK":
+            raise InstallError(self.label + "_pack_magic_invalid")
+        version, pack_count = struct.unpack(">II", header[4:12])
+        if version not in (2, 3) or pack_count != count:
+            raise InstallError(self.label + "_pack_header_invalid")
+        offsets: list[int] = []
+        for raw in off32:
+            if raw & 0x80000000:
+                index = raw & 0x7fffffff
+                if index >= large_count:
+                    raise InstallError(self.label + "_idx_large_offset_index_invalid")
+                value = int(large[index])
+            else:
+                value = int(raw)
+            if value < 12 or value >= pack_size - 20:
+                raise InstallError(self.label + "_pack_object_offset_invalid")
+            offsets.append(value)
+        if len(set(offsets)) != count:
+            raise InstallError(self.label + "_pack_object_offset_duplicate")
+        self.oids = tuple(oid.hex() for oid in oids)
+        self.offset_by_oid = {self.oids[i]: offsets[i] for i in range(count)}
+        self.crc_by_oid = {self.oids[i]: crcs[i] for i in range(count)}
+        self.oid_by_offset = {offsets[i]: self.oids[i] for i in range(count)}
+        ordered_offsets = sorted(offsets)
+        self.end_by_offset = {
+            ordered_offsets[i]: (
+                ordered_offsets[i + 1] if i + 1 < len(ordered_offsets) else pack_size - 20
+            )
+            for i in range(len(ordered_offsets))
+        }
+
+    def contains(self, oid: str) -> bool:
+        return oid in self.offset_by_oid
+
+    def _cache_put(self, oid: str, value: tuple[str, bytes]) -> None:
+        if len(value[1]) > 4 * 1024 * 1024:
+            return
+        self.cache[oid] = value
+        self.cache.move_to_end(oid)
+        while len(self.cache) > MAX_PACK_CACHE_OBJECTS:
+            self.cache.popitem(last=False)
+
+    def read_object(self, oid: str, stack: tuple[str, ...] = ()) -> tuple[str, bytes]:
+        cached = self.cache.get(oid)
+        if cached is not None:
+            self.cache.move_to_end(oid)
+            return cached
+        if oid in stack or len(stack) >= MAX_PACK_DELTA_DEPTH:
+            raise InstallError(self.label + "_delta_cycle_or_depth")
+        offset = self.offset_by_oid.get(oid)
+        if offset is None:
+            raise InstallError(self.label + "_object_missing:" + oid)
+        end = self.end_by_offset[offset]
+        entry = _pread_exact(self.pack_fd, offset, end - offset, self.label + "_pack_entry")
+        if (zlib.crc32(entry) & 0xffffffff) != self.crc_by_oid[oid]:
+            raise InstallError(self.label + "_pack_entry_crc_mismatch")
+        pos = 0
+        first = entry[pos]
+        pos += 1
+        obj_type = (first >> 4) & 0x07
+        declared = first & 0x0f
+        shift = 4
+        byte = first
+        while byte & 0x80:
+            if pos >= len(entry) or shift > 63:
+                raise InstallError(self.label + "_pack_header_invalid")
+            byte = entry[pos]
+            pos += 1
+            declared |= (byte & 0x7f) << shift
+            shift += 7
+        base_oid = None
+        base_offset = None
+        if obj_type == 6:
+            if pos >= len(entry):
+                raise InstallError(self.label + "_ofs_delta_base_missing")
+            byte = entry[pos]
+            pos += 1
+            distance = byte & 0x7f
+            while byte & 0x80:
+                if pos >= len(entry):
+                    raise InstallError(self.label + "_ofs_delta_base_truncated")
+                byte = entry[pos]
+                pos += 1
+                distance = ((distance + 1) << 7) | (byte & 0x7f)
+            base_offset = offset - distance
+            if base_offset not in self.oid_by_offset:
+                raise InstallError(self.label + "_ofs_delta_base_offset_invalid")
+            base_oid = self.oid_by_offset[base_offset]
+        elif obj_type == 7:
+            if pos + 20 > len(entry):
+                raise InstallError(self.label + "_ref_delta_base_truncated")
+            base_oid = entry[pos:pos + 20].hex()
+            pos += 20
+            if base_oid not in self.offset_by_oid:
+                raise InstallError(self.label + "_thin_pack_forbidden")
+        comp = entry[pos:]
+        dec = zlib.decompressobj()
+        raw = dec.decompress(comp, MAX_FILE_BYTES + 1)
+        raw += dec.flush()
+        if (
+            not dec.eof
+            or dec.unused_data
+            or dec.unconsumed_tail
+            or len(raw) != declared
+            or len(raw) > MAX_FILE_BYTES
+        ):
+            raise InstallError(self.label + "_pack_decompression_invalid")
+        type_names = {1: "commit", 2: "tree", 3: "blob", 4: "tag"}
+        if obj_type in type_names:
+            type_name = type_names[obj_type]
+            data = raw
+        elif obj_type in (6, 7):
+            if base_oid is None:
+                raise InstallError(self.label + "_delta_base_missing")
+            base_type, base = self.read_object(base_oid, stack + (oid,))
+            type_name = base_type
+            data = _apply_git_delta(base, raw, self.label)
+        else:
+            raise InstallError(self.label + "_pack_object_type_invalid")
+        h = hashlib.sha1()
+        h.update(type_name.encode("ascii") + b" " + str(len(data)).encode("ascii") + b"\0")
+        h.update(data)
+        if h.hexdigest() != oid:
+            raise InstallError(self.label + "_object_oid_mismatch:" + oid)
+        value = (type_name, data)
+        self._cache_put(oid, value)
+        return value
+
+    def revalidate(self) -> None:
+        for path, fd, expected, label in (
+            (self.pack_path, self.pack_fd, self.pack_identity, self.label + "_pack"),
+            (self.idx_path, self.idx_fd, self.idx_identity, self.label + "_idx"),
+        ):
+            if (
+                _metadata_identity(os.fstat(fd)) != expected
+                or _metadata_identity(path.lstat()) != expected
+            ):
+                raise InstallError(label + "_generation_changed")
+
+class _ObjectStore:
+    def __init__(self, root: pathlib.Path, label: str, *, exact_pack_only: bool):
+        self.root = root
+        self.label = label
+        self.objects = root / ".git" / "objects"
+        self.loose: dict[str, pathlib.Path] = {}
+        self.packs: list[_PackReader] = []
+        names = []
+        with os.scandir(self.objects) as scan:
+            for entry in scan:
+                names.append(entry.name)
+                if len(names) > MAX_NODES:
+                    raise InstallError(label + "_object_store_entry_limit")
+        allowed = {"info", "pack"}
+        for name in names:
+            if name in allowed:
+                continue
+            if exact_pack_only:
+                raise InstallError(label + "_loose_object_forbidden")
+            if len(name) != 2 or any(ch not in "0123456789abcdef" for ch in name):
+                raise InstallError(label + "_object_store_entry_invalid")
+            directory = self.objects / name
+            st = directory.lstat()
+            if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode):
+                raise InstallError(label + "_loose_directory_invalid")
+            with os.scandir(directory) as scan:
+                for entry in scan:
+                    suffix = entry.name
+                    if len(suffix) != 38 or any(ch not in "0123456789abcdef" for ch in suffix):
+                        raise InstallError(label + "_loose_object_name_invalid")
+                    oid = name + suffix
+                    self.loose[oid] = directory / suffix
+                    if len(self.loose) > MAX_NODES:
+                        raise InstallError(label + "_loose_object_limit")
+        pack_dir = self.objects / "pack"
+        pack_entries = []
+        with os.scandir(pack_dir) as scan:
+            for entry in scan:
+                pack_entries.append(entry.name)
+                if len(pack_entries) > MAX_PACKS * 2:
+                    raise InstallError(label + "_pack_entry_limit")
+        stems: dict[str, set[str]] = {}
+        for name in pack_entries:
+            if not name.startswith("pack-"):
+                raise InstallError(label + "_pack_name_invalid")
+            if name.endswith(".pack"):
+                stem = name[:-5]
+                ext = "pack"
+            elif name.endswith(".idx"):
+                stem = name[:-4]
+                ext = "idx"
+            else:
+                raise InstallError(label + "_pack_auxiliary_forbidden")
+            digest = stem[5:]
+            if len(digest) != 40 or any(ch not in "0123456789abcdef" for ch in digest):
+                raise InstallError(label + "_pack_name_digest_invalid")
+            stems.setdefault(stem, set()).add(ext)
+        if exact_pack_only and len(stems) != 1:
+            raise InstallError(label + "_single_pack_required")
+        if len(stems) > MAX_PACKS:
+            raise InstallError(label + "_pack_count_limit")
+        for stem, exts in sorted(stems.items()):
+            if exts != {"pack", "idx"}:
+                raise InstallError(label + "_pack_pair_incomplete")
+            self.packs.append(_PackReader(
+                pack_dir / (stem + ".pack"),
+                pack_dir / (stem + ".idx"),
+                label + "_" + stem,
+            ))
+
+    def close(self) -> None:
+        for pack in self.packs:
+            pack.close()
+
+    def all_oids(self) -> set[str]:
+        out = set(self.loose)
+        for pack in self.packs:
+            for oid in pack.oids:
+                if oid in out:
+                    raise InstallError(self.label + "_duplicate_object_representation:" + oid)
+                out.add(oid)
+        return out
+
+    def has_object(self, oid: str) -> bool:
+        return oid in self.loose or any(pack.contains(oid) for pack in self.packs)
+
+    def _read_loose(self, oid: str, path: pathlib.Path) -> tuple[str, bytes]:
+        raw, _identity = _read_regular_stable(path, self.label + "_loose", MAX_FILE_BYTES)
+        try:
+            decoded = zlib.decompress(raw)
+        except zlib.error as exc:
+            raise InstallError(self.label + "_loose_zlib_invalid") from exc
+        if len(decoded) > MAX_FILE_BYTES:
+            raise InstallError(self.label + "_loose_object_size_limit")
+        sep = decoded.find(b"\0")
+        if sep <= 0:
+            raise InstallError(self.label + "_loose_header_invalid")
+        header = decoded[:sep]
+        data = decoded[sep + 1:]
+        try:
+            type_raw, size_raw = header.split(b" ", 1)
+            type_name = type_raw.decode("ascii")
+            size = int(size_raw.decode("ascii"))
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise InstallError(self.label + "_loose_header_parse_invalid") from exc
+        if type_name not in ("commit", "tree", "blob", "tag") or size != len(data):
+            raise InstallError(self.label + "_loose_header_semantic_invalid")
+        h = hashlib.sha1()
+        h.update(header + b"\0" + data)
+        if h.hexdigest() != oid:
+            raise InstallError(self.label + "_loose_oid_mismatch")
+        return type_name, data
+
+    def read_object(self, oid: str) -> tuple[str, bytes]:
+        if len(oid) != 40 or any(ch not in "0123456789abcdef" for ch in oid):
+            raise InstallError(self.label + "_object_oid_invalid")
+        if oid in self.loose:
+            return self._read_loose(oid, self.loose[oid])
+        matches = [pack for pack in self.packs if pack.contains(oid)]
+        if len(matches) != 1:
+            raise InstallError(self.label + "_object_missing_or_ambiguous:" + oid)
+        return matches[0].read_object(oid)
+
+    def revalidate(self) -> None:
+        for pack in self.packs:
+            pack.revalidate()
+
+def _parse_commit_object(data: bytes, label: str) -> tuple[str, tuple[str, ...]]:
+    header = data.split(b"\n\n", 1)[0]
+    tree = None
+    parents: list[str] = []
+    for line in header.splitlines():
+        if line.startswith(b"tree "):
+            if tree is not None:
+                raise InstallError(label + "_commit_tree_duplicate")
+            value = line[5:]
+            if len(value) != 40 or any(ch not in b"0123456789abcdef" for ch in value):
+                raise InstallError(label + "_commit_tree_invalid")
+            tree = value.decode("ascii")
+        elif line.startswith(b"parent "):
+            value = line[7:]
+            if len(value) != 40 or any(ch not in b"0123456789abcdef" for ch in value):
+                raise InstallError(label + "_commit_parent_invalid")
+            parents.append(value.decode("ascii"))
+    if tree is None:
+        raise InstallError(label + "_commit_tree_missing")
+    return tree, tuple(parents)
+
+def _parse_tree_object(data: bytes, label: str) -> tuple[tuple[str, str, str], ...]:
+    out: list[tuple[str, str, str]] = []
+    pos = 0
+    previous_key: bytes | None = None
+    while pos < len(data):
+        space = data.find(b" ", pos)
+        nul = data.find(b"\0", space + 1 if space >= 0 else pos)
+        if space <= pos or nul < 0 or nul + 21 > len(data):
+            raise InstallError(label + "_tree_record_invalid")
+        mode_raw = data[pos:space]
+        name_raw = data[space + 1:nul]
+        oid = data[nul + 1:nul + 21].hex()
+        pos = nul + 21
+        try:
+            mode = mode_raw.decode("ascii")
+            name = name_raw.decode("utf-8", "strict")
+        except UnicodeError as exc:
+            raise InstallError(label + "_tree_record_encoding_invalid") from exc
+        if (
+            mode not in ("40000", "100644", "100755", "120000")
+            or not name
+            or name in (".", "..", ".git")
+            or "/" in name
+            or "\0" in name
+        ):
+            raise InstallError(label + "_tree_record_semantic_invalid")
+        key = name_raw + (b"/" if mode == "40000" else b"\0")
+        if previous_key is not None and previous_key >= key:
+            raise InstallError(label + "_tree_order_invalid")
+        previous_key = key
+        out.append((mode, name, oid))
+        if len(out) > MAX_NODES:
+            raise InstallError(label + "_tree_entry_limit")
+    return tuple(out)
+
+def _flatten_tree_manifest(
+    store: _ObjectStore,
+    tree_oid: str,
+) -> tuple[dict[str, tuple[str, str]], set[str]]:
+    manifest: dict[str, tuple[str, str]] = {}
+    objects: set[str] = set()
+    stack: list[tuple[str, str, int]] = [(tree_oid, "", 0)]
+    while stack:
+        oid, prefix, depth = stack.pop()
+        if depth > MAX_COPY_DEPTH:
+            raise InstallError("tree_graph_depth_limit")
+        if oid in objects:
+            continue
+        obj_type, data = store.read_object(oid)
+        if obj_type != "tree":
+            raise InstallError("tree_graph_object_type_invalid")
+        objects.add(oid)
+        entries = _parse_tree_object(data, "tree_graph")
+        for mode, name, child_oid in reversed(entries):
+            rel = name if not prefix else prefix + "/" + name
+            if mode == "40000":
+                stack.append((child_oid, rel, depth + 1))
+            else:
+                child_type, _child_data = store.read_object(child_oid)
+                if child_type != "blob":
+                    raise InstallError("tree_graph_blob_type_invalid")
+                objects.add(child_oid)
+                if rel in manifest:
+                    raise InstallError("tree_graph_duplicate_path")
+                manifest[rel] = (mode, child_oid)
+                if len(manifest) > MAX_NODES:
+                    raise InstallError("tree_graph_path_limit")
+    return manifest, objects
+
+def _verify_full_history_graph(store: _ObjectStore) -> tuple[dict[str, tuple[str, str]], int, int]:
+    reachable: set[str] = set()
+    commits: set[str] = set()
+    trees_seen: set[str] = set()
+    stack = [SOURCE_HEAD]
+    top_manifest: dict[str, tuple[str, str]] | None = None
+    while stack:
+        oid = stack.pop()
+        if oid in commits:
+            continue
+        obj_type, data = store.read_object(oid)
+        if obj_type != "commit":
+            raise InstallError("history_commit_type_invalid:" + oid)
+        tree_oid, parents = _parse_commit_object(data, "history")
+        if oid == SOURCE_HEAD:
+            if tree_oid != SOURCE_TREE or parents != SOURCE_PARENTS:
+                raise InstallError("history_source_commit_binding_mismatch")
+        commits.add(oid)
+        reachable.add(oid)
+        if len(commits) > REACHABLE_COMMITS:
+            raise InstallError("history_commit_count_overflow")
+        stack.extend(parents)
+        manifest, tree_objects = _flatten_tree_manifest(store, tree_oid)
+        reachable.update(tree_objects)
+        trees_seen.update(tree_objects)
+        if tree_oid == SOURCE_TREE:
+            top_manifest = manifest
+        if len(reachable) > MAX_NODES:
+            raise InstallError("history_object_count_limit")
+    if len(commits) != REACHABLE_COMMITS:
+        raise InstallError("history_reachable_commit_count_mismatch")
+    if top_manifest is None:
+        raise InstallError("history_source_tree_missing")
+    all_oids = store.all_oids()
+    if reachable != all_oids:
+        raise InstallError("history_object_closure_not_exact")
+    for oid in tuple(all_oids):
+        store.read_object(oid)
+    store.revalidate()
+    return top_manifest, len(commits), len(all_oids)
+
+def _read_index_manifest(path: pathlib.Path, label: str) -> dict[str, tuple[str, str]]:
+    fd, identity = _open_stable_regular(path, label, MAX_INDEX_BYTES)
+    try:
+        size = os.fstat(fd).st_size
+        if size < 32:
+            raise InstallError(label + "_index_too_small")
+        header = _pread_exact(fd, 0, 12, label + "_header")
+        if header[:4] != b"DIRC":
+            raise InstallError(label + "_magic_invalid")
+        version, count = struct.unpack(">II", header[4:12])
+        if version != 2 or count > MAX_NODES:
+            raise InstallError(label + "_version_or_count_invalid")
+        manifest: dict[str, tuple[str, str]] = {}
+        offset = 12
+        previous: bytes | None = None
+        for _ in range(count):
+            fixed = _pread_exact(fd, offset, 62, label + "_entry")
+            fields = struct.unpack(">10I20sH", fixed)
+            mode_value = fields[6]
+            oid = fields[10].hex()
+            flags = fields[11]
+            if flags & 0xf000:
+                raise InstallError(label + "_flags_invalid")
+            name_limit = flags & 0x0fff
+            name = bytearray()
+            cursor = offset + 62
+            while True:
+                if len(name) > MAX_INDEX_PATH_BYTES:
+                    raise InstallError(label + "_path_limit")
+                byte = _pread_exact(fd, cursor, 1, label + "_path_byte")
+                cursor += 1
+                if byte == b"\0":
+                    break
+                name.extend(byte)
+            if name_limit != 0x0fff and name_limit != len(name):
+                raise InstallError(label + "_path_length_mismatch")
+            try:
+                rel = bytes(name).decode("utf-8", "strict")
+            except UnicodeDecodeError as exc:
+                raise InstallError(label + "_path_not_utf8") from exc
+            if (
+                not rel
+                or rel.startswith("/")
+                or rel.endswith("/")
+                or any(part in ("", ".", "..", ".git") for part in rel.split("/"))
+            ):
+                raise InstallError(label + "_path_invalid")
+            raw_name = bytes(name)
+            if previous is not None and previous >= raw_name:
+                raise InstallError(label + "_path_order_invalid")
+            previous = raw_name
+            kind = mode_value & 0o170000
+            perms = mode_value & 0o777
+            if kind == 0o100000:
+                mode = "100755" if perms & 0o100 else "100644"
+                if perms & ~0o755:
+                    raise InstallError(label + "_file_mode_invalid")
+            elif kind == 0o120000:
+                mode = "120000"
+            else:
+                raise InstallError(label + "_entry_mode_invalid")
+            if rel in manifest:
+                raise InstallError(label + "_duplicate_path")
+            manifest[rel] = (mode, oid)
+            entry_len = 62 + len(name) + 1
+            offset += (entry_len + 7) & ~7
+        if offset != size - 20:
+            raise InstallError(label + "_extensions_forbidden")
+        expected = _pread_exact(fd, size - 20, 20, label + "_checksum")
+        if _sha1_fd_prefix(fd, size - 20, label + "_sha1") != expected:
+            raise InstallError(label + "_checksum_mismatch")
+        if (
+            _metadata_identity(os.fstat(fd)) != identity
+            or _metadata_identity(path.lstat()) != identity
+        ):
+            raise InstallError(label + "_generation_changed")
+        return manifest
+    finally:
+        os.close(fd)
+
+def _verify_worktree_manifest(root: pathlib.Path, manifest: dict[str, tuple[str, str]]) -> None:
+    expected_dirs: set[str] = set()
+    for rel in manifest:
+        parts = rel.split("/")
+        for index in range(1, len(parts)):
+            expected_dirs.add("/".join(parts[:index]))
+    seen: set[str] = set()
+    pending: list[tuple[pathlib.Path, str]] = [(root, "")]
+    nodes = 0
+    while pending:
+        directory, prefix = pending.pop()
+        with os.scandir(directory) as scan:
+            for entry in scan:
+                if not prefix and entry.name == ".git":
+                    continue
+                nodes += 1
+                if nodes > MAX_NODES:
+                    raise InstallError("worktree_node_limit")
+                child = directory / entry.name
+                rel = entry.name if not prefix else prefix + "/" + entry.name
+                st = child.lstat()
+                if stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode):
+                    if rel not in expected_dirs:
+                        raise InstallError("worktree_extra_directory:" + rel)
+                    pending.append((child, rel))
+                    continue
+                expected = manifest.get(rel)
+                if expected is None:
+                    raise InstallError("worktree_extra_path:" + rel)
+                mode, oid = expected
+                if mode in ("100644", "100755"):
+                    if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
+                        raise InstallError("worktree_nonregular:" + rel)
+                    actual_mode = "100755" if stat.S_IMODE(st.st_mode) & stat.S_IXUSR else "100644"
+                    if actual_mode != mode:
+                        raise InstallError("worktree_mode_mismatch:" + rel)
+                    _size, _sha256, observed, _identity = _stream_regular_hashes_stable(
+                        child, "worktree_file", git_blob=True
+                    )
+                    if observed != oid:
+                        raise InstallError("worktree_blob_mismatch:" + rel)
+                elif mode == "120000":
+                    if not stat.S_ISLNK(st.st_mode):
+                        raise InstallError("worktree_symlink_kind_mismatch:" + rel)
+                    target = os.fsencode(os.readlink(child))
+                    if git_blob_sha1(target) != oid:
+                        raise InstallError("worktree_symlink_blob_mismatch:" + rel)
+                else:
+                    raise InstallError("worktree_mode_unsupported:" + rel)
+                seen.add(rel)
+    if seen != set(manifest):
+        raise InstallError("worktree_missing_path")
+
 def _exact_candidate_git_layout(root: pathlib.Path, owner_uid: int, owner_gid: int) -> dict[str, str]:
     git_dir = root / ".git"
     if set(os.listdir(git_dir)) != {"HEAD", "config", "index", "info", "objects", "refs"}:
@@ -534,82 +1321,6 @@ def _exact_candidate_git_layout(root: pathlib.Path, owner_uid: int, owner_gid: i
         "pack_index_sha256": idx_sha256,
     }
 
-def _parse_tree_manifest(raw: bytes) -> dict[str, tuple[str, str]]:
-    manifest: dict[str, tuple[str, str]] = {}
-    for record in raw.split(b"\0"):
-        if not record:
-            continue
-        try:
-            meta, path_raw = record.split(b"\t", 1)
-            mode_raw, type_raw, oid_raw = meta.split(b" ", 2)
-            mode = mode_raw.decode("ascii")
-            obj_type = type_raw.decode("ascii")
-            oid = oid_raw.decode("ascii")
-            rel = path_raw.decode("utf-8", "strict")
-        except (ValueError, UnicodeDecodeError) as exc:
-            raise InstallError("tree_manifest_parse_invalid") from exc
-        parts = rel.split("/")
-        if (
-            mode not in ("100644", "100755")
-            or obj_type != "blob"
-            or len(oid) != 40
-            or any(ch not in "0123456789abcdef" for ch in oid)
-            or not rel
-            or rel.startswith("/")
-            or any(part in ("", ".", "..") for part in parts)
-            or parts[0] == ".git"
-            or rel in manifest
-        ):
-            raise InstallError("tree_manifest_entry_invalid:" + rel)
-        manifest[rel] = (mode, oid)
-    return manifest
-
-def _verify_worktree(root: pathlib.Path) -> None:
-    manifest = _parse_tree_manifest(
-        git_bytes(root, "ls-tree", "-rz", "-r", "--full-tree", SOURCE_TREE)
-    )
-    expected_dirs: set[str] = set()
-    for rel in manifest:
-        parts = rel.split("/")
-        for i in range(1, len(parts)):
-            expected_dirs.add("/".join(parts[:i]))
-    seen: set[str] = set()
-    pending: list[tuple[pathlib.Path, str]] = [(root, "")]
-    nodes = 0
-    while pending:
-        directory, prefix = pending.pop()
-        for entry in sorted(os.scandir(directory), key=lambda e: e.name):
-            if not prefix and entry.name == ".git":
-                continue
-            nodes += 1
-            if nodes > MAX_NODES:
-                raise InstallError("worktree_node_limit")
-            child = directory / entry.name
-            rel = entry.name if not prefix else prefix + "/" + entry.name
-            st = child.lstat()
-            if stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode):
-                if rel not in expected_dirs:
-                    raise InstallError("worktree_extra_directory:" + rel)
-                pending.append((child, rel))
-                continue
-            expected = manifest.get(rel)
-            if expected is None:
-                raise InstallError("worktree_extra_path:" + rel)
-            mode, oid = expected
-            if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode):
-                raise InstallError("worktree_nonregular:" + rel)
-            actual_mode = "100755" if stat.S_IMODE(st.st_mode) & stat.S_IXUSR else "100644"
-            if actual_mode != mode:
-                raise InstallError("worktree_mode_mismatch:" + rel)
-            _size, _sha256, observed_blob_oid, _ = _stream_regular_hashes_stable(
-                child, "worktree_file", git_blob=True
-            )
-            if observed_blob_oid != oid:
-                raise InstallError("worktree_blob_mismatch:" + rel)
-            seen.add(rel)
-    if seen != set(manifest):
-        raise InstallError("worktree_missing_path")
-
 def _content_digest(root: pathlib.Path, expected_uid: int, expected_gid: int, expected_root_mode: int | None) -> tuple[str, int, int]:
     root_abs = pathlib.Path(os.path.abspath(os.fspath(root)))
     if root_abs.resolve(strict=True) != root_abs:
@@ -675,42 +1386,37 @@ def _verify_full_history_root(root: pathlib.Path, expected_uid: int, expected_gi
     if root.resolve(strict=True) != root:
         raise InstallError("full_root_alias_forbidden")
     git_identity = _exact_candidate_git_layout(root, expected_uid, expected_gid)
-    if git_text(root, "rev-parse", "--is-shallow-repository") != "false":
+    if (root / ".git" / "shallow").exists() or (root / ".git" / "shallow").is_symlink():
         raise InstallError("full_root_shallow")
-    if git_text(root, "rev-parse", "HEAD") != SOURCE_HEAD:
+    if _direct_main_ref(root, "full_root") != SOURCE_HEAD:
         raise InstallError("full_root_head_mismatch")
-    if git_text(root, "rev-parse", "HEAD^{tree}") != SOURCE_TREE:
-        raise InstallError("full_root_tree_mismatch")
-    if git_text(root, "symbolic-ref", "--quiet", "--short", "HEAD") != "main":
-        raise InstallError("full_root_branch_mismatch")
-    raw_commit = git_text(root, "cat-file", "-p", SOURCE_HEAD)
-    parents = tuple(line[7:] for line in raw_commit.splitlines() if line.startswith("parent "))
-    if parents != SOURCE_PARENTS:
-        raise InstallError("full_root_parent_set_mismatch")
-    if int(git_text(root, "rev-list", "--count", SOURCE_HEAD)) != REACHABLE_COMMITS:
-        raise InstallError("full_root_reachable_commit_count_mismatch")
-    missing = git_text(root, "rev-list", "--objects", "--missing=print", SOURCE_HEAD)
-    if any(line.startswith("?") for line in missing.splitlines()):
-        raise InstallError("full_root_missing_object")
-    fsck = _git_run(
-        root, "fsck", "--full", "--strict", "--no-reflogs", "--no-progress", SOURCE_HEAD
-    )
-    if fsck.stdout or fsck.stderr:
-        raise InstallError("full_root_fsck_output_nonempty")
-    _verify_worktree(root)
-    _git_run(root, "diff-index", "--cached", "--quiet", SOURCE_HEAD, "--")
-    if git_text(root, "status", "--porcelain=v1", "--untracked-files=all") != "":
-        raise InstallError("full_root_not_clean")
-    digest, nodes, total = _content_digest(
-        root, expected_uid, expected_gid, expected_root_mode
-    )
-    return {
-        "path": os.fspath(root),
-        "content_sha256": digest,
-        "nodes": nodes,
-        "regular_file_bytes": total,
-        **git_identity,
-    }
+    store = _ObjectStore(root, "full_root", exact_pack_only=True)
+    try:
+        commit_type, commit_data = store.read_object(SOURCE_HEAD)
+        if commit_type != "commit":
+            raise InstallError("full_root_head_type_invalid")
+        tree_oid, parents = _parse_commit_object(commit_data, "full_root")
+        if tree_oid != SOURCE_TREE or parents != SOURCE_PARENTS:
+            raise InstallError("full_root_source_commit_binding_mismatch")
+        manifest, commit_count, object_count = _verify_full_history_graph(store)
+        if _read_index_manifest(root / ".git" / "index", "full_root_index") != manifest:
+            raise InstallError("full_root_index_head_mismatch")
+        _verify_worktree_manifest(root, manifest)
+        digest, nodes, total = _content_digest(
+            root, expected_uid, expected_gid, expected_root_mode
+        )
+        return {
+            "path": os.fspath(root),
+            "content_sha256": digest,
+            "nodes": nodes,
+            "regular_file_bytes": total,
+            "reachable_commits": commit_count,
+            "reachable_objects": object_count,
+            "built_in_object_closure_verified": True,
+            **git_identity,
+        }
+    finally:
+        store.close()
 
 def verify_candidate() -> dict[str, Any]:
     if CANDIDATE != pathlib.Path(os.path.abspath(os.fspath(CANDIDATE))):
@@ -744,30 +1450,35 @@ def _verify_live_shallow_release() -> dict[str, Any]:
     shallow, _ = _read_regular_stable(root / ".git" / "shallow", "live_shallow", 256)
     if shallow != (SOURCE_HEAD + "\n").encode("ascii"):
         raise InstallError("live_shallow_content_mismatch")
-    if git_text(root, "rev-parse", "--is-shallow-repository") != "true":
-        raise InstallError("live_release_not_shallow")
-    if git_text(root, "rev-parse", "HEAD") != SOURCE_HEAD:
+    if _direct_main_ref(root, "live_release") != SOURCE_HEAD:
         raise InstallError("live_release_head_mismatch")
-    if git_text(root, "rev-parse", "HEAD^{tree}") != SOURCE_TREE:
-        raise InstallError("live_release_tree_mismatch")
-    if git_text(root, "symbolic-ref", "--quiet", "--short", "HEAD") != "main":
-        raise InstallError("live_release_branch_mismatch")
-    _git_run(root, "diff-index", "--cached", "--quiet", SOURCE_HEAD, "--")
-    if git_text(root, "status", "--porcelain=v1", "--untracked-files=all") != "":
-        raise InstallError("live_release_not_clean")
-    for parent in SOURCE_PARENTS:
-        cp = _git_run(root, "cat-file", "-e", parent + "^{commit}", allowed=(0, 1))
-        if cp.returncode == 0:
-            raise InstallError("live_release_parent_object_unexpectedly_present:" + parent)
-    _verify_worktree(root)
-    digest, nodes, total = _content_digest(root, 0, 0, 0o555)
-    return {
-        "path": os.fspath(root),
-        "content_sha256": digest,
-        "nodes": nodes,
-        "regular_file_bytes": total,
-        "shallow_sha256": sha256_bytes(shallow),
-    }
+    store = _ObjectStore(root, "live_release", exact_pack_only=False)
+    try:
+        commit_type, commit_data = store.read_object(SOURCE_HEAD)
+        if commit_type != "commit":
+            raise InstallError("live_release_head_type_invalid")
+        tree_oid, parents = _parse_commit_object(commit_data, "live_release")
+        if tree_oid != SOURCE_TREE or parents != SOURCE_PARENTS:
+            raise InstallError("live_release_source_commit_binding_mismatch")
+        for parent in SOURCE_PARENTS:
+            if store.has_object(parent):
+                raise InstallError("live_release_parent_object_unexpectedly_present:" + parent)
+        manifest, _tree_objects = _flatten_tree_manifest(store, SOURCE_TREE)
+        if _read_index_manifest(root / ".git" / "index", "live_release_index") != manifest:
+            raise InstallError("live_release_index_head_mismatch")
+        _verify_worktree_manifest(root, manifest)
+        store.revalidate()
+        digest, nodes, total = _content_digest(root, 0, 0, 0o555)
+        return {
+            "path": os.fspath(root),
+            "content_sha256": digest,
+            "nodes": nodes,
+            "regular_file_bytes": total,
+            "shallow_sha256": sha256_bytes(shallow),
+            "built_in_shallow_provenance_verified": True,
+        }
+    finally:
+        store.close()
 
 def _ancestor_custody(path: pathlib.Path) -> tuple[tuple[str, int, int, int, int, int, int], ...]:
     rows: list[tuple[str, int, int, int, int, int, int]] = []
@@ -817,8 +1528,8 @@ def _target_state(candidate: dict[str, Any]) -> str:
         return "GREEN"
     return "HOLD_TARGET_CONFLICT"
 
-def collect_plan(expected_head: str) -> dict[str, Any]:
-    verify_repository(expected_head)
+def collect_plan(expected_head: str, expected_tree: str) -> dict[str, Any]:
+    verify_repository(expected_head, expected_tree)
     candidate = verify_candidate()
     live = _verify_live_shallow_release()
     ancestors = _ancestor_custody(INSTALL_PARENT)
@@ -827,6 +1538,7 @@ def collect_plan(expected_head: str) -> dict[str, Any]:
         "schema": PLAN_SCHEMA,
         "version": 1,
         "expected_head": expected_head,
+        "expected_tree": expected_tree,
         "source_base_head": BASE_HEAD,
         "builder_blob": BUILDER_BLOB,
         "v4_blob": V4_BLOB,
@@ -974,7 +1686,7 @@ def _drop_runtime_child_privileges() -> dict[str, str]:
         raise InstallError("runtime_uid_child_identity_drop_incomplete")
     return _clear_runtime_child_capabilities(libc, prctl)
 
-def _runtime_uid_child_call(operation: str, expected_head: str = "") -> dict[str, Any]:
+def _runtime_uid_child_call(operation: str, expected_head: str = "", expected_tree: str = "") -> dict[str, Any]:
     if os.geteuid() != 0 or os.getuid() != 0:
         raise InstallError("root_required_for_runtime_uid_child")
     read_fd, write_fd = os.pipe()
@@ -985,7 +1697,7 @@ def _runtime_uid_child_call(operation: str, expected_head: str = "") -> dict[str
             _drop_runtime_child_privileges()
             try:
                 if operation == "collect_plan":
-                    result: Any = collect_plan(expected_head)
+                    result: Any = collect_plan(expected_head, expected_tree)
                 elif operation == "verify_stage_private":
                     if os.access(STAGE, os.W_OK, effective_ids=True):
                         raise InstallError("runtime_uid_private_stage_writable")
@@ -1077,8 +1789,8 @@ def _runtime_uid_child_call(operation: str, expected_head: str = "") -> dict[str
         raise InstallError("runtime_uid_child_result_invalid")
     return result
 
-def _collect_plan_for_apply(expected_head: str) -> dict[str, Any]:
-    return _runtime_uid_child_call("collect_plan", expected_head)
+def _collect_plan_for_apply(expected_head: str, expected_tree: str) -> dict[str, Any]:
+    return _runtime_uid_child_call("collect_plan", expected_head, expected_tree)
 
 def _verify_private_stage_for_apply(expected_content_sha256: str) -> dict[str, Any]:
     result = _runtime_uid_child_call("verify_stage_private")
@@ -1104,6 +1816,9 @@ def source_plan() -> None:
     print("create_only=true")
     print("live_release_mutation=false")
     print("trusted_root_launcher_required=true")
+    print("dynamic_git_provenance_authority_removed=true")
+    print("built_in_pack_index_verification_required=true")
+    print("built_in_full_history_object_closure_required=true")
     print("apply_plan_runtime_uid_drop_required=true")
     print("runtime_uid_child_no_new_privs_required=true")
     print("runtime_uid_child_capability_clear_required=true")
@@ -1117,6 +1832,10 @@ def source_plan() -> None:
     print("large_file_authentication_streamed=true")
     print("byte_returning_reads_tiny_metadata_only=true")
     print("apply_root_dynamic_git_exec=false")
+    print("dynamic_git_provenance_authority_removed=true")
+    print("built_in_pack_index_verification_required=true")
+    print("built_in_full_history_object_closure_required=true")
+    print("trusted_expected_head_tree_pair_required=true")
     print("termination_signal_reconciliation_required=true")
     print("install_parent_publication_lease_required=true")
     print("git_index_head_equality_required=true")
@@ -1144,14 +1863,15 @@ def source_plan() -> None:
     print("transaction=false")
     print("funds_movement=false")
 
-def plan(expected_head: str) -> None:
-    result = collect_plan(expected_head)
+def plan(expected_head: str, expected_tree: str) -> None:
+    result = collect_plan(expected_head, expected_tree)
     body = result["body"]
     print(MARKER)
     print("mode=plan")
     print("read_only=true")
     print("plan_id=" + result["plan_id"])
     print("expected_head=" + expected_head)
+    print("expected_tree=" + expected_tree)
     print("protected_state=" + body["protected_state"])
     print("candidate_content_sha256=" + body["candidate"]["content_sha256"])
     print("candidate_nodes=" + str(body["candidate"]["nodes"]))
@@ -1812,7 +2532,7 @@ def _same_binding(now: dict[str, Any], planned: dict[str, Any]) -> bool:
         == planned["live_shallow_release"]["content_sha256"]
     )
 
-def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
+def apply(expected_head: str, expected_tree: str, expected_plan_id: str, confirm: str) -> None:
     global _PUBLICATION
     print(MARKER)
     print("mode=apply")
@@ -1834,7 +2554,7 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
     ):
         raise InstallError("expected_plan_id_invalid")
     _require_privileged_source_custody()
-    planned = _collect_plan_for_apply(expected_head)
+    planned = _collect_plan_for_apply(expected_head, expected_tree)
     if planned["plan_id"] != expected_plan_id:
         raise InstallError("expected_plan_id_mismatch")
     raw_ancestors = planned["body"].get("install_parent_custody")
@@ -1858,7 +2578,7 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
 
     _copy_candidate_to_stage(planned["body"]["candidate"])
 
-    rebound = _collect_plan_for_apply(expected_head)
+    rebound = _collect_plan_for_apply(expected_head, expected_tree)
     if rebound["body"]["protected_state"] != "HOLD_STAGE_PRESENT":
         raise InstallError("stage_state_not_visible_before_publication")
     if not _same_binding(rebound["body"], planned["body"]):
@@ -1870,7 +2590,7 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
     _revalidate_install_parent_after_stage(planned_ancestors)
     _rename_noreplace(planned_ancestors)
 
-    final = _collect_plan_for_apply(expected_head)
+    final = _collect_plan_for_apply(expected_head, expected_tree)
     if final["body"]["protected_state"] != "GREEN":
         raise InstallError("final_protected_replica_not_green")
     if not _same_binding(final["body"], planned["body"]):
@@ -2045,6 +2765,7 @@ def main() -> int:
     mode.add_argument("--plan", action="store_true")
     mode.add_argument("--apply", action="store_true")
     parser.add_argument("--expected-head", default="")
+    parser.add_argument("--expected-tree", default="")
     parser.add_argument("--expected-plan-id", default="")
     parser.add_argument("--confirm", default="")
     args = parser.parse_args()
@@ -2057,13 +2778,15 @@ def main() -> int:
         return 0
     if not args.expected_head:
         raise InstallError("expected_head_required")
+    if not args.expected_tree:
+        raise InstallError("expected_tree_required")
     if args.plan:
-        plan(args.expected_head)
+        plan(args.expected_head, args.expected_tree)
         return 0
     if not args.expected_plan_id:
         raise InstallError("expected_plan_id_required")
     _install_termination_signal_handlers()
-    apply(args.expected_head, args.expected_plan_id, args.confirm)
+    apply(args.expected_head, args.expected_tree, args.expected_plan_id, args.confirm)
     return 0
 
 if __name__ == "__main__":
@@ -2073,7 +2796,6 @@ if __name__ == "__main__":
         InstallError,
         OSError,
         UnicodeError,
-        subprocess.SubprocessError,
         KeyboardInterrupt,
     ) as exc:
         try:
