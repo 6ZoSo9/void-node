@@ -7,8 +7,8 @@ const ROOT=process.cwd();
 const BASE_HEAD="0d93be0a7ae1395449a386d4fbe14bb680f51c3f";
 const BASE_TREE="199f3949a8955077124822269560b1a4e1ed5e30";
 const PLAN_PATH="ops/security/buy-void-canonical-erc20-delivery-canary-plan-v1.json";
-const PLAN_BLOB="d4107402cd1a03a14e735adf8d89b2fc25eabce9";
-const PLAN_ID="voidbverc20canary1_4be198f8ca6f6850d7d328684107feef01c97810e4a07a5411213ad55d0ee63f";
+const PLAN_BLOB="f7ddea68b33c2abfc4ca31deff12155e41fc0112";
+const PLAN_ID="voidbverc20canary1_39e4119fd0a807d16b32b8f936b36cc24939d6c772e7a3af83deed779eef07a4";
 const OWNED=Object.freeze([
   ".github/workflows/buy-void-canonical-erc20-delivery-canary-plan-v1.yml",
   "docs/architecture/buy-void-canonical-erc20-delivery-canary-plan-v1.md",
@@ -37,6 +37,13 @@ const SOURCE_BINDINGS=Object.freeze({
   "src/economic/buy_void_verified_payment_capacity_admission_v1.ts":"ac8bf352979e0e24d2cab45c3b23949e1bd2b026",
   "src/economic/participant_postpurchase_raw_submission_v1.ts":"6019f20517270ee21bf4900ba4f15cccfb32fd2a",
   "tools/void-participant-postpurchase-voidtoken-control-v1.mjs":"e8fef2dd13d3a0a4dd1f597934d2f7305fe2464e",
+  "src/economic/buy_void_fulfillment_journal_v1.ts":"7c4b099d835b84f50867e873fca763767c80c015",
+  "src/economic/buy_void_inventory_reservation_journal_v1.ts":"dc15061a3c4f09c31da678aa26a731708e70d6c",
+  "src/economic/buy_void_pipeline_coordinator_v1.ts":"318aaa6a1534fed0d2ab934a78d2a5de187f7ef8",
+  "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts":"e284a38a4b7f3d498b07e77c661d6eef3b742e7a",
+  "src/economic/buy_void_filesystem_bakery_lock_v1.ts":"9bd47abb857368d928c0ca289766cdf3571629ba",
+  "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts":"0999f773bdc4befb3e82676304f0d69f5cab42ef",
+  "src/economic/buy_void_source_finality_execution_preflight_v1.ts":"c23155893efd684073a72a0903b89c72605faad5",
 });
 const REQUIRED=Object.freeze([
   "allocation_reserved_before_canary_required",

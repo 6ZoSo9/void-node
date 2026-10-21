@@ -7,9 +7,9 @@ Base generation:
 - repository: `6ZoSo9/void-node`
 - head: `0d93be0a7ae1395449a386d4fbe14bb680f51c3f`
 - tree: `199f3949a8955077124822269560b1a4e1ed5e30`
-- plan ID: `voidbverc20canary1_4be198f8ca6f6850d7d328684107feef01c97810e4a07a5411213ad55d0ee63f`
-- plan Git blob: `d4107402cd1a03a14e735adf8d89b2fc25eabce9`
-- proof Git blob: `a7836894aab73cde1620e2642135d8f554a25a68`
+- plan ID: `voidbverc20canary1_39e4119fd0a807d16b32b8f936b36cc24939d6c772e7a3af83deed779eef07a4`
+- plan Git blob: `f7ddea68b33c2abfc4ca31deff12155e41fc0112`
+- proof Git blob: `36b9b97acf9af62424acdddccecbaa99bd59a2f7`
 
 ## Purpose
 
@@ -23,10 +23,12 @@ not construct, sign, broadcast, fund, or activate anything.
 
 ## Bound current truth
 
-The plan content-binds 21 exact current-main
+The plan content-binds 28 exact current-main
 sources covering canonical delivery runtime/configuration/composition,
 transaction preparation, signer/broadcaster adapter, submission guard, execution
-attempt journal, ERC-20 receipt reconciliation, verified-payment/allocation
+attempt journal, fulfillment and inventory journals, pipeline coordinator, saga
+server policy, filesystem bakery lock, credential-binding evidence, source-finality
+execution preflight, ERC-20 receipt reconciliation, verified-payment/allocation
 lineage, retired native canary source/proof, non-authorizing live-canary
 preflight, and participant postpurchase control.
 

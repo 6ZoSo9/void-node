@@ -28,6 +28,13 @@ on:
       - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
       - "src/economic/participant_postpurchase_raw_submission_v1.ts"
       - "tools/void-participant-postpurchase-voidtoken-control-v1.mjs"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts"
+      - "src/economic/buy_void_filesystem_bakery_lock_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/economic/buy_void_pipeline_coordinator_v1.ts"
+      - "src/economic/buy_void_source_finality_execution_preflight_v1.ts"
   workflow_dispatch:
 
 permissions:
@@ -70,8 +77,8 @@ jobs:
           log="$RUNNER_TEMP/canonical-erc20-delivery-canary-plan-v1.log"
           node scripts/prove_buy_void_canonical_erc20_delivery_canary_plan_v1.mjs | tee "$log"
           grep -Fx 'VOID_BUY_VOID_CANONICAL_ERC20_DELIVERY_CANARY_PLAN_V1_GREEN' "$log"
-          grep -Fx 'plan_id=voidbverc20canary1_4be198f8ca6f6850d7d328684107feef01c97810e4a07a5411213ad55d0ee63f' "$log"
-          grep -Fx 'source_binding_count=21' "$log"
+          grep -Fx 'plan_id=voidbverc20canary1_39e4119fd0a807d16b32b8f936b36cc24939d6c772e7a3af83deed779eef07a4' "$log"
+          grep -Fx 'source_binding_count=28' "$log"
           grep -Fx 'future_requirement_count=30' "$log"
           grep -Fx 'canonical_asset=void_token_erc20' "$log"
           grep -Fx 'canonical_chain_id=2050' "$log"
