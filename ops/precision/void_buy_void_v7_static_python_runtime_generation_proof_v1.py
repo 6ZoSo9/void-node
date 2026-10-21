@@ -875,6 +875,25 @@ def self_test() -> None:
     finally:
         os.close(fd)
 
+    with tempfile.TemporaryFile() as source_snapshot_fixture:
+        source_snapshot_fixture.write(b"snapshot-bytes")
+        source_snapshot_fixture.flush()
+        source_snapshot_fixture.seek(0)
+        snapshot_digest = hashlib.sha256(b"snapshot-bytes").hexdigest()
+        snapshot_fd = _sealed_snapshot_from_fd(
+            source_snapshot_fixture.fileno(),
+            size=len(b"snapshot-bytes"),
+            expected_sha256=snapshot_digest,
+            mode=0o444,
+            label="self_test_snapshot",
+        )
+        try:
+            seals = fcntl.fcntl(snapshot_fd, F_GET_SEALS)
+            assert seals & REQUIRED_SEALS == REQUIRED_SEALS
+            assert os.pread(snapshot_fd, len(b"snapshot-bytes"), 0) == b"snapshot-bytes"
+        finally:
+            os.close(snapshot_fd)
+
     with tempfile.TemporaryDirectory(prefix="void-v7-runtime-elf-self-test-") as td:
         path = Path(td) / "fake"
         eh = bytearray(64)
@@ -972,24 +991,33 @@ def run(args: argparse.Namespace) -> int:
 
     python_fd = _open_exact(Path(args.python), expected_size=python_size, expected_sha256=python_sha, label="python_candidate")
     stdlib_fd = _open_exact(Path(args.stdlib_zip), expected_size=stdlib_size, expected_sha256=stdlib_sha, label="stdlib_candidate")
+    python_snapshot_fd = -1
+    stdlib_snapshot_fd = -1
     try:
         _require_static_python_elf(python_fd, python_size)
+        python_snapshot_fd = _sealed_snapshot_from_fd(
+            python_fd,
+            size=python_size,
+            expected_sha256=python_sha,
+            mode=0o555,
+            label="python_candidate_snapshot",
+        )
+        stdlib_snapshot_fd = _sealed_snapshot_from_fd(
+            stdlib_fd,
+            size=stdlib_size,
+            expected_sha256=stdlib_sha,
+            mode=0o444,
+            label="stdlib_candidate_snapshot",
+        )
         with tempfile.TemporaryDirectory(prefix="void-v7-static-runtime-proof-") as td:
             root = Path(td)
             os.chmod(root, 0o700)
-            (root / "bin").mkdir(mode=0o700)
-            (root / "lib").mkdir(mode=0o700)
-            (root / "tmp").mkdir(mode=0o700)
-            python_target = root / "bin" / "python3.12-static"
-            zip_target = root / "lib" / "python312.zip"
-            _copy_fd_exact(python_fd, python_target, size=python_size, mode=0o500, label="python_candidate")
-            _copy_fd_exact(stdlib_fd, zip_target, size=stdlib_size, mode=0o400, label="stdlib_candidate")
 
             probe_rc, probe_out, probe_err = _run_child(
                 ["/bin/python3.12-static", "-I", "-B", "-S", "-c", PROBE, "/"],
                 mount_root=root,
-                python_snapshot_fd=python_fd,
-                stdlib_snapshot_fd=stdlib_fd,
+                python_snapshot_fd=python_snapshot_fd,
+                stdlib_snapshot_fd=stdlib_snapshot_fd,
             )
             if probe_rc != 0 or probe_err:
                 raise RuntimeProofError("candidate_probe_failed")
@@ -1009,8 +1037,8 @@ def run(args: argparse.Namespace) -> int:
                         str(v5_fd),
                     ],
                     mount_root=root,
-                    python_snapshot_fd=python_fd,
-                    stdlib_snapshot_fd=stdlib_fd,
+                    python_snapshot_fd=python_snapshot_fd,
+                    stdlib_snapshot_fd=stdlib_snapshot_fd,
                     pass_fds=(v5_fd,),
                 )
             finally:
@@ -1062,6 +1090,10 @@ def run(args: argparse.Namespace) -> int:
             print("funds_movement=false")
             return 0
     finally:
+        if python_snapshot_fd >= 0:
+            os.close(python_snapshot_fd)
+        if stdlib_snapshot_fd >= 0:
+            os.close(stdlib_snapshot_fd)
         os.close(python_fd)
         os.close(stdlib_fd)
 
