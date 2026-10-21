@@ -26,7 +26,7 @@ with:
 - 17,931 reachable commits;
 - no shallow/graft/alternate/commondir state;
 - clean exact worktree;
-- strict fsck success over 107,003 objects.
+- the original user-space census also reported strict fsck success over 107,003 objects; that is historical input evidence, not production provenance authority.
 
 The active runtime release is deliberately **not repaired in place**. Renaming or
 replacing the directory used as a live service cwd creates unnecessary runtime
@@ -47,18 +47,18 @@ parents.
 ## Source dependencies
 
 This lane is anchored after landed V4 security repair merge
-`e99772502c80fefafef3b6a836a408b66ddded76` and binds these reviewed dependencies:
+`6a577bc61bd95524597e534b37a531c5b60ee7c1` and binds these reviewed dependencies:
 
 - merged user-space reseal builder blob
   `030182d544a92cd6c67868fa4c4f3e83188e4249`;
 - V7 protected substrate installer V4 blob
-  `94112afa2f805e0a6ce881a490c1c64e31e0413e`;
+  `4448acb51cbc15d845550a55cd11c38f4185a7b3`;
 - reviewed atomic-upgrade reference implementation blob
   `3fe1158a0fdf19fa4307c2a8122314b75ee36345`.
 
 ## Plan contract
 
-`--plan --expected-head <current-main-head>` is read-only.
+`--plan --expected-head <current-main-head> --expected-tree <current-main-tree>` is read-only. The trusted launcher supplies the exact HEAD/tree pair and the operation-bound plan binds both values.
 
 It independently verifies:
 
@@ -68,16 +68,17 @@ It independently verifies:
 4. exact closed candidate Git metadata layout;
 5. exact candidate HEAD/tree/main branch;
 6. both exact merge parents;
-7. exactly 17,931 reachable commits and no missing objects;
-8. strict full-object fsck;
-9. direct worktree-to-Git-blob equality;
-10. a content digest over the complete candidate, including `.git`;
-11. the live runtime release remains the exact known shallow generation;
-12. the live release still has the accepted HEAD/tree/clean worktree;
-13. `.git/shallow` contains exactly the accepted head;
-14. both parent commit objects remain absent from the live release;
-15. root-owned non-writable `/opt` ancestry;
-16. replica target/stage state.
+7. exactly 17,931 reachable commits;
+8. built-in pack/index authentication: pack and index SHA-1 trailers, fanout, CRCs, object offsets, OFS/REF deltas, reconstructed Git object IDs, and exact reachable-object closure;
+9. direct version-2 index parsing with no staged/extended flags or extensions, equal to the accepted source-tree manifest;
+10. direct worktree-to-Git-blob equality against that manifest;
+11. a content digest over the complete candidate, including `.git`;
+12. the live runtime release remains the exact known shallow generation;
+13. the live release still has the accepted HEAD/tree/clean worktree;
+14. `.git/shallow` contains exactly the accepted head;
+15. both parent commit objects remain absent from the live release;
+16. root-owned non-writable `/opt` ancestry;
+17. replica target/stage state.
 
 The operation-bound plan ID binds the candidate, live shallow generation,
 repository generation, install-parent custody and all authority boundaries.
@@ -108,8 +109,8 @@ Apply:
 4. copies the untrusted candidate with descriptor-relative no-follow reads into a root-owned private stage;
 5. charges the cumulative protected-write budget from the exact opened source descriptor generation, not a stale pathname stat;
 6. authenticates the complete private-stage content digest;
-7. keeps the authenticated stage `root:root`, installs an exact POSIX access ACL that grants **only named UID 1000** read/search permission (group-object and other entries are zero), and runs the full Git/worktree/object verifier after dropping to UID/GID 1000;
-8. only after that Git verification succeeds, removes the temporary UID-specific ACL, seals the exact stage to final root:root immutable read/execute modes, and rechecks the complete content digest;
+7. keeps the authenticated stage `root:root`, installs an exact POSIX access ACL that grants **only named UID 1000** read/search permission (group-object and other entries are zero), and runs the built-in pack/index/object/worktree verifier after dropping to UID/GID 1000;
+8. only after that built-in provenance verification succeeds, removes the temporary UID-specific ACL, seals the exact stage to final root:root immutable read/execute modes, and rechecks the complete content digest;
 9. fsyncs the complete staged generation;
 10. revalidates candidate and live shallow bindings;
 11. publishes once with `renameat2(RENAME_NOREPLACE)`;
@@ -183,16 +184,24 @@ the contract. All higher ancestors remain exact.
 
 ### Root execution and termination boundary
 
-After privileged source custody is established, the root parent does not execute
-host Git for plan or staged-generation verification. Before any dynamic Git
-process can run, the forked verifier sets `PR_SET_NO_NEW_PRIVS=1`, clears
-supplementary groups, switches GID and UID to 1000, and requires all
-real/effective/saved UID and GID slots to equal 1000 with no supplementary
-groups. It then explicitly clears Linux ambient capabilities and uses
-`capset(2)` to zero its permitted, effective and inheritable capability sets.
-The child reads `/proc/self/status` and requires `CapInh`, `CapPrm`,
-`CapEff` and `CapAmb` all to be zero and `NoNewPrivs` to remain 1 before
-it may read the candidate/stage or execute Git.
+After privileged source custody is established, production provenance does not
+execute host Git at all. The installer contains no `subprocess`,
+`/usr/bin/git`, dynamic Git command wrapper, or host-Git evidence authority.
+The forked verifier sets `PR_SET_NO_NEW_PRIVS=1`, clears supplementary groups,
+switches GID and UID to 1000, and requires all real/effective/saved UID and GID
+slots to equal 1000 with no supplementary groups. It then explicitly clears
+Linux ambient capabilities and uses `capset(2)` to zero its permitted,
+effective and inheritable capability sets. The child reads
+`/proc/self/status` and requires `CapInh`, `CapPrm`, `CapEff` and
+`CapAmb` all to be zero and `NoNewPrivs` to remain 1 before it may read the
+candidate or staged generation.
+
+Repository state is interpreted by built-in parsers only. Canonical source
+authority comes from physical `.git/HEAD` and loose `refs/heads/main`
+custody plus Git blob/tree SHA-1 framing over the visible worktree, bound to the
+trusted `--expected-head` + `--expected-tree` pair. Candidate/stage history
+authority comes from direct pack/index parsing, object reconstruction and exact
+commit/tree/blob closure. Git is used only as a disposable CI oracle.
 
 This capability clearing is required even if the trusted launcher inherited a
 capability-preserving securebits configuration such as
@@ -218,8 +227,9 @@ it by exactly one; broader namespace drift HOLDs.
 ### Index and Git metadata closure
 
 The full-history candidate, staged replica and final protected replica require
-the Git index to compare exactly equal to the accepted HEAD using read-only
-`git diff-index --cached --quiet`. Direct worktree-to-blob verification remains
+the version-2 Git index to be parsed directly and compare exactly equal to the
+accepted source-tree manifest. Unsupported flags, staged entries, modes and
+extensions are rejected. Direct worktree-to-blob verification remains
 independent of the index.
 
 Git metadata regular leaves used for authority (HEAD, config, index, main ref,
@@ -258,19 +268,20 @@ numeric UID.
 
 A forked verifier then sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups,
 drops every UID/GID slot to 1000, clears and verifies all permitted/effective/
-inheritable/ambient capability sets, and only then runs the complete non-shallow
-Git/object/index/worktree verification against that exact ACL-bound stage. The
-root parent verifies the ACL bytes and metadata before the child is admitted.
+inheritable/ambient capability sets, and only then runs the complete built-in
+non-shallow pack/index/object/worktree verification against that exact ACL-bound
+stage. The root parent verifies the ACL bytes and metadata before the child is
+admitted.
 
-Only after this exact staged Git generation is GREEN are the named-user ACLs
+Only after this exact staged repository generation is GREEN are the named-user ACLs
 removed and files/directories changed to final root:root `0444`/`0555`
 modes. Root then recomputes the full content digest and requires exact equality
 again before publication.
 
-This closes the race where candidate bytes could change between candidate Git
+This closes the race where candidate bytes could change between candidate provenance
 verification and plan digest calculation: even if the untrusted plan observes a
-raced candidate generation, a Git-inconsistent copy cannot become broadly
-readable or publishable because staged Git verification occurs before final
+raced candidate generation, a provenance-inconsistent copy cannot become broadly
+readable or publishable because staged built-in provenance verification occurs before final
 sealing.
 
 
@@ -318,6 +329,32 @@ The next source lane must update the V7 protected substrate installer to require
 
 That allows V7 source protection to advance without mutating the active runtime
 release.
+
+## Built-in provenance closure
+
+This generation closes the dynamic-Git architecture HOLD that previously kept
+the protected replica lane Draft. Production repository evidence is parsed and
+validated entirely in-process.
+
+The protected full-history candidate must be self-contained and exact: every
+object reachable from the accepted source commit must be present, every object
+present in the candidate pack must be reachable from that commit, reconstructed
+object IDs must match their names, and exactly 17,931 commits must be reachable.
+The accepted commit must bind the exact source tree and exact two parent IDs.
+
+The built-in pack reader validates version-2 pack indexes, fanout tables, CRCs,
+32/64-bit offsets, pack/index SHA-1 trailers, compressed object framing,
+OFS/REF deltas and final Git object IDs. Decompression is bounded by the reviewed
+per-object ceiling. The built-in index reader accepts only version 2, rejects
+staged/extended flags and extensions, and requires exact equality with the source
+tree. All production directory enumeration is fail-fast and node-bounded before
+names are retained.
+
+The live shallow predecessor is evaluated by the same built-in object reader:
+the shallow marker contains only the accepted head, the accepted commit/tree are
+available, and both parent objects remain absent.
+
+A GREEN source/CI result still grants no protected apply authority.
 
 ## Authority boundary
 
