@@ -162,11 +162,13 @@ export function projectBuyVoidVerifiedPaymentCapacityV1(
 const LEDGER_MAX_BYTES = 64 * 1024 * 1024;
 const O_NOFOLLOW = fs.constants.O_NOFOLLOW;
 const O_DIRECTORY = fs.constants.O_DIRECTORY;
+const O_NONBLOCK = fs.constants.O_NONBLOCK;
 
 function requireCapacityDescriptorSafetyV1(): void {
   if (
     typeof O_NOFOLLOW !== "number" ||
     typeof O_DIRECTORY !== "number" ||
+    typeof O_NONBLOCK !== "number" ||
     !fs.existsSync("/proc/self/fd")
   ) {
     fail("buy_void_verified_payment_capacity_descriptor_safety_unavailable");
@@ -396,7 +398,8 @@ function openPinnedLedgerV1(
     : fs.constants.O_RDONLY;
   let fd = -1;
   try {
-    fd = fs.openSync(pinnedPath, access | O_NOFOLLOW);
+    // A request/history leaf can race to FIFO. Never block before fstat.
+    fd = fs.openSync(pinnedPath, access | O_NOFOLLOW | O_NONBLOCK);
   } catch (error: any) {
     if (String(error?.code || "") !== "ENOENT") throw error;
     if (!options.create) return null;
@@ -446,7 +449,8 @@ function openPinnedPrivateSidecarV1(
   const pinnedPath = path.join(directory.proc_path, name);
   let fd = -1;
   try {
-    fd = fs.openSync(pinnedPath, fs.constants.O_RDONLY | O_NOFOLLOW);
+    // The same fail-closed nonblocking boundary applies to private sidecars.
+    fd = fs.openSync(pinnedPath, fs.constants.O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
   } catch (error: any) {
     if (String(error?.code || "") === "ENOENT") return null;
     throw error;
