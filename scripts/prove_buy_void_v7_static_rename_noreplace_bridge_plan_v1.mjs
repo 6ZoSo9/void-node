@@ -6,7 +6,7 @@ import {execFileSync} from "node:child_process";
 const PLAN_PATH="ops/security/buy-void-v7-static-rename-noreplace-bridge-plan-v1.json";
 const DOC_PATH="docs/architecture/buy-void-v7-static-rename-noreplace-bridge-plan-v1.md";
 const BASE="1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c";
-const PLAN_ID="voidv7staticrenamenoreplacebridge1_fd7206f7f081ecb77c6608b7c740a51c6a421f184effd5090ac1af789c26ad5f";
+const PLAN_ID="voidv7staticrenamenoreplacebridge1_651336b0d39ca60917fc03f441e7be835f6064574a99583bd0af3f3608a13598";
 const V5="ops/precision/void_buy_void_v7_protected_substrate_install_v5.py";
 const V5_BLOB="632f3371ad3095e6a8fdf338b24c34431abe7d2c";
 const LAUNCHER="ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c";
@@ -21,10 +21,16 @@ const REQUIRED=[
   "builtin_module_exposes_only_rename_noreplace_operation",
   "rename_operation_uses_syscall_sys_renameat2_directly",
   "rename_flags_exactly_rename_noreplace",
+  "parent_fd_must_be_nonnegative_integer_and_fstat_directory",
   "source_and_target_parent_fd_must_be_the_same_retained_directory_fd",
-  "old_and_new_names_must_be_single_leaf_nonempty_no_nul_no_slash_not_dot_not_dotdot",
+  "old_and_new_names_must_be_python_str_ascii_single_leaf_1_to_255_bytes",
+  "old_and_new_names_must_be_nonempty_no_nul_no_slash_not_dot_not_dotdot",
+  "old_and_new_names_must_be_distinct",
   "no_fallback_to_os_rename_link_unlink_shell_external_binary_or_dynamic_loader",
+  "bridge_returns_none_on_success_and_raises_oserror_with_kernel_errno_on_failure",
+  "v6_wrapper_must_normalize_bridge_oserror_errno_to_existing_installerror_reason_shape",
   "existing_destination_file_symlink_or_directory_must_fail_without_replacement",
+  "failed_no_replace_must_leave_source_and_existing_destination_generations_unchanged",
   "successful_publication_must_preserve_v5_publication_before_fsync_truth",
   "successful_publication_must_preserve_parent_fsync",
   "v5_failure_and_partial_publication_receipt_semantics_preserved",
@@ -32,6 +38,7 @@ const REQUIRED=[
   "v5_source_replica_live_shallow_cross_binding_and_candidate_identity_contracts_preserved",
   "v6_plan_schema_prefix_and_confirmation_token_must_be_new",
   "v6_self_test_must_exercise_fresh_file_fresh_directory_and_existing_file_symlink_directory_rejections",
+  "v6_self_test_must_exercise_invalid_fd_invalid_leaf_same_leaf_and_missing_source_rejections",
   "v6_self_test_must_verify_builtin_bridge_identity_without_ctypes",
   "runtime_proof_successor_must_bind_v6_and_builtin_bridge",
   "runtime_proof_successor_must_not_require_ctypes_or_libffi_for_rename_noreplace",
@@ -148,6 +155,11 @@ for(const needle of [
   "V5 remains unchanged.",
   "SYS_renameat2",
   "RENAME_NOREPLACE",
+  "non-negative integer `parent_fd`",
+  "1–255 bytes",
+  "old_leaf != new_leaf",
+  "raise `OSError` carrying the kernel errno",
+  "InstallError(\"rename_noreplace_failed:<errno>\")",
   "sys.builtin_module_names",
   "no longer require `ctypes` or `libffi`",
   "immutable-snapshot same-UID resistance gate",
