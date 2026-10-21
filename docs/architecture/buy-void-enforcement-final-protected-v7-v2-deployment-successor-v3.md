@@ -10,7 +10,7 @@ V1/V2 candidate and lock remain immutable. V3 re-derives current 49-row source i
 - candidate Git blob: `79998af4763b6afca84ffe4e8d14d9a6ff535dfd`
 - proof Git blob: `8ea7786299422f7fc3fbfd7474b5e92d869e92c2`
 
-The candidate remains unaccepted. Exact V3 derivation is executed inside the existing protected V2 Node 22/24/26 matrix so the V2 historical candidate/lock checks and V3 successor evidence are exercised together. A V3 lock may be added only after those hosted V3 outputs are byte-identical and their real evidence IDs are recorded. No deployment/apply, service/runtime, credentials/signing, payment/activation, treasury/liquidity or funds authority.
+The candidate remains unaccepted. Exact V3 derivation is executed in an independent portable Node 22/24/26 matrix whose jobs use reachable-history-only clones; V3 artifact publication and V3 cross-node equality do not depend on the historical V2 matrix. The historical V2 jobs remain separate regression evidence. A V3 lock may be added only after the portable V3 outputs are byte-identical and their real evidence IDs are recorded. No deployment/apply, service/runtime, credentials/signing, payment/activation, treasury/liquidity or funds authority.
 
 PROTECT THE CORE.
 
