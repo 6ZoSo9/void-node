@@ -21,6 +21,9 @@ two candidate launches now:
 - derive those descriptors from exact candidate bytes with sealed memfd snapshots
   before either child launch; ordinary pathname-backed candidate FDs are never
   presented as immutable runtime snapshots;
+- revalidate every snapshot descriptor immediately before bind-mount admission:
+  it must be a regular file at the exact requested mode with all required memfd
+  write/grow/shrink/seal seals already present;
 - bind the private `mount_root` explicitly;
 - pass the synthetic V5 path as
   `/synthetic-repo/ops/precision/void_buy_void_v7_protected_substrate_install_v5.py`;
