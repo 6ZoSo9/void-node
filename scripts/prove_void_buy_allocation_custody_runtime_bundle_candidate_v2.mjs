@@ -141,6 +141,37 @@ assert.throws(
   );
 }
 
+function rehashCandidate(candidateValue) {
+  const copy = structuredClone(candidateValue);
+  delete copy.candidate_id;
+  return "voidbuycustodybundle2_" +
+    crypto.createHash("sha256")
+      .update(Buffer.from(canonicalJsonV2(copy) + "\n", "utf8"))
+      .digest("hex");
+}
+
+{
+  const tampered = structuredClone(candidate);
+  tampered.authority.payment_acceptance = true;
+  tampered.candidate_id = rehashCandidate(tampered);
+  assert.throws(
+    () => verifyVoidBuyVoidCustodyRuntimeBundleCandidateV2(tampered),
+    /custody_bundle_candidate_authority_invalid/u,
+    "rehashing must not convert altered nested authority into a valid candidate",
+  );
+}
+
+{
+  const tampered = structuredClone(candidate);
+  tampered.predecessor_v1.predecessor_proof_git_blob_sha1 = "0".repeat(40);
+  tampered.candidate_id = rehashCandidate(tampered);
+  assert.throws(
+    () => verifyVoidBuyVoidCustodyRuntimeBundleCandidateV2(tampered),
+    /custody_bundle_candidate_predecessor_invalid/u,
+    "rehashing must not convert altered predecessor evidence into a valid candidate",
+  );
+}
+
 for (const [key, expected] of Object.entries({
   source_candidate_only: true,
   runtime_entrypoint_bound: true,
@@ -196,3 +227,5 @@ console.log("predecessor_v1_preserved=true");
 console.log("source_transition_count=1");
 console.log("claim_reader_fifo_nonblocking_source_bound=true");
 console.log("claim_reader_independent_review_complete=false");
+console.log("rehash_cannot_promote_nested_authority=true");
+console.log("rehash_cannot_rewrite_predecessor_evidence=true");

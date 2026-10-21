@@ -443,15 +443,16 @@ export function verifyVoidBuyVoidCustodyRuntimeBundleCandidateV2(candidate) {
     fail("custody_bundle_candidate_identity_invalid");
   }
   if (
-    body.predecessor_v1?.source_base_head !== "7197eb96ff3ce2d3f630545a85c150b694d20b3b" ||
-    body.predecessor_v1?.predecessor_tool_git_blob_sha1 !== "de5e3066042d1b20d54acea4b464d591b2d88e1c" ||
-    body.predecessor_v1?.claim_reader_predecessor_git_blob_sha1 !==
-      "a7610b03d394254c760683f0d9061aa0865718db" ||
-    body.predecessor_v1?.claim_reader_successor_git_blob_sha1 !==
-      "94f0a0dd8997e1e2c0fab54044f19d70d983d441" ||
-    body.predecessor_v1?.source_transition_count !== 1
+    canonicalJsonV2(body.predecessor_v1) !==
+      canonicalJsonV2(VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_PREDECESSOR_V1)
   ) {
     fail("custody_bundle_candidate_predecessor_invalid");
+  }
+  if (
+    canonicalJsonV2(body.authority) !==
+      canonicalJsonV2(VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_AUTHORITY_V2)
+  ) {
+    fail("custody_bundle_candidate_authority_invalid");
   }
   if (!Array.isArray(body.runtime_files)) {
     fail("custody_bundle_candidate_runtime_files_invalid");
