@@ -166,6 +166,22 @@ pack and pack index) must be single-link, expected-owner regular files with no
 group/world write bits and no executable bits. The protected copy therefore
 cannot acquire executable authority from mutable candidate metadata.
 
+### Private staging before authentication
+
+Candidate bytes are never made broadly readable merely because root copied
+them. During construction the stage root and directories are root-only mode
+`0700`; copied regular files are root-only `0400` or `0500`.
+
+Before any stage path becomes group/world-readable, root Python computes the
+complete content digest over the private stage without executing Git and
+requires exact equality with the reviewed candidate digest. Only then are the
+already-root-owned bytes sealed to final immutable modes
+(`0555` directories, `0444` nonexecutables, `0555` executables) and handed
+to the dropped-UID Git verifier.
+
+A raced candidate therefore cannot cause unrelated user-private bytes to become
+publicly readable in `/opt` before content authentication.
+
 ## Failure truth
 
 The installer has **no automatic recursive cleanup authority** for a nonempty
