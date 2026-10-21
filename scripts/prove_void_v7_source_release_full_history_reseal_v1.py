@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import sys
+import os
 from pathlib import Path
+import pwd
 import subprocess
 import tempfile
 
@@ -12,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "fc67176ea417c19c05920f8c2672763ba870763f"
+TARGET_BLOB = "cf6832b6cb4233fb03d9b6e74ae00396183831c0"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -47,7 +49,10 @@ for required in (
     'pack.writeReverseIndex=false',
     'source_forbidden_git_metadata',
     'candidate_fsck_output_nonempty',
-    '_path_control_character',
+    '_path_line_or_control_character',
+    'pwd.getpwuid(os.getuid())',
+    'output_root_directory_alias_forbidden',
+    'output_parent_alias_forbidden',
     'protected_replace_authorized=false',
 ):
     assert required in text, required
@@ -67,12 +72,18 @@ selftest = subprocess.run(
 )
 assert selftest.returncode == 0 and selftest.stderr == ""
 assert "VOID_V7_SOURCE_RELEASE_FULL_HISTORY_RESEAL_V1_SELF_TEST_GREEN" in selftest.stdout.splitlines()
-assert "receipt_control_characters_rejected=true" in selftest.stdout.splitlines()
+assert "receipt_line_separators_rejected=true" in selftest.stdout.splitlines()
+assert "passwd_account_home_required=true" in selftest.stdout.splitlines()
+assert "physical_downloads_root_required=true" in selftest.stdout.splitlines()
+assert "output_parent_aliases_rejected=true" in selftest.stdout.splitlines()
 
+account_home = Path(pwd.getpwuid(os.getuid()).pw_dir)
+spoofed_env = dict(os.environ)
+spoofed_env["HOME"] = "/tmp/void-v7-forged-home"
 plan = subprocess.run(
     [sys.executable, "-I", "-B", str(TARGET), "--plan"],
     stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    text=True, timeout=120, check=False,
+    text=True, timeout=120, check=False, env=spoofed_env,
 )
 assert plan.returncode == 0 and plan.stderr == "", plan.stdout + plan.stderr
 for marker in (
@@ -89,7 +100,7 @@ scope_lines = [
     line for line in plan.stdout.splitlines()
     if line.startswith("candidate_build_write_scope=")
 ]
-assert scope_lines == ["candidate_build_write_scope=" + str(Path.home() / "Downloads")]
+assert scope_lines == ["candidate_build_write_scope=" + str(account_home / "Downloads")]
 
 with tempfile.TemporaryDirectory(prefix="void-v7-reseal-proof-") as td:
     output = Path(td) / "candidate"
@@ -103,15 +114,26 @@ with tempfile.TemporaryDirectory(prefix="void-v7-reseal-proof-") as td:
     assert built.returncode == 2
     assert "reason=output_outside_downloads" in built.stdout.splitlines()
 
-bad_receipt_output = Path.home() / "Downloads" / "candidate\nstatus=FORGED"
-bad_receipt = subprocess.run(
-    [sys.executable, "-I", "-B", str(TARGET), "--build", "--output", str(bad_receipt_output)],
-    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    text=True, timeout=120, check=False,
-)
-assert bad_receipt.returncode == 2
-assert "reason=output_path_control_character" in bad_receipt.stdout.splitlines()
-assert not bad_receipt_output.exists()
+for separator in ("\n", "\x85", "\u2028", "\u2029"):
+    bad_receipt_output = (
+        account_home
+        / "Downloads"
+        / ("candidate" + separator + "status=FORGED")
+    )
+    bad_receipt = subprocess.run(
+        [
+            sys.executable, "-I", "-B", str(TARGET),
+            "--build", "--output", str(bad_receipt_output),
+        ],
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        text=True, timeout=120, check=False,
+    )
+    assert bad_receipt.returncode == 2
+    assert (
+        "reason=output_path_line_or_control_character"
+        in bad_receipt.stdout.splitlines()
+    )
+    assert not bad_receipt_output.exists()
 
 print(MARKER + "_GREEN")
 print("target_blob=" + TARGET_BLOB)
@@ -122,7 +144,10 @@ print("single_process_pack_and_index_generation_bound=true")
 print("closed_git_config_required=true")
 print("shallow_graft_alternate_commondir_rejected=true")
 print("output_scope_guard_bound=true")
-print("receipt_control_character_guard_bound=true")
+print("receipt_line_separator_guard_bound=true")
+print("passwd_account_home_binding_bound=true")
+print("physical_downloads_root_binding_bound=true")
+print("output_parent_alias_rejection_bound=true")
 print("protected_filesystem_mutation=false")
 print("network=false")
 print("protected_replace_authorized=false")

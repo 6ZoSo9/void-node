@@ -22,7 +22,8 @@ accepted history. The accepted head has tree
 ## Candidate builder
 
 `ops/precision/void_v7_source_release_full_history_reseal_v1.py` builds only a
-disposable candidate beneath ``$HOME/Downloads``.
+disposable candidate beneath the executing account's passwd-record home `Downloads`
+directory. Process `HOME` does not select or redirect this authority root.
 
 It:
 
@@ -40,15 +41,21 @@ It:
    object closure and strict fsck;
 9. rejects shallow, graft, alternate, HTTP-alternate, commondir and
    config.worktree metadata;
-10. rejects C0 and DEL control characters in operator-supplied output paths
-    before any candidate directory is created or any line-oriented receipt can
-    contain that path.
+10. derives the executing account home from the OS passwd record rather than
+    process `HOME`, requires both that home and `Downloads` to be physical
+    current-UID directories, and rejects symlinked/aliased output parents;
+11. rejects C0, DEL, NEL (`U+0085`), Unicode line separator (`U+2028`) and
+    paragraph separator (`U+2029`) in operator-supplied output paths before
+    any candidate directory is created or any line-oriented receipt can contain
+    that path.
 
 The pack bytes themselves are not authority; the reconstructed Git object IDs,
 connectivity, generated pack index, and exact worktree are. The single bounded
 pack process is reaped by `subprocess.run` before cleanup or continuation.
-Receipt path fields are emitted only after the control-character guard, so one
-filesystem path cannot inject a second line or forge an authority/status field.
+Receipt path fields are emitted only after the complete line-separator/control
+guard, so one filesystem path cannot inject a second line or forge an
+authority/status field. A spoofed process `HOME` or symlinked `Downloads`
+cannot redirect the candidate write boundary.
 
 ## Authority boundary
 

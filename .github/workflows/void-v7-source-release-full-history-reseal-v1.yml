@@ -28,9 +28,9 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "fc67176ea417c19c05920f8c2672763ba870763f"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v1.py)" = "08e324faa6bc9c4ed123e70f7f54c845c490fcc3"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v1.md)" = "31559882dd67cd15415c650dad11aeb8de0d715c"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "cf6832b6cb4233fb03d9b6e74ae00396183831c0"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v1.py)" = "b46a10cefaee8c0c30176bb3472f2a6cd68663d1"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v1.md)" = "3084972f6e385f5d8fea64419c3533bc7821f91b"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git merge-base --is-ancestor "${{ github.event.pull_request.base.sha }}" HEAD
             cat > /tmp/expected <<'EOF'
@@ -73,13 +73,23 @@ jobs:
       - name: Build and verify disposable full-history candidate
         run: |
           set -euo pipefail
-          mkdir -p $HOME/Downloads
+          ACCOUNT_HOME="$(python3 -I -B - <<'PY'
+          import os, pwd
+          print(pwd.getpwuid(os.getuid()).pw_dir)
+          PY
+          )"
+          test -n "$ACCOUNT_HOME"
+          test -d "$ACCOUNT_HOME"
+          test ! -L "$ACCOUNT_HOME"
+          mkdir -p "$ACCOUNT_HOME/Downloads"
+          test -d "$ACCOUNT_HOME/Downloads"
+          test ! -L "$ACCOUNT_HOME/Downloads"
           python3 -I -B ops/precision/void_v7_source_release_full_history_reseal_v1.py \
             --build \
-            --output "$HOME/Downloads/void-v7-full-history-candidate"
-          test ! -e $HOME/Downloads/void-v7-full-history-candidate/.git/shallow
-          test "$(git -C $HOME/Downloads/void-v7-full-history-candidate rev-parse --is-shallow-repository)" = false
-          test "$(git -C $HOME/Downloads/void-v7-full-history-candidate rev-list --count 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb)" = 17931
-          test "$(git -C $HOME/Downloads/void-v7-full-history-candidate rev-parse HEAD)" = 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
-          test "$(git -C $HOME/Downloads/void-v7-full-history-candidate rev-parse 'HEAD^{tree}')" = de12c9d2d5e475d435d21da3b047d7b63b69e2b7
-          test -z "$(git -C $HOME/Downloads/void-v7-full-history-candidate status --porcelain=v1 --untracked-files=all)"
+            --output "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate"
+          test ! -e "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate/.git/shallow"
+          test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-parse --is-shallow-repository)" = false
+          test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-list --count 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb)" = 17931
+          test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-parse HEAD)" = 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
+          test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-parse 'HEAD^{tree}')" = de12c9d2d5e475d435d21da3b047d7b63b69e2b7
+          test -z "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" status --porcelain=v1 --untracked-files=all)"

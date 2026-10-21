@@ -10,8 +10,10 @@ if sys.flags.optimize != 0 or not __debug__:
 import argparse
 import os
 from pathlib import Path
+import pwd
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 
@@ -23,7 +25,7 @@ TARGET_PARENTS = (
     "6b7fc90219676a96f5a2c34619e4cfdf3f002244",
 )
 EXPECTED_REACHABLE_COMMITS = 17931
-ALLOWED_OUTPUT_ROOT = Path.home() / "Downloads"
+EXTRA_RECEIPT_LINE_SEPARATORS = frozenset(("\u0085", "\u2028", "\u2029"))
 CONFIG_TEXT = (
     "[core]\n"
     "\trepositoryformatversion = 0\n"
@@ -193,20 +195,85 @@ def verify_candidate(root: Path) -> None:
 
 def _receipt_safe_path(path: Path, label: str) -> str:
     raw = os.fspath(path)
-    if any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in raw):
-        raise ResealError(label + "_path_control_character")
+    if any(
+        ord(ch) < 0x20
+        or ord(ch) == 0x7f
+        or ch in EXTRA_RECEIPT_LINE_SEPARATORS
+        for ch in raw
+    ):
+        raise ResealError(label + "_path_line_or_control_character")
     return raw
+
+def _require_physical_user_directory(path: Path, label: str) -> Path:
+    _receipt_safe_path(path, label)
+    if not path.is_absolute() or Path(os.path.abspath(os.fspath(path))) != path:
+        raise ResealError(label + "_directory_path_not_canonical")
+    try:
+        st = path.lstat()
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise ResealError(label + "_directory_unavailable") from exc
+    if stat.S_ISLNK(st.st_mode):
+        raise ResealError(label + "_directory_alias_forbidden")
+    if not stat.S_ISDIR(st.st_mode):
+        raise ResealError(label + "_directory_kind_invalid")
+    if st.st_uid != os.getuid():
+        raise ResealError(label + "_directory_owner_invalid")
+    if resolved != path:
+        raise ResealError(label + "_directory_alias_forbidden")
+    return path
+
+def _account_home() -> Path:
+    try:
+        entry = pwd.getpwuid(os.getuid())
+    except KeyError as exc:
+        raise ResealError("account_passwd_entry_unavailable") from exc
+    return _require_physical_user_directory(Path(entry.pw_dir), "account_home")
+
+def _configured_output_root() -> Path:
+    root = _account_home() / "Downloads"
+    _receipt_safe_path(root, "candidate_build_write_scope")
+    return root
+
+def _physical_output_root() -> Path:
+    return _require_physical_user_directory(
+        _configured_output_root(),
+        "output_root",
+    )
 
 def _validate_output(output: Path) -> Path:
     _receipt_safe_path(output, "output")
     if not output.is_absolute():
         raise ResealError("output_must_be_absolute")
-    parent = output.parent.resolve(strict=True)
-    allowed = ALLOWED_OUTPUT_ROOT.resolve(strict=False)
-    if parent != allowed and allowed not in parent.parents:
+
+    configured = _configured_output_root()
+    lexical_parent = Path(os.path.abspath(os.fspath(output.parent)))
+    if lexical_parent != configured and configured not in lexical_parent.parents:
         raise ResealError("output_outside_downloads")
+
+    allowed = _physical_output_root()
+    try:
+        parent = output.parent.resolve(strict=True)
+    except OSError as exc:
+        raise ResealError("output_parent_unavailable") from exc
+    if parent != output.parent:
+        raise ResealError("output_parent_alias_forbidden")
+    if parent != allowed and allowed not in parent.parents:
+        raise ResealError("output_parent_escaped_downloads")
+
+    current = parent
+    while True:
+        _require_physical_user_directory(current, "output_parent")
+        if current == allowed:
+            break
+        if current == current.parent or allowed not in current.parents:
+            raise ResealError("output_parent_escaped_downloads")
+        current = current.parent
+
     if output.exists() or output.is_symlink():
         raise ResealError("output_already_exists")
+    if output.resolve(strict=False) != output:
+        raise ResealError("output_path_not_canonical")
     return output
 
 def build(output: Path) -> None:
@@ -276,15 +343,35 @@ def self_test() -> None:
         (p / ".git" / "shallow").write_text(TARGET_HEAD + "\n", "ascii")
         if not any(x.name == "shallow" and x.exists() for x in _forbidden_metadata(p)):
             raise AssertionError("shallow_fixture_not_detected")
-    try:
-        _receipt_safe_path(Path("/tmp/bad\nstatus=FORGED"), "self_test")
-    except ResealError as exc:
-        if str(exc) != "self_test_path_control_character":
-            raise
-    else:
-        raise AssertionError("receipt_control_character_fixture_not_rejected")
+    for separator in ("\n", "\r", "\x85", "\u2028", "\u2029"):
+        try:
+            _receipt_safe_path(
+                Path("/tmp/bad" + separator + "status=FORGED"),
+                "self_test",
+            )
+        except ResealError as exc:
+            if str(exc) != "self_test_path_line_or_control_character":
+                raise
+        else:
+            raise AssertionError("receipt_line_separator_fixture_not_rejected")
+    with tempfile.TemporaryDirectory(prefix="void-v7-reseal-dir-self-test-") as td:
+        physical = Path(td) / "physical"
+        alias = Path(td) / "alias"
+        physical.mkdir()
+        alias.symlink_to(physical, target_is_directory=True)
+        _require_physical_user_directory(physical, "self_test_physical")
+        try:
+            _require_physical_user_directory(alias, "self_test_alias")
+        except ResealError as exc:
+            if str(exc) != "self_test_alias_directory_alias_forbidden":
+                raise
+        else:
+            raise AssertionError("physical_directory_alias_fixture_not_rejected")
     print(MARKER + "_SELF_TEST_GREEN")
-    print("receipt_control_characters_rejected=true")
+    print("receipt_line_separators_rejected=true")
+    print("passwd_account_home_required=true")
+    print("physical_downloads_root_required=true")
+    print("output_parent_aliases_rejected=true")
     print("exact_target_commit_tree_parents_bound=true")
     print("complete_reachable_object_graph_required=true")
     print("single_process_pack_and_index_generation=true")
@@ -304,7 +391,7 @@ def plan() -> None:
             print(key + "=" + ",".join(value))
         else:
             print(key + "=" + str(value))
-    print("candidate_build_write_scope=" + _receipt_safe_path(ALLOWED_OUTPUT_ROOT.resolve(strict=False), "candidate_build_write_scope"))
+    print("candidate_build_write_scope=" + _receipt_safe_path(_configured_output_root(), "candidate_build_write_scope"))
     print("protected_filesystem_mutation=false")
     print("network=false")
     print("protected_replace_authorized=false")
