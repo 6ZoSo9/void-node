@@ -43,10 +43,10 @@ jobs:
           git merge-base --is-ancestor 9f610b351ad48b214fa04dc6b961e4a202049913 HEAD
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e0a682ea4038ca22e3a3b97da2cac29874096c46"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e634e666d3a190368ddb031f936ebbb6347b7196"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "35ba173e20d72a02dd9a8a06ddabc54e31406e29"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md)" = "072fd78c562b688cf05fe34b9ea9ceddcb3d7c58"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs)" = "f7c2fa1ef568b02f48c7a6d4e382a058e3007cca"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md)" = "b97e7cd9ab3d63adaa6ab79c8878aad349cdf926"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "3c710609632f9568ff93b26047df5d4c0a0f9711"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md)" = "201855e799814a5b4fcf41ff6a92cd2607e73cbf"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs)" = "9385562cf7652507c3f162e47fdc85da2c1b668a"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md)" = "08439ffff23088436c6aa26420c894d991cc36b9"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "245ce93ebfb53478211fab765489e88d8fa23c4a"
           git diff --name-status 9f610b351ad48b214fa04dc6b961e4a202049913 HEAD > "$RUNNER_TEMP/delta.txt"
@@ -105,6 +105,7 @@ jobs:
           const r=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
           assert.equal(r.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
           assert.equal(r.reviewed_protected_drift_count,1);
+          assert.equal(r.nonprotected_economic_drift_count,3);
           assert.equal(r.reviewed_deployment_reader_successor_bound,true);
           assert.equal(r.workflow_dispatch_contracts_bound,true);
           assert.equal(r.provider_source_blob_manifest_bound,true);

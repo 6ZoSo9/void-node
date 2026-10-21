@@ -24,6 +24,8 @@ post-open growth against the exported production reader.
 The five workflow consumers are bound by explicit contracts: four receipt
 lanes assert the descriptor-bound reader fields, while the historical-refusal
 lane runs Dispatch V3 self-test only and does not pretend to emit a receipt.
+The receipt also preserves the established `nonprotected_economic_drift_count=3`
+compatibility field, derived from the exact reviewed `M/A/M` tuple.
 
 The provider source boundary is bound directly to the 12 exact Git blobs and
 modes under evidence tree `7e21075ccd632ea11f4d424424b348217a013dfe`. Dispatch V3 does not
@@ -47,7 +49,7 @@ local Git object database.
 - frozen current-inventory SHA-256: `c0a56b378215feafacc089e9f59a9f966d57f11e5582e4a13afcd6351d2447bb`
 - frozen Dispatch V2 proof: `81a4f189b2c3a1ff988e44ece93ed1ee983898f8`
 
-Dispatch V3 proof Git blob: `35ba173e20d72a02dd9a8a06ddabc54e31406e29`.
+Dispatch V3 proof Git blob: `3c710609632f9568ff93b26047df5d4c0a0f9711`.
 
 ## Deliberate boundary
 

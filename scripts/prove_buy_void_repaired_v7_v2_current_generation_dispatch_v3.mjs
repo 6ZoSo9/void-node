@@ -1887,6 +1887,7 @@ function verify(){
     protected_parent_scope_delta_status_bound:true,
     protected_parent_historical_commit_object_required:false,
     protected_parent_scope_row_count:PROTECTED_PARENT_SCOPE_ROWS.length,
+    nonprotected_economic_drift_count:NONPROTECTED_ECONOMIC_DRIFT.length,
     provider_built_artifact_identity_preserved:true,
     current_generation_integration_verified:true,
     candidate_enforcement_identity_accepted:true,
@@ -1903,6 +1904,7 @@ if(args.length===1&&args[0]==="--workflow-contract-self-test"){
   console.log("VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3_WORKFLOW_CONTRACT_SELF_TEST_GREEN");
 }else if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   const receipt=verify();
+  assert.equal(receipt.nonprotected_economic_drift_count,NONPROTECTED_ECONOMIC_DRIFT.length);
   console.log("VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3_GREEN");
   console.log("protected_path_identity_preserved="+receipt.protected_path_identity_preserved);
   console.log("frozen_protected_inventory_preserved="+receipt.frozen_protected_inventory_preserved);
@@ -1919,6 +1921,7 @@ if(args.length===1&&args[0]==="--workflow-contract-self-test"){
   console.log("protected_parent_scope_delta_status_bound=true");
   console.log("protected_parent_historical_commit_object_required=false");
   console.log("protected_parent_scope_row_count="+receipt.protected_parent_scope_row_count);
+  console.log("nonprotected_economic_drift_count="+receipt.nonprotected_economic_drift_count);
   console.log("current_built_census_identity_matches_frozen_v4="+receipt.current_built_census_identity_matches_frozen_v4);
   console.log("frozen_candidate_rederived_on_current_head=false");
   console.log("current_generation_integration_verified=true");

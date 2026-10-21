@@ -86,7 +86,7 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(c.schema,"void_buy_void_repaired_v7_v2_current_generation_dispatch_v2");
+          assert.equal(c.schema,"void_buy_void_repaired_v7_v2_current_generation_dispatch_v3");
           assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
           assert.equal(c.protected_path_count,49);
           assert.equal(c.protected_path_identity_preserved,false);
