@@ -37,19 +37,20 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$(git rev-parse HEAD^)" = "4e43fd403996b6042aea58d810912dd87501bdce"
+          PARENT_HEAD="4e43fd403996b6042aea58d810912dd87501bdce"
+          test "$(git merge-base "$PARENT_HEAD" "$EXPECTED_HEAD")" = "$PARENT_HEAD"
           cat > "$RUNNER_TEMP/expected" <<'EOF'
           A	.github/workflows/buy-void-v7-static-runtime-immutable-snapshot-plan-v1.yml
           A	docs/architecture/buy-void-v7-static-runtime-immutable-snapshot-plan-v1.md
           A	ops/security/buy-void-v7-static-runtime-immutable-snapshot-plan-v1.json
           A	scripts/prove_buy_void_v7_static_runtime_immutable_snapshot_plan_v1.mjs
           EOF
-          git diff --name-status HEAD^ HEAD -- | sort > "$RUNNER_TEMP/actual"
+          git diff --name-status "$PARENT_HEAD" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual"
           sort "$RUNNER_TEMP/expected" > "$RUNNER_TEMP/expected.sorted"
           diff -u "$RUNNER_TEMP/expected.sorted" "$RUNNER_TEMP/actual"
-          git diff --check HEAD^ HEAD --
+          git diff --check "$PARENT_HEAD" "$EXPECTED_HEAD" --
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-static-runtime-immutable-snapshot-plan-v1.json)" = "9c5ce1e13f9e4695cf17099ccd57f1e11d620eda"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_static_runtime_immutable_snapshot_plan_v1.mjs)" = "37513f44f43fb1856e65f9bd990573772bc1602a"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_static_runtime_immutable_snapshot_plan_v1.mjs)" = "6562e350ec0c36149bbf5b7b8b29142462d0f424"
           test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-static-runtime-immutable-snapshot-plan-v1.md)" = "850dd1d0751d23fb5c1d088595dc824db67efb3c"
 
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38

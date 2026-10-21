@@ -62,11 +62,6 @@ function canonical(value){
 function sha256(text){
   return crypto.createHash("sha256").update(text).digest("hex");
 }
-function gitBlob(bytes){
-  return crypto.createHash("sha1")
-    .update(Buffer.from("blob "+bytes.length+"\\0","utf8"))
-    .update(bytes).digest("hex");
-}
 function git(...args){
   return execFileSync("/usr/bin/git",["-c","safe.directory=*","-C",".",...args],{
     encoding:"utf8",
@@ -96,7 +91,7 @@ assert.equal(plan.schema,"VOID_BUY_VOID_V7_STATIC_RUNTIME_IMMUTABLE_SNAPSHOT_PLA
 assert.equal(plan.repository,"6ZoSo9/void-node");
 assert.equal(plan.base_parent_pr,3677);
 assert.equal(plan.base_parent_head,PARENT_HEAD);
-assert.equal(git("rev-parse","HEAD^"),PARENT_HEAD);
+assert.equal(git("merge-base",PARENT_HEAD,"HEAD"),PARENT_HEAD);
 
 for(const [path,expected] of [
   [PARENT_SOURCE,EXPECTED.source],
@@ -105,7 +100,8 @@ for(const [path,expected] of [
   [PARENT_WORKFLOW,EXPECTED.workflow],
   [V5,EXPECTED.v5],
 ]){
-  assert.equal(gitBlob(fs.readFileSync(path)),expected,"source_binding_drift:"+path);
+  assert.equal(git("rev-parse","HEAD:"+path),expected,"source_tree_binding_drift:"+path);
+  assert.equal(git("hash-object","--no-filters","--",path),expected,"source_visible_binding_drift:"+path);
 }
 
 assert.equal(plan.parent_source_generation.runtime_proof_source_blob,EXPECTED.source);
