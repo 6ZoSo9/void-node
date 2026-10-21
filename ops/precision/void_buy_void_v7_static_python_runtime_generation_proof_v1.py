@@ -384,12 +384,19 @@ def self_test() -> None:
     print("static_elf_pt_interp_forbidden=true")
     print("static_elf_pt_dynamic_forbidden=true")
     print("runtime_import_closure_proof_required=true")
+    print("candidate_execution_sandbox_required=true")
     print("fsverity_host_readiness_established=false")
     print("protected_host_install=false")
     print("protected_v5_apply=false")
     print("funds_movement=false")
 
 def run(args: argparse.Namespace) -> int:
+    # Candidate bytes are externally supplied and therefore untrusted until a
+    # reviewed execution sandbox exists. Non-root identity alone is not a
+    # sufficient boundary against user-file reads/writes, network access,
+    # process creation, or same-UID process interference.
+    raise RuntimeProofError("candidate_execution_sandbox_not_implemented")
+
     if os.geteuid() == 0 or os.getuid() == 0:
         raise RuntimeProofError("root_execution_forbidden")
     if os.geteuid() != os.getuid() or os.getegid() != os.getgid():
