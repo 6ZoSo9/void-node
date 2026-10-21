@@ -379,3 +379,27 @@ The existing type-exact duplicated structured-output checks remain unchanged.
 No qualification/root-plan execution, service mutation, credential/signing,
 transaction/payment, activation, treasury/liquidity action, or funds movement
 authority is added.
+
+
+## October 20 exact planner-transcript parity repair
+
+Fresh exact-head review identified three bounded discrepancies between this
+two-phase contract and the pinned V7 planner generation.
+
+The repaired contract now:
+
+- rejects launcher/native absolute paths with more than 128 components, matching
+  the planner's exact `MAX_PATH_DEPTH` bound;
+- parses the duplicated `qualification_contract_json` with duplicate-key
+  rejection at every nested object before canonical comparison; and
+- requires the exact planner-emitted `next_action`,
+  `SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_INSTALLER_BOOTSTRAP_V7_QUALIFY_AND_EXECUTE_PLAN`.
+
+Adversarial self-tests exercise a rehashed 129-component launcher path, an
+ambiguous duplicated `root_execution_required` JSON key, and a contradictory
+immediate-root-execution next action. All must HOLD.
+
+These checks only tighten the authenticated planner-to-contract handoff. They add
+no qualification/root-plan execution, host/service mutation, credential/signing,
+transaction/payment, activation, validator/WC, treasury/liquidity, or funds
+authority.

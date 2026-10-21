@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "ac0b3ae272a240fdb2520a9c8f36c7096fd96a40"
+TARGET_BLOB = "f01d98ff485db5fd6893ef678277cb19c9ae6475"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -119,6 +119,7 @@ for name in (
     "_read_stable",
     "_planner_lines",
     "_require_exact_keys",
+    "_reject_duplicate_object_pairs",
     "_validate_checkout",
     "_validate_tool_identity",
     "_validate_qualification_contract",
@@ -158,6 +159,8 @@ for required in (
     "launcher_historical_authority_overclaim",
     "bootstrap_argv_mismatch",
     "planner_qualification_line_mismatch",
+    "planner_next_action_mismatch",
+    "object_pairs_hook=_reject_duplicate_object_pairs",
     "emitted_contract_canonical = canonical(emitted_contract)",
     "expected_contract_canonical = canonical(raw_contract)",
     '_require_exact_keys(body, PLANNER_BODY_KEYS, "planner_body")',
@@ -197,6 +200,7 @@ assert 'value.encode("utf-8", "strict")' in normalized_source
 assert 'len(encoded) < 4096' in normalized_source
 assert 'components = value[1:].split("/")' in normalized_source
 assert 'len(component.encode("utf-8", "strict")) <= 255' in normalized_source
+assert 'len(components) <= MAX_PATH_DEPTH' in normalized_source
 artifact_source = ast.get_source_segment(source, functions["_artifact"]) or ""
 assert 'not _plain_int(value["bytes"], 1)' in artifact_source
 tool_source = ast.get_source_segment(source, functions["_validate_tool_identity"]) or ""
@@ -243,6 +247,9 @@ for expected in (
     "qualification_required_result_boolean_types_bound=true",
     "qualification_contract_boolean_types_bound=true",
     "duplicated_qualification_json_type_exact=true",
+    "qualification_json_duplicate_keys_rejected=true",
+    "executable_artifact_path_depth_bound=true",
+    "planner_next_action_exact=true",
     "planner_integer_fields_typed=true",
     "executable_artifact_paths_nul_rejected=true",
     "planner_body_canonicalization_failures_hold=true",
@@ -298,6 +305,9 @@ for expected in (
     "qualification_contract_closed_schema_required=true",
     "qualification_required_result_closed_schema_required=true",
     "duplicated_qualification_json_type_exact_required=true",
+    "qualification_json_duplicate_keys_rejected_required=true",
+    "executable_artifact_path_depth_max=128",
+    "planner_next_action_exact_required=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
     "root_boundary_implementation=separately_reviewed_operator_boundary_required",
     "qualification_execution_performed=false",
@@ -327,6 +337,9 @@ print("qualification_state_body_fields_bound=true")
 print("qualification_required_result_boolean_types_bound=true")
 print("qualification_contract_boolean_types_bound=true")
 print("duplicated_qualification_json_type_exact=true")
+print("qualification_json_duplicate_keys_rejected=true")
+print("executable_artifact_path_depth_bound=true")
+print("planner_next_action_exact=true")
 print("planner_integer_fields_typed=true")
 print("executable_artifact_paths_nul_rejected=true")
 print("planner_body_canonicalization_failures_hold=true")

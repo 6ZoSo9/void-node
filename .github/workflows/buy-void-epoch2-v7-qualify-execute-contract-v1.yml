@@ -66,11 +66,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            ac0b3ae272a240fdb2520a9c8f36c7096fd96a40
+            f01d98ff485db5fd6893ef678277cb19c9ae6475
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_v7_qualify_execute_contract_v1.py)" = \
-            9b969599f4def5e95ac1e7f06d520b27f5fccac7
+            2f0a233f58a6dc9975c711d0bfcab320ee6d8a12
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-v7-qualify-execute-contract-v1.md)" = \
-            97395fb24b20585efe25c0cbd89383a492356926
+            77c2fe84adce692f6c375bf1ebb2e7f1312e4675
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
             1a093dbac8e424364ec623cc98fafc5c6dac824f
@@ -120,6 +120,9 @@ jobs:
             'qualification_required_result_boolean_types_bound=true'
             'qualification_contract_boolean_types_bound=true'
             'duplicated_qualification_json_type_exact=true'
+            'qualification_json_duplicate_keys_rejected=true'
+            'executable_artifact_path_depth_bound=true'
+            'planner_next_action_exact=true'
             'planner_integer_fields_typed=true'
             'executable_artifact_paths_nul_rejected=true'
             'planner_body_canonicalization_failures_hold=true'
@@ -171,6 +174,9 @@ jobs:
             'qualification_contract_closed_schema_required=true'
             'qualification_required_result_closed_schema_required=true'
             'duplicated_qualification_json_type_exact_required=true'
+            'qualification_json_duplicate_keys_rejected_required=true'
+            'executable_artifact_path_depth_max=128'
+            'planner_next_action_exact_required=true'
             'unconsumed_tool_metadata_not_execution_authority=true'
             'root_boundary_implementation=separately_reviewed_operator_boundary_required'
             'qualification_execution_performed=false'

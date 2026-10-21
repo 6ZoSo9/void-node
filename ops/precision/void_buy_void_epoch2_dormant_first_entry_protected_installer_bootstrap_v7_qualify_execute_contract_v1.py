@@ -115,6 +115,11 @@ QUALIFICATION_OLD_MANIFEST_SHA256 = (
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 MAX_PLANNER_OUTPUT_BYTES = 2 * 1024 * 1024
+MAX_PATH_DEPTH = 128
+PLANNER_NEXT_ACTION = (
+    "SEPARATELY_AUTHORIZE_EPOCH2_DORMANT_FIRST_ENTRY_"
+    "PROTECTED_INSTALLER_BOOTSTRAP_V7_QUALIFY_AND_EXECUTE_PLAN"
+)
 
 PLANNER_BODY_KEYS = frozenset({
     "schema", "version", "checkout", "expected_head",
@@ -236,6 +241,15 @@ AUTHORITY_FALSE_KEYS = (
 
 class ContractError(RuntimeError):
     pass
+
+
+def _reject_duplicate_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ContractError("planner_structured_output_duplicate_key:" + key)
+        result[key] = value
+    return result
 
 
 def sha256(raw: bytes) -> str:
@@ -368,6 +382,7 @@ def _normalized_absolute(value: object) -> bool:
         and not value.startswith("//")
         and 0 < len(encoded) < 4096
         and bool(components)
+        and len(components) <= MAX_PATH_DEPTH
         and all(
             component
             and component not in (".", "..")
@@ -608,6 +623,9 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
     ):
         _require_bool_line(values, key, False)
 
+    if values["next_action"] != PLANNER_NEXT_ACTION:
+        raise ContractError("planner_next_action_mismatch")
+
     plan_id = values["plan_id"]
     if (
         not plan_id.startswith(PLANNER_PREFIX)
@@ -708,7 +726,10 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
         raise ContractError("bootstrap_argv_mismatch")
     try:
         emitted_argv = json.loads(values["bootstrap_argv_json"])
-        emitted_contract = json.loads(values["qualification_contract_json"])
+        emitted_contract = json.loads(
+            values["qualification_contract_json"],
+            object_pairs_hook=_reject_duplicate_object_pairs,
+        )
         emitted_argv_canonical = canonical(emitted_argv)
         expected_argv_canonical = canonical(argv)
         emitted_contract_canonical = canonical(emitted_contract)
@@ -819,6 +840,9 @@ def source_plan() -> None:
     print("qualification_contract_closed_schema_required=true")
     print("qualification_required_result_closed_schema_required=true")
     print("duplicated_qualification_json_type_exact_required=true")
+    print("qualification_json_duplicate_keys_rejected_required=true")
+    print("executable_artifact_path_depth_max=128")
+    print("planner_next_action_exact_required=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")
     print("root_boundary_implementation=separately_reviewed_operator_boundary_required")
     print("qualification_execution_performed=false")
@@ -1290,6 +1314,49 @@ def self_test() -> None:
         )
     )
 
+    depth_path = "/" + "/".join(["a"] * (MAX_PATH_DEPTH + 1))
+    _expect_tamper_rejected(
+        lambda body: (
+            body["accepted_launcher"].__setitem__("path", depth_path),
+            body["bootstrap_argv"].__setitem__(3, depth_path),
+        )
+    )
+
+    duplicate_lines = _fixture_output().decode("ascii").splitlines()
+    duplicate_prefix = "qualification_contract_json="
+    duplicate_fixture = None
+    for index in range(1, len(duplicate_lines)):
+        if duplicate_lines[index].startswith(duplicate_prefix):
+            original_json = duplicate_lines[index][len(duplicate_prefix):]
+            if not original_json.startswith("{"):
+                raise AssertionError("qualification_contract_json_not_object")
+            duplicate_lines[index] = (
+                duplicate_prefix
+                + '{"root_execution_required":true,'
+                + original_json[1:]
+            )
+            duplicate_fixture = ("\n".join(duplicate_lines) + "\n").encode("ascii")
+            break
+    if duplicate_fixture is None:
+        raise AssertionError("qualification_contract_json_line_missing")
+    try:
+        validate_planner_output(duplicate_fixture)
+    except ContractError as exc:
+        if not str(exc).startswith("planner_structured_output_duplicate_key:"):
+            raise
+    else:
+        raise AssertionError("duplicate_qualification_json_key_accepted")
+
+    try:
+        validate_planner_output(
+            _raw_line_fixture("next_action", "EXECUTE_ROOT_PLAN_IMMEDIATELY")
+        )
+    except ContractError as exc:
+        if str(exc) != "planner_next_action_mismatch":
+            raise
+    else:
+        raise AssertionError("planner_next_action_mismatch_accepted")
+
     canonical_fixture = _fixture_output()
     original_canonical = canonical
     try:
@@ -1411,6 +1478,9 @@ def self_test() -> None:
     print("qualification_required_result_boolean_types_bound=true")
     print("qualification_contract_boolean_types_bound=true")
     print("duplicated_qualification_json_type_exact=true")
+    print("qualification_json_duplicate_keys_rejected=true")
+    print("executable_artifact_path_depth_bound=true")
+    print("planner_next_action_exact=true")
     print("planner_integer_fields_typed=true")
     print("executable_artifact_paths_nul_rejected=true")
     print("planner_body_canonicalization_failures_hold=true")
