@@ -1,5 +1,5 @@
 {
-  "plan_id": "voidv7createonlysealplan1_31d2c4116b8296d5b41b7ed6f7faf4101691a1d34f06158c11ab8f91463dc2db",
+  "plan_id": "voidv7createonlysealplan1_80486c8e43751493d1480ebdf8be63a26195e465e96f3e1d29b1d7b4765773cc",
   "schema": "VOID_BUY_VOID_V7_CREATE_ONLY_PERSISTENT_SEAL_PLAN_V1",
   "repository": "6ZoSo9/void-node",
   "base_main": "0d93be0a7ae1395449a386d4fbe14bb680f51c3f",
@@ -28,7 +28,9 @@
     "arbitrary_malicious_root_after_install": false,
     "inherited_writable_destination_fd_after_fork": true,
     "destination_fd_transfer_via_scm_rights": true,
-    "inherited_writable_shared_destination_mapping": true
+    "inherited_writable_shared_destination_mapping": true,
+    "preexisting_secondary_thread_race": true,
+    "kernel_retained_async_destination_write": true
   },
   "candidate_alternative": {
     "name": "CREATE_ONLY_CLOSED_TREE_V1",
@@ -41,7 +43,10 @@
     "single_process_write_phase_required": true,
     "destination_write_fd_inheritance_or_transfer_forbidden": true,
     "writable_shared_destination_mapping_forbidden": true,
-    "installer_own_fd_table_census_sufficient": false
+    "installer_own_fd_table_census_sufficient": false,
+    "single_threaded_write_phase_required": true,
+    "asynchronous_destination_io_forbidden": true,
+    "destination_io_quiescence_before_publication_required": true
   },
   "future_requirements": [
     "existing_launcher_v2_must_remain_unchanged",
@@ -62,6 +67,11 @@
     "destination_file_must_be_fsynced_after_final_metadata",
     "all_destination_writable_descriptors_must_be_closed_before_publication",
     "bootstrap_write_phase_must_remain_single_process_while_any_destination_writable_descriptor_is_live",
+    "bootstrap_write_phase_must_begin_and_remain_single_threaded_while_any_destination_write_authority_exists",
+    "preexisting_secondary_threads_must_be_absent_before_first_destination_writable_descriptor_or_mapping",
+    "thread_pthread_clone3_and_equivalent_thread_creation_forbidden_while_any_destination_write_authority_exists",
+    "io_uring_posix_aio_linux_aio_and_equivalent_asynchronous_destination_writes_forbidden",
+    "publication_requires_no_inflight_kernel_retained_destination_write_request",
     "fork_clone_vfork_posix_spawn_and_helper_process_creation_forbidden_while_any_destination_writable_descriptor_is_live",
     "destination_writable_descriptor_inheritance_or_duplication_into_another_process_forbidden",
     "scm_rights_or_other_fd_passing_of_destination_writable_descriptors_forbidden",
