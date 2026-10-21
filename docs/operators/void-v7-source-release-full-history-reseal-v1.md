@@ -55,7 +55,10 @@ It:
     retains the exact candidate, `.git`, object-store, pack, refs and heads
     directory descriptors, and sends Git candidate operations through
     `/proc/self/fd/*` with `GIT_OBJECT_DIRECTORY` pinned to the retained object
-    store; path replacement therefore cannot redirect helper writes;
+    store; directory leases bind stable device/inode/owner/mode identity while
+    intentionally excluding directory link count because checked-out child
+    directories legitimately change it; path replacement therefore cannot
+    redirect helper writes;
 13. revalidates the complete Downloads ancestor chain, mount-point census and
     visible inode identities at mutation boundaries and before GREEN;
 14. performs generation-bound descriptor cleanup after failure, binds every
