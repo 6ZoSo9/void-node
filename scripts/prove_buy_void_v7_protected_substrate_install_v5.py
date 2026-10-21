@@ -67,7 +67,7 @@ required_v5 = (
     'FULL_HISTORY_INSTALLER_BLOB = "a4d5762fe0e1c41b0919b8abb827123e556552ca"',
     'QUALIFIER_BLOB = "69b1ff028487a139470671cf0afb8937a299897d"',
     'def full_history_content_digest(',
-    'def verify_live_release() -> None:',
+    'def verify_live_release() -> tuple[str, int, int]:',
     'allow_shallow=True',
     'live_release_shallow_mismatch',
     'full_history_content_sha256_mismatch',
