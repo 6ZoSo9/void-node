@@ -467,7 +467,7 @@ if(rootCapable){
     fs.unlinkSync(receipt);
   }
 
-  const restrictiveParent=path.join(root,"restrictive");  const restrictiveParent=path.join(root,"restrictive");
+  const restrictiveParent=path.join(root,"restrictive");
   const restrictiveReceipt=path.join(restrictiveParent,"deployment-receipt.json");
   fs.mkdirSync(restrictiveParent,{mode:0o700});
   fs.chownSync(restrictiveParent,0,0);
