@@ -11,7 +11,7 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py"
-TARGET_BLOB = "37f12a67aa0c2e63af15faf9127fd1ff907c4b72"
+TARGET_BLOB = "e9e687f16a85afb0eab73df27578c00a58d7b091"
 MARKER = "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_PROOF"
 
 
@@ -58,6 +58,7 @@ for required in (
     'def _gzip_decompress_bounded(',
     'stream.read(maximum + 1)',
     'kernel_config_uncompressed_limit',
+    'kernel_config_decompression_invalid',
     'kernel_config_decompression_memory_error',
     'def _parse_major_minor(',
     'mount_source_device_number_mismatch',
@@ -209,6 +210,20 @@ except module.CensusError as exc:
 else:
     raise AssertionError("high_ratio_gzip_expansion_not_rejected")
 
+malformed_deflate = (
+    b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff"
+    + b"\x07"
+    + b"\x00" * 8
+)
+try:
+    module._gzip_decompress_bounded(
+        malformed_deflate, module.MAX_CONFIG_BYTES
+    )
+except module.CensusError as exc:
+    assert str(exc) == "kernel_config_decompression_invalid", str(exc)
+else:
+    raise AssertionError("malformed_deflate_not_normalized_to_hold")
+
 assert module._kernel_config_value("CONFIG_FS_VERITY=y\n", "CONFIG_FS_VERITY") == "y"
 assert module._kernel_config_value("CONFIG_FS_VERITY=m\n", "CONFIG_FS_VERITY") == "m"
 assert module._kernel_config_value("# CONFIG_FS_VERITY is not set\n", "CONFIG_FS_VERITY") == "n"
@@ -249,6 +264,7 @@ for required in (
     "ext4_extents_incompat_bit_bound=true",
     "kernel_config_fsverity_parser_bound=true",
     "kernel_config_gzip_output_bounded=true",
+    "kernel_config_malformed_deflate_hold=true",
     "external_subprocess=false",
     "ioctl_invocation=false",
     "read_only=true",
@@ -314,6 +330,7 @@ print("mountinfo_descriptor_read_only_bound=true")
 print("kernel_config_fsverity_observation_bound=true")
 print("kernel_config_gzip_output_bounded=true")
 print("high_ratio_gzip_expansion_rejected=true")
+print("malformed_deflate_normalized_to_hold=true")
 print("ext4_superblock_magic_bound=true")
 print("ext4_verity_ro_compat_bit_bound=true")
 print("ext4_extents_incompat_bit_bound=true")
