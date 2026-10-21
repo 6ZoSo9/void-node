@@ -4,6 +4,29 @@ Marker: \`VOID_BUY_VOID_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF_V1\`.
 
 Status: **source/test only; executable-candidate proof is non-root and non-authoritative for host installation**.
 
+## Dormant future-run call contract repair
+
+The current V1 trust barrier remains unchanged: `--run` still HOLDs immediately
+with `candidate_execution_snapshot_not_same_uid_immutable` before opening or
+executing supplied runtime candidates.
+
+The unreachable future-run block is nevertheless kept internally consistent so
+a later successor cannot accidentally inherit a broken execution contract. Its
+two candidate launches now:
+
+- execute the inside-chroot path `/bin/python3.12-static`, never the host
+  temporary pathname;
+- pass the retained Python/stdlib snapshot descriptors through
+  `python_snapshot_fd` and `stdlib_snapshot_fd`;
+- bind the private `mount_root` explicitly;
+- pass the synthetic V5 path as
+  `/synthetic-repo/ops/precision/void_buy_void_v7_protected_substrate_install_v5.py`;
+- call `_check_probe(probe_out)` with the function's exact one-argument
+  contract.
+
+These repairs do **not** lift the same-UID immutable-snapshot HOLD and do not
+make external candidate execution reachable.
+
 ## Purpose
 
 This lane closes exactly one readiness question left open by the V7 host-capability census:
