@@ -37,6 +37,7 @@ CONFIG_TEXT = (
 HEX40 = re.compile(r"^[0-9a-f]{40}$")
 MAX_OUTPUT = 64 * 1024 * 1024
 MAX_MOUNTINFO_BYTES = 8 * 1024 * 1024
+MAX_FDINFO_BYTES = 64 * 1024
 MOUNTINFO_PATH = Path("/proc/self/mountinfo")
 
 _CANDIDATE_CREATED = False
@@ -165,6 +166,25 @@ def _reject_mountpoint_alias(
     points = _mount_points() if mount_points is None else mount_points
     if path in points:
         raise ResealError(label + "_mountpoint_alias_forbidden")
+
+def _fd_mount_id(fd: int, label: str) -> int:
+    path = Path("/proc/self/fdinfo") / str(fd)
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise ResealError(label + "_fdinfo_unavailable") from exc
+    if len(raw) > MAX_FDINFO_BYTES:
+        raise ResealError(label + "_fdinfo_too_large")
+    values = []
+    for line in raw.splitlines():
+        if line.startswith(b"mnt_id:"):
+            field = line.split(b":", 1)[1].strip()
+            if not field.isdigit():
+                raise ResealError(label + "_mount_id_invalid")
+            values.append(int(field))
+    if len(values) != 1 or values[0] <= 0:
+        raise ResealError(label + "_mount_id_missing_or_ambiguous")
+    return values[0]
 
 def _candidate_git_args(git_fd: int, work_fd: int, *args: str) -> list[str]:
     return [
@@ -597,7 +617,9 @@ def _validate_output(output: Path) -> Path:
         raise ResealError("output_path_not_canonical")
     return output
 
-def _cleanup_fd_tree(directory_fd: int) -> None:
+def _cleanup_fd_tree(directory_fd: int, expected_mount_id: int) -> None:
+    if _fd_mount_id(directory_fd, "cleanup_directory") != expected_mount_id:
+        raise ResealError("cleanup_mount_boundary_changed")
     entries = list(os.scandir(directory_fd))
     for entry in entries:
         st = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
@@ -608,7 +630,9 @@ def _cleanup_fd_tree(directory_fd: int) -> None:
                 dir_fd=directory_fd,
             )
             try:
-                _cleanup_fd_tree(child_fd)
+                if _fd_mount_id(child_fd, "cleanup_child") != expected_mount_id:
+                    raise ResealError("cleanup_descendant_mount_boundary_forbidden")
+                _cleanup_fd_tree(child_fd, expected_mount_id)
             finally:
                 os.close(child_fd)
             os.rmdir(entry.name, dir_fd=directory_fd)
@@ -622,9 +646,15 @@ def _cleanup_candidate(
     candidate_identity: tuple[int, int, int, int, int, int],
 ) -> tuple[bool, bool, bool, str]:
     try:
-        _cleanup_fd_tree(candidate_fd)
-    except OSError as exc:
-        return (True, False, True, "candidate_tree_cleanup_failed:" + exc.__class__.__name__)
+        candidate_mount_id = _fd_mount_id(candidate_fd, "cleanup_candidate")
+        _cleanup_fd_tree(candidate_fd, candidate_mount_id)
+    except (OSError, ResealError) as exc:
+        return (
+            True,
+            False,
+            True,
+            "candidate_tree_cleanup_failed:" + exc.__class__.__name__ + ":" + str(exc),
+        )
     try:
         visible = os.stat(candidate_name, dir_fd=parent_fd, follow_symlinks=False)
     except FileNotFoundError:
@@ -901,6 +931,7 @@ def self_test() -> None:
     print("mountpoint_aliases_rejected=true")
     print("descriptor_bound_candidate_mutation=true")
     print("cleanup_failure_receipt_bound=true")
+    print("cleanup_mount_boundary_rejection_bound=true")
     print("exact_target_commit_tree_parents_bound=true")
     print("complete_reachable_object_graph_required=true")
     print("single_process_pack_and_index_generation=true")
