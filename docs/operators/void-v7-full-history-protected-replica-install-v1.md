@@ -154,8 +154,7 @@ visually split/overwrite the HOLD reason.
 
 Candidate traversal is also resource-bounded before protected publication.
 The root copy path never calls `listdir()` or sorts/materializes a complete
-attacker-controlled directory. It consumes `os.scandir(fd)` incrementally,
-charges the global `MAX_NODES=250000` budget as each entry is yielded, and
+attacker-controlled directory. It consumes `os.scandir(fd)` incrementally and
 uses an explicit depth-first descriptor stack rather than Python recursion.
 Directory descent is capped at `MAX_COPY_DEPTH=128`, well below interpreter
 recursion limits and with a bounded number of simultaneously retained directory
@@ -163,6 +162,17 @@ descriptors. Over-wide and over-deep candidates therefore raise
 `InstallError("copy_node_limit")` or `InstallError("copy_depth_limit")`
 inside the normal write-boundary reconciliation path rather than risking OOM or
 `RecursionError`.
+
+The broad `MAX_NODES=250000` and 16 GiB values are only outer admission
+ceilings. The operation-bound plan already records the candidate's exact
+`nodes` and `regular_file_bytes`; apply validates both as real integers
+within those ceilings **before entering the write boundary**. Those exact
+planned values, not the globals, become the walker's node and byte limits.
+The returned copied node/byte counts must exactly equal the plan before any
+content hash can advance. A post-plan extra entry therefore stops at the
+approved node count, and a sparse-file size inflation stops at the approved byte
+count before the inflated destination file is created. A race cannot consume
+the unused remainder of the global protected-disk/inode ceilings.
 
 Creating the stage is the only expected install-parent namespace transition.
 The install-parent device/inode/owner/mode must remain stable, and its directory
