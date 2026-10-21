@@ -1,0 +1,81 @@
+name: VOID V7 protected full-history replica install v1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/precision/void_v7_full_history_protected_replica_install_v1.py'
+      - 'scripts/prove_void_v7_full_history_protected_replica_install_v1.py'
+      - 'docs/operators/void-v7-full-history-protected-replica-install-v1.md'
+      - '.github/workflows/void-v7-full-history-protected-replica-install-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protected-replica-source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact scope and reviewed dependencies
+        run: |
+          set -euo pipefail
+
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "e938dbe479ed9192df03a800bcebae53bfd7c5c5"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "ff2e62bcd0d46c8e82fee77cbe1cf83bf082f194"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "b5495f6b31f13beef4ba2ba81363c4c63b610147"
+
+          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = "3fe1158a0fdf19fa4307c2a8122314b75ee36345"
+
+          git merge-base --is-ancestor 6011fc906a98cb005567f8dd1fa8a3ea184beb12 HEAD
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cat > /tmp/expected <<'EOF'
+          A	.github/workflows/void-v7-full-history-protected-replica-install-v1.yml
+          A	docs/operators/void-v7-full-history-protected-replica-install-v1.md
+          A	ops/precision/void_v7_full_history_protected_replica_install_v1.py
+          A	scripts/prove_void_v7_full_history_protected_replica_install_v1.py
+          EOF
+            git diff --name-status "${{ github.event.pull_request.base.sha }}" HEAD -- | sort > /tmp/actual
+            sort /tmp/expected > /tmp/expected.sorted
+            diff -u /tmp/expected.sorted /tmp/actual
+          fi
+
+          git diff --check
+          test "$(git rev-parse --is-shallow-repository)" = false
+
+      - name: Syntax and focused proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for rel in (
+              "ops/precision/void_v7_full_history_protected_replica_install_v1.py",
+              "scripts/prove_void_v7_full_history_protected_replica_install_v1.py",
+          ):
+              raw = Path(rel).read_bytes()
+              compile(raw, rel, "exec", dont_inherit=True, optimize=0)
+          PY
+          python3 -I -B scripts/prove_void_v7_full_history_protected_replica_install_v1.py
+
+      - name: Recheck inert source plan
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_v7_full_history_protected_replica_install_v1.py             --source-plan             | tee "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'source_only=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'host_read=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'host_write=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'create_only=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'live_release_mutation=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'trusted_root_launcher_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'service_mutation=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'transaction=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/source-plan.log"
