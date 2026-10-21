@@ -20,7 +20,8 @@ This census observes those facts without changing them.
 
 ## Exact source bindings
 
-Landed source base: `main@47acc1485ab264a1a33d6a8c70072c2c18ce56e4`.
+Landed launcher source base: `main@0d93be0a7ae1395449a386d4fbe14bb680f51c3f`.
+Underlying landed V5 parent: `47acc1485ab264a1a33d6a8c70072c2c18ce56e4`.
 Runtime-shape contract: `v5`.
 
 Stack parent / launcher head:
@@ -41,7 +42,7 @@ Census source Git blob:
 
 Focused proof Git blob:
 
-\`aca211add9f4a093bf46def8a370d3dd96eabca0\`
+\`421688ff338d4c81938ed4c6242842a2e02ae6d5\`
 
 ## fs-verity capability observation
 
