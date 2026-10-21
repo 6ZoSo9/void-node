@@ -31,8 +31,10 @@ Before mount selection, V1 requires `/opt` itself to be a real directory at its 
 The census uses:
 
 - bounded direct reads of `/proc/self/mountinfo`, `/proc/filesystems`, and readable kernel-config sources;
+- bounded streaming decompression for `/proc/config.gz`: at most `MAX_CONFIG_BYTES + 1` output is materialized, expansion past the 4 MiB limit is rejected, and decompression memory exhaustion is normalized to HOLD;
 - no subprocesses;
 - no shell;
+- no unbounded gzip decompression;
 - no ioctl calls;
 - no file creation;
 - no write-capable file descriptors;
@@ -93,7 +95,7 @@ GREEN means V1 directly observed all of its conservative ext4 requirements:
 - unambiguous visible mount row bound to the target directory's `st_dev`;
 - writable `/opt` mount;
 - no DAX request;
-- observed kernel `CONFIG_FS_VERITY` support;
+- observed kernel `CONFIG_FS_VERITY` support from a bounded kernel-config read/decompression path;
 - mounted ext4 driver present;
 - readable underlying block device;
 - valid ext4 superblock;
