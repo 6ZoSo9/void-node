@@ -6,7 +6,7 @@ Status: **source-only read capability / production HOLD**.
 
 Exact source Git blob: `e6fbd5b54891ee25daaeb8ae4e6f26073ed71420`.
 
-Focused proof Git blob: `12cca01379e479750ab24de9b8b4c53292d837c8`.
+Focused proof Git blob: `aaf0f1bb77687e56757a98d24397c9ebf4e879b3`.
 
 ## Purpose
 

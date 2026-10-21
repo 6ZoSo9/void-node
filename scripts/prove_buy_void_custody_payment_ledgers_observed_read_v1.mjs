@@ -174,7 +174,7 @@ try{
   fs.unlinkSync(operatorPath);
   fs.renameSync(operatorPath+".real",operatorPath);
 
-  const originalOpen=fs.openSync;
+  const fifoOriginalOpen=fs.openSync;
   const fifoOriginal=operatorPath+".fifo-original";
   let fifoSwapExercised=false;
   try{
@@ -192,13 +192,13 @@ try{
         });
         fs.chmodSync(operatorPath,0o640);
       }
-      return originalOpen.call(fs,target,flags,...args);
+      return fifoOriginalOpen.call(fs,target,flags,...args);
     };
     requireHeld(observeBuyVoidCustodyPaymentLedgersReadOnlyV1({request_dir:requestDir}),
       /operator_leaf_fd_mismatch/u);
     assert.equal(fifoSwapExercised,true,"operator FIFO swap adversary did not execute");
   }finally{
-    fs.openSync=originalOpen;
+    fs.openSync=fifoOriginalOpen;
     if(fs.existsSync(operatorPath))fs.unlinkSync(operatorPath);
     if(fs.existsSync(fifoOriginal))fs.renameSync(fifoOriginal,operatorPath);
     writeFixture();
