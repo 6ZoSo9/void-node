@@ -1976,17 +1976,6 @@ def source_plan() -> None:
     print("create_only=true")
     print("live_release_mutation=false")
     print("trusted_root_launcher_required=true")
-    assert _PackReader._entry_span(
-        12, 12 + MAX_PACK_ENTRY_BYTES, "self_test_pack"
-    ) == MAX_PACK_ENTRY_BYTES
-    try:
-        _PackReader._entry_span(
-            12, 12 + MAX_PACK_ENTRY_BYTES + 1, "self_test_pack"
-        )
-    except InstallError as exc:
-        assert str(exc) == "self_test_pack_pack_entry_size_limit"
-    else:
-        raise AssertionError("oversized_pack_entry_span_not_rejected")
     print("pack_entry_span_bound_required=true")
     print("pack_cache_byte_budget_required=true")
     print("dynamic_git_provenance_authority_removed=true")
@@ -2925,6 +2914,32 @@ def self_test() -> None:
     print("terminal_reason_printable_sanitization_required=true")
     print("rename_noreplace_publication_required=true")
     print("trusted_root_launcher_required=true")
+    assert _PackReader._entry_span(
+        12, 12 + MAX_PACK_ENTRY_BYTES, "self_test_pack"
+    ) == MAX_PACK_ENTRY_BYTES
+    try:
+        _PackReader._entry_span(
+            12, 12 + MAX_PACK_ENTRY_BYTES + 1, "self_test_pack"
+        )
+    except InstallError as exc:
+        assert str(exc) == "self_test_pack_pack_entry_size_limit"
+    else:
+        raise AssertionError("oversized_pack_entry_span_not_rejected")
+
+    cache_probe = object.__new__(_PackReader)
+    cache_probe.cache = collections.OrderedDict()
+    cache_probe.cache_bytes = 0
+    original_cache_budget = MAX_PACK_CACHE_BYTES
+    globals()["MAX_PACK_CACHE_BYTES"] = 8
+    try:
+        cache_probe._cache_put("a", ("blob", b"123456"))
+        cache_probe._cache_put("b", ("blob", b"abcdef"))
+        if tuple(cache_probe.cache) != ("b",) or cache_probe.cache_bytes != 6:
+            raise AssertionError("pack_cache_byte_budget_eviction_invalid")
+    finally:
+        globals()["MAX_PACK_CACHE_BYTES"] = original_cache_budget
+    print("pack_entry_span_bound_required=true")
+    print("pack_cache_byte_budget_required=true")
     print("dynamic_git_provenance_authority_removed=true")
     print("built_in_pack_index_verification_required=true")
     print("built_in_full_history_object_closure_required=true")
