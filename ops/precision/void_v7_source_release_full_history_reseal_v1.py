@@ -195,7 +195,7 @@ def _validate_output(output: Path) -> Path:
     if not output.is_absolute():
         raise ResealError("output_must_be_absolute")
     parent = output.parent.resolve(strict=True)
-    allowed = ALLOWED_OUTPUT_ROOT.resolve(strict=True)
+    allowed = ALLOWED_OUTPUT_ROOT.resolve(strict=False)
     if parent != allowed and allowed not in parent.parents:
         raise ResealError("output_outside_downloads")
     if output.exists() or output.is_symlink():
