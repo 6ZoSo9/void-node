@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "9ee50b7a44c615798e9b8df1595083b28643ff0d"
+TARGET_BLOB = "40492c2cea422eb04606ab0be750246396b46611"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -56,6 +56,13 @@ for required in (
     'def _rename_noreplace()',
     'def _reconcile_publication_receipt()',
     'def _require_privileged_source_custody()',
+    'def _collect_plan_for_apply(',
+    'os.setgid(RUNTIME_GID)',
+    'os.setuid(RUNTIME_UID)',
+    'def _copy_regular_at(',
+    'os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW',
+    'copy_candidate_root_rebound',
+    'install_parent_stage_link_count_transition_invalid',
     'full_root_reachable_commit_count_mismatch',
     'full_root_missing_object',
     'full_root_fsck_output_nonempty',
@@ -114,6 +121,8 @@ for marker in (
     "root_owned_immutable_stage_required=true",
     "rename_noreplace_publication_required=true",
     "trusted_root_launcher_required=true",
+    "apply_plan_runtime_uid_drop_required=true",
+    "candidate_copy_descriptor_relative=true",
     "service_mutation=false",
     "credential_access=false",
     "transaction=false",
@@ -158,6 +167,9 @@ print("live_shallow_runtime_cross_binding_bound=true")
 print("create_only_rename_noreplace_bound=true")
 print("publication_reconciliation_bound=true")
 print("direct_mutable_checkout_privileged_apply_forbidden=true")
+print("apply_plan_runtime_uid_drop_bound=true")
+print("candidate_copy_descriptor_relative_bound=true")
+print("install_parent_stage_transition_bound=true")
 print("live_release_replacement_forbidden=true")
 print("source_plan_inert=true")
 print("service_mutation=false")
