@@ -56,6 +56,10 @@ REACHABLE_COMMITS = 17931
 RUNTIME_UID = 1000
 RUNTIME_GID = 1000
 PR_SET_NO_NEW_PRIVS = 38
+PR_CAP_AMBIENT = 47
+PR_CAP_AMBIENT_CLEAR_ALL = 4
+LINUX_CAPABILITY_VERSION_3 = 0x20080522
+SYS_CAPSET_X86_64 = 126
 CANDIDATE = pathlib.Path("/home/zoso/Downloads/void-v7-full-history-candidate-6011fc")
 LIVE_RELEASE = pathlib.Path("/opt/void-node-live/releases/" + SOURCE_HEAD)
 
@@ -767,6 +771,123 @@ def collect_plan(expected_head: str) -> dict[str, Any]:
         "plan_id": PLAN_PREFIX + hashlib.sha256(canonical(body)).hexdigest(),
     }
 
+class _CapabilityHeader(ctypes.Structure):
+    _fields_ = [
+        ("version", ctypes.c_uint32),
+        ("pid", ctypes.c_int),
+    ]
+
+class _CapabilityData(ctypes.Structure):
+    _fields_ = [
+        ("effective", ctypes.c_uint32),
+        ("permitted", ctypes.c_uint32),
+        ("inheritable", ctypes.c_uint32),
+    ]
+
+def _proc_self_status_security_fields() -> dict[str, str]:
+    try:
+        raw = pathlib.Path("/proc/self/status").read_bytes()
+    except OSError as exc:
+        raise InstallError("runtime_uid_child_status_unavailable") from exc
+    if len(raw) > 256 * 1024:
+        raise InstallError("runtime_uid_child_status_too_large")
+    try:
+        text = raw.decode("ascii", "strict")
+    except UnicodeDecodeError as exc:
+        raise InstallError("runtime_uid_child_status_not_ascii") from exc
+    wanted = {
+        "CapInh", "CapPrm", "CapEff", "CapAmb", "NoNewPrivs",
+    }
+    found: dict[str, str] = {}
+    for line in text.splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        if key not in wanted:
+            continue
+        if key in found:
+            raise InstallError("runtime_uid_child_status_field_duplicate:" + key)
+        found[key] = value.strip()
+    if set(found) != wanted:
+        raise InstallError("runtime_uid_child_status_fields_missing")
+    return found
+
+def _clear_runtime_child_capabilities(
+    libc: Any,
+    prctl: Any,
+) -> dict[str, str]:
+    machine = os.uname().machine
+    if machine != "x86_64":
+        raise InstallError("runtime_uid_child_capset_arch_unsupported:" + machine)
+
+    if prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0) != 0:
+        err = ctypes.get_errno()
+        raise InstallError(
+            "runtime_uid_child_ambient_clear_failed:"
+            + str(err if err is not None else "unknown")
+        )
+
+    header = _CapabilityHeader(
+        version=LINUX_CAPABILITY_VERSION_3,
+        pid=0,
+    )
+    data = (_CapabilityData * 2)()
+    syscall = getattr(libc, "syscall", None)
+    if syscall is None:
+        raise InstallError("runtime_uid_child_syscall_unavailable")
+    syscall.restype = ctypes.c_long
+    if syscall(
+        SYS_CAPSET_X86_64,
+        ctypes.byref(header),
+        ctypes.byref(data),
+    ) != 0:
+        err = ctypes.get_errno()
+        raise InstallError(
+            "runtime_uid_child_capset_failed:"
+            + str(err if err is not None else "unknown")
+        )
+
+    fields = _proc_self_status_security_fields()
+    for key in ("CapInh", "CapPrm", "CapEff", "CapAmb"):
+        value = fields[key]
+        if not value or any(ch not in "0123456789abcdefABCDEF" for ch in value):
+            raise InstallError("runtime_uid_child_capability_field_invalid:" + key)
+        if int(value, 16) != 0:
+            raise InstallError("runtime_uid_child_capability_not_zero:" + key)
+    if fields["NoNewPrivs"] != "1":
+        raise InstallError("runtime_uid_child_no_new_privs_status_invalid")
+    return fields
+
+def _drop_runtime_child_privileges() -> dict[str, str]:
+    libc = ctypes.CDLL(None, use_errno=True)
+    prctl = getattr(libc, "prctl", None)
+    if prctl is None:
+        raise InstallError("runtime_uid_child_prctl_unavailable")
+    prctl.argtypes = [
+        ctypes.c_int,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+    ]
+    prctl.restype = ctypes.c_int
+    if prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
+        err = ctypes.get_errno()
+        raise InstallError(
+            "runtime_uid_child_no_new_privs_failed:"
+            + str(err if err is not None else "unknown")
+        )
+    os.setgroups([])
+    os.setgid(RUNTIME_GID)
+    os.setuid(RUNTIME_UID)
+    if (
+        os.getresuid() != (RUNTIME_UID, RUNTIME_UID, RUNTIME_UID)
+        or os.getresgid() != (RUNTIME_GID, RUNTIME_GID, RUNTIME_GID)
+        or os.getgroups() != []
+    ):
+        raise InstallError("runtime_uid_child_identity_drop_incomplete")
+    return _clear_runtime_child_capabilities(libc, prctl)
+
 def _runtime_uid_child_call(operation: str, expected_head: str = "") -> dict[str, Any]:
     if os.geteuid() != 0 or os.getuid() != 0:
         raise InstallError("root_required_for_runtime_uid_child")
@@ -775,33 +896,7 @@ def _runtime_uid_child_call(operation: str, expected_head: str = "") -> dict[str
     if pid == 0:
         try:
             os.close(read_fd)
-            libc = ctypes.CDLL(None, use_errno=True)
-            prctl = getattr(libc, "prctl", None)
-            if prctl is None:
-                raise InstallError("runtime_uid_child_prctl_unavailable")
-            prctl.argtypes = [
-                ctypes.c_int,
-                ctypes.c_ulong,
-                ctypes.c_ulong,
-                ctypes.c_ulong,
-                ctypes.c_ulong,
-            ]
-            prctl.restype = ctypes.c_int
-            if prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
-                err = ctypes.get_errno()
-                raise InstallError(
-                    "runtime_uid_child_no_new_privs_failed:"
-                    + str(err if err is not None else "unknown")
-                )
-            os.setgroups([])
-            os.setgid(RUNTIME_GID)
-            os.setuid(RUNTIME_UID)
-            if (
-                os.getresuid() != (RUNTIME_UID, RUNTIME_UID, RUNTIME_UID)
-                or os.getresgid() != (RUNTIME_GID, RUNTIME_GID, RUNTIME_GID)
-                or os.getgroups() != []
-            ):
-                raise InstallError("runtime_uid_child_identity_drop_incomplete")
+            _drop_runtime_child_privileges()
             try:
                 if operation == "collect_plan":
                     result: Any = collect_plan(expected_head)
@@ -925,6 +1020,8 @@ def source_plan() -> None:
     print("trusted_root_launcher_required=true")
     print("apply_plan_runtime_uid_drop_required=true")
     print("runtime_uid_child_no_new_privs_required=true")
+    print("runtime_uid_child_capability_clear_required=true")
+    print("runtime_uid_child_capability_status_zero_required=true")
     print("candidate_copy_descriptor_relative=true")
     print("apply_root_dynamic_git_exec=false")
     print("termination_signal_reconciliation_required=true")
@@ -935,6 +1032,8 @@ def source_plan() -> None:
     print("private_stage_git_verification_before_world_readable=true")
     print("private_stage_named_runtime_uid_acl_required=true")
     print("private_stage_acl_group_object_zero_required=true")
+    print("runtime_uid_child_capability_clear_required=true")
+    print("runtime_uid_child_capability_status_zero_required=true")
     print("candidate_utf8_path_components_required=true")
     print("opened_generation_copy_budget_required=true")
     print("write_boundary_precedes_first_stage_mutation=true")
