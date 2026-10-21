@@ -77,6 +77,7 @@ CONFIRM_TOKEN = "INSTALL_VOID_V7_FULL_HISTORY_PROTECTED_REPLICA_V1_CREATE_ONLY"
 MAX_NODES = 250000
 MAX_PACKS = 64
 MAX_PACK_CACHE_OBJECTS = 256
+MAX_PACK_CACHE_BYTES = 64 * 1024 * 1024
 MAX_PACK_DELTA_DEPTH = 128
 MAX_INDEX_BYTES = 64 * 1024 * 1024
 MAX_INDEX_PATH_BYTES = 4096
@@ -84,6 +85,7 @@ PACK_IDX_MAGIC = b"\xfftOc"
 MAX_COPY_DEPTH = 128
 MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_GIT_OBJECT_BYTES = 128 * 1024 * 1024
+MAX_PACK_ENTRY_BYTES = MAX_GIT_OBJECT_BYTES + 2 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
 COPY_CHUNK = 1024 * 1024
 RENAME_NOREPLACE = 1
@@ -629,6 +631,7 @@ class _PackReader:
         self.pack_fd = -1
         self.idx_fd = -1
         self.cache: collections.OrderedDict[str, tuple[str, bytes]] = collections.OrderedDict()
+        self.cache_bytes = 0
         try:
             self.pack_fd, self.pack_identity = _open_stable_regular(
                 pack_path, label + "_pack", MAX_FILE_BYTES
@@ -750,12 +753,28 @@ class _PackReader:
         return oid in self.offset_by_oid
 
     def _cache_put(self, oid: str, value: tuple[str, bytes]) -> None:
-        if len(value[1]) > 4 * 1024 * 1024:
+        size = len(value[1])
+        if size > 4 * 1024 * 1024:
             return
+        prior = self.cache.pop(oid, None)
+        if prior is not None:
+            self.cache_bytes -= len(prior[1])
         self.cache[oid] = value
+        self.cache_bytes += size
         self.cache.move_to_end(oid)
-        while len(self.cache) > MAX_PACK_CACHE_OBJECTS:
-            self.cache.popitem(last=False)
+        while (
+            len(self.cache) > MAX_PACK_CACHE_OBJECTS
+            or self.cache_bytes > MAX_PACK_CACHE_BYTES
+        ):
+            _old_oid, old_value = self.cache.popitem(last=False)
+            self.cache_bytes -= len(old_value[1])
+
+    @staticmethod
+    def _entry_span(offset: int, end: int, label: str) -> int:
+        span = end - offset
+        if span <= 0 or span > MAX_PACK_ENTRY_BYTES:
+            raise InstallError(label + "_pack_entry_size_limit")
+        return span
 
     def read_object(self, oid: str, stack: tuple[str, ...] = ()) -> tuple[str, bytes]:
         cached = self.cache.get(oid)
@@ -768,7 +787,8 @@ class _PackReader:
         if offset is None:
             raise InstallError(self.label + "_object_missing:" + oid)
         end = self.end_by_offset[offset]
-        entry = _pread_exact(self.pack_fd, offset, end - offset, self.label + "_pack_entry")
+        entry_size = self._entry_span(offset, end, self.label)
+        entry = _pread_exact(self.pack_fd, offset, entry_size, self.label + "_pack_entry")
         if (zlib.crc32(entry) & 0xffffffff) != self.crc_by_oid[oid]:
             raise InstallError(self.label + "_pack_entry_crc_mismatch")
         pos = 0
@@ -1956,6 +1976,19 @@ def source_plan() -> None:
     print("create_only=true")
     print("live_release_mutation=false")
     print("trusted_root_launcher_required=true")
+    assert _PackReader._entry_span(
+        12, 12 + MAX_PACK_ENTRY_BYTES, "self_test_pack"
+    ) == MAX_PACK_ENTRY_BYTES
+    try:
+        _PackReader._entry_span(
+            12, 12 + MAX_PACK_ENTRY_BYTES + 1, "self_test_pack"
+        )
+    except InstallError as exc:
+        assert str(exc) == "self_test_pack_pack_entry_size_limit"
+    else:
+        raise AssertionError("oversized_pack_entry_span_not_rejected")
+    print("pack_entry_span_bound_required=true")
+    print("pack_cache_byte_budget_required=true")
     print("dynamic_git_provenance_authority_removed=true")
     print("built_in_pack_index_verification_required=true")
     print("built_in_full_history_object_closure_required=true")
