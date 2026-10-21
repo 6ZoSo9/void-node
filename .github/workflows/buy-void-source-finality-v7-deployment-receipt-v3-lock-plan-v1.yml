@@ -50,7 +50,7 @@ jobs:
           git diff --name-status "$BASE" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual-delta"
           sort "$RUNNER_TEMP/expected-delta" > "$RUNNER_TEMP/expected-delta.sorted"
           diff -u "$RUNNER_TEMP/expected-delta.sorted" "$RUNNER_TEMP/actual-delta"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs)" = "97c0900184471ea8df4f59b71a717b944c5b4330"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs)" = "e6ec4feec4ee5c98d6c9a3f44118793097a3def9"
           test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md)" = "80dbbc16bbe992ae117828d1fab748e87ee0c749"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "c755e5f4e0484486b49193a8381fa09a9e6cb9f1"

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -43,16 +44,78 @@ function run(command,args,{timeout=30000}={}){
   return r;
 }
 const git=args=>String(run("/usr/bin/git",["--no-replace-objects","-C",ROOT,...args]).stdout||"").trim();
-function readExact(relative,max=2*1024*1024){
+const STAT_ID_FIELDS=Object.freeze(["dev","ino","size","mtimeMs","ctimeMs","nlink","mode"]);
+function requireSameStat(actual,expected,label){
+  for(const k of STAT_ID_FIELDS)assert.equal(actual[k],expected[k],label+":"+k);
+}
+function readExactAt(root,relative,max=2*1024*1024,{beforeOpen=null}={}){
   assert.equal(path.isAbsolute(relative),false,"absolute_path:"+relative);
   assert.equal(relative.split("/").some(p=>!p||p==="."||p===".."),false,"unsafe_path:"+relative);
-  const absolute=path.join(ROOT,...relative.split("/"));
+  assert.ok(Number.isSafeInteger(max)&&max>0,"invalid_max:"+relative);
+  const absolute=path.join(root,...relative.split("/"));
   const before=fs.lstatSync(absolute);
   assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&before.size>0&&before.size<=max,"invalid_file:"+relative);
-  const bytes=fs.readFileSync(absolute),after=fs.lstatSync(absolute);
-  assert.equal(bytes.length,before.size,"short_read:"+relative);
-  for(const k of ["dev","ino","size","mtimeMs","ctimeMs","nlink","mode"])assert.equal(after[k],before[k],"file_changed:"+relative+":"+k);
-  return bytes;
+  if(beforeOpen!==null)beforeOpen(absolute,before);
+  let fd=-1;
+  try{
+    fd=fs.openSync(absolute,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+    const opened=fs.fstatSync(fd);
+    assert.ok(opened.isFile()&&opened.nlink===1&&opened.size>0&&opened.size<=max,"invalid_opened_file:"+relative);
+    requireSameStat(opened,before,"file_open_generation_mismatch:"+relative);
+
+    const chunks=[];
+    const scratch=Buffer.alloc(Math.min(64*1024,max+1));
+    let total=0;
+    while(total<=max){
+      const want=Math.min(scratch.length,max+1-total);
+      if(want===0)break;
+      const n=fs.readSync(fd,scratch,0,want,null);
+      if(n===0)break;
+      chunks.push(Buffer.from(scratch.subarray(0,n)));
+      total+=n;
+    }
+    assert.ok(total<=max,"file_size_limit:"+relative);
+    assert.equal(total,opened.size,"short_or_grown_read:"+relative);
+
+    const after=fs.fstatSync(fd);
+    requireSameStat(after,opened,"file_descriptor_generation_changed:"+relative);
+    const visible=fs.lstatSync(absolute);
+    requireSameStat(visible,opened,"file_visible_generation_changed:"+relative);
+    return Buffer.concat(chunks,total);
+  }finally{
+    if(fd>=0)fs.closeSync(fd);
+  }
+}
+const readExact=(relative,max=2*1024*1024)=>readExactAt(ROOT,relative,max);
+
+function proveReadExactBoundary(){
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-v3-lock-plan-readexact-"));
+  try{
+    const dep=path.join(temp,"dep");
+    fs.writeFileSync(dep,"good",{mode:0o600});
+    assert.equal(readExactAt(temp,"dep",8).toString("utf8"),"good");
+
+    assert.throws(
+      ()=>readExactAt(temp,"dep",8,{beforeOpen:absolute=>{
+        const moved=absolute+".old";
+        fs.renameSync(absolute,moved);
+        fs.writeFileSync(absolute,"evil",{mode:0o600});
+      }}),
+      /file_open_generation_mismatch:dep/
+    );
+
+    fs.rmSync(dep,{force:true});
+    const target=path.join(temp,"target");
+    fs.writeFileSync(target,"good",{mode:0o600});
+    fs.symlinkSync("target",dep);
+    assert.throws(()=>readExactAt(temp,"dep",8),/invalid_file:dep/);
+
+    fs.rmSync(dep,{force:true});
+    fs.writeFileSync(dep,"123456789",{mode:0o600});
+    assert.throws(()=>readExactAt(temp,"dep",8),/invalid_file:dep/);
+  }finally{
+    fs.rmSync(temp,{recursive:true,force:true});
+  }
 }
 function verifyBranch(){
   git(["merge-base","--is-ancestor",BASE,"HEAD"]);
@@ -130,7 +193,7 @@ function validateTool(){
   assert.equal(source.includes("buy-void-enforcement-final-protected-v7-v2-lock-v3.json"),false,
     "deployment_tool_hardcodes_v3_lock");
 }
-verifyBranch();validateV3();validateHistoricalV2();validateTool();
+proveReadExactBoundary();verifyBranch();validateV3();validateHistoricalV2();validateTool();
 console.log("VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_V3_LOCK_PLAN_V1_PROOF_GREEN");
 console.log("base_lock_head="+BASE);
 console.log("deployment_tool_blob="+TOOL_BLOB);
@@ -142,6 +205,10 @@ console.log("historical_v2_lock_blob="+LOCK_V2_BLOB);
 console.log("v3_candidate_enforcement_set_sha256="+V3_SET);
 console.log("v3_current_inventory_sha256="+V3_INVENTORY);
 console.log("deployment_tool_lock_version_agnostic=true");
+console.log("descriptor_bounded_read_required=true");
+console.log("nofollow_dependency_open_required=true");
+console.log("replacement_generation_rejected=true");
+console.log("symlink_dependency_rejected=true");
 console.log("v3_lock_source_identity_accepted=true");
 console.log("historical_v2_lock_preserved=true");
 console.log("deployment_apply_performed=false");
