@@ -235,5 +235,12 @@ operator-supplied path diagnostics are redacted to
 `allocation_custody_diagnostic_redacted`. The focused proof exercises a missing
 synthetic path with embedded newline-delimited positive status/authority markers,
 checks that no such line survives formatting, and checks that normal explicit
-collector HOLD codes remain usable. This hardens log parsing only and grants no
-host collector, storage challenge, presale, payment or funds authority.
+collector HOLD codes remain usable. The proof additionally launches the actual
+collector CLI in a bounded, ordinary-user child with a test-only JavaScript
+geteuid() override. A synthetic missing first receipt path containing LF-delimited
+positive markers must produce exit 2, one HOLD marker, exactly one redacted
+reason line and only negative economic/host authority lines. The physical UID and
+Linux privileges are unchanged; the nonexistent path fails before any fixed
+journal, high-water, witness or policy observer is reached. This hardens log
+parsing only and grants no host collector, storage challenge, presale, payment
+or funds authority.

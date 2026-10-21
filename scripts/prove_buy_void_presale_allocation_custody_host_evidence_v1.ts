@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -557,8 +558,71 @@ for (const forged of [
 }
 assert.equal(testOnlySafeHoldReasonV1(new Error("a".repeat(256))), "allocation_custody_diagnostic_redacted");
 
+// Exercise the actual CLI's catch/diagnostic path, not only its formatter.
+// A test-only ESM preload fakes the JS geteuid() answer in the child; the
+// underlying process remains the ordinary CI user, with no kernel privilege.
+// The first --run file is deliberately missing, so no live custody root or
+// storage observer is accessed and no host challenge can execute.
+const fakeUidModule =
+  "data:text/javascript," + encodeURIComponent("process.geteuid=()=>0;");
+const collectorEntrypoint = path.join(ROOT, ...COLLECTOR_REL.split("/"));
+const holdChild = spawnSync(process.execPath, [
+  "--import", "tsx",
+  "--import", fakeUidModule,
+  collectorEntrypoint,
+  "--run",
+  "--operator-receipt", injectedPath,
+  "--external-witness", "/tmp/void-custody-fixture-witness-not-present",
+  "--rollback-policy-receipt", "/tmp/void-custody-fixture-policy-not-present",
+], {
+  cwd: ROOT,
+  env: {
+    PATH: "/usr/bin:/bin",
+    HOME: "/nonexistent",
+    LANG: "C",
+    LC_ALL: "C",
+    TZ: "UTC",
+    NODE_OPTIONS: "",
+  },
+  encoding: "utf8",
+  timeout: 15_000,
+  maxBuffer: 128 * 1024,
+});
+assert.equal(holdChild.error, undefined, "hold_cli_spawn_must_complete");
+assert.equal(holdChild.signal, null, "hold_cli_must_not_be_killed");
+assert.equal(holdChild.status, 2, "hold_cli_must_exit_two");
+assert.equal(holdChild.stdout, "", "hold_cli_must_not_claim_success_on_stdout");
+const holdLines = holdChild.stderr.split(/\r?\n/u).filter(Boolean);
+assert.equal(holdLines.filter(line => line === MARKER + "_HOLD").length, 1,
+  "hold_cli_one_terminal_hold_marker_required");
+assert.deepEqual(holdLines.filter(line => line.startsWith("reason=")),
+  ["reason=allocation_custody_diagnostic_redacted"],
+  "hold_cli_single_redacted_reason_required");
+for (const forged of [
+  "status=GREEN",
+  "production_host_evidence_authority=true",
+  "public_presale_activation=true",
+  "payment_acceptance=true",
+  "funds_movement=true",
+]) {
+  assert.equal(holdLines.includes(forged), false,
+    "hold_cli_injected_positive_status:" + forged);
+}
+for (const boundedFalse of [
+  "filesystem_write_performed=false",
+  "network_contact_performed=false",
+  "payment_acceptance=false",
+  "public_presale_activation=false",
+  "funds_movement=false",
+  "production_host_evidence_authority=false",
+]) {
+  assert.equal(holdLines.filter(line => line === boundedFalse).length, 1,
+    "hold_cli_negative_authority_missing:" + boundedFalse);
+}
+
 console.log(MARKER + "_PROOF_GREEN");
 console.log("hold_diagnostic_single_line_and_positive_marker_injection_rejected=true");
+console.log("hold_cli_entrypoint_multiline_status_injection_rejected=true");
 console.log("parent_host_evidence_plan_bound=true");
 console.log("three_reviewed_custody_primitives_bound=true");
 console.log("durability_rollback_contract_bound=true");

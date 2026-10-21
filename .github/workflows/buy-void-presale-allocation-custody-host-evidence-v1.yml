@@ -107,8 +107,8 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = a36e26ce122cb4c50e5e918cb31a67edfb8a3fb7
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 54629ed97294ca14223748355ac10852491d1303
-          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = 8746071f76de9909b45311919e4ec8a00c9ac828
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_v1.ts)" = 23cb794574d0f648db3f87cff2377783ab29ad1b
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-v1.md)" = 2870f20517872b675e549bdf9b02df0870dd43cb
 
           test "$(git rev-parse HEAD:ops/security/buy-void-presale-host-evidence-collection-plan-v1.json)" = ad68175e629fd1cf90180db3a904f84834314fdd
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_host_evidence_collection_plan_v1.py)" = 295adeea32bc1723b290f7e07e4186e2e6e8e9be
@@ -159,6 +159,7 @@ jobs:
             'second_control_boundary_downgrades_rejected=true' \
             'normalized_receipt_schemas_bound=true' \
             'hold_diagnostic_single_line_and_positive_marker_injection_rejected=true' \
+            'hold_cli_entrypoint_multiline_status_injection_rejected=true' \
             'normalized_payload_mutations_rejected=true' \
             'cross_receipt_binding_direct=true' \
             'one_sided_normalized_omission_rejected=true' \
