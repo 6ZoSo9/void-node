@@ -92,8 +92,16 @@ jobs:
           grep -Fx 'descriptor_bound_candidate_mutation=true' "$RUNNER_TEMP/reseal.log"
           grep -Fx 'mountpoint_alias_rejection=true' "$RUNNER_TEMP/reseal.log"
           grep -Fx 'candidate_cleanup_attempted=false' "$RUNNER_TEMP/reseal.log"
-          grep -Fx 'source_repository_mutation=false' "$RUNNER_TEMP/reseal.log"
-          grep -Fx 'protected_filesystem_mutation=false' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'current_uid_filesystem_write_boundary=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'same_uid_namespace_relocation_isolation=false' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'intended_source_repository_mutation=false' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'intended_protected_filesystem_mutation=false' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'source_repository_mutation=unknown' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'protected_filesystem_mutation=unknown' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'pack_leaf_descriptors_retained=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'pack_leaf_generation_and_digest_revalidation=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'index_leaf_generation_and_digest_revalidation=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'network=false' "$RUNNER_TEMP/reseal.log"
           test ! -e "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate/.git/shallow"
           test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-parse --is-shallow-repository)" = false
           test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-list --count 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb)" = 17931
