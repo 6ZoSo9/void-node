@@ -274,6 +274,29 @@ readable or publishable because staged Git verification occurs before final
 sealing.
 
 
+
+## Bounded-memory content authentication
+
+Large regular-file authentication is streaming. The installer never retains and
+joins a complete worktree file, Git index, pack, or pack index in memory.
+
+`_stream_regular_hashes_stable()` opens the exact regular-file generation with
+`O_NOFOLLOW`, binds the opened metadata identity to the visible generation,
+uses the opened size to initialize Git-blob SHA-1 when required, and feeds each
+bounded chunk directly into SHA-256 and optional Git-blob SHA-1. The helper then
+requires the opened and visible generation to remain unchanged after EOF.
+
+Byte-returning `_read_regular_stable()` is limited to at most 64 KiB and is
+used only for tiny metadata leaves such as `HEAD`, config, the main ref, and
+the live shallow marker. Candidate/stage worktree regulars and Git
+`index`/`.pack`/`.idx` leaves use the streaming path.
+
+Focused CI executes a large sparse regular-file authentication fixture under a
+constrained address-space limit and verifies both SHA-256 and Git-blob SHA-1.
+This proves the authentication path does not require memory proportional to the
+permitted file size. Catching `MemoryError` is not treated as the safety
+mechanism; the large allocation is removed from the authority path.
+
 ## Failure truth
 
 The installer has **no automatic recursive cleanup authority** for a nonempty
