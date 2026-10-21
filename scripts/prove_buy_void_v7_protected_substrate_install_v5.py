@@ -11,8 +11,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V5_PROOF"
 V5 = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_install_v5.py"
 Q4 = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py"
-V5_BLOB = "a863e931af2008a0dcfc083c3c0265b0d79bf910"
-Q4_BLOB = "6ae8d863b693d711475d2c62ba955dc0b05de05e"
+V5_BLOB = "9fbc7e4a7203c3b9a77ee5bc0aa4b8fb3ed0a4f0"
+Q4_BLOB = "09039f7e33ca0e252c31cb6fa49f783254e05fb2"
 
 
 def git_blob(raw: bytes) -> str:
@@ -65,7 +65,7 @@ required_v5 = (
     'SOURCE_RELEASE = pathlib.Path("/opt/void-v7-source-release-full-history-v1")',
     'V4_INSTALLER_BLOB = "4448acb51cbc15d845550a55cd11c38f4185a7b3"',
     'FULL_HISTORY_INSTALLER_BLOB = "a4d5762fe0e1c41b0919b8abb827123e556552ca"',
-    'QUALIFIER_BLOB = "6ae8d863b693d711475d2c62ba955dc0b05de05e"',
+    'QUALIFIER_BLOB = "09039f7e33ca0e252c31cb6fa49f783254e05fb2"',
     'def full_history_content_digest(',
     'def verify_live_release() -> None:',
     'allow_shallow=True',
@@ -76,6 +76,7 @@ required_v5 = (
     'expected_full_history_content_sha256_required',
     'trusted_full_history_content_sha256_required=true',
     'live_shallow_release_cross_binding_required=true',
+    'live_release_acl_aware_tree_custody_required=true',
     'protected_full_history_replica_source_required=true',
     'live_runtime_release_mutation=false',
     'RUN_INSTALLED_QUALIFICATION_V4',
@@ -103,6 +104,7 @@ required_q4 = (
     'def _git_tree_oid_from_worktree(',
     'def _direct_main_ref(',
     'live_shallow_release_cross_binding_green=true',
+    'live_release_acl_aware_tree_custody_green=true',
     'full_history_provenance_digest_green=true',
     'protected_source_full_history_digest_green=true',
     'external_repository_observer=false',
@@ -148,6 +150,7 @@ assert "funds_movement=false" in v5_plan.splitlines()
 q4_self = run(sys.executable, "-I", "-B", str(Q4), "--self-test")
 assert "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V4_SELF_TEST_GREEN" in q4_self.splitlines()
 assert "content_digest_matches_replica_v1_contract=true" in q4_self.splitlines()
+assert "acl_aware_whole_tree_nonwritability_required=true" in q4_self.splitlines()
 assert "external_repository_observer=false" in q4_self.splitlines()
 
 q4_plan = run(sys.executable, "-I", "-B", str(Q4), "--source-plan")
