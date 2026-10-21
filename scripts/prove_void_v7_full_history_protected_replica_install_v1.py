@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "e938dbe479ed9192df03a800bcebae53bfd7c5c5"
+TARGET_BLOB = "9ee50b7a44c615798e9b8df1595083b28643ff0d"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -70,6 +70,9 @@ for required in (
 
 # Privileged source apply must not become a supported mutable-checkout pattern.
 assert 'root_required_for_privileged_apply' in text
+assert 'privileged_source_ancestor_custody_invalid:' in text
+assert 'privileged_source_ancestor_generation_changed:' in text
+assert 'privileged_source_ancestor_generation_changed_terminal:' in text
 assert 'privileged_source_owner_invalid:' in text
 assert 'privileged_source_writable:' in text
 
