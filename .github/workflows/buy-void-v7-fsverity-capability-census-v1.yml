@@ -54,9 +54,9 @@ jobs:
           else
             git diff --check "$EXPECTED_HEAD^" "$EXPECTED_HEAD" --
           fi
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py)" = "37f12a67aa0c2e63af15faf9127fd1ff907c4b72"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_fsverity_capability_census_v1.py)" = "980c6136fc8647badbdfceba4d543227087145bc"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-fsverity-capability-census-v1.md)" = "87f826479ad569b93e5aa9b31c5e9ca78ddd3414"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py)" = "e9e687f16a85afb0eab73df27578c00a58d7b091"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_fsverity_capability_census_v1.py)" = "b39cbbf9eb71aa008d05c45d9ccbc1242de8eca0"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-fsverity-capability-census-v1.md)" = "a5c3055f58be81cd77181bbafc6c0398a2627ead"
 
       - name: Python syntax
         run: |
