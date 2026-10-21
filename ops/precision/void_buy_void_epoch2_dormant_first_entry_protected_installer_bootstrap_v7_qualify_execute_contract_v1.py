@@ -1173,7 +1173,7 @@ def _expect_duplicate_contract_line_rejected(mutator) -> None:
     try:
         validate_planner_output(_duplicate_contract_line_fixture(mutator))
     except ContractError as exc:
-        if str(exc) != "planner_qualification_line_mismatch":
+        if str(exc) != "planner_qualification_line_byte_mismatch":
             raise
         return
     raise AssertionError("typed_duplicate_qualification_line_accepted")

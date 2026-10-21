@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "f02bd5303be49f1b950f731e160cfb3b5cd4a7a9"
+TARGET_BLOB = "bc8064bdb586d55430c0cb653e2c9a98147f8475"
 
 PLANNER_REL = (
     "ops/precision/"
