@@ -15,7 +15,7 @@ or accept a production launcher/runtime/source payload manifest.
   `9dde5523dca6ab240626430ce1c2b82f1cfe7f20`
 - future requirements: **70**
 - bootstrap source Git blob:
-  `a49639a005d5b9dbcdfe585f34c184a1701fb500`
+  `3036fa8c72fe5699433a60ed2c597f8cd96204ff`
 
 The existing launcher V2 remains unchanged and fs-verity-only. This bootstrap
 candidate does not create or authorize launcher V3.
@@ -73,7 +73,8 @@ No source inode is renamed, hard-linked or adopted as trusted destination state.
 
 ## Single-thread and asynchronous-I/O boundary
 
-Immediately before trusted destination creation, the engine requires:
+Before the destination parent descriptor is admitted—and therefore before the
+private stage or any trusted destination inode can exist—the engine requires:
 
 - exactly one task under `/proc/self/task`;
 - the current TID to equal PID;
@@ -159,5 +160,12 @@ This PR does **not** authorize:
 A later source lane must bind an exact reviewed production payload manifest and
 new launcher generation before this bootstrap can become a candidate for any
 root-custodied install.
+
+First-entry process custody also remains a separate gate. This engine does not
+claim that an already-compromised process image, pre-existing ptrace attachment,
+hostile inherited descriptor set, or startup environment has been authenticated
+merely by entering the write barrier. A future trusted launcher/bootstrap
+installation must establish that entry context before this engine can receive
+production authority.
 
 PROTECT THE CORE.
