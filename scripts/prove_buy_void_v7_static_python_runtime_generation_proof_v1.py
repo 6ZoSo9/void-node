@@ -7,7 +7,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_v7_static_python_runtime_generation_proof_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "940ce31a77fe12b32d218546ab76dffc97028dac"
+TARGET_BLOB = "18299de23193f0ab98dca0a2fe50e55376f3b1b1"
 V5_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v5.py"
 V5_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 MARKER = "VOID_BUY_VOID_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF_V1_PROOF"
@@ -60,6 +60,9 @@ assert 'label="stdlib_candidate_snapshot"' in text
 assert '_copy_fd_exact(python_fd, python_target' not in text
 assert '_copy_fd_exact(stdlib_fd, zip_target' not in text
 assert 'self_test_snapshot' in text
+assert 'def _require_sealed_snapshot_fd(' in text
+assert 'snapshot_fd_not_sealed' in text
+assert 'sealed_snapshot_fd_admission_required=true' in text
 assert '_check_probe(probe_out, root)' not in text
 assert 'cwd=root' not in text
 
