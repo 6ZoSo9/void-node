@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "5ad6a9211a95110944db493e1a58e750a0261bd2"
+TARGET_BLOB = "0754e50cdc313bcb0155a900f5dc060a0b6a28d6"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -72,10 +72,17 @@ for required in (
     '"diff-index", "--cached", "--quiet", SOURCE_HEAD, "--"',
     'git_index_head_equality_required=true',
     'git_metadata_leaves_nonexecutable_required=true',
-    'def _seal_private_stage_for_verification()',
+    'def _prepare_private_stage_for_runtime_verification()',
+    'def _seal_verified_stage_for_publication()',
+    'def _verify_private_stage_for_apply(',
     'private_stage_content_digest_mismatch',
-    'stage_seal_private_file_mode_invalid:',
-    'stage_seal_private_directory_mode_invalid:',
+    'private_stage_git_verified_digest_mismatch',
+    'private_stage_git_verification_before_world_readable=true',
+    'opened_generation_copy_budget_required=true',
+    'write_boundary_precedes_first_stage_mutation=true',
+    'runtime_uid_private_stage_writable',
+    'stage_prepare_private_file_mode_invalid:',
+    'stage_seal_verification_file_mode_invalid:',
     'private_stage_before_content_authentication=true',
     'os.setgid(RUNTIME_GID)',
     'os.setuid(RUNTIME_UID)',
@@ -109,6 +116,41 @@ assert "_git_run(" not in apply_text
 assert "git_text(" not in apply_text
 assert "git_bytes(" not in apply_text
 assert "_verify_full_history_root(" not in apply_text
+
+copy_start = text.index("def _copy_candidate_to_stage(")
+copy_end = text.index("def _rename_noreplace(", copy_start)
+copy_text = text[copy_start:copy_end]
+assert copy_text.index("_WRITE_BOUNDARY_ENTERED = True") < copy_text.index(
+    "os.mkdir(STAGE_NAME"
+)
+assert copy_text.index("_prepare_private_stage_for_runtime_verification()") < copy_text.index(
+    "_verify_private_stage_for_apply("
+)
+assert copy_text.index("_verify_private_stage_for_apply(") < copy_text.index(
+    "_seal_verified_stage_for_publication()"
+)
+assert "MAX_TOTAL_BYTES - total" in copy_text
+assert "total += copied" in copy_text
+assert "total += st.st_size" not in copy_text
+
+copy_regular_start = text.index("def _copy_regular_at(")
+copy_regular_end = text.index(
+    "def _prepare_private_stage_for_runtime_verification()", copy_regular_start
+)
+copy_regular_text = text[copy_regular_start:copy_regular_end]
+assert "remaining_budget: int" in copy_regular_text
+assert "before.st_size > remaining_budget" in copy_regular_text
+assert "_metadata_identity(before) != expected_source" in copy_regular_text
+assert "_metadata_identity(opened) != expected_source" in copy_regular_text
+assert "return opened.st_size" in copy_regular_text
+
+runtime_child_start = text.index("def _runtime_uid_child_call(")
+runtime_child_end = text.index("def _collect_plan_for_apply(", runtime_child_start)
+runtime_child_text = text[runtime_child_start:runtime_child_end]
+assert 'operation == "verify_stage_private"' in runtime_child_text
+assert "_verify_full_history_root(" in runtime_child_text
+assert "STAGE, 0, RUNTIME_GID, 0o550" in runtime_child_text
+assert "runtime_uid_private_stage_writable" in runtime_child_text
 
 # No live-root replacement primitive is allowed in this create-only lane.
 assert "RENAME_EXCHANGE" not in text
@@ -185,6 +227,9 @@ for marker in (
     "git_index_head_equality_required=true",
     "git_metadata_leaves_nonexecutable_required=true",
     "private_stage_before_content_authentication=true",
+    "private_stage_git_verification_before_world_readable=true",
+    "opened_generation_copy_budget_required=true",
+    "write_boundary_precedes_first_stage_mutation=true",
     "service_mutation=false",
     "credential_access=false",
     "transaction=false",
@@ -209,6 +254,9 @@ print("install_parent_publication_lease_bound=true")
 print("git_index_head_equality_bound=true")
 print("git_metadata_leaves_nonexecutable_bound=true")
 print("private_stage_content_authentication_bound=true")
+print("private_stage_git_verification_before_world_readable_bound=true")
+print("opened_generation_copy_budget_bound=true")
+print("write_boundary_precedes_first_stage_mutation_bound=true")
 print("live_release_replacement_forbidden=true")
 print("source_plan_inert=true")
 print("service_mutation=false")
