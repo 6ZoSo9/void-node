@@ -14,19 +14,19 @@ V1 uses a **static native x86-64 ELF** as that first instruction.
 
 ## Reviewed source binding
 
-The launcher is source-bound to the landed V4 installer generation:
+The launcher is source-bound to the reviewed direct-runtime-drop V4 installer generation from #3650. This source dependency removes the root-time dynamic `/usr/bin/setpriv` execution path before the launcher generation is eligible to advance:
 
-- installer Git blob: `6e187a9a6e782df13ecd423fc80c82b759a8f6db`;
-- installer bytes: `87048`;
-- installer SHA-256: `72bdf7325fd2b3f373ad3fd41e706d9961d293cf11178d06b72ab41ddc9f8cfc`.
+- installer Git blob: `94112afa2f805e0a6ce881a490c1c64e31e0413e`;
+- installer bytes: `87744`;
+- installer SHA-256: `2e6ac01e770b3f8859d2c741647e4bd9650ed263756c5821f8371e93ad4c32fc`.
 
 The launcher source Git blob is:
 
-`3b6402a1df523842720a24b719c2b3e86c18ed42`.
+`6ecd7fef155967d35d4500b07da841c4e578c6de`.
 
 The source proof Git blob is:
 
-`32932490c003c32d6549d471aeec2c8cff67ae2b`.
+`7e5a0d029847ae36b8359c926dab3c8b9a8c482e`.
 
 These are source identities only. A later installed launcher must be separately bound to its compiled ELF identity.
 
@@ -90,8 +90,8 @@ stdlib_bytes=<decimal>
 stdlib_sha256=<64 lowercase hex>
 source_root=/opt/void-buy-void-v7-installer-source-v1
 installer_rel=ops/precision/void_buy_void_v7_protected_substrate_install_v4.py
-installer_bytes=87048
-installer_sha256=72bdf7325fd2b3f373ad3fd41e706d9961d293cf11178d06b72ab41ddc9f8cfc
+installer_bytes=87744
+installer_sha256=2e6ac01e770b3f8859d2c741647e4bd9650ed263756c5821f8371e93ad4c32fc
 ```
 
 The policy does not admit an arbitrary host interpreter tree. The launcher opens the fixed `bin/python3.12-static` and `lib/python312.zip` leaves no-follow/nonblocking, verifies exact size + SHA-256 from the root-custodied policy, revalidates descriptor/path generation, and requires the Python executable itself to be static ELF64 x86-64 `ET_EXEC` with `PT_LOAD` and with no `PT_INTERP` or `PT_DYNAMIC`.

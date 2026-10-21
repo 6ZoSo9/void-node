@@ -31,8 +31,8 @@
 #define FIXED_SOURCE_ROOT "/opt/void-buy-void-v7-installer-source-v1"
 #define INSTALLER_REL "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
 #define FIXED_INSTALLER FIXED_SOURCE_ROOT "/" INSTALLER_REL
-#define INSTALLER_BYTES 87048U
-#define INSTALLER_SHA256 "72bdf7325fd2b3f373ad3fd41e706d9961d293cf11178d06b72ab41ddc9f8cfc"
+#define INSTALLER_BYTES 87744U
+#define INSTALLER_SHA256 "2e6ac01e770b3f8859d2c741647e4bd9650ed263756c5821f8371e93ad4c32fc"
 #define PLAN_PREFIX "voidv7substrateinstallplan4_"
 #define APPLY_CONFIRM "INSTALL_ACCEPTED_VOID_V7_PROTECTED_SUBSTRATE_V4_CREATE_ONLY"
 #define RUNTIME_UID 1000U
@@ -258,7 +258,7 @@ static int selftest(void){
     if(hexn("ABCDEF",6))return selftest_fail("uppercase_hex_accepted");
     if(!planid(PLAN_PREFIX "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))return selftest_fail("valid_plan_id_rejected");
     if(planid(PLAN_PREFIX "aa"))return selftest_fail("short_plan_id_accepted");
-    char policy[]="schema=" POLICY_SCHEMA "\npython_root=" FIXED_PYTHON_ROOT "\npython_bytes=6831736\npython_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nstdlib_zip=" FIXED_STDLIB_ZIP "\nstdlib_bytes=123456\nstdlib_sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nsource_root=" FIXED_SOURCE_ROOT "\ninstaller_rel=" INSTALLER_REL "\ninstaller_bytes=87048\ninstaller_sha256=" INSTALLER_SHA256 "\n";
+    char policy[]="schema=" POLICY_SCHEMA "\npython_root=" FIXED_PYTHON_ROOT "\npython_bytes=6831736\npython_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nstdlib_zip=" FIXED_STDLIB_ZIP "\nstdlib_bytes=123456\nstdlib_sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nsource_root=" FIXED_SOURCE_ROOT "\ninstaller_rel=" INSTALLER_REL "\ninstaller_bytes=87744\ninstaller_sha256=" INSTALLER_SHA256 "\n";
     policy_v1 p=parse_policy(policy,strlen(policy));
     if(p.python_bytes!=6831736U)return selftest_fail("policy_python_bytes_mismatch");
     if(p.stdlib_bytes!=123456U)return selftest_fail("policy_stdlib_bytes_mismatch");

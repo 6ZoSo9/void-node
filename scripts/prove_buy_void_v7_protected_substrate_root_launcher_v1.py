@@ -11,10 +11,10 @@ SOURCE = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_root_launche
 INSTALLER = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
 
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V1_PROOF"
-SOURCE_BLOB = "3b6402a1df523842720a24b719c2b3e86c18ed42"
-INSTALLER_BLOB = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"
-INSTALLER_BYTES = 87048
-INSTALLER_SHA256 = "72bdf7325fd2b3f373ad3fd41e706d9961d293cf11178d06b72ab41ddc9f8cfc"
+SOURCE_BLOB = "6ecd7fef155967d35d4500b07da841c4e578c6de"
+INSTALLER_BLOB = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
+INSTALLER_BYTES = 87744
+INSTALLER_SHA256 = "2e6ac01e770b3f8859d2c741647e4bd9650ed263756c5821f8371e93ad4c32fc"
 
 
 def git_text(*args: str) -> str:
@@ -88,7 +88,7 @@ for required in (
     '#define FIXED_STDLIB_ZIP FIXED_PYTHON_LIB "/python312.zip"',
     '#define FIXED_SOURCE_ROOT "/opt/void-buy-void-v7-installer-source-v1"',
     '#define INSTALLER_REL "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"',
-    '#define INSTALLER_BYTES 87048U',
+    '#define INSTALLER_BYTES 87744U',
     '#define INSTALLER_SHA256 "' + INSTALLER_SHA256 + '"',
     '#define PLAN_PREFIX "voidv7substrateinstallplan4_"',
     '#define APPLY_CONFIRM "INSTALL_ACCEPTED_VOID_V7_PROTECTED_SUBSTRATE_V4_CREATE_ONLY"',
