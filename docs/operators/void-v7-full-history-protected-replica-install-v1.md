@@ -136,6 +136,24 @@ The install-parent device/inode/owner/mode must remain stable, and its directory
 link count may change only by the single stage-directory transition permitted by
 the contract. All higher ancestors remain exact.
 
+### Root execution and termination boundary
+
+After privileged source custody is established, the root parent does not execute
+host Git for plan or staged-generation verification. Those Git observations run
+inside a forked child that drops supplementary groups and switches to UID/GID
+1000 first. The root parent performs only descriptor-based copy, ownership/mode
+sealing, fsync and the create-only rename.
+
+Apply installs handlers for SIGTERM, SIGHUP and SIGQUIT. Those signals raise into
+the same terminal failure path used by ordinary exceptions. If interruption
+lands around publication, target/stage namespace reconciliation determines
+whether publication is true, false or unknown before the process exits.
+
+Immediately before and after `RENAME_NOREPLACE`, the plan-bound install parent
+is rebound by device, inode, owner and mode through a retained descriptor. The
+stage creation may leave the parent directory link count unchanged or increase
+it by exactly one; broader namespace drift HOLDs.
+
 ## Failure truth
 
 The installer has **no automatic recursive cleanup authority** for a nonempty
