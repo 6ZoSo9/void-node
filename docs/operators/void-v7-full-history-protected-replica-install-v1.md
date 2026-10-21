@@ -154,6 +154,18 @@ is rebound by device, inode, owner and mode through a retained descriptor. The
 stage creation may leave the parent directory link count unchanged or increase
 it by exactly one; broader namespace drift HOLDs.
 
+### Index and Git metadata closure
+
+The full-history candidate, staged replica and final protected replica require
+the Git index to compare exactly equal to the accepted HEAD using read-only
+`git diff-index --cached --quiet`. Direct worktree-to-blob verification remains
+independent of the index.
+
+Git metadata regular leaves used for authority (HEAD, config, index, main ref,
+pack and pack index) must be single-link, expected-owner regular files with no
+group/world write bits and no executable bits. The protected copy therefore
+cannot acquire executable authority from mutable candidate metadata.
+
 ## Failure truth
 
 The installer has **no automatic recursive cleanup authority** for a nonempty
