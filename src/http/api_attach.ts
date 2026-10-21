@@ -76,7 +76,11 @@ export function attachBlockRangeErrorV1(
       ? recoveryFrom + ATTACH_BLOCK_RANGE_MAX_SPAN - 1
       : recoveryFrom;
   const recoveryTo = validHead
-    ? Math.min(head, recoveryCeiling)
+    ? head < 0
+      ? head
+      : recoveryFrom > head
+        ? recoveryFrom
+        : Math.min(head, recoveryCeiling)
     : recoveryCeiling;
 
   return {

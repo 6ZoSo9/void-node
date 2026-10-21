@@ -144,10 +144,24 @@ assert.deepEqual(
   { from: 0, to: -1 },
   "empty-store recovery must preserve the no-data sentinel",
 );
+const beyondHeadRecovery = attachBlockRangeErrorV1(
+  "1001",
+  "invalid",
+  1000,
+).recovery;
 assert.deepEqual(
-  attachBlockRangeErrorV1("1001", "invalid", 1000).recovery,
+  beyondHeadRecovery,
+  { from: 1001, to: 1001 },
+  "beyond-head invalid recovery must remain parser-acceptable",
+);
+assert.deepEqual(
+  parseAttachBlockRange(
+    beyondHeadRecovery.from,
+    beyondHeadRecovery.to,
+    1000,
+  ),
   { from: 1001, to: 1000 },
-  "beyond-head invalid recovery must remain an empty range",
+  "retrying advertised beyond-head recovery must yield the intentional empty range",
 );
 
 assert.deepEqual(
