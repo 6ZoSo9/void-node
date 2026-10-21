@@ -11,7 +11,7 @@ V2 adds `O_NONBLOCK` only to the retained-descriptor, read-only regular-file ope
 
 Directory traversal continues to require `O_DIRECTORY|O_NOFOLLOW`. The regular-file readers retain their file-type, owner/group, link-count, mode, bounded-size and before/open/after generation checks.
 
-The rollback-policy V2 observer imports the installation-evidence V2 observer, so its storage observation is nonblocking transitively.
+The rollback-policy V2 observer imports the installation-evidence V2 observer, so its storage observation is nonblocking transitively. Because the immutable rollback-independence classifier still requires installation-evidence V1 schema/marker/qualification identity, V2 constructs a private V1-compatible view by canonicalizing the same V2 storage fields under the historical V1 schema and recomputing the exact `voidwlrie1_...` ID. The V2 rollback receipt itself binds the original `voidwlrie2_...` installation qualification ID and separately records the V1 compatibility ID; the historical classifier is not modified or weakened.
 
 ## Proof
 
@@ -19,6 +19,7 @@ The rollback-policy V2 observer imports the installation-evidence V2 observer, s
 
 - content-binds the immutable V1 observer blobs;
 - statically requires the V2 regular-file opens to include `O_NONBLOCK`;
+- proves a canonical V2 installation result adapts into the immutable V1 rollback classifier while the V2 rollback receipt preserves the V2 qualification ID;
 - runs the actual V2 installation reader against a regular-file-to-FIFO swap;
 - runs the actual V2 root-owned policy reader against the same swap;
 - executes both FIFO cases in child processes with a 3-second timeout, so loss of `O_NONBLOCK` fails rather than hanging CI.

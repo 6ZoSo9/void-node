@@ -16,9 +16,53 @@ import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V2,
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V2,
   testOnlyReadRootOwnedPolicyFileV2,
+  testOnlyAdaptInstallationEvidenceV2ForRollbackIndependenceV1,
+  testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyEvidenceV1,
 } from "../tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v2.mjs";
 
 const SELF=fileURLToPath(import.meta.url);
+const NOW=1_800_000_000_000;
+const POLICY_PATH="/etc/void/buy-void-allocation-custody-witness-live-read-replay-rollback-controls-v1.json";
+function canonicalJson(value){
+  if(value===null)return "null";
+  if(typeof value==="string"||typeof value==="boolean")return JSON.stringify(value);
+  if(typeof value==="number"&&Number.isSafeInteger(value))return String(value);
+  if(Array.isArray(value))return "["+value.map(canonicalJson).join(",")+"]";
+  if(value&&typeof value==="object"){
+    return "{"+Object.keys(value).sort()
+      .map(key=>JSON.stringify(key)+":"+canonicalJson(value[key])).join(",")+"}";
+  }
+  throw new Error("noncanonical proof value");
+}
+function sha256Id(value){
+  return "sha256:"+crypto.createHash("sha256").update(value).digest("hex");
+}
+function installationV2(){
+  const normalized={
+    schema:"void_buy_void_allocation_custody_witness_live_read_replay_installation_evidence_v2",
+    marker:"VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V2",
+    version:2,
+    parent_writer_marker:"VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_WRITER_V1",
+    high_water_marker:"VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_HIGH_WATER_V1",
+    hostname:"zoso-Precision-Tower-7810",
+    journal_root:{path:"/var/lib/void-allocation-ledger-v1/witness-live-read-replay-v1",dev:"2050",ino:"225448588",uid:994,gid:981,mode:0o700,mount_id:33,major_minor:"8:2",fs_type:"ext4",mount_source:"/dev/sda2",mount_source_resolved:"/dev/sda2",mount_point:"/",parent_device:"/dev/sda",disk_serial:"2530E9C796D8",disk_wwn:"0x500a0751e9c796d8"},
+    high_water_root:{path:"/var/lib/void-allocation-custody-v1/witness-live-read-replay-v1",dev:"66306",ino:"213909505",uid:994,gid:981,mode:0o700,mount_id:3936,major_minor:"259:2",fs_type:"ext4",mount_source:"/dev/nvme0n1p1",mount_source_resolved:"/dev/nvme0n1p1",mount_point:"/var/lib/void-allocation-custody-v1",parent_device:"/dev/nvme0n1",disk_serial:"25278B802787",disk_wwn:"eui.e8238fa6bf530001001b448b42e66c36"},
+    journal_file:{path:"/var/lib/void-allocation-ledger-v1/witness-live-read-replay-v1/live-read-replay-v1.jsonl",dev:"2050",ino:"225448589",mtime_ns:"1791332658259059852",ctime_ns:"1791332658259631554",sha256:"sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",bytes:0,uid:994,gid:981,mode:0o600,nlink:1,regular_file:true,symlink:false},
+    high_water_file:{path:"/var/lib/void-allocation-custody-v1/witness-live-read-replay-v1/live-read-replay-high-water-v1.json",dev:"66306",ino:"213909506",mtime_ns:"1791332658276916555",ctime_ns:"1791332658276916555",sha256:"sha256:9fbff858219c90347b66d127b45edb869044b2132051042c7cb78d4b6ac21483",bytes:512,uid:994,gid:981,mode:0o600,nlink:1,regular_file:true,symlink:false},
+    high_water_sha256:"sha256:9fbff858219c90347b66d127b45edb869044b2132051042c7cb78d4b6ac21483",
+    generation:0,sequence:0,event_count:0,pending:false,pending_challenge_sha256:null,pending_challenge_id:null,pending_expires_at_ms:null,last_terminal_state:null,ready_for_issue:true,
+  };
+  const qualification_id="voidwlrie2_"+crypto.createHash("sha256").update(canonicalJson(normalized),"utf8").digest("hex");
+  return {ok:true,status:"LIVE_REPLAY_STORAGE_DOMAINS_QUALIFIED",marker:normalized.marker,version:2,qualification_id,normalized,operation_performed:false,storage_domain_classification_green:true,live_storage_observation_proven:true,distinct_local_storage_domains_proven:true,distinct_parent_block_devices_proven:true,canonical_journal_high_water_binding_proven:true,no_pending_publication_intent_observed:true,double_census_stability_proven:true,live_durable_storage_proven:false,rollback_resistance_proven:false,protected_high_water_custody_proven:false,independent_custody_proven:false,live_evidence_origin_proven:false,external_transport_authenticated:false,external_witness_storage_proven:false,live_remote_read_performed:false,runtime_integration:false,production_gate_ready:false,funds_movement:false,authority:{}};
+}
+function control(){
+  return {schema:"void_buy_void_allocation_custody_witness_live_read_replay_rollback_control_v1",marker:"VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_CONTROL_V1",version:1,host_id:"zoso-Precision-Tower-7810",policy_generation:"1",policy_ttl_ms:60_000,journal:{role:"journal",snapshot_enabled:false,snapshot_domain_id:null,backup_enabled:false,backup_domain_id:null,backup_target_id:null,restore_domain_id:"void.replay.journal.restore.v1",rollback_controller_id:"void.replay.journal.rollback.controller.v1",restore_credential_domain_id:"void.replay.journal.restore.credentials.v1",hostwide_snapshot_member:false,hostwide_backup_member:false,automatic_restore_allowed:false,restore_requires_manual_approval:true,restore_requires_separate_credential:true,restore_second_control_required:false},high_water:{role:"high_water",snapshot_enabled:false,snapshot_domain_id:null,backup_enabled:false,backup_domain_id:null,backup_target_id:null,restore_domain_id:"void.replay.high-water.restore.v1",rollback_controller_id:"void.replay.high-water.rollback.controller.v1",restore_credential_domain_id:"void.replay.high-water.restore.credentials.v1",hostwide_snapshot_member:false,hostwide_backup_member:false,automatic_restore_allowed:false,restore_requires_manual_approval:true,restore_requires_separate_credential:true,restore_second_control_required:true},hostwide_snapshot_can_revert_both:false,hostwide_backup_can_revert_both:false,hostwide_restore_can_revert_both:false,shared_rollback_controller:false,coordinated_rollback_without_second_control:false};
+}
+function policyObservation(){
+  const value=control();
+  const bytes=Buffer.from(canonicalJson(value)+"\n","utf8");
+  return {path:POLICY_PATH,bytes,sha256:sha256Id(bytes),uid:0,gid:0,mode:0o444,nlink:1,dev:"2050",ino:"9001",mtime_ns:"1791333000000000000",ctime_ns:"1791333000000000000",control:value};
+}
 const V1_INSTALLATION_BLOB="c0c86bc1687fc9a3cb9313b5a68029c35c6a9a63";
 const V1_ROLLBACK_BLOB="cf40d9d4a19d138d74aee849a6c02f96ee362dbb";
 function gitBlob(bytes){
@@ -101,6 +145,32 @@ assert.equal(
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V2.transitive_installation_observer_v2_required,
   true,
 );
+assert.equal(
+  VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V2.v2_installation_to_v1_parent_adapter_required,
+  true,
+);
+{
+  const v2=installationV2();
+  const compat=testOnlyAdaptInstallationEvidenceV2ForRollbackIndependenceV1(v2);
+  assert.equal(compat.marker,"VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1");
+  assert.equal(compat.version,1);
+  assert.match(compat.qualification_id,/^voidwlrie1_[0-9a-f]{64}$/u);
+  const classified=
+    testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyEvidenceV1({
+      installation_evidence:v2,
+      policy_file:policyObservation(),
+      verification_now_ms:NOW,
+    });
+  assert.equal(classified.ok,true);
+  assert.equal(classified.marker,
+    "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V2");
+  assert.equal(classified.version,2);
+  assert.equal(classified.normalized.installation_qualification_id,v2.qualification_id);
+  assert.equal(
+    classified.normalized.installation_v1_compatibility_qualification_id,
+    compat.qualification_id,
+  );
+}
 for(const mode of ["--fifo-installation-child","--fifo-policy-child"]){
   const child=spawnSync(process.execPath,[SELF,mode],{
     encoding:"utf8",
@@ -126,6 +196,8 @@ console.log("historical_v1_observer_blobs_unchanged=true");
 console.log("installation_regular_file_open_nonblocking=true");
 console.log("rollback_policy_regular_file_open_nonblocking=true");
 console.log("rollback_policy_uses_installation_observer_v2=true");
+console.log("rollback_independence_v1_compatibility_adapter_proven=true");
+console.log("rollback_receipt_binds_installation_v2_qualification=true");
 console.log("fifo_swap_fixtures_timeout_bounded=true");
 console.log("production_gate_ready=false");
 console.log("funds_movement=false");
