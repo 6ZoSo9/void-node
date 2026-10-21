@@ -11,8 +11,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V5_PROOF"
 V5 = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_install_v5.py"
 Q4 = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py"
-V5_BLOB = "9fbc7e4a7203c3b9a77ee5bc0aa4b8fb3ed0a4f0"
-Q4_BLOB = "09039f7e33ca0e252c31cb6fa49f783254e05fb2"
+V5_BLOB = "f000add1536bf7e1d1c679604e78a7ad42f5a8c5"
+Q4_BLOB = "46cacce75bb0af27de88212aee44c74cd084e595"
 
 
 def git_blob(raw: bytes) -> str:
@@ -65,7 +65,7 @@ required_v5 = (
     'SOURCE_RELEASE = pathlib.Path("/opt/void-v7-source-release-full-history-v1")',
     'V4_INSTALLER_BLOB = "4448acb51cbc15d845550a55cd11c38f4185a7b3"',
     'FULL_HISTORY_INSTALLER_BLOB = "a4d5762fe0e1c41b0919b8abb827123e556552ca"',
-    'QUALIFIER_BLOB = "09039f7e33ca0e252c31cb6fa49f783254e05fb2"',
+    'QUALIFIER_BLOB = "46cacce75bb0af27de88212aee44c74cd084e595"',
     'def full_history_content_digest(',
     'def verify_live_release() -> None:',
     'allow_shallow=True',
@@ -151,6 +151,7 @@ q4_self = run(sys.executable, "-I", "-B", str(Q4), "--self-test")
 assert "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V4_SELF_TEST_GREEN" in q4_self.splitlines()
 assert "content_digest_matches_replica_v1_contract=true" in q4_self.splitlines()
 assert "acl_aware_whole_tree_nonwritability_required=true" in q4_self.splitlines()
+assert "digest_self_test_does_not_weaken_production_acl_gate=true" in q4_self.splitlines()
 assert "external_repository_observer=false" in q4_self.splitlines()
 
 q4_plan = run(sys.executable, "-I", "-B", str(Q4), "--source-plan")
