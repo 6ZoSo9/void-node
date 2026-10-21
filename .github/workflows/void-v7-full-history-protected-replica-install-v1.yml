@@ -27,9 +27,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "243dc1cd4da7287ea36db5db7e4db4ab1816c729"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "21dfe867da683b48efca44b1319fd9d1d2aec187"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "20240be688a94772eac0faadf7089e26c9ecf54e"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "9d74b92f93f08d1ac873f9ca69a52015451e497b"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "38935a78aa6625ffd94a422227d095f33aad2c96"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "673a6f6e3fe9e575f5c5afe23138cf9a2027c639"
 
           test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
@@ -65,6 +65,102 @@ jobs:
               compile(raw, rel, "exec", dont_inherit=True, optimize=0)
           PY
           python3 -I -B scripts/prove_void_v7_full_history_protected_replica_install_v1.py
+
+      - name: Exercise bounded privileged copy walker
+        run: |
+          set -euo pipefail
+          sudo -n /usr/bin/python3 -I -B - <<'PY'
+          import os
+          import pathlib
+          import runpy
+          import tempfile
+
+          mod = runpy.run_path(
+              "ops/precision/void_v7_full_history_protected_replica_install_v1.py",
+              run_name="void_v7_copy_walker_fixture",
+          )
+          InstallError = mod["InstallError"]
+          walk = mod["_copy_candidate_tree_iterative"]
+
+          if os.geteuid() != 0 or os.getuid() != 0:
+              raise SystemExit("fixture_root_required")
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-copy-width-fixture-"
+          ) as td:
+              root = pathlib.Path(td)
+              src = root / "src"
+              dst = root / "dst"
+              src.mkdir()
+              dst.mkdir()
+              for index in range(6):
+                  (src / ("n" + str(index))).mkdir()
+              src_fd = os.open(
+                  src,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              dst_fd = os.open(
+                  dst,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  try:
+                      walk(
+                          src_fd,
+                          dst_fd,
+                          node_limit=3,
+                          depth_limit=8,
+                          total_limit=1024,
+                      )
+                  except InstallError as exc:
+                      if str(exc) != "copy_node_limit":
+                          raise
+                  else:
+                      raise SystemExit("fixture_width_limit_not_enforced")
+              finally:
+                  os.close(dst_fd)
+                  os.close(src_fd)
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-copy-depth-fixture-"
+          ) as td:
+              root = pathlib.Path(td)
+              src = root / "src"
+              dst = root / "dst"
+              src.mkdir()
+              dst.mkdir()
+              current = src
+              for index in range(5):
+                  current = current / ("d" + str(index))
+                  current.mkdir()
+              src_fd = os.open(
+                  src,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              dst_fd = os.open(
+                  dst,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  try:
+                      walk(
+                          src_fd,
+                          dst_fd,
+                          node_limit=100,
+                          depth_limit=2,
+                          total_limit=1024,
+                      )
+                  except InstallError as exc:
+                      if str(exc) != "copy_depth_limit":
+                          raise
+                  else:
+                      raise SystemExit("fixture_depth_limit_not_enforced")
+              finally:
+                  os.close(dst_fd)
+                  os.close(src_fd)
+
+          print("VOID_V7_BOUNDED_COPY_WALKER_FIXTURE_GREEN")
+          PY
 
       - name: Exercise hostile-securebits capability drop
         run: |
@@ -135,6 +231,8 @@ jobs:
           grep -Fx 'runtime_uid_child_capability_clear_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'runtime_uid_child_capability_status_zero_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'candidate_copy_descriptor_relative=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_copy_incremental_enumeration_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_copy_iterative_depth_bound_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'apply_root_dynamic_git_exec=false' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'termination_signal_reconciliation_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'install_parent_publication_lease_required=true' "$RUNNER_TEMP/source-plan.log"
