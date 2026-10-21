@@ -694,12 +694,19 @@ def self_test() -> None:
     print("candidate_execution_sandbox_required=true")
     print("landlock_v3_filesystem_confinement_required=true")
     print("seccomp_network_process_escape_denial_required=true")
+    print("same_uid_immutable_runtime_snapshot_required=true")
     print("fsverity_host_readiness_established=false")
     print("protected_host_install=false")
     print("protected_v5_apply=false")
     print("funds_movement=false")
 
 def run(args: argparse.Namespace) -> int:
+    # Landlock/seccomp confine the candidate process itself, but ordinary
+    # same-UID processes can still mutate/chmod pathname-backed scratch files.
+    # Do not execute candidate bytes until the runtime snapshot is backed by a
+    # separately reviewed same-UID-resistant immutable presentation.
+    raise RuntimeProofError("candidate_execution_snapshot_not_same_uid_immutable")
+
     if os.geteuid() == 0 or os.getuid() == 0:
         raise RuntimeProofError("root_execution_forbidden")
     if os.geteuid() != os.getuid() or os.getegid() != os.getgid():
