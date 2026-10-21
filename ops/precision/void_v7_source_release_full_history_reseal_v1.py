@@ -376,7 +376,7 @@ def _revalidate_parent_lease(output: Path, parent_fd: int, expected: tuple[int, 
         raise ResealError("output_parent_generation_unavailable") from exc
     if _identity(os.fstat(parent_fd)) != expected or _identity(visible) != expected:
         raise ResealError("output_parent_generation_changed")
-    _reject_mountpoint_alias(output.parent, "output_parent")
+    _revalidate_output_parent_chain(output)
 
 def _revalidate_candidate_lease(
     output: Path,
@@ -401,6 +401,7 @@ def _revalidate_candidate_lease(
     ):
         raise ResealError("candidate_visible_generation_changed")
     _reject_mountpoint_alias(output, "candidate_root")
+    _reject_descendant_mountpoints(output, "candidate_root")
     _reject_source_checkout_overlap(output)
 
 def _verify_candidate_metadata_fds(
@@ -521,10 +522,10 @@ def _require_physical_account_home_root() -> Path:
 
 def _validate_account_home_location(home: Path, account_name: str) -> None:
     _receipt_safe_path(home, "account_home")
-    if os.getuid() == 0:
-        raise ResealError("root_account_forbidden")
     if home.parent != ACCOUNT_HOME_ROOT or home.name != account_name:
         raise ResealError("account_home_outside_allowed_user_root")
+    if os.getuid() == 0:
+        raise ResealError("root_account_forbidden")
 
 def _account_home() -> Path:
     try:
@@ -553,12 +554,7 @@ def _reject_source_checkout_overlap(path: Path) -> None:
     if candidate == source_root or source_root in candidate.parents:
         raise ResealError("output_under_source_checkout")
 
-def _validate_output(output: Path) -> Path:
-    _receipt_safe_path(output, "output")
-    if not output.is_absolute():
-        raise ResealError("output_must_be_absolute")
-    _reject_source_checkout_overlap(output)
-
+def _revalidate_output_parent_chain(output: Path) -> None:
     configured = _configured_output_root()
     lexical_parent = Path(os.path.abspath(os.fspath(output.parent)))
     if lexical_parent != configured and configured not in lexical_parent.parents:
@@ -582,6 +578,18 @@ def _validate_output(output: Path) -> Path:
         if current == current.parent or allowed not in current.parents:
             raise ResealError("output_parent_escaped_downloads")
         current = current.parent
+
+def _reject_descendant_mountpoints(path: Path, label: str) -> None:
+    for mountpoint in _mount_points():
+        if mountpoint == path or path in mountpoint.parents:
+            raise ResealError(label + "_descendant_mountpoint_forbidden")
+
+def _validate_output(output: Path) -> Path:
+    _receipt_safe_path(output, "output")
+    if not output.is_absolute():
+        raise ResealError("output_must_be_absolute")
+    _reject_source_checkout_overlap(output)
+    _revalidate_output_parent_chain(output)
 
     if output.exists() or output.is_symlink():
         raise ResealError("output_already_exists")
@@ -664,17 +672,25 @@ def build(output: Path) -> None:
 
         os.mkdir(".git", mode=0o700, dir_fd=candidate_fd)
         git_fd = _open_directory_at(candidate_fd, ".git", "candidate_git")
+        _reject_mountpoint_alias(output / ".git", "candidate_git")
         for name in ("objects", "refs", "info"):
             os.mkdir(name, mode=0o700, dir_fd=git_fd)
         objects_fd = _open_directory_at(git_fd, "objects", "candidate_objects")
+        _reject_mountpoint_alias(output / ".git" / "objects", "candidate_objects")
         os.mkdir("info", mode=0o700, dir_fd=objects_fd)
         os.mkdir("pack", mode=0o700, dir_fd=objects_fd)
         pack_fd = _open_directory_at(objects_fd, "pack", "candidate_pack")
+        _reject_mountpoint_alias(output / ".git" / "objects" / "pack", "candidate_pack")
         refs_fd = _open_directory_at(git_fd, "refs", "candidate_refs")
+        _reject_mountpoint_alias(output / ".git" / "refs", "candidate_refs")
         os.mkdir("heads", mode=0o700, dir_fd=refs_fd)
         os.mkdir("tags", mode=0o700, dir_fd=refs_fd)
         heads_fd = _open_directory_at(refs_fd, "heads", "candidate_heads")
+        _reject_mountpoint_alias(output / ".git" / "refs" / "heads", "candidate_heads")
 
+        _revalidate_candidate_lease(
+            output, parent_fd, parent_identity, candidate_fd, candidate_identity
+        )
         _write_new_regular_at(git_fd, "config", CONFIG_TEXT.encode("utf-8"), 0o644, "candidate_config")
         _write_new_regular_at(git_fd, "HEAD", b"ref: refs/heads/main\n", 0o644, "candidate_head")
         _revalidate_candidate_lease(
