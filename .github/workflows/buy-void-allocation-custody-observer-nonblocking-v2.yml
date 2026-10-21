@@ -47,7 +47,7 @@ jobs:
           node --check scripts/prove_buy_void_allocation_custody_observer_nonblocking_v2.mjs
       - name: Prove nonblocking transitive observer reads
         run: |
-          sudo --preserve-env=PATH env HOME=/root PATH="$PATH" node scripts/prove_buy_void_allocation_custody_observer_nonblocking_v2.mjs
+          sudo env "PATH=$PATH" HOME=/root node scripts/prove_buy_void_allocation_custody_observer_nonblocking_v2.mjs
       - name: Diff hygiene
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
