@@ -84,6 +84,20 @@ candidate is reported as `retained_needs_inspection` and left untouched; a
 missing or substituted visible root reports residual state as unknown rather
 than deleting through an unproven generation.
 
+## Reflog-safe worktree materialization
+
+The builder does not run `git reset --hard` or another ref-updating checkout.
+After the object pack and exact `refs/heads/main` file are created through
+retained descriptors, it builds an index in a retained temporary directory using
+`git read-tree`, materializes the tracked worktree with `git checkout-index`,
+then copies the exact index bytes into `.git/index` with
+`O_EXCL|O_NOFOLLOW` and retains that index generation for terminal
+verification. `.git/logs` must remain absent before and after this phase.
+
+This removes the reflog write surface identified during review: no Git operation
+in candidate construction updates HEAD or another ref after the reviewed main
+ref is written.
+
 ## Authority boundary
 
 This lane does not mutate `/opt`, the active release, services/systemd,
