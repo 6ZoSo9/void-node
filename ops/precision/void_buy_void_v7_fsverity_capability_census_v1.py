@@ -148,7 +148,17 @@ def _proc_filesystems() -> set[str]:
     return result
 
 
-def _source_block_device(source: str) -> tuple[pathlib.Path | None, str]:
+def _parse_major_minor(value: str) -> tuple[int, int]:
+    fields = value.split(":")
+    if len(fields) != 2 or not all(field.isdigit() for field in fields):
+        raise CensusError("mount_major_minor_invalid")
+    return int(fields[0]), int(fields[1])
+
+
+def _source_block_device(
+    source: str,
+    expected_major_minor: tuple[int, int],
+) -> tuple[pathlib.Path | None, str]:
     if not source.startswith("/"):
         return None, "mount_source_not_absolute"
     try:
@@ -160,16 +170,23 @@ def _source_block_device(source: str) -> tuple[pathlib.Path | None, str]:
         return None, "mount_source_not_block_device"
     if not os.fspath(resolved).startswith("/dev/"):
         return None, "mount_source_outside_dev"
+    if (os.major(st.st_rdev), os.minor(st.st_rdev)) != expected_major_minor:
+        return None, "mount_source_device_number_mismatch"
     return resolved, "ok"
 
 
-def _read_ext4_superblock(device: pathlib.Path) -> dict[str, Any]:
+def _read_ext4_superblock(
+    device: pathlib.Path,
+    expected_major_minor: tuple[int, int],
+) -> dict[str, Any]:
     flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
     fd = os.open(device, flags)
     try:
         st_before = os.fstat(fd)
         if not stat.S_ISBLK(st_before.st_mode):
             raise CensusError("ext4_source_not_block_device")
+        if (os.major(st_before.st_rdev), os.minor(st_before.st_rdev)) != expected_major_minor:
+            raise CensusError("ext4_opened_device_number_mismatch")
         raw = os.pread(fd, EXT4_SUPERBLOCK_BYTES, EXT4_SUPERBLOCK_OFFSET)
         st_after = os.fstat(fd)
         if (
@@ -245,6 +262,7 @@ def collect() -> dict[str, Any]:
     mount = _mount_for_target(rows, TARGET)
     fstype = str(mount["fstype"])
     source = str(mount["source"])
+    expected_major_minor = _parse_major_minor(str(mount["major_minor"]))
     mount_options = tuple(str(x) for x in mount["mount_options"])
     super_options = tuple(str(x) for x in mount["super_options"])
     read_only_mount = "ro" in mount_options or "ro" in super_options
@@ -260,7 +278,7 @@ def collect() -> dict[str, Any]:
     fs_driver_present = fstype in filesystems
     documented_fs_class = fstype in SUPPORTED_FS_TYPES
 
-    device, device_status = _source_block_device(source)
+    device, device_status = _source_block_device(source, expected_major_minor)
     ext4: dict[str, Any] = {
         "applicable": fstype == "ext4",
         "source_device_status": device_status,
@@ -273,7 +291,7 @@ def collect() -> dict[str, Any]:
     }
     if fstype == "ext4" and device is not None:
         try:
-            observed = _read_ext4_superblock(device)
+            observed = _read_ext4_superblock(device, expected_major_minor)
             ext4.update({
                 "magic_valid": bool(observed["magic_valid"]),
                 "block_size": int(observed["block_size"]),
@@ -286,8 +304,16 @@ def collect() -> dict[str, Any]:
         except (OSError, CensusError) as exc:
             ext4["feature_probe_error"] = str(exc)
 
+    closing_mountinfo = _read_fd_bounded(
+        pathlib.Path("/proc/self/mountinfo"), MAX_PROC_BYTES
+    )
+    closing_rows = _parse_mountinfo(closing_mountinfo.decode("utf-8", "strict"))
+    closing_mount = _mount_for_target(closing_rows, TARGET)
+    mount_generation_stable = mount == closing_mount
+
     authoritative_ext4_ready = (
         fstype == "ext4"
+        and mount_generation_stable
         and not read_only_mount
         and not dax_requested
         and kernel_support_observed
@@ -299,6 +325,8 @@ def collect() -> dict[str, Any]:
     )
 
     reasons: list[str] = []
+    if not mount_generation_stable:
+        reasons.append("target_mount_generation_changed")
     if fstype != "ext4":
         reasons.append("authoritative_v1_probe_supports_ext4_only")
     if read_only_mount:
@@ -345,6 +373,8 @@ def collect() -> dict[str, Any]:
             "dax_requested": dax_requested,
             "documented_fsverity_filesystem_class": documented_fs_class,
             "filesystem_driver_present": fs_driver_present,
+            "mount_generation_stable": mount_generation_stable,
+            "major_minor": mount["major_minor"],
         },
         "ext4": ext4,
         "host_fsverity_capability_green": authoritative_ext4_ready,
@@ -413,6 +443,8 @@ def run() -> int:
     print("mount_read_only=" + str(result["target"]["read_only"]).lower())
     print("mount_dax_requested=" + str(result["target"]["dax_requested"]).lower())
     print("filesystem_driver_present=" + str(result["target"]["filesystem_driver_present"]).lower())
+    print("mount_major_minor=" + str(result["target"]["major_minor"]))
+    print("mount_generation_stable=" + str(result["target"]["mount_generation_stable"]).lower())
     print("documented_fsverity_filesystem_class=" + str(result["target"]["documented_fsverity_filesystem_class"]).lower())
     print("ext4_source_device_status=" + result["ext4"]["source_device_status"])
     print("ext4_source_device=" + str(result["ext4"]["source_device"]))
@@ -451,6 +483,13 @@ def self_test() -> int:
     assert row["mount_point"] == "/opt"
     assert row["fstype"] == "ext4"
     assert row["source"] == "/dev/sda3"
+    assert _parse_major_minor(row["major_minor"]) == (8, 3)
+    try:
+        _parse_major_minor("bad")
+    except CensusError:
+        pass
+    else:
+        raise AssertionError("invalid_major_minor_not_rejected")
 
     good = _parse_ext4_superblock_bytes(
         _synthetic_ext4_superblock(verity=True, extents=True)
@@ -473,6 +512,8 @@ def self_test() -> int:
     print(MARKER + "_SELF_TEST_GREEN")
     print("mountinfo_longest_prefix_selection_proven=true")
     print("mountinfo_escape_decoding_proven=true")
+    print("mountinfo_device_number_binding_required=true")
+    print("terminal_mountinfo_revalidation_required=true")
     print("ext4_superblock_magic_bound=true")
     print("ext4_verity_ro_compat_bit_bound=true")
     print("ext4_extents_incompat_bit_bound=true")
