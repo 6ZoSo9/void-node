@@ -64,6 +64,7 @@ def _git_args(root: Path, *args: str):
         "-c", "core.fsmonitor=false",
         "-c", "core.untrackedCache=false",
         "-c", "submodule.recurse=false",
+        "-c", "pack.writeReverseIndex=false",
         "--no-replace-objects",
         "-C", os.fspath(root),
         *args,
@@ -131,6 +132,15 @@ def verify_source() -> dict[str, object]:
     top = Path(_text(ROOT, "rev-parse", "--show-toplevel")).resolve()
     if top != ROOT.resolve():
         raise ResealError("source_toplevel_mismatch")
+    source_git = ROOT / ".git"
+    if not source_git.is_dir() or source_git.is_symlink():
+        raise ResealError("source_git_dir_not_physical")
+    source_objects = source_git / "objects"
+    if not source_objects.is_dir() or source_objects.is_symlink():
+        raise ResealError("source_objects_dir_invalid")
+    for path in _forbidden_metadata(ROOT):
+        if path.exists() or path.is_symlink():
+            raise ResealError("source_forbidden_git_metadata:" + path.name)
     if _text(ROOT, "symbolic-ref", "--quiet", "--short", "HEAD") != "main":
         raise ResealError("source_branch_not_main")
     if _text(ROOT, "status", "--porcelain=v1", "--untracked-files=all") != "":
@@ -203,27 +213,28 @@ def build(output: Path) -> None:
             env=_env(), timeout=30, check=True,
         )
         (output / ".git" / "config").write_text(CONFIG_TEXT, "utf-8")
-        pack = subprocess.Popen(
-            _git_args(ROOT, "pack-objects", "--stdout", "--revs"),
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            env=_env(),
+        pack_dir = output / ".git" / "objects" / "pack"
+        pack_prefix = pack_dir / "pack"
+        pack_id_raw = _run(
+            ROOT,
+            "pack-objects",
+            "--revs",
+            os.fspath(pack_prefix),
+            input_data=(TARGET_HEAD + "\n").encode("ascii"),
         )
-        index = subprocess.Popen(
-            _git_args(output, "index-pack", "--stdin"),
-            stdin=pack.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            env=_env(),
-        )
-        assert pack.stdout is not None and pack.stdin is not None
-        pack.stdout.close()
-        pack.stdin.write((TARGET_HEAD + "\n").encode("ascii"))
-        pack.stdin.close()
-        index_out, index_err = index.communicate(timeout=180)
-        pack_err = pack.stderr.read() if pack.stderr is not None else b""
-        pack_rc = pack.wait(timeout=30)
-        if pack_rc != 0 or index.returncode != 0 or pack_err or index_err:
-            raise ResealError("pack_or_index_failed")
-        if len(index_out) > 1024:
-            raise ResealError("index_pack_output_unexpected")
+        try:
+            pack_id = pack_id_raw.decode("ascii", "strict").strip()
+        except UnicodeDecodeError as exc:
+            raise ResealError("pack_id_not_ascii") from exc
+        if HEX40.fullmatch(pack_id) is None:
+            raise ResealError("pack_id_invalid")
+        pack_path = pack_dir / ("pack-" + pack_id + ".pack")
+        index_path = pack_dir / ("pack-" + pack_id + ".idx")
+        expected_entries = {pack_path.name, index_path.name}
+        actual_entries = {entry.name for entry in pack_dir.iterdir()}
+        if actual_entries != expected_entries:
+            raise ResealError("pack_directory_layout_invalid")
+        _run(output, "verify-pack", "-s", os.fspath(index_path))
         _run(output, "update-ref", "refs/heads/main", TARGET_HEAD)
         _run(output, "symbolic-ref", "HEAD", "refs/heads/main")
         _run(output, "reset", "--hard", TARGET_HEAD)
@@ -260,7 +271,7 @@ def self_test() -> None:
             raise AssertionError("shallow_fixture_not_detected")
     print(MARKER + "_SELF_TEST_GREEN")
     print("exact_target_commit_tree_parents_bound=true")
-    print("complete_reachable_object_graph_required=true")
+    print("complete_reachable_object_graph_required=true")\n    print("single_process_pack_and_index_generation=true")
     print("closed_git_config_required=true")
     print("shallow_graft_alternate_commondir_rejected=true")
     print("output_restricted_to_downloads=true")
@@ -277,7 +288,7 @@ def plan() -> None:
             print(key + "=" + ",".join(value))
         else:
             print(key + "=" + str(value))
-    print("candidate_build_write_scope=/home/zoso/Downloads")
+    print("candidate_build_write_scope=" + os.fspath(ALLOWED_OUTPUT_ROOT.resolve(strict=False)))
     print("protected_filesystem_mutation=false")
     print("network=false")
     print("protected_replace_authorized=false")

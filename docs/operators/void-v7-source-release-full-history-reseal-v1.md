@@ -31,16 +31,19 @@ It:
 3. authenticates the accepted commit, tree and both parents;
 4. requires exactly 17,931 reachable commits and no missing reachable objects;
 5. creates a new physical in-tree `.git` repository with a closed core-only config;
-6. streams exactly the accepted head's reachable closure through
-   `git pack-objects --revs` into `git index-pack --stdin`;
-7. creates symbolic `main` at the exact accepted head;
+6. writes exactly the accepted head's reachable closure with one bounded
+   `git pack-objects --revs` process directly into the candidate's physical
+   object store, producing one pack and its index without a live child pipeline;
+7. verifies the generated pack index before creating symbolic `main` at the
+   exact accepted head;
 8. checks the exact tree/index/worktree, full-history status, parent set,
    object closure and strict fsck;
 9. rejects shallow, graft, alternate, HTTP-alternate, commondir and
    config.worktree metadata.
 
 The pack bytes themselves are not authority; the reconstructed Git object IDs,
-connectivity and exact worktree are.
+connectivity, generated pack index, and exact worktree are. The single bounded
+pack process is reaped by `subprocess.run` before cleanup or continuation.
 
 ## Authority boundary
 
