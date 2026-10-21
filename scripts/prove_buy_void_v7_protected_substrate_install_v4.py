@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="654a7b85644864d27f422f0a8a0179fa1bb8c4a8"
+assert gblob(INS)=="348d5fddbb29df77ced3adb31766241e3bcf7a2d"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -158,6 +158,8 @@ assert '_run_runtime_observer_tool' not in src
 assert '_open_trusted_tool_lease' not in src
 assert 'preexec_fn=' not in src
 assert '"--no-new-privs"' not in src
+assert 'list(os.scandir(' not in src
+assert 'sorted(os.scandir(' not in src
 tree_body=src[src.index('def tree_digest('):src.index('def candidate_fd_metadata_valid(')]
 dir_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_directories, "tree_directories")')
 reg_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_regulars, "tree_regulars")')
@@ -503,6 +505,7 @@ print("source_release_ancestor_acl_custody_bound=true")
 print("source_release_ancestor_generation_revalidation_bound=true")
 print("direct_tree_untracked_adversary_bound=true")
 print("direct_tree_node_ceiling_streamed_bound=true")
+print("all_v4_directory_walks_streamed_bound=true")
 print("qualifier_acl_aware_runtime_uid_write_audit_bound=true")
 print("qualifier_runtime_uid_gid_1000_bound=true")
 print("qualifier_supplementary_groups_empty_bound=true")
