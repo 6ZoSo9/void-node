@@ -343,14 +343,14 @@ async function receiptsPersistMetricsRoute(req, res) {
 }
 
 function retainedRouteState(app, routePath, handler) {
-  let observedStack = false;
-  let indeterminate = false;
+  let observedUnretained = false;
+  let unreadableAlias = false;
   for (const key of ["_router", "router"]) {
     try {
       const router = app && app[key];
       const stack = router && router.stack;
       if (!stack || typeof stack.length !== "number") continue;
-      observedStack = true;
+      let stackIndeterminate = false;
       for (let index = 0; index < stack.length; index += 1) {
         const route = stack[index] && stack[index].route;
         if (!route || route.path !== routePath) continue;
@@ -358,7 +358,7 @@ function retainedRouteState(app, routePath, handler) {
         if (methods && methods.get !== true) continue;
         const routeStack = route.stack;
         if (!routeStack || typeof routeStack.length !== "number") {
-          indeterminate = true;
+          stackIndeterminate = true;
           continue;
         }
         for (let routeIndex = 0; routeIndex < routeStack.length; routeIndex += 1) {
@@ -366,12 +366,15 @@ function retainedRouteState(app, routePath, handler) {
           if (layer && layer.handle === handler) return true;
         }
       }
-    } catch {
-      indeterminate = true;
+      if (!stackIndeterminate) observedUnretained = true;
+    } catch (error) {
+      unreadableAlias = true;
+      void error;
     }
   }
-  if (indeterminate) return null;
-  return observedStack ? false : null;
+  if (observedUnretained) return false;
+  void unreadableAlias;
+  return null;
 }
 
 function mountOnce() {
@@ -415,12 +418,31 @@ function mountOnce() {
 }
 
 function reportMountError(error) {
+  const message =
+    "[datanet_receipts_persist_v1] mount attempt failed: " +
+    String(error?.message || error || "unknown");
   try {
-    console.error(
-      "[datanet_receipts_persist_v1] mount attempt failed: " +
-      String(error?.message || error || "unknown"),
-    );
-  } catch {}
+    console.error(message);
+    return true;
+  } catch (consoleError) {
+    const fallback =
+      message +
+      "; console_error=" +
+      String(consoleError?.message || consoleError || "unknown");
+    try {
+      if (
+        typeof process !== "undefined" &&
+        process.stderr &&
+        typeof process.stderr.write === "function"
+      ) {
+        process.stderr.write(fallback + "\\n");
+        return true;
+      }
+    } catch (stderrError) {
+      void stderrError;
+    }
+    return false;
+  }
 }
 
 let tries = 0;
