@@ -1379,14 +1379,14 @@ def _cleanup_stage(stage: pathlib.Path) -> None:
         shutil.rmtree(stage)
     _CREATED_STAGES.discard(stage)
 
-def _publish_source(expected_digest: tuple[str, int, int]) -> None:
+def _publish_source(expected_digest: tuple[str, int, int], expected_full_history_content_sha256: str) -> None:
     if SOURCE_STAGE.exists() or SOURCE_STAGE.is_symlink(): raise InstallError("source_stage_preexisting")
     source_ancestors = source_release_ancestor_custody()
     _copy_tree(SOURCE_RELEASE, SOURCE_STAGE)
     revalidate_source_release_ancestor_custody(source_ancestors)
     if tree_digest(SOURCE_RELEASE, SOURCE_RELEASE_ROOT_MODE) != expected_digest: raise InstallError("source_release_changed_during_copy")
     revalidate_source_release_ancestor_custody(source_ancestors)
-    verify_source_release()
+    verify_source_release(expected_full_history_content_sha256)
     revalidate_source_release_ancestor_custody(source_ancestors)
     if tree_digest(SOURCE_STAGE, PROTECTED_SOURCE_ROOT_MODE) != expected_digest: raise InstallError("source_stage_digest_mismatch")
     if require_git_metadata_provenance(SOURCE_STAGE, "source_stage") != SOURCE_HEAD:
@@ -1648,7 +1648,7 @@ def apply(
         print(MARKER); print("mode=apply"); print("status=ALREADY_GREEN"); print("protected_filesystem_mutation=false")
         print("next_action=RUN_INSTALLED_QUALIFICATION_V4"); return
     try:
-        if not state["protected_source_exact"]: _publish_source(result["source_digest"])
+        if not state["protected_source_exact"]: _publish_source(result["source_digest"], expected_full_history_content_sha256)
         if not state["native_preentry_exact"]:
             _publish_binary(PREENTRY_STAGE, PREENTRY_STAGE_NAME, PREENTRY_DIR_NAME, PREENTRY_NAME, result["native_raw"], NATIVE_SHA256, "native_preentry")
             if not exact_binary_root(PREENTRY_DIR, PREENTRY_NAME, NATIVE_SHA256, NATIVE_BYTES, "native_preentry"):
@@ -1673,7 +1673,7 @@ def apply(
     print("service_mutation=false"); print("systemd_mutation=false"); print("credential_access=false"); print("private_key_access=false")
     print("wallet_or_signer_access=false"); print("signing=false"); print("transaction=false"); print("payment_acceptance=false")
     print("public_presale_activation=false"); print("wc_void_market_activation=false"); print("funds_movement=false")
-    print("next_action=RUN_INSTALLED_QUALIFICATION_V3")
+    print("next_action=RUN_INSTALLED_QUALIFICATION_V4")
 
 def main() -> int:
     parser = argparse.ArgumentParser(); mode = parser.add_mutually_exclusive_group(required=True)
