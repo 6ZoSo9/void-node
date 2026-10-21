@@ -14,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "0de5db2ed414465a3c2e9b5c64b3f9b5922d6f1d"
+TARGET_BLOB = "0a3bad16e0ac5c3f179320c638bccf8745aea45e"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -63,6 +63,8 @@ for required in (
     'GIT_OBJECT_DIRECTORY',
     'pass_fds=',
     'def _cleanup_candidate(',
+    'candidate_nonempty_retained_for_inspection',
+    'candidate_residual_state',
     'def _fd_mount_id(',
     'def _directory_lease_identity(',
     'cleanup_descendant_mount_boundary_forbidden',
@@ -99,6 +101,7 @@ assert "mountpoint_aliases_rejected=true" in selftest.stdout.splitlines()
 assert "descriptor_bound_candidate_mutation=true" in selftest.stdout.splitlines()
 assert "directory_lease_link_count_independent=true" in selftest.stdout.splitlines()
 assert "cleanup_failure_receipt_bound=true" in selftest.stdout.splitlines()
+assert "cleanup_nonrecursive_retention_policy=true" in selftest.stdout.splitlines()
 assert "cleanup_mount_boundary_rejection_bound=true" in selftest.stdout.splitlines()
 
 account_home = Path(pwd.getpwuid(os.getuid()).pw_dir)
@@ -193,6 +196,7 @@ print("mountpoint_alias_rejection_bound=true")
 print("descriptor_bound_candidate_mutation_bound=true")
 print("directory_lease_link_count_independent_bound=true")
 print("truthful_candidate_cleanup_receipt_bound=true")
+print("cleanup_nonrecursive_retention_policy_bound=true")
 print("cleanup_mount_boundary_rejection_bound=true")
 print("protected_filesystem_mutation=false")
 print("network=false")
