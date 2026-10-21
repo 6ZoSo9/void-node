@@ -328,6 +328,84 @@ if(rootCapable){
   proveDirectFailureResidue("fsync","fsyncSync");
   proveDirectFailureResidue("fchmod","fchmodSync");
 
+  // If the commit parent fsync fails after the receipt is already sealed 0444,
+  // the exact receipt remains fail-safe and a retry must fsync the parent before
+  // returning idempotent success.
+  {
+    const receipt=path.join(root,"direct-parent-fsync","deployment-receipt.json");
+    const originalOpen=(fs as any).openSync;
+    const originalFsync=(fs as any).fsyncSync;
+    let parentFd=-1;
+    let finalFd=-1;
+    let injected=false;
+    try{
+      (fs as any).openSync=function(...args:any[]){
+        const fd=originalOpen.apply(fs,args);
+        const target=String(args[0]);
+        const flags=Number(args[1]);
+        if(
+          Number.isInteger(flags)&&
+          (flags&fs.constants.O_DIRECTORY)!==0&&
+          target.endsWith("/direct-parent-fsync")
+        )parentFd=fd;
+        if(
+          Number.isInteger(flags)&&
+          (flags&fs.constants.O_CREAT)!==0&&
+          (flags&fs.constants.O_EXCL)!==0
+        )finalFd=fd;
+        return fd;
+      };
+      (fs as any).fsyncSync=function(fd:number){
+        if(!injected&&finalFd>=0&&parentFd>=0&&fd===parentFd){
+          injected=true;
+          throw Object.assign(
+            new Error("synthetic_parent_commit_fsync_failure"),{code:"EIO"},
+          );
+        }
+        return originalFsync.call(fs,fd);
+      };
+      assert.throws(()=>installRootCustodiedReceiptV1({
+        absolute_path:receipt,bytes:built.bytes,
+      }),/synthetic_parent_commit_fsync_failure/u);
+    }finally{
+      (fs as any).openSync=originalOpen;
+      (fs as any).fsyncSync=originalFsync;
+    }
+    assert.equal(injected,true);
+    const residue=fs.lstatSync(receipt);
+    assert.equal(residue.mode&0o777,0o444);
+    assert.equal(residue.nlink,1);
+
+    let retryParentFd=-1;
+    let retryParentFsyncs=0;
+    try{
+      (fs as any).openSync=function(...args:any[]){
+        const fd=originalOpen.apply(fs,args);
+        const target=String(args[0]);
+        const flags=Number(args[1]);
+        if(
+          Number.isInteger(flags)&&
+          (flags&fs.constants.O_DIRECTORY)!==0&&
+          target.endsWith("/direct-parent-fsync")
+        )retryParentFd=fd;
+        return fd;
+      };
+      (fs as any).fsyncSync=function(fd:number){
+        if(retryParentFd>=0&&fd===retryParentFd)retryParentFsyncs+=1;
+        return originalFsync.call(fs,fd);
+      };
+      const retry=installRootCustodiedReceiptV1({
+        absolute_path:receipt,bytes:built.bytes,
+      });
+      assert.equal(retry.created,false);
+      assert.equal(retry.already_matching,true);
+    }finally{
+      (fs as any).openSync=originalOpen;
+      (fs as any).fsyncSync=originalFsync;
+    }
+    assert.ok(retryParentFsyncs>=1,"idempotent_parent_fsync_missing");
+  }
+
   // Production code never deletes a pathname after creation. If a privileged
   // concurrent actor substitutes the visible final path during a failure, that
   // foreign inode is left untouched and the operation HOLDs.
@@ -461,6 +539,7 @@ console.log("direct_exclusive_final_publication="+String(rootCapable));
 console.log("failed_publication_residue_preserved="+String(rootCapable));
 console.log("pathname_cleanup_after_final_create=false");
 console.log("existing_receipt_bounded_read="+String(rootCapable));
+console.log("idempotent_parent_fsync_recovery="+String(rootCapable));
 console.log("symlink_parent_no_collateral_mutation="+String(rootCapable));
 console.log("restrictive_parent_mode_preserved="+String(rootCapable));
 console.log("new_parent_grandparent_fsync_required="+String(rootCapable));

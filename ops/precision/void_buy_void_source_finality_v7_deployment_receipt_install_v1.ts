@@ -735,6 +735,8 @@ export function installRootCustodiedReceiptV1(input:{
     try{
       fs.lstatSync(finalVia);
       verifyFinalBoundV1(binding,leaf,input.bytes);
+      fs.fsyncSync(binding.parent_fd);
+      verifyFinalBoundV1(binding,leaf,input.bytes);
       return Object.freeze({created:false,already_matching:true});
     }catch(error:any){
       if(error?.code!=="ENOENT")throw error;
@@ -749,6 +751,8 @@ export function installRootCustodiedReceiptV1(input:{
       );
     }catch(error:any){
       if(error?.code!=="EEXIST")throw error;
+      verifyFinalBoundV1(binding,leaf,input.bytes);
+      fs.fsyncSync(binding.parent_fd);
       verifyFinalBoundV1(binding,leaf,input.bytes);
       return Object.freeze({created:false,already_matching:true});
     }
