@@ -56,7 +56,7 @@ for required in (
     'fsverity_enablement=false',
     'protected_host_install=false',
     'protected_v4_apply=false',
-    'next_action=RUN_READ_ONLY_FSVERITY_CAPABILITY_CENSUS_ON_PRECISION',
+    'next_action=RUN_UNPRIVILEGED_READ_ONLY_FSVERITY_CAPABILITY_CENSUS_ON_PRECISION',
 ):
     assert required in source, required
 
