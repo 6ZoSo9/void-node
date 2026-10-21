@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "9d74b92f93f08d1ac873f9ca69a52015451e497b"
+TARGET_BLOB = "77a908aa01730a5f65e8ad47219d50a13d6de962"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
