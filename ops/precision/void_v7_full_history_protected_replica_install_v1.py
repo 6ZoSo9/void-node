@@ -80,6 +80,7 @@ MAX_PACK_CACHE_OBJECTS = 256
 MAX_PACK_CACHE_BYTES = 64 * 1024 * 1024
 MAX_PACK_DELTA_DEPTH = 128
 MAX_INDEX_BYTES = 64 * 1024 * 1024
+MAX_INDEX_EXTENSIONS = 64
 MAX_INDEX_PATH_BYTES = 4096
 PACK_IDX_MAGIC = b"\xfftOc"
 MAX_COPY_DEPTH = 128
@@ -1208,6 +1209,24 @@ def _verify_full_history_graph(store: _ObjectStore) -> tuple[dict[str, tuple[str
     store.revalidate()
     return top_manifest, len(commits), len(all_oids)
 
+def _next_optional_index_extension(
+    fd: int,
+    offset: int,
+    content_end: int,
+    label: str,
+) -> int:
+    if offset < 0 or content_end < offset or content_end - offset < 8:
+        raise InstallError(label + "_extension_header_truncated")
+    header = _pread_exact(fd, offset, 8, label + "_extension_header")
+    signature = header[:4]
+    if not (0x41 <= signature[0] <= 0x5A):
+        raise InstallError(label + "_required_extension_forbidden")
+    payload_size = struct.unpack(">I", header[4:8])[0]
+    next_offset = offset + 8 + payload_size
+    if next_offset < offset or next_offset > content_end:
+        raise InstallError(label + "_extension_size_invalid")
+    return next_offset
+
 def _read_index_manifest(path: pathlib.Path, label: str) -> dict[str, tuple[str, str]]:
     fd, identity = _open_stable_regular(path, label, MAX_INDEX_BYTES)
     try:
@@ -1272,9 +1291,18 @@ def _read_index_manifest(path: pathlib.Path, label: str) -> dict[str, tuple[str,
             manifest[rel] = (mode, oid)
             entry_len = 62 + len(name) + 1
             offset += (entry_len + 7) & ~7
-        if offset != size - 20:
-            raise InstallError(label + "_extensions_forbidden")
-        expected = _pread_exact(fd, size - 20, 20, label + "_checksum")
+        content_end = size - 20
+        extension_count = 0
+        while offset < content_end:
+            extension_count += 1
+            if extension_count > MAX_INDEX_EXTENSIONS:
+                raise InstallError(label + "_extension_count_limit")
+            offset = _next_optional_index_extension(
+                fd, offset, content_end, label
+            )
+        if offset != content_end:
+            raise InstallError(label + "_extension_boundary_invalid")
+        expected = _pread_exact(fd, content_end, 20, label + "_checksum")
         if _sha1_fd_prefix(fd, size - 20, label + "_sha1") != expected:
             raise InstallError(label + "_checksum_mismatch")
         if (
@@ -1976,6 +2004,8 @@ def source_plan() -> None:
     print("create_only=true")
     print("live_release_mutation=false")
     print("trusted_root_launcher_required=true")
+    print("git_index_optional_extensions_bounded=true")
+    print("git_index_required_extensions_rejected=true")
     print("pack_entry_span_bound_required=true")
     print("pack_cache_byte_budget_required=true")
     print("dynamic_git_provenance_authority_removed=true")
@@ -2914,6 +2944,33 @@ def self_test() -> None:
     print("terminal_reason_printable_sanitization_required=true")
     print("rename_noreplace_publication_required=true")
     print("trusted_root_launcher_required=true")
+    with tempfile.TemporaryDirectory(prefix="void-v7-index-extension-self-test-") as td:
+        ext_path = pathlib.Path(td) / "extensions.bin"
+        ext_path.write_bytes(b"TREE" + struct.pack(">I", 3) + b"abc")
+        ext_fd = os.open(ext_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            if _next_optional_index_extension(
+                ext_fd, 0, 11, "self_test_index"
+            ) != 11:
+                raise AssertionError("optional_index_extension_not_consumed")
+        finally:
+            os.close(ext_fd)
+        ext_path.write_bytes(b"link" + struct.pack(">I", 0))
+        ext_fd = os.open(ext_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            try:
+                _next_optional_index_extension(
+                    ext_fd, 0, 8, "self_test_index"
+                )
+            except InstallError as exc:
+                if str(exc) != "self_test_index_required_extension_forbidden":
+                    raise
+            else:
+                raise AssertionError("required_index_extension_not_rejected")
+        finally:
+            os.close(ext_fd)
+    print("git_index_optional_extensions_bounded=true")
+    print("git_index_required_extensions_rejected=true")
     assert _PackReader._entry_span(
         12, 12 + MAX_PACK_ENTRY_BYTES, "self_test_pack"
     ) == MAX_PACK_ENTRY_BYTES
