@@ -1,0 +1,93 @@
+name: VOID Buy VOID canonical ERC20 delivery canary plan v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-canonical-erc20-delivery-canary-plan-v1.yml"
+      - "docs/architecture/buy-void-canonical-erc20-delivery-canary-plan-v1.md"
+      - "docs/operators/buy-void-canonical-erc20-delivery-composition-v1.md"
+      - "docs/operators/buy-void-erc20-delivery-runtime-activation-configuration-contract-v1.md"
+      - "ops/security/buy-void-canonical-erc20-delivery-canary-plan-v1.json"
+      - "scripts/buy_void_production_canary_candidate_reservation_v1.ts"
+      - "scripts/prove_buy_void_canonical_erc20_delivery_canary_plan_v1.mjs"
+      - "scripts/prove_buy_void_canonical_erc20_delivery_composition_v1.ts"
+      - "scripts/prove_buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
+      - "scripts/prove_buy_void_production_canary_candidate_reservation_v1.ts"
+      - "scripts/prove_buy_void_production_live_canary_preflight_v1.ts"
+      - "scripts/prove_void_participant_postpurchase_voidtoken_control_v1.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_delivery_runtime_integration_v1.ts"
+      - "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts"
+      - "src/economic/buy_void_delivery_submission_guard_v1.ts"
+      - "src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.ts"
+      - "src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts"
+      - "src/economic/buy_void_erc20_execution_composition_v1.ts"
+      - "src/economic/buy_void_erc20_production_configuration_candidate_binding_v1.ts"
+      - "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "src/economic/participant_postpurchase_raw_submission_v1.ts"
+      - "tools/void-participant-postpurchase-voidtoken-control-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove canonical ERC20 delivery canary source plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/canonical-erc20-delivery-canary-plan-v1.log"
+          node scripts/prove_buy_void_canonical_erc20_delivery_canary_plan_v1.mjs | tee "$log"
+          grep -Fx 'VOID_BUY_VOID_CANONICAL_ERC20_DELIVERY_CANARY_PLAN_V1_GREEN' "$log"
+          grep -Fx 'plan_id=voidbverc20canary1_ca4048a864c8e442b3cdab3ec661af9ae5c592443fd386935f3017ec04694b4b' "$log"
+          grep -Fx 'source_binding_count=21' "$log"
+          grep -Fx 'future_requirement_count=30' "$log"
+          grep -Fx 'canonical_asset=void_token_erc20' "$log"
+          grep -Fx 'canonical_chain_id=2050' "$log"
+          grep -Fx 'legacy_native_canary_retired=true' "$log"
+          grep -Fx 'canonical_delivery_runtime_parent_mounted=true' "$log"
+          grep -Fx 'canonical_delivery_execution_ready=false' "$log"
+          grep -Fx 'presale_inventory_funding_ready=false' "$log"
+          grep -Fx 'live_canary_authorized_by_preflight=false' "$log"
+          grep -Fx 'participant_control_source_only=true' "$log"
+          grep -Fx 'canary_execution=false' "$log"
+          grep -Fx 'signing=false' "$log"
+          grep -Fx 'transaction_broadcast=false' "$log"
+          grep -Fx 'public_delivery_activation=false' "$log"
+          grep -Fx 'presale_activation=false' "$log"
+          grep -Fx 'funds_movement=false' "$log"
+
+      - name: Diff hygiene
+        shell: bash
+        run: git diff --check 47acc1485ab264a1a33d6a8c70072c2c18ce56e4 HEAD
