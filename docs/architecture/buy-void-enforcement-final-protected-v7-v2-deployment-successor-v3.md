@@ -8,8 +8,8 @@ V1/V2 candidate and lock remain immutable. V3 re-derives current 49-row source i
 - candidate set SHA-256: `95a11602e5f2639d33b378293b92863ea7f9f37020ad18dec49d3d4ac6289fd4`
 - candidate JSON SHA-256: `df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6`
 - candidate Git blob: `79998af4763b6afca84ffe4e8d14d9a6ff535dfd`
-- proof Git blob: `0fb6dc5c1bb91cf54a4053e7429d4153e2a46a86`
+- proof Git blob: `347f62e91f74122704b8c2583e7ddb1f432d3aa8`
 
-The candidate remains unaccepted. A V3 lock may be added only after Node 22/24/26 hosted outputs are byte-identical and their real evidence IDs are recorded. No deployment/apply, service/runtime, credentials/signing, payment/activation, treasury/liquidity or funds authority.
+The candidate remains unaccepted. Exact V3 derivation is executed inside the existing protected V2 Node 22/24/26 matrix so the V2 historical candidate/lock checks and V3 successor evidence are exercised together. A V3 lock may be added only after those hosted V3 outputs are byte-identical and their real evidence IDs are recorded. No deployment/apply, service/runtime, credentials/signing, payment/activation, treasury/liquidity or funds authority.
 
 PROTECT THE CORE.
