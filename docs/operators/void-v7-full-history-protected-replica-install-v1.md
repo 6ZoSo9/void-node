@@ -147,10 +147,13 @@ the contract. All higher ancestors remain exact.
 ### Root execution and termination boundary
 
 After privileged source custody is established, the root parent does not execute
-host Git for plan or staged-generation verification. Those Git observations run
-inside a forked child that drops supplementary groups and switches to UID/GID
-1000 first. The root parent performs only descriptor-based copy, ownership/mode
-sealing, fsync and the create-only rename.
+host Git for plan or staged-generation verification. Before any dynamic Git
+process can run, the forked verifier sets `PR_SET_NO_NEW_PRIVS=1`, clears
+supplementary groups, switches GID and UID to 1000, and requires all
+real/effective/saved UID and GID slots to equal 1000 with no supplementary
+groups. A compromised runtime-user loader/DSO therefore cannot regain privilege
+through a setuid/setgid exec. The root parent performs only descriptor-based
+copy, ownership/mode sealing, fsync and the create-only rename.
 
 Apply installs handlers for SIGTERM, SIGHUP and SIGQUIT. Those signals raise into
 the same terminal failure path used by ordinary exceptions. The conservative
