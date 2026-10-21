@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "c88d458d01c8a2733dfc491ba69d3ab0d92ca1f9"
+TARGET_BLOB = "e02221c7478fac3c65f34410fd3e203ffb31bdd7"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -50,6 +50,10 @@ for required in (
     'copy_depth_limit',
     'candidate_copy_incremental_enumeration_required=true',
     'candidate_copy_iterative_depth_bound_required=true',
+    'candidate_copy_operation_bound_node_budget_required=true',
+    'candidate_copy_operation_bound_byte_budget_required=true',
+    'candidate_copy_exact_planned_counts_required=true',
+    'def _planned_candidate_copy_limits(',
     'CANDIDATE = pathlib.Path("/home/zoso/Downloads/void-v7-full-history-candidate-6011fc")',
     'LIVE_RELEASE = pathlib.Path("/opt/void-node-live/releases/" + SOURCE_HEAD)',
     'TARGET_NAME = "void-v7-source-release-full-history-v1"',
@@ -167,6 +171,14 @@ assert copy_text.index("_verify_private_stage_for_apply(") < copy_text.index(
     "_seal_verified_stage_for_publication()"
 )
 assert "_copy_candidate_tree_iterative(" in copy_text
+assert "_planned_candidate_copy_limits(" in copy_text
+assert "node_limit=planned_nodes" in copy_text
+assert "total_limit=planned_regular_file_bytes" in copy_text
+assert 'raise InstallError("copy_planned_node_count_mismatch")' in copy_text
+assert 'raise InstallError("copy_planned_regular_file_bytes_mismatch")' in copy_text
+assert copy_text.index("_planned_candidate_copy_limits(") < copy_text.index(
+    "_WRITE_BOUNDARY_ENTERED = True"
+)
 assert "def recurse(" not in copy_text
 assert "sorted(os.listdir" not in copy_text
 assert "total += st.st_size" not in copy_text
@@ -184,6 +196,16 @@ assert "_require_utf8_copy_component(name)" in walker_text
 assert "sorted(os.listdir" not in walker_text
 assert "def recurse(" not in walker_text
 assert "_copy_candidate_tree_iterative(" not in walker_text[walker_text.index("while stack:"):]
+
+limits_start = text.index("def _planned_candidate_copy_limits(")
+limits_end = text.index("def _copy_candidate_to_stage(", limits_start)
+limits_text = text[limits_start:limits_end]
+assert "type(nodes) is not int" in limits_text
+assert "nodes < 0 or nodes > MAX_NODES" in limits_text
+assert "type(regular_file_bytes) is not int" in limits_text
+assert "regular_file_bytes < 0" in limits_text
+assert "regular_file_bytes > MAX_TOTAL_BYTES" in limits_text
+assert "return nodes, regular_file_bytes" in limits_text
 assert "os.fchown(fd, 0, RUNTIME_GID)" not in text
 assert "stage_prepare_named_runtime_uid_acl" not in text
 assert "private_stage_named_runtime_uid_acl_required=true" in text
@@ -289,6 +311,9 @@ for marker in (
     "runtime_uid_child_capability_status_zero_required=true",
     "candidate_copy_incremental_enumeration_required=true",
     "candidate_copy_iterative_depth_bound_required=true",
+    "candidate_copy_operation_bound_node_budget_required=true",
+    "candidate_copy_operation_bound_byte_budget_required=true",
+    "candidate_copy_exact_planned_counts_required=true",
     "candidate_utf8_path_components_required=true",
     "candidate_receipt_safe_path_components_required=true",
     "terminal_reason_line_sanitization_required=true",
@@ -330,6 +355,9 @@ for marker in (
     "candidate_copy_descriptor_relative=true",
     "candidate_copy_incremental_enumeration_required=true",
     "candidate_copy_iterative_depth_bound_required=true",
+    "candidate_copy_operation_bound_node_budget_required=true",
+    "candidate_copy_operation_bound_byte_budget_required=true",
+    "candidate_copy_exact_planned_counts_required=true",
     "apply_root_dynamic_git_exec=false",
     "termination_signal_reconciliation_required=true",
     "install_parent_publication_lease_required=true",
@@ -366,6 +394,9 @@ print("runtime_uid_child_capability_status_zero_bound=true")
 print("candidate_copy_descriptor_relative_bound=true")
 print("candidate_copy_incremental_enumeration_bound=true")
 print("candidate_copy_iterative_depth_bound=true")
+print("candidate_copy_operation_bound_node_budget_bound=true")
+print("candidate_copy_operation_bound_byte_budget_bound=true")
+print("candidate_copy_exact_planned_counts_bound=true")
 print("install_parent_stage_transition_bound=true")
 print("root_dynamic_git_exec_forbidden_bound=true")
 print("termination_signal_reconciliation_bound=true")
