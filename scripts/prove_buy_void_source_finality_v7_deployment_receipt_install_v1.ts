@@ -243,15 +243,6 @@ if(rootCapable){
   assert.equal(fs.existsSync(path.join(redirect,"deployment-receipt.json")),false);
   fs.unlinkSync(symlinkParent);
 
-  const tempPrefix=(receiptPath:string)=>
-    "."+path.basename(receiptPath)+".tmp-";
-  const tempEntries=(receiptPath:string)=>{
-    const parent=path.dirname(receiptPath);
-    if(!fs.existsSync(parent))return [];
-    const prefix=tempPrefix(receiptPath);
-    return fs.readdirSync(parent).filter((name)=>name.startsWith(prefix));
-  };
-
   // A newly created final custody directory is not durable until its retained
   // grandparent directory entry has also been fsynced.
   {
@@ -285,166 +276,86 @@ if(rootCapable){
     assert.equal(fs.existsSync(receipt),false);
   }
 
-  const proveTempFailureCleanup=(
+  const proveDirectFailureResidue=(
     label:string,
     method:"fchownSync"|"writeSync"|"fsyncSync"|"fchmodSync",
   )=>{
-    const receipt=path.join(root,"temp-"+label,"deployment-receipt.json");
+    const receipt=path.join(root,"direct-"+label,"deployment-receipt.json");
     const originalOpen=(fs as any).openSync;
     const originalTarget=(fs as any)[method];
-    let tempFd=-1;
+    let finalFd=-1;
     let injected=false;
     try{
       (fs as any).openSync=function(...args:any[]){
         const fd=originalOpen.apply(fs,args);
-        if(String(args[0]).includes(tempPrefix(receipt)))tempFd=fd;
+        const flags=Number(args[1]);
+        if(
+          Number.isInteger(flags)&&
+          (flags&fs.constants.O_CREAT)!==0&&
+          (flags&fs.constants.O_EXCL)!==0
+        )finalFd=fd;
         return fd;
       };
       (fs as any)[method]=function(...args:any[]){
-        if(!injected&&tempFd>=0&&Number(args[0])===tempFd){
+        if(!injected&&finalFd>=0&&Number(args[0])===finalFd){
           injected=true;
-          throw Object.assign(new Error("synthetic_temp_"+label+"_failure"),{code:"EIO"});
+          throw Object.assign(
+            new Error("synthetic_direct_"+label+"_failure"),{code:"EIO"},
+          );
         }
         return originalTarget.apply(fs,args);
       };
       assert.throws(()=>installRootCustodiedReceiptV1({
         absolute_path:receipt,bytes:built.bytes,
-      }),new RegExp("synthetic_temp_"+label+"_failure","u"));
+      }),new RegExp("synthetic_direct_"+label+"_failure","u"));
     }finally{
       (fs as any).openSync=originalOpen;
       (fs as any)[method]=originalTarget;
     }
     assert.equal(injected,true,label+"_failure_not_injected");
-    assert.equal(fs.existsSync(receipt),false,label+"_published_receipt");
-    assert.deepEqual(tempEntries(receipt),[],label+"_temp_survived");
+    const residue=fs.lstatSync(receipt);
+    assert.ok(residue.isFile()&&!residue.isSymbolicLink());
+    assert.equal(residue.nlink,1);
+    assert.equal(residue.mode&0o777,0o600);
+    assert.throws(()=>installRootCustodiedReceiptV1({
+      absolute_path:receipt,bytes:built.bytes,
+    }),/receipt_leaf_mode_invalid/u);
+    fs.unlinkSync(receipt);
   };
 
-  proveTempFailureCleanup("fchown","fchownSync");
-  proveTempFailureCleanup("write","writeSync");
-  proveTempFailureCleanup("fsync","fsyncSync");
-  proveTempFailureCleanup("fchmod","fchmodSync");
+  proveDirectFailureResidue("fchown","fchownSync");
+  proveDirectFailureResidue("write","writeSync");
+  proveDirectFailureResidue("fsync","fsyncSync");
+  proveDirectFailureResidue("fchmod","fchmodSync");
 
-  const proveCleanupFailureObservable=(
-    label:"unlink"|"parent-fsync",
-  )=>{
-    const receipt=path.join(root,"cleanup-"+label,"deployment-receipt.json");
-    const originalOpen=(fs as any).openSync;
-    const originalFchown=(fs as any).fchownSync;
-    const originalUnlink=(fs as any).unlinkSync;
-    const originalFsync=(fs as any).fsyncSync;
-    let tempFd=-1;
-    let injectedPrimary=false;
-    let injectedCleanup=false;
-    try{
-      (fs as any).openSync=function(...args:any[]){
-        const fd=originalOpen.apply(fs,args);
-        if(String(args[0]).includes(tempPrefix(receipt)))tempFd=fd;
-        return fd;
-      };
-      (fs as any).fchownSync=function(fd:number,...args:any[]){
-        if(!injectedPrimary&&tempFd>=0&&fd===tempFd){
-          injectedPrimary=true;
-          throw Object.assign(
-            new Error("synthetic_cleanup_primary_"+label),
-            {code:"EIO"},
-          );
-        }
-        return originalFchown.call(fs,fd,...args);
-      };
-      if(label==="unlink"){
-        (fs as any).unlinkSync=function(target:string,...args:any[]){
-          if(!injectedCleanup&&String(target).includes(tempPrefix(receipt))){
-            injectedCleanup=true;
-            throw Object.assign(
-              new Error("synthetic_cleanup_unlink_failure"),
-              {code:"EIO"},
-            );
-          }
-          return originalUnlink.call(fs,target,...args);
-        };
-      }else{
-        (fs as any).fsyncSync=function(fd:number){
-          if(!injectedCleanup&&tempFd>=0&&fd!==tempFd){
-            injectedCleanup=true;
-            throw Object.assign(
-              new Error("synthetic_cleanup_parent_fsync_failure"),
-              {code:"EIO"},
-            );
-          }
-          return originalFsync.call(fs,fd);
-        };
-      }
-      assert.throws(
-        ()=>installRootCustodiedReceiptV1({
-          absolute_path:receipt,bytes:built.bytes,
-        }),
-        (error:any)=>{
-          assert.ok(error instanceof AggregateError,"cleanup_failure_not_aggregate");
-          assert.equal(error.message,"deployment_receipt_cleanup_failed");
-          const messages=Array.from(
-            error.errors||[],
-            (entry:any)=>String(entry?.message||entry),
-          );
-          assert.ok(
-            messages.includes("synthetic_cleanup_primary_"+label),
-            "primary_error_not_preserved:"+label,
-          );
-          assert.ok(
-            messages.includes(
-              label==="unlink"
-                ?"synthetic_cleanup_unlink_failure"
-                :"synthetic_cleanup_parent_fsync_failure",
-            ),
-            "cleanup_error_not_observable:"+label,
-          );
-          return true;
-        },
-      );
-    }finally{
-      (fs as any).openSync=originalOpen;
-      (fs as any).fchownSync=originalFchown;
-      (fs as any).unlinkSync=originalUnlink;
-      (fs as any).fsyncSync=originalFsync;
-      for(const name of tempEntries(receipt)){
-        fs.unlinkSync(path.join(path.dirname(receipt),name));
-      }
-    }
-    assert.equal(injectedPrimary,true,label+"_primary_failure_not_injected");
-    assert.equal(injectedCleanup,true,label+"_cleanup_failure_not_injected");
-    assert.equal(fs.existsSync(receipt),false,label+"_published_receipt");
-  };
-
-  proveCleanupFailureObservable("unlink");
-  proveCleanupFailureObservable("parent-fsync");
-
-  // A path substitution after exclusive temp creation must never be cleaned up
-  // as though the replacement were the inode created by this installer.
+  // Production code never deletes a pathname after creation. If a privileged
+  // concurrent actor substitutes the visible final path during a failure, that
+  // foreign inode is left untouched and the operation HOLDs.
   {
-    const receipt=path.join(root,"temp-foreign","deployment-receipt.json");
+    const receipt=path.join(root,"direct-foreign","deployment-receipt.json");
     const originalOpen=(fs as any).openSync;
     const originalFchown=(fs as any).fchownSync;
-    let tempFd=-1;
-    let tempPath="";
-    let foreignVisible="";
-    let foreignIdentity:fs.Stats|undefined;
+    let finalFd=-1;
     let injected=false;
+    let foreignIdentity:fs.Stats|undefined;
     try{
       (fs as any).openSync=function(...args:any[]){
         const fd=originalOpen.apply(fs,args);
-        if(String(args[0]).includes(tempPrefix(receipt))){
-          tempFd=fd;
-          tempPath=String(args[0]);
-          foreignVisible=path.join(path.dirname(receipt),path.basename(tempPath));
-        }
+        const flags=Number(args[1]);
+        if(
+          Number.isInteger(flags)&&
+          (flags&fs.constants.O_CREAT)!==0&&
+          (flags&fs.constants.O_EXCL)!==0
+        )finalFd=fd;
         return fd;
       };
       (fs as any).fchownSync=function(fd:number,uid:number,gid:number){
-        if(!injected&&tempFd>=0&&fd===tempFd){
+        if(!injected&&finalFd>=0&&fd===finalFd){
           injected=true;
-          fs.unlinkSync(tempPath);
-          fs.writeFileSync(tempPath,"foreign\n",{mode:0o600});
-          fs.chownSync(tempPath,0,0);
-          foreignIdentity=fs.lstatSync(tempPath);
+          fs.unlinkSync(receipt);
+          fs.writeFileSync(receipt,"foreign\n",{mode:0o600});
+          fs.chownSync(receipt,0,0);
+          foreignIdentity=fs.lstatSync(receipt);
           throw Object.assign(new Error("synthetic_foreign_substitution"),{code:"EIO"});
         }
         return originalFchown.call(fs,fd,uid,gid);
@@ -458,15 +369,27 @@ if(rootCapable){
     }
     assert.equal(injected,true);
     assert.ok(foreignIdentity);
-    assert.ok(foreignVisible);
-    const after=fs.lstatSync(foreignVisible);
+    const after=fs.lstatSync(receipt);
     assert.equal(after.dev,foreignIdentity!.dev);
     assert.equal(after.ino,foreignIdentity!.ino);
-    assert.equal(fs.readFileSync(foreignVisible,"utf8"),"foreign\n");
-    fs.unlinkSync(foreignVisible);
+    assert.equal(fs.readFileSync(receipt,"utf8"),"foreign\n");
+    fs.unlinkSync(receipt);
   }
 
-  const restrictiveParent=path.join(root,"restrictive");
+  // Existing receipts are descriptor-read with the production 64 KiB ceiling.
+  {
+    const receipt=path.join(root,"oversized-existing","deployment-receipt.json");
+    fs.mkdirSync(path.dirname(receipt),{recursive:true,mode:0o755});
+    fs.writeFileSync(receipt,Buffer.alloc(64*1024+1,0x61),{mode:0o444});
+    fs.chownSync(receipt,0,0);
+    fs.chmodSync(receipt,0o444);
+    assert.throws(()=>installRootCustodiedReceiptV1({
+      absolute_path:receipt,bytes:built.bytes,
+    }),/receipt_leaf_size_invalid/u);
+    fs.unlinkSync(receipt);
+  }
+
+  const restrictiveParent=path.join(root,"restrictive");  const restrictiveParent=path.join(root,"restrictive");
   const restrictiveReceipt=path.join(restrictiveParent,"deployment-receipt.json");
   fs.mkdirSync(restrictiveParent,{mode:0o700});
   fs.chownSync(restrictiveParent,0,0);
@@ -534,13 +457,13 @@ console.log("tracked_file_replacement_race_rejected=true");
 console.log("tracked_file_symlink_race_rejected=true");
 console.log("root_custody_positive_exercised="+String(rootCapable));
 console.log("descriptor_relative_parent_publication="+String(rootCapable));
+console.log("direct_exclusive_final_publication="+String(rootCapable));
+console.log("failed_publication_residue_preserved="+String(rootCapable));
+console.log("pathname_cleanup_after_final_create=false");
+console.log("existing_receipt_bounded_read="+String(rootCapable));
 console.log("symlink_parent_no_collateral_mutation="+String(rootCapable));
 console.log("restrictive_parent_mode_preserved="+String(rootCapable));
 console.log("new_parent_grandparent_fsync_required="+String(rootCapable));
-console.log("post_create_temp_failure_cleanup_exact="+String(rootCapable));
-console.log("cleanup_failure_observable="+String(rootCapable));
-console.log("cleanup_primary_error_preserved="+String(rootCapable));
-console.log("foreign_temp_inode_preserved="+String(rootCapable));
 console.log("root_custodied_create_once_positive="+String(rootCapable));
 console.log("matching_reapply_idempotent="+String(rootCapable));
 console.log("mismatched_existing_receipt_rejected="+String(rootCapable));

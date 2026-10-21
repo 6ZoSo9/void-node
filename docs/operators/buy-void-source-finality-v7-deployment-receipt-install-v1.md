@@ -74,24 +74,22 @@ direct root-owned non-group/world-writable directory; its ownership and mode are
 preserved, including a safe restrictive mode such as 0700. The installer never
 chowns or chmods a pre-existing parent.
 
-The final receipt is root-owned, single-link, mode 0444. Temporary creation,
-verification, hard-link publication, cleanup and final verification remain
-descriptor-relative to the retained parent. The installer captures the exact
-device/inode of the exclusively created temporary receipt before chown/write and
-will clean up only that inode; a pathname substitution cannot make an unrelated
-file eligible for cleanup. Publication uses an atomic hard-link no-clobber
-operation followed by retained-parent fsync. An existing byte-identical receipt
-is accepted idempotently; an existing different receipt HOLDs and is never
-overwritten.
+The final receipt is root-owned, single-link, mode 0444. Publication no longer
+uses a pathname temp that later has to be unlinked. Instead, the final leaf is
+opened descriptor-relative with `O_CREAT|O_EXCL|O_NOFOLLOW` at mode 0600.
+Receipt bytes are written and fsynced through that retained descriptor; mode
+0444 is the commit marker, followed by a second file fsync, retained-parent
+fsync, terminal descriptor/path generation revalidation, and a bounded
+descriptor read of the accepted receipt.
 
-Failures after temporary creation preserve the primary error while cleanup
-continues best-effort. Non-ENOENT unlink failures, cleanup parent-fsync failures,
-temporary-FD close failures and retained-parent close failures remain observable
-through `AggregateError(..., "deployment_receipt_cleanup_failed")`. The
-adversarial proof covers symlink-parent zero collateral mutation, restrictive
-parent preservation, new-parent grandparent fsync, post-create failures at
-chown/write/fsync/chmod, foreign temporary-inode substitution and cleanup
-failure observability.
+If any post-create step fails before commit, the root-only 0600 residue is left
+untouched and the operation HOLDs. It is never removed by a compare-then-unlink
+pathname sequence. A later retry rejects such an uncommitted residue instead of
+guessing ownership. A concurrent foreign substitution is likewise never deleted
+by this installer. The adversarial proof covers symlink-parent zero collateral
+mutation, restrictive parent preservation, new-parent grandparent fsync,
+post-create failures at chown/write/fsync/chmod, foreign final-path substitution,
+oversized existing receipts, create-once success and idempotent exact reapply.
 
 
 The current 49-row protected-source inventory and the accepted enforcement lock/candidate reader are descriptor-bound. Each protected source row is capped at 16 MiB for this generation (current maximum is `src/index.ts` at 3,851,867 bytes).
