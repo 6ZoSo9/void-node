@@ -146,11 +146,13 @@ the same retained-stage/publication reconciliation path; it cannot escape throug
 a later digest `UnicodeEncodeError`.
 
 Line-oriented receipt integrity is bound at the same boundary. Candidate path
-components containing ASCII controls, DEL, NEL (`U+0085`), line separator
-(`U+2028`) or paragraph separator (`U+2029`) are rejected before copy.
-Terminal exception reasons are independently sanitized onto one bounded printable
-line, so an attacker-controlled filename cannot inject a forged receipt field or
-visually split/overwrite the HOLD reason.
+components must consist only of Unicode characters Python classifies as printable;
+this rejects ASCII/C1 controls, bidi/zero-width formatting controls, DEL, NEL,
+line/paragraph separators, and other terminal-active non-printing characters
+before copy. Terminal exception reasons apply the same printable-character policy
+and replace every non-printing character with `_` on one bounded line, so an
+attacker-controlled filename cannot inject, reorder, conceal, or visually
+overwrite HOLD/publication receipt fields.
 
 Candidate traversal is also resource-bounded before protected publication.
 The root copy path never calls `listdir()` or sorts/materializes a complete
