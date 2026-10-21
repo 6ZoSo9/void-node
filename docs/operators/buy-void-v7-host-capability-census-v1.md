@@ -4,7 +4,7 @@ Marker: \`VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1\`.
 
 Status: **source/read-only host census only**. This stacked Draft depends on the exact
 trusted-launcher source generation at
-\`cb07d6fb752593cc10399eb1f7cd15c4524b8189\`. It does not merge #3647, install
+\`48830177ac85663d9a95e180e5cb8e08e53e6227\`. It does not merge #3647, install
 the launcher, enable fs-verity, create a Python runtime, or mutate Precision.
 
 ## Purpose
@@ -20,25 +20,28 @@ This census observes those facts without changing them.
 
 ## Exact source bindings
 
+Landed source base: `main@47acc1485ab264a1a33d6a8c70072c2c18ce56e4`.
+Runtime-shape contract: `v5`.
+
 Stack parent / launcher head:
 
-\`cb07d6fb752593cc10399eb1f7cd15c4524b8189\`
+\`48830177ac85663d9a95e180e5cb8e08e53e6227\`
 
 Reviewed launcher source Git blob:
 
-\`6ecd7fef155967d35d4500b07da841c4e578c6de\`
+\`0aa8d3a990de662b8c3c9928d4c31452d8299ca7\`
 
 Reviewed static launcher ELF SHA-256 from the focused #3647 proof:
 
-\`7ec634fd290c0dd50fd367cf79d4edccdd3d38931ee117c0baa5af24f4c70e57\`
+\`014565eb9d285c53163effa78572214e9dd9e4e5f8cc54ae27d6879e9f545a64\`
 
 Census source Git blob:
 
-\`bf908749a5a038863f190d31a8cf9da24f584e58\`
+\`3efe934886e8fef40b192f1ba1b45d17699e3d85\`
 
 Focused proof Git blob:
 
-\`7344cf4373e7411a2becf71805fd6fb075231468\`
+\`7ed7fd7f64b4a5f54b8d828af484106d6ef747ad\`
 
 ## fs-verity capability observation
 
@@ -114,15 +117,14 @@ When `--stdlib-candidate <path>` is supplied, the census:
   a synthetic memfd regression proves this error conversion; unsupported
   ZIP extraction versions are also normalized to `stdlib_zip_invalid`
   instead of uncaught `NotImplementedError`;
-- inventories the visible direct pure-Python modules needed by the V4 installer:
+- inventories the visible direct pure-Python modules needed by the landed V5 installer:
   `argparse`, `ctypes`, `hashlib`, `json`, `pathlib`, `shutil`,
-  `stat`, `subprocess`, `tempfile`, and `typing`;
+  `stat`, `tempfile`, and `typing`;
 - does not import or execute the candidate.
 
 That direct-module inventory is **shape evidence only**. It does not establish
 the transitive pure-Python import closure (for example `gettext`, `re`, or
-`warnings`) and cannot establish built-in/native modules such as `_ctypes`
-or `_posixsubprocess`. The census therefore never treats ZIP inventory as
+`warnings`) and cannot establish built-in/native modules such as `_ctypes`. The census therefore never treats ZIP inventory as
 runtime importability.
 
 ## Result contract
@@ -156,7 +158,12 @@ and advances only to:
 
 That later source/proof lane must establish the complete Python runtime
 generation, including the transitive pure-Python import closure and required
-built-in/native modules, before a reviewed host-install plan can exist.
+built-in/native modules, before a reviewed host-install plan can exist. For
+landed V5 specifically, the exact candidate generation must prove under the
+closed `-I -B -S` runtime that `import ctypes` and `import _ctypes` succeed
+without host `lib-dynload`/DSO fallback and that
+`getattr(ctypes.CDLL(None), "renameat2", None)` is callable. The obsolete V4
+`prctl` observer requirement is no longer part of the V5 acceptance contract.
 
 Any missing/invalid capability or candidate remains HOLD and advances only to:
 
@@ -206,7 +213,7 @@ funds_movement=false
 \`\`\`
 
 No \`/opt\` installation, source snapshot publication, static Python build,
-fs-verity enablement, V4 plan/apply, service action, credential access, payment
+fs-verity enablement, V5 plan/apply, service action, credential access, payment
 activation, treasury action, or funds movement is authorized by this lane.
 
 PROTECT THE CORE.
