@@ -28,9 +28,9 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "b49bf5e6d0954c9d6c9af76f5ad3e0cb5c47c6d0"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v1.py)" = "e0f810845f43f2e7e16d508a2530065f831a4d0e"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v1.md)" = "0ae3ac8fbedf7f3eabbaa87574d0862ecbbe0492"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "bbe7787f30c79cac2a3960d0e7b841711af1225e"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v1.py)" = "d1ee23a6b60b8fef19dcf4f28cbc7007bd3f06de"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v1.md)" = "30f161ec818a0a6906548710f39f989054d5aab1"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git merge-base --is-ancestor "${{ github.event.pull_request.base.sha }}" HEAD
             cat > /tmp/expected <<'EOF'
@@ -86,7 +86,14 @@ jobs:
           test ! -L "$ACCOUNT_HOME/Downloads"
           python3 -I -B ops/precision/void_v7_source_release_full_history_reseal_v1.py \
             --build \
-            --output "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate"
+            --output "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" \
+            | tee "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'status=FULL_HISTORY_RESEAL_CANDIDATE_GREEN' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'descriptor_bound_candidate_mutation=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'mountpoint_alias_rejection=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'candidate_cleanup_attempted=false' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'source_repository_mutation=false' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'protected_filesystem_mutation=false' "$RUNNER_TEMP/reseal.log"
           test ! -e "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate/.git/shallow"
           test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-parse --is-shallow-repository)" = false
           test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-list --count 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb)" = 17931
