@@ -7,7 +7,7 @@ Status: **versioned plan-only source/CI evidence; no protected adapter or live c
 
 Plan ID:
 
-`voidbuycustodychallengeplan2_ce86a3cf5790e583941b88178a288c448caf0bccc0816a4c85495b6e55971734`.
+`voidbuycustodychallengeplan2_dfbcd98e033afbcf931fd2120c6accf38673c7101a718a52bcbd6eb7006c16e0`.
 
 ## Immutable predecessor
 
@@ -75,13 +75,15 @@ this plan.
 ## Distinct review gate
 
 #3527 remains distinct-review HOLD. V2 also requires its own distinct review.
+The machine next-gate requires both reviews; reviewing V2 alone cannot satisfy
+the bound controller candidate's still-false `distinct_review_satisfied` state.
 
 A protected host adapter candidate must **not** be built from same-account
 source/CI clearance alone.
 
 Next gate:
 
-`DISTINCTLY_REVIEW_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2_BEFORE_PROTECTED_HOST_ADAPTER_V1`.
+`DISTINCTLY_REVIEW_CONTROLLER_CANDIDATE_AND_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2_BEFORE_PROTECTED_HOST_ADAPTER_V1`.
 
 ## Authority
 

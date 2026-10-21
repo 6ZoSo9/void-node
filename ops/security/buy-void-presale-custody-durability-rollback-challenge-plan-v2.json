@@ -56,8 +56,8 @@
     "retained_lease_handle_owner_generation_required": true
   },
   "marker": "VOID_BUY_VOID_PRESALE_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2",
-  "next_gate": "DISTINCTLY_REVIEW_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2_BEFORE_PROTECTED_HOST_ADAPTER_V1",
-  "plan_id": "voidbuycustodychallengeplan2_ce86a3cf5790e583941b88178a288c448caf0bccc0816a4c85495b6e55971734",
+  "next_gate": "DISTINCTLY_REVIEW_CONTROLLER_CANDIDATE_AND_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2_BEFORE_PROTECTED_HOST_ADAPTER_V1",
+  "plan_id": "voidbuycustodychallengeplan2_dfbcd98e033afbcf931fd2120c6accf38673c7101a718a52bcbd6eb7006c16e0",
   "predecessor_v1": {
     "doc_git_blob_sha1": "4906f0ca9e732a07ed90ddeccfe5c15d875fc124",
     "doc_path": "docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v1.md",

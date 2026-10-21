@@ -11,8 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PARENT_HEAD = "60a6fffc0fd8de576769f4bc090b3a12ca4ba526"
 PARENT_TREE = "bb90a3caab421d811da6fe63f2d29967ab7e2e35"
 PLAN_REL = "ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json"
-PLAN_BLOB = "fa361bbcf54583547261f78abb0ef68052de280b"
-PLAN_ID = "voidbuycustodychallengeplan2_ce86a3cf5790e583941b88178a288c448caf0bccc0816a4c85495b6e55971734"
+PLAN_BLOB = "edf66b204d2447c47b9decdd64ddd91d22922d9f"
+PLAN_ID = "voidbuycustodychallengeplan2_dfbcd98e033afbcf931fd2120c6accf38673c7101a718a52bcbd6eb7006c16e0"
 MARKER = "VOID_BUY_VOID_PRESALE_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2"
 OWNED_PATHS = (
     ".github/workflows/buy-void-presale-custody-durability-rollback-challenge-plan-v2.yml",
@@ -180,13 +180,14 @@ assert tuple(sorted(authority)) == tuple(sorted(FALSE_AUTHORITY))
 for key in FALSE_AUTHORITY:
     assert authority[key] is False, key
 
-EXPECTED_NEXT_GATE = "DISTINCTLY_REVIEW_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2_BEFORE_PROTECTED_HOST_ADAPTER_V1"
+EXPECTED_NEXT_GATE = "DISTINCTLY_REVIEW_CONTROLLER_CANDIDATE_AND_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2_BEFORE_PROTECTED_HOST_ADAPTER_V1"
 assert plan["next_gate"] == EXPECTED_NEXT_GATE
 
 def assert_semantic_policy(candidate: dict) -> None:
     assert candidate["predecessor_v1"]["immutable"] is True
     assert candidate["predecessor_v1"]["plan_id"] == V1_PLAN_ID
     assert candidate["predecessor_v1"]["required_future_evidence_count"] == 20
+    assert candidate["controller_candidate"]["distinct_review_satisfied"] is False
     assert (
         candidate["preserved_v1_required_future_evidence"]
         == v1["durability_contract"]["required_future_evidence"]
@@ -218,6 +219,12 @@ must_reject(
     "adapter_authority",
 )
 must_reject(
+    lambda candidate: candidate["controller_candidate"].__setitem__(
+        "distinct_review_satisfied", True
+    ),
+    "controller_distinct_review_forged",
+)
+must_reject(
     lambda candidate: candidate["lease_cleanup_contract"].__setitem__(
         "release_forbidden_before_terminal_lease_revalidation_and_evidence_origin_authentication",
         False,
@@ -239,6 +246,7 @@ print("controller_candidate_bound=true")
 print("exact_four_add_only_scope=true")
 print("semantic_authority_negative_fixture=true")
 print("lease_cleanup_negative_fixture=true")
+print("controller_distinct_review_negative_fixture=true")
 print("immutable_v1_semantic_negative_fixture=true")
 print("controller_capability_count=16")
 print("controller_additional_requirement_count=11")
