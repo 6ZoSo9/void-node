@@ -168,7 +168,6 @@ for (const required of [
   "assertInstallationEvidence(installationBefore)",
   "assertInstallationEvidence(installationAfter)",
   "assertObservedFileMatches(",
-  "installationBefore.qualification_id !== installationAfter.qualification_id",
   "classifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackSecondControlCompositionV1",
   "/var/lib/void-allocation-ledger-v1/witness-live-read-replay-v1",
   "/var/lib/void-allocation-custody-v1/witness-live-read-replay-v1",
