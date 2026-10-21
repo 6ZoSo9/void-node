@@ -105,14 +105,16 @@ Apply:
 2. requires state `READY`;
 3. creates only
    `/opt/.void-v7-source-release-full-history-v1.stage-v1`;
-4. copies the untrusted candidate with no-follow reads;
-5. converts the copy to root ownership and immutable read/execute modes;
-6. fsyncs the complete staged generation;
-7. independently verifies the staged full-history Git/worktree/object graph;
-8. revalidates candidate and live shallow bindings;
-9. publishes once with `renameat2(RENAME_NOREPLACE)`;
-10. fsyncs `/opt`;
-11. recomputes the plan and requires the final protected state to be GREEN.
+4. copies the untrusted candidate with descriptor-relative no-follow reads into a root-owned private stage;
+5. charges the cumulative protected-write budget from the exact opened source descriptor generation, not a stale pathname stat;
+6. authenticates the complete private-stage content digest;
+7. changes the authenticated stage only to root-owned, GID-1000 **read/search-only** verification modes and runs the full Git/worktree/object verifier after dropping to UID/GID 1000;
+8. only after that Git verification succeeds, seals the exact stage to final root:root immutable read/execute modes and rechecks the complete content digest;
+9. fsyncs the complete staged generation;
+10. revalidates candidate and live shallow bindings;
+11. publishes once with `renameat2(RENAME_NOREPLACE)`;
+12. fsyncs `/opt`;
+13. recomputes the plan and requires the final protected state to be GREEN.
 
 The live runtime release is never renamed, deleted, chmodded, chowned, written,
 fetched into, or otherwise mutated.
@@ -128,8 +130,14 @@ The root copy path does not recurse through candidate pathnames. It opens the
 candidate root once with `O_DIRECTORY|O_NOFOLLOW`, retains that descriptor, and
 opens every child directory relative to retained parent descriptors with
 `O_NOFOLLOW`. Regular files are opened relative to retained descriptors with
-`O_NOFOLLOW`, generation-checked before/after the read, and written only into
-the retained root-owned stage descriptor graph.
+`O_NOFOLLOW`, and the helper requires the opened descriptor generation to
+equal the descriptor-relative metadata generation observed by its parent
+traversal. The exact opened `st_size` must fit both the per-file limit and the
+remaining cumulative 16 GiB write budget **before** the destination file is
+created. The helper returns that exact copied size; the caller never charges the
+budget from a stale outer pathname stat. Source generation is revalidated after
+the read, and bytes are written only into the retained root-owned stage
+descriptor graph.
 
 Creating the stage is the only expected install-parent namespace transition.
 The install-parent device/inode/owner/mode must remain stable, and its directory
@@ -145,8 +153,11 @@ inside a forked child that drops supplementary groups and switches to UID/GID
 sealing, fsync and the create-only rename.
 
 Apply installs handlers for SIGTERM, SIGHUP and SIGQUIT. Those signals raise into
-the same terminal failure path used by ordinary exceptions. If interruption
-lands around publication, target/stage namespace reconciliation determines
+the same terminal failure path used by ordinary exceptions. The conservative
+write-boundary flag is set **before** the first stage-creation syscall, so a
+signal arriving immediately after kernel namespace mutation cannot bypass
+stage/target reconciliation. If interruption lands anywhere after that boundary,
+including around publication, target/stage namespace reconciliation determines
 whether publication is true, false or unknown before the process exits.
 
 Immediately before and after `RENAME_NOREPLACE`, the plan-bound install parent
@@ -166,21 +177,42 @@ pack and pack index) must be single-link, expected-owner regular files with no
 group/world write bits and no executable bits. The protected copy therefore
 cannot acquire executable authority from mutable candidate metadata.
 
-### Private staging before authentication
+### Private staging and Git authentication before broad readability
 
 Candidate bytes are never made broadly readable merely because root copied
 them. During construction the stage root and directories are root-only mode
 `0700`; copied regular files are root-only `0400` or `0500`.
 
-Before any stage path becomes group/world-readable, root Python computes the
-complete content digest over the private stage without executing Git and
-requires exact equality with the reviewed candidate digest. Only then are the
-already-root-owned bytes sealed to final immutable modes
-(`0555` directories, `0444` nonexecutables, `0555` executables) and handed
-to the dropped-UID Git verifier.
+Root Python first computes the complete content digest over that private stage
+without executing Git and requires exact equality with the reviewed candidate
+digest. That digest alone is **not** treated as Git authority.
 
-A raced candidate therefore cannot cause unrelated user-private bytes to become
-publicly readable in `/opt` before content authentication.
+Before any group/world-readable final mode is granted, the already-authenticated
+stage is transitioned to a temporary verification-only generation:
+
+- owner remains root;
+- group becomes runtime GID 1000;
+- directories become `0550`;
+- nonexecutables become `0440`;
+- executables become `0550`;
+- UID/GID 1000 must not have write access.
+
+A forked verifier then clears supplementary groups, drops to UID/GID 1000, and
+runs the complete non-shallow Git/object/index/worktree verification against
+that exact stage. Thus the dynamic Git process executes non-root, while the
+runtime user receives read/search access only to bytes that originated from its
+own candidate and cannot modify the stage.
+
+Only after this exact staged Git generation is GREEN are files/directories
+changed to final root:root `0444`/`0555` modes. Root then recomputes the full
+content digest and requires exact equality again before publication.
+
+This closes the race where candidate bytes could change between candidate Git
+verification and plan digest calculation: even if the untrusted plan observes a
+raced candidate generation, a Git-inconsistent copy cannot become broadly
+readable or publishable because staged Git verification occurs before final
+sealing.
+
 
 ## Failure truth
 
