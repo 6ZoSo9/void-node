@@ -14,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "9b83dd5122e54a85e0b7e2d8ced350d5633a66d6"
+TARGET_BLOB = "030182d544a92cd6c67868fa4c4f3e83188e4249"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -60,6 +60,9 @@ assert 'pack_leaf_generation_and_digest_revalidation=true' in text
 assert 'pack_generation_changed_during_verify' in text
 assert 'if observed_sha != expected_sha:' in text
 assert 'raise ResealError(label + "_digest_changed")' in text
+assert 'candidate_index_digest_changed' in text
+assert 'candidate_index_generation_changed_after_open' in text
+assert 'index_leaf_generation_and_digest_revalidation=true' in text
 assert '_BUILD_WRITE_BOUNDARY_ENTERED = False' in text
 assert 'source_repository_mutation=unknown' in text
 assert 'protected_filesystem_mutation=unknown' in text
@@ -117,6 +120,7 @@ for required in (
     'pack_and_ref_aliases_rejected=true',
     'pack_leaf_descriptors_retained=true',
     'pack_leaf_generation_and_digest_revalidation=true',
+    'index_leaf_generation_and_digest_revalidation=true',
     'current_uid_filesystem_write_boundary=true',
     'same_uid_namespace_relocation_isolation=false',
     'source_repository_mutation=unknown',
@@ -266,6 +270,7 @@ print("git_metadata_exact_layout_bound=true")
 print("pack_and_ref_alias_rejection_bound=true")
 print("pack_leaf_descriptor_retention_bound=true")
 print("pack_leaf_generation_digest_revalidation_bound=true")
+print("index_leaf_generation_digest_revalidation_bound=true")
 print("build_write_boundary_truthful_receipt_bound=true")
 print("same_uid_namespace_isolation_nonclaim_bound=true")
 print("protected_filesystem_mutation=false")
