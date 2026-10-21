@@ -7,7 +7,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_v7_static_python_runtime_generation_proof_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "1219563d191e708bedd3a47909cb7dca1cb8d0e1"
+TARGET_BLOB = "0a4066ebf58e8adc9018c278353203c99d72cace"
 V5_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v5.py"
 V5_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 MARKER = "VOID_BUY_VOID_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF_V1_PROOF"
@@ -73,8 +73,11 @@ required = (
     'code = compile(raw, synthetic, "exec", dont_inherit=True, optimize=0)',
     'sys.argv = [synthetic, "--self-test"]',
     'root_execution_forbidden',
-    'candidate_execution_sandbox_not_implemented',
+    'candidate_execution_snapshot_not_same_uid_immutable',
     'candidate_execution_sandbox_required=true',
+    'landlock_v3_filesystem_confinement_required=true',
+    'seccomp_network_process_escape_denial_required=true',
+    'same_uid_immutable_runtime_snapshot_required=true',
     'candidate_execution_performed',
     '"fsverity_host_readiness_established": False',
     '"protected_host_install": False',
@@ -123,6 +126,9 @@ for marker in (
     "static_elf_pt_dynamic_forbidden=true",
     "runtime_import_closure_proof_required=true",
     "candidate_execution_sandbox_required=true",
+    "landlock_v3_filesystem_confinement_required=true",
+    "seccomp_network_process_escape_denial_required=true",
+    "same_uid_immutable_runtime_snapshot_required=true",
     "fsverity_host_readiness_established=false",
     "protected_host_install=false",
     "protected_v5_apply=false",
