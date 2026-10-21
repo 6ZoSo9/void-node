@@ -10,12 +10,14 @@ funds.
 
 ## Exact source generation
 
-- source base: `f1702672f2399355758e7a07fdd8f0ffb8dc1d33`
-- source base tree: `fa74ce8645ee2f452343d95fdc459ae479fe73ef`
-- plan ID: `voidbuyxuid1_136e676157b78e25fd4c0f298ddd552b88c5aa11fb8cac6e29151cae3cc507c3`
-- plan blob: `5cb224654ea59a60493dc2b95ea179a62622d3fd`
-- proof blob: `d801c7f7445dc3cbf78d47a3c3bd567d028d7a39`
+- source base: `7197eb96ff3ce2d3f630545a85c150b694d20b3b` (FIFO-safe claim-reader source generation)
+- source base tree: `ed7c516dc7d49895a2af576add999c3a5dde945b`
+- plan ID: `voidbuyxuid1_f5aedeb3290db0ce83cad747e97d6fc27b6c3d422263525a2f23df79f126004e`
+- plan blob: `336aa696f4ff08341be649d7b5e087367c7c629e`
+- proof blob: `1466f852d91de10b255fac3637fe5e9056280cc1`
 - source bindings: **11**
+
+The retained claim reader dependency is now bound to #3671 exact source blob `94f0a0dd8997e1e2c0fab54044f19d70d983d441`, proof blob `4c70b8f9f30eee30395a0f13b028de2007c28249`, workflow blob `cbb5e1cecf613b8bbc7e3b3aafd8ee1e31e582a9`, and focused run `39618226898`. This is source/CI evidence only; independent review is still false and the release/recovery gate stays closed.
 
 ## Claim/incarnation binding
 
@@ -52,7 +54,7 @@ release authority.
 
 ## Explicit current HOLDs
 
-1. cross-UID claim read FIFO nonblocking is not verified;
+1. cross-UID claim read FIFO-nonblocking source/CI evidence is bound and green, but independent review is not complete;
 2. custody service V2 reserve/recover is disabled;
 3. protected phase witness is missing;
 4. pre-mutation zero-effect witness is missing;
@@ -70,6 +72,8 @@ this plan.
 ```text
 source_plan_only=true
 common_host_session_envelope_implemented=false
+capacity_lock_claim_read_nonblocking_source_evidence_verified=true
+capacity_lock_claim_read_nonblocking_independent_review_complete=false
 capacity_lock_claim_read_nonblocking_verified=false
 protected_phase_witness_implemented=false
 pre_mutation_zero_effect_witness_implemented=false

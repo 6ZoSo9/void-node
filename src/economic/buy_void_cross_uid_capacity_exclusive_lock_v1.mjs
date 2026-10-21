@@ -249,7 +249,12 @@ function fileReadFlags() {
   if (!Number.isInteger(fs.constants.O_NOFOLLOW) || fs.constants.O_NOFOLLOW <= 0) {
     fail("cross_uid_capacity_lock_nofollow_unavailable");
   }
-  return fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW;
+  if (!Number.isInteger(fs.constants.O_NONBLOCK) || fs.constants.O_NONBLOCK <= 0) {
+    fail("cross_uid_capacity_lock_nonblock_unavailable");
+  }
+  return fs.constants.O_RDONLY |
+    fs.constants.O_NOFOLLOW |
+    fs.constants.O_NONBLOCK;
 }
 
 function fileCreateFlags() {

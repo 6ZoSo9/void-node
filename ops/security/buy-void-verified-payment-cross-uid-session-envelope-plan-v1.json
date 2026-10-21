@@ -1,5 +1,7 @@
 {
   "authority": {
+    "capacity_lock_claim_read_nonblocking_independent_review_complete": false,
+    "capacity_lock_claim_read_nonblocking_source_evidence_verified": true,
     "capacity_lock_claim_read_nonblocking_verified": false,
     "common_host_session_envelope_implemented": false,
     "complete_runtime_source_closure": false,
@@ -19,6 +21,17 @@
     "transaction_broadcast": false,
     "trusted_clock_bound": false,
     "web_private_root_write_authority": false
+  },
+  "capacity_lock_claim_reader_source_evidence": {
+    "focused_workflow_run": 39618226898,
+    "independent_review_complete": false,
+    "node22_node24_node26_and_cross_node_success": true,
+    "proof_git_blob_sha1": "4c70b8f9f30eee30395a0f13b028de2007c28249",
+    "proof_path": "scripts/prove_buy_void_cross_uid_capacity_claim_bounded_read_v1.mjs",
+    "source_git_blob_sha1": "94f0a0dd8997e1e2c0fab54044f19d70d983d441",
+    "source_head": "7197eb96ff3ce2d3f630545a85c150b694d20b3b",
+    "workflow_git_blob_sha1": "cbb5e1cecf613b8bbc7e3b3aafd8ee1e31e582a9",
+    "workflow_path": ".github/workflows/buy-void-cross-uid-capacity-claim-bounded-read-v1.yml"
   },
   "current_outcome_policy": {
     "allocation_present": "retain_until_terminal_revalidation_and_protected_witness",
@@ -47,10 +60,11 @@
     "zero_effect_witness_proves_no_payment_append_allocation_publication_sidecar_or_pending_intent_effect",
     "zero_effect_witness_binds_reviewed_rollback_exclusion_domain",
     "zero_effect_witness_binds_reviewed_time_domain",
-    "zero_effect_witness_verification_precedes_release_candidate_classification"
+    "zero_effect_witness_verification_precedes_release_candidate_classification",
+    "capacity_lock_claim_fifo_nonblocking_independent_review"
   ],
   "known_holds": [
-    "cross_uid_capacity_claim_fifo_nonblocking_not_verified",
+    "cross_uid_capacity_claim_fifo_nonblocking_independent_review_pending",
     "allocation_custody_service_reserve_and_recover_disabled",
     "protected_phase_witness_missing",
     "external_high_water_witness_missing",
@@ -150,7 +164,7 @@
     "uncertain_to_pre_mutation_rejected_requires_zero_effect_witness": true,
     "zero_effect_witness_verification_precedes_pre_mutation_classification": true
   },
-  "plan_id": "voidbuyxuid1_136e676157b78e25fd4c0f298ddd552b88c5aa11fb8cac6e29151cae3cc507c3",
+  "plan_id": "voidbuyxuid1_f5aedeb3290db0ce83cad747e97d6fc27b6c3d422263525a2f23df79f126004e",
   "repository": "6ZoSo9/void-node",
   "schema": "void.buy.verified_payment.cross_uid_session_envelope_plan.v1",
   "session_envelope_contract": {
@@ -219,13 +233,13 @@
     "session_id_format": "voidbuysess1_<64_lowercase_hex_sha256>",
     "trusted_clock_release_authority": false
   },
-  "source_base_head": "f1702672f2399355758e7a07fdd8f0ffb8dc1d33",
-  "source_base_tree": "fa74ce8645ee2f452343d95fdc459ae479fe73ef",
+  "source_base_head": "7197eb96ff3ce2d3f630545a85c150b694d20b3b",
+  "source_base_tree": "ed7c516dc7d49895a2af576add999c3a5dde945b",
   "source_binding_count": 11,
   "source_bindings": {
     "src/economic/buy_void_allocation_reservation_ledger_v1.ts": "8d84955e1e093a5c5af63241e62b8722fadd2f29",
     "src/economic/buy_void_allocation_reservation_publication_writer_v1.ts": "b460963c25a87153551090ed97e9c716aad0b727",
-    "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs": "a7610b03d394254c760683f0d9061aa0865718db",
+    "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs": "94f0a0dd8997e1e2c0fab54044f19d70d983d441",
     "src/economic/buy_void_cross_uid_failure_reconciliation_v1.mjs": "c0e0b531aab9509f31f74a14df577e3abce5548d",
     "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts": "eb4fb37c6073415228b312663c45a99d5015c727",
     "src/economic/buy_void_verified_allocation_replay_binding_v1.ts": "b451bcd895986dadaf6e53954671062068316ccf",

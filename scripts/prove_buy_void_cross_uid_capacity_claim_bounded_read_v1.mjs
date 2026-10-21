@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -137,6 +138,77 @@ async function proveObservationRace(stage, fault) {
   }
 }
 
+async function proveFifoSwapNonblocking() {
+  const caseRoot = fs.mkdtempSync(path.join(root, "fifo-swap-"));
+  fs.chmodSync(caseRoot, 0o3770);
+  const caseConfig = Object.freeze({ ...config, shared_directory: caseRoot });
+  const name = path.basename(lockPath);
+  const caseLock = path.join(caseRoot, name);
+  const retained = path.join(caseRoot, "retained-original-claim.json");
+  let callbackRuns = 0;
+  let fired = false;
+  let observedFlags = 0;
+  const originalOpen = fs.openSync;
+  try {
+    await assert.rejects(
+      () => withBuyVoidCrossUidCapacityExclusiveLockV1(
+        caseConfig,
+        async () => { throw new Error("synthetic_fifo_retained_claim"); },
+      ),
+      /cross_uid_capacity_lock_callback_failed_lock_retained/u,
+    );
+    const originalBytes = fs.readFileSync(caseLock);
+    const originalStat = fs.statSync(caseLock);
+    assert.ok(originalStat.isFile());
+
+    fs.openSync = function(filename, flags, ...args) {
+      if (!fired && typeof filename === "string" &&
+          /^\/proc\/self\/fd\/[0-9]+\//u.test(filename) &&
+          filename.endsWith("/" + name)) {
+        fired = true;
+        observedFlags = Number(flags);
+        assert.equal(
+          (observedFlags & fs.constants.O_NOFOLLOW) === fs.constants.O_NOFOLLOW,
+          true,
+          "claim observer must preserve O_NOFOLLOW",
+        );
+        assert.equal(
+          (observedFlags & fs.constants.O_NONBLOCK) === fs.constants.O_NONBLOCK,
+          true,
+          "claim observer must open nonblocking before FIFO type rejection",
+        );
+        fs.renameSync(caseLock, retained);
+        execFileSync("/usr/bin/mkfifo", [caseLock], {
+          stdio: "ignore",
+          env: {
+            PATH: "/usr/bin:/bin",
+            HOME: "/nonexistent",
+            LANG: "C",
+            LC_ALL: "C",
+          },
+        });
+        fs.chmodSync(caseLock, 0o640);
+      }
+      return originalOpen.call(fs, filename, flags, ...args);
+    };
+
+    await assert.rejects(
+      () => withBuyVoidCrossUidCapacityExclusiveLockV1(
+        caseConfig,
+        async () => { callbackRuns++; return "UNEXPECTED"; },
+      ),
+      /cross_uid_capacity_lock_claim_metadata_invalid/u,
+    );
+    assert.equal(fired, true, "FIFO swap cut must execute");
+    assert.equal(callbackRuns, 0, "FIFO claim must fail before callback");
+    assert.equal(fs.lstatSync(caseLock).isFIFO(), true);
+    assert.deepEqual(fs.readFileSync(retained), originalBytes);
+  } finally {
+    fs.openSync = originalOpen;
+    fs.rmSync(caseRoot, { recursive: true, force: true });
+  }
+}
+
 async function proveDisappearingCompetitorDeadline() {
   const caseRoot = fs.mkdtempSync(path.join(root, "retry-deadline-"));
   fs.chmodSync(caseRoot, 0o3770);
@@ -184,6 +256,7 @@ try {
       await proveObservationRace(stage, fault);
     }
   }
+  await proveFifoSwapNonblocking();
   await proveDisappearingCompetitorDeadline();
   const positive = await withBuyVoidCrossUidCapacityExclusiveLockV1(
     config,
@@ -274,6 +347,7 @@ try {
   console.log("observer_descriptor_closed_before_reacquire=true");
   console.log("nonabsence_and_cleanup_failures_remain_hold=true");
   console.log("replacement_inode_remains_hold=true");
+  console.log("fifo_claim_swap_nonblocking_rejected=true");
   console.log("disappearing_competitor_retries_deadline_bounded=true");
   console.log("disappearing_competitor_retries_yield=true");
   console.log("retained_live_claim_created_in_temp_only=true");

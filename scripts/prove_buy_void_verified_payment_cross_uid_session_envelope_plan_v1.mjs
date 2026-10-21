@@ -3,12 +3,12 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 
-const BASE_HEAD="f1702672f2399355758e7a07fdd8f0ffb8dc1d33";
-const BASE_TREE="fa74ce8645ee2f452343d95fdc459ae479fe73ef";
+const BASE_HEAD="7197eb96ff3ce2d3f630545a85c150b694d20b3b";
+const BASE_TREE="ed7c516dc7d49895a2af576add999c3a5dde945b";
 const PLAN_PATH="ops/security/buy-void-verified-payment-cross-uid-session-envelope-plan-v1.json";
-const EXPECTED_PLAN_BLOB="5cb224654ea59a60493dc2b95ea179a62622d3fd";
+const EXPECTED_PLAN_BLOB="336aa696f4ff08341be649d7b5e087367c7c629e";
 const OWNED=[".github/workflows/buy-void-verified-payment-cross-uid-session-envelope-plan-v1.yml","docs/architecture/buy-void-verified-payment-cross-uid-session-envelope-plan-v1.md","ops/security/buy-void-verified-payment-cross-uid-session-envelope-plan-v1.json","scripts/prove_buy_void_verified_payment_cross_uid_session_envelope_plan_v1.mjs"];
-const EXPECTED_PLAN_ID="voidbuyxuid1_136e676157b78e25fd4c0f298ddd552b88c5aa11fb8cac6e29151cae3cc507c3";
+const EXPECTED_PLAN_ID="voidbuyxuid1_f5aedeb3290db0ce83cad747e97d6fc27b6c3d422263525a2f23df79f126004e";
 
 function git(args){
   return execFileSync("/usr/bin/git",args,{encoding:"utf8",env:{
@@ -42,6 +42,16 @@ assert.equal(plan.plan_id,EXPECTED_PLAN_ID);
 const noId={...plan}; delete noId.plan_id;
 assert.equal("voidbuyxuid1_"+crypto.createHash("sha256").update(stableCompact(noId)).digest("hex"),EXPECTED_PLAN_ID,"plan_id_rederive_mismatch");
 for(const [path,expected] of Object.entries(plan.source_bindings))assert.equal(gitBlob(fs.readFileSync(path)),expected,"source_binding_drift:"+path);
+const claimEvidence=plan.capacity_lock_claim_reader_source_evidence;
+assert.equal(claimEvidence.source_head,BASE_HEAD);
+assert.equal(claimEvidence.source_git_blob_sha1,"94f0a0dd8997e1e2c0fab54044f19d70d983d441");
+assert.equal(claimEvidence.proof_git_blob_sha1,"4c70b8f9f30eee30395a0f13b028de2007c28249");
+assert.equal(claimEvidence.workflow_git_blob_sha1,"cbb5e1cecf613b8bbc7e3b3aafd8ee1e31e582a9");
+assert.equal(claimEvidence.focused_workflow_run,39618226898);
+assert.equal(claimEvidence.node22_node24_node26_and_cross_node_success,true);
+assert.equal(claimEvidence.independent_review_complete,false);
+assert.equal(gitBlob(fs.readFileSync(claimEvidence.proof_path)),claimEvidence.proof_git_blob_sha1,"claim_reader_proof_blob_drift");
+assert.equal(gitBlob(fs.readFileSync(claimEvidence.workflow_path)),claimEvidence.workflow_git_blob_sha1,"claim_reader_workflow_blob_drift");
 
 const phases=Object.keys(plan.phase_model).sort();
 assert.deepEqual(phases,["allocation_durable","allocation_publication_uncertain","claim_acquired","payment_append_uncertain","payment_durable_allocation_missing","pre_mutation_rejected","terminal_revalidated","uncertain"]);
@@ -126,12 +136,15 @@ assert.equal(plan.current_outcome_policy.verified_allocation_missing,"retain_and
 
 const a=plan.authority;
 assert.equal(a.source_plan_only,true);
-for(const key of ["capacity_lock_claim_read_nonblocking_verified","common_host_session_envelope_implemented","complete_runtime_source_closure","cross_uid_lock_release_authorized","custody_recovery_authorized","deployed_artifact_generation_verified","external_high_water_witness_verified","funds_movement","operator_route_mounted","payment_acceptance","presale_activation","protected_phase_witness_implemented","public_http_handler_installed","runtime_integration","transaction_broadcast","trusted_clock_bound","web_private_root_write_authority"])assert.equal(a[key],false,key+"_must_remain_false");
+for(const key of ["capacity_lock_claim_read_nonblocking_verified","capacity_lock_claim_read_nonblocking_independent_review_complete","common_host_session_envelope_implemented","complete_runtime_source_closure","cross_uid_lock_release_authorized","custody_recovery_authorized","deployed_artifact_generation_verified","external_high_water_witness_verified","funds_movement","operator_route_mounted","payment_acceptance","presale_activation","protected_phase_witness_implemented","public_http_handler_installed","runtime_integration","transaction_broadcast","trusted_clock_bound","web_private_root_write_authority"])assert.equal(a[key],false,key+"_must_remain_false");
+assert.equal(a.capacity_lock_claim_read_nonblocking_source_evidence_verified,true);
+assert.ok(plan.known_holds.includes("cross_uid_capacity_claim_fifo_nonblocking_independent_review_pending"));
+assert.equal(plan.known_holds.includes("cross_uid_capacity_claim_fifo_nonblocking_not_verified"),false);
 
 const lockSource=fs.readFileSync("src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs","utf8");
 const readFn=lockSource.slice(lockSource.indexOf("function fileReadFlags()"),lockSource.indexOf("function fileCreateFlags()"));
 assert.match(readFn,/O_RDONLY[\s\S]*O_NOFOLLOW/u);
-assert.doesNotMatch(readFn,/O_NONBLOCK/u,"capacity_lock_nonblocking_hold_stale");
+assert.match(readFn,/O_NONBLOCK/u,"capacity_lock_nonblocking_source_evidence_missing");
 const claimFn=lockSource.slice(lockSource.indexOf("function makeClaim("),lockSource.indexOf("function encodeClaim("));
 for(const token of ["record.pid = process.pid","record.process_start_ticks = currentProcessStartTicks()","record.nonce = nonce","record.staging_name = stagingName","record.created_at_utc = new Date().toISOString()"])assert.ok(claimFn.includes(token),"claim_incarnation_binding_missing:"+token);
 
@@ -153,6 +166,8 @@ console.log("phase_transition_graph_closed=true");
 console.log("claim_process_incarnation_bound=true");
 console.log("claim_created_at_release_authority=false");
 console.log("all_current_outcomes_retain_claim=true");
+console.log("capacity_lock_claim_read_nonblocking_source_evidence_verified=true");
+console.log("capacity_lock_claim_read_nonblocking_independent_review_complete=false");
 console.log("capacity_lock_claim_read_nonblocking_verified=false");
 console.log("operator_route_mounted=false");
 console.log("protected_phase_witness_implemented=false");
