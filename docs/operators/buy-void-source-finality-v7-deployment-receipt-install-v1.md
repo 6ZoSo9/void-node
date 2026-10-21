@@ -97,11 +97,11 @@ oversized existing receipts, create-once success and idempotent exact reapply.
 The current 49-row protected-source inventory and the accepted enforcement lock/candidate reader are descriptor-bound. Each protected source row is capped at 16 MiB for this generation (current maximum is `src/index.ts` at 3,851,867 bytes).
 
 The accepted enforcement lock and candidate reader is also descriptor-bound: the
-path is pre-observed, opened once with `O_NOFOLLOW`, checked against that
+path is pre-observed, opened once with `O_NOFOLLOW|O_NONBLOCK`, checked against that
 generation, read through the retained descriptor with a hard `max + 1` ceiling,
 and revalidated by post-read descriptor and visible-path identity before its Git
 blob is accepted. The proof exercises the exported production reader plus
-regular-file replacement, symlink-swap and growth adversaries.
+regular-file replacement, symlink-swap, FIFO-swap and growth adversaries.
 
 
 This PR only creates the tool/proof. It does not run `--apply` on Precision,

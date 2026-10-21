@@ -345,7 +345,8 @@ export function readObservedRegularFileV1(
   assert.ok(Number.isSafeInteger(maxBytes)&&maxBytes>0,label+"_max_invalid");
   let fd=-1;
   try{
-    fd=fs.openSync(absolute,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+    fd=fs.openSync(absolute,
+      fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
     const opened=fs.fstatSync(fd);
     assert.ok(
       opened.isFile()&&opened.nlink===1&&opened.size>0&&opened.size<=maxBytes,

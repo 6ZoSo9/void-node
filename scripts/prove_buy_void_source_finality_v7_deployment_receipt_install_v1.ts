@@ -200,6 +200,21 @@ function proveTrackedFileReaderV1(){
 
     fs.rmSync(absolute,{force:true});
     fs.renameSync(absolute+".symlink-original",absolute);
+
+    const beforeFifo=fs.lstatSync(absolute);
+    fs.renameSync(absolute,absolute+".fifo-original");
+    execFileSync("/usr/bin/mkfifo",[absolute],{
+      stdio:"ignore",
+      env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
+    });
+    fs.chmodSync(absolute,0o600);
+    assert.throws(
+      ()=>readObservedRegularFileV1(absolute,beforeFifo,1024,"fixture_fifo"),
+      /fixture_fifo_opened_shape_invalid/u,
+    );
+    fs.rmSync(absolute,{force:true});
+    fs.renameSync(absolute+".fifo-original",absolute);
+
     const beforeGrowth=fs.lstatSync(absolute);
     fs.appendFileSync(absolute,"x".repeat(2048));
     assert.throws(
@@ -557,6 +572,7 @@ console.log("tracked_source_inventory_max_bytes=16777216");
 console.log("tracked_file_nofollow_required=true");
 console.log("tracked_file_replacement_race_rejected=true");
 console.log("tracked_file_symlink_race_rejected=true");
+console.log("tracked_file_fifo_swap_nonblocking=true");
 console.log("root_custody_positive_exercised="+String(rootCapable));
 console.log("descriptor_relative_parent_publication="+String(rootCapable));
 console.log("direct_exclusive_final_publication="+String(rootCapable));
