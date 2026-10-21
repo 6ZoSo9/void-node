@@ -124,6 +124,12 @@ and the exact pack/index leaves must remain local regular single-link files.
 Late symlink or directory substitution therefore cannot make the candidate
 borrow external objects or refs while still reporting GREEN.
 
+The generated pack leaves are retained too. The exact `.pack` and `.idx`
+files are opened with `O_NOFOLLOW`, bound to device/inode/owner/mode/link
+count/size/mtime/ctime and SHA-256, checked across `verify-pack`, and rehashed
+again at terminal verification. Replacing or modifying either pack leaf after
+object verification therefore cannot produce a GREEN candidate.
+
 ## Authority boundary
 
 `--self-test` and `--plan` are read-only and retain explicit
