@@ -1,0 +1,89 @@
+name: Buy VOID presale custody durability rollback challenge plan v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json"
+      - "scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v2.py"
+      - "docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v2.md"
+      - ".github/workflows/buy-void-presale-custody-durability-rollback-challenge-plan-v2.yml"
+      - "ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v1.json"
+      - "scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v1.py"
+      - "docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v1.md"
+      - ".github/workflows/buy-void-presale-custody-durability-rollback-challenge-plan-v1.yml"
+      - "tools/void-buy-allocation-custody-rollback-controller-candidate-v1.mjs"
+      - "scripts/prove_buy_void_allocation_custody_rollback_controller_candidate_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-rollback-controller-candidate-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-rollback-controller-candidate-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V2 source generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse '60a6fffc0fd8de576769f4bc090b3a12ca4ba526^{tree}')" = "bb90a3caab421d811da6fe63f2d29967ab7e2e35"
+          test "$(git merge-base '60a6fffc0fd8de576769f4bc090b3a12ca4ba526' HEAD)" = "60a6fffc0fd8de576769f4bc090b3a12ca4ba526"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf 'A\t%s\n' \
+            'ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json' \
+            'scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v2.py' \
+            'docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v2.md' \
+            '.github/workflows/buy-void-presale-custody-durability-rollback-challenge-plan-v2.yml' \
+            | sort > "$expected"
+          git diff --name-status '60a6fffc0fd8de576769f4bc090b3a12ca4ba526' HEAD -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git hash-object 'ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json')" = "edf66b204d2447c47b9decdd64ddd91d22922d9f"
+          test "$(git hash-object 'scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v2.py')" = "b9546c7ae4d2f2c5a73d402bf024ada7bbbd49a8"
+          test "$(git hash-object 'docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v2.md')" = "41030497aef35102e5e12db18f1807d050b258c7"
+          git diff --check '60a6fffc0fd8de576769f4bc090b3a12ca4ba526' HEAD
+
+      - name: Prove V2 challenge plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/custody-challenge-plan-v2.log"
+          python3 -I -B scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v2.py | tee "$out"
+
+          markers=(
+            'VOID_BUY_VOID_PRESALE_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2_PROOF_GREEN'
+            'plan_id=voidbuycustodychallengeplan2_dfbcd98e033afbcf931fd2120c6accf38673c7101a718a52bcbd6eb7006c16e0'
+            'predecessor_v1_plan_immutable=true'
+            'preserved_v1_required_future_evidence_count=20'
+            'controller_candidate_bound=true'
+            'exact_four_add_only_scope=true'
+            'semantic_authority_negative_fixture=true'
+            'lease_cleanup_negative_fixture=true'
+            'controller_distinct_review_negative_fixture=true'
+            'immutable_v1_semantic_negative_fixture=true'
+            'controller_capability_count=16'
+            'controller_additional_requirement_count=11'
+            'lease_cleanup_requirement_count=6'
+            'deterministic_lease_release_cleanup_required=true'
+            'lease_loss_reacquire_aba_fencing_required=true'
+            'distinct_review_satisfied=false'
+            'protected_host_adapter_authorized=false'
+            'live_challenge_authorized=false'
+            'storage_mutation_authorized=false'
+            'payment_acceptance_authorized=false'
+            'public_presale_activation_authorized=false'
+            'funds_movement=false'
+            'next_gate=DISTINCTLY_REVIEW_CUSTODY_DURABILITY_ROLLBACK_CHALLENGE_PLAN_V2_BEFORE_PROTECTED_HOST_ADAPTER_V1'
+          )
+          for marker in "${markers[@]}"; do grep -Fx "$marker" "$out"; done
