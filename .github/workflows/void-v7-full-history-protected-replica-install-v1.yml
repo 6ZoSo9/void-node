@@ -52,6 +52,7 @@ jobs:
           git diff --check
           test "$(git rev-parse --is-shallow-repository)" = false
 
+      # The focused proof exercises compressed-entry and decoded-cache memory ceilings.
       - name: Syntax and focused proof
         run: |
           set -euo pipefail
