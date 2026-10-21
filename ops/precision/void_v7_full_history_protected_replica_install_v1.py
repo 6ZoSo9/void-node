@@ -754,6 +754,7 @@ def source_plan() -> None:
     print("install_parent_publication_lease_required=true")
     print("git_index_head_equality_required=true")
     print("git_metadata_leaves_nonexecutable_required=true")
+    print("private_stage_before_content_authentication=true")
     print("service_mutation=false")
     print("credential_access=false")
     print("transaction=false")
@@ -912,12 +913,59 @@ def _copy_regular_at(
         ):
             raise InstallError("copy_source_changed:" + name)
         os.fchown(dfd, 0, 0)
-        os.fchmod(dfd, 0o555 if executable else 0o444)
+        os.fchmod(dfd, 0o500 if executable else 0o400)
         os.fsync(dfd)
     finally:
         if dfd is not None:
             os.close(dfd)
         os.close(sfd)
+
+def _seal_private_stage_for_verification() -> None:
+    pending: list[pathlib.Path] = [STAGE]
+    directories: list[pathlib.Path] = []
+    files: list[pathlib.Path] = []
+    while pending:
+        directory = pending.pop()
+        directories.append(directory)
+        for entry in os.scandir(directory):
+            path = pathlib.Path(entry.path)
+            st = path.lstat()
+            if stat.S_ISLNK(st.st_mode):
+                raise InstallError("stage_seal_symlink_forbidden:" + os.fspath(path))
+            if st.st_uid != 0 or st.st_gid != 0:
+                raise InstallError("stage_seal_owner_invalid:" + os.fspath(path))
+            if stat.S_ISDIR(st.st_mode):
+                pending.append(path)
+            elif stat.S_ISREG(st.st_mode):
+                files.append(path)
+            else:
+                raise InstallError("stage_seal_kind_invalid:" + os.fspath(path))
+
+    for path in files:
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            st = os.fstat(fd)
+            private_mode = stat.S_IMODE(st.st_mode)
+            if private_mode not in (0o400, 0o500):
+                raise InstallError("stage_seal_private_file_mode_invalid:" + os.fspath(path))
+            os.fchmod(fd, 0o555 if private_mode == 0o500 else 0o444)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+    for directory in sorted(directories, key=lambda p: len(p.parts), reverse=True):
+        fd = os.open(
+            directory,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        )
+        try:
+            st = os.fstat(fd)
+            if stat.S_IMODE(st.st_mode) != 0o700:
+                raise InstallError("stage_seal_private_directory_mode_invalid:" + os.fspath(directory))
+            os.fchmod(fd, 0o555)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
 
 def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
     global _WRITE_BOUNDARY_ENTERED, _STAGE_RETAINED
@@ -949,7 +997,7 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
         if _metadata_identity(os.fstat(candidate_fd)) != _metadata_identity(candidate_before):
             raise InstallError("copy_candidate_root_rebound")
         parent_before = os.fstat(parent_fd)
-        os.mkdir(STAGE_NAME, 0o755, dir_fd=parent_fd)
+        os.mkdir(STAGE_NAME, 0o700, dir_fd=parent_fd)
         _WRITE_BOUNDARY_ENTERED = True
         _STAGE_RETAINED = True
         stage_fd = os.open(
@@ -958,7 +1006,7 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
             dir_fd=parent_fd,
         )
         os.fchown(stage_fd, 0, 0)
-        os.fchmod(stage_fd, 0o755)
+        os.fchmod(stage_fd, 0o700)
 
         nodes = 0
         total = 0
@@ -986,17 +1034,17 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
                     try:
                         if _metadata_identity(os.fstat(child_src)) != _metadata_identity(st):
                             raise InstallError("copy_source_directory_rebound:" + label + "/" + name)
-                        os.mkdir(name, 0o755, dir_fd=dst_fd)
+                        os.mkdir(name, 0o700, dir_fd=dst_fd)
                         child_dst = os.open(
                             name,
                             os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
                             dir_fd=dst_fd,
                         )
                         os.fchown(child_dst, 0, 0)
-                        os.fchmod(child_dst, 0o755)
+                        os.fchmod(child_dst, 0o700)
                         recurse(child_src, child_dst, label + "/" + name)
                         os.fchown(child_dst, 0, 0)
-                        os.fchmod(child_dst, 0o555)
+                        os.fchmod(child_dst, 0o700)
                         os.fsync(child_dst)
                     finally:
                         if child_dst >= 0:
@@ -1026,8 +1074,16 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
             raise InstallError("copy_candidate_root_generation_changed")
 
         os.fchown(stage_fd, 0, 0)
-        os.fchmod(stage_fd, 0o555)
+        os.fchmod(stage_fd, 0o700)
         os.fsync(stage_fd)
+
+        private_digest, _private_nodes, _private_bytes = _content_digest(
+            STAGE, 0, 0, 0o700
+        )
+        if private_digest != expected_candidate["content_sha256"]:
+            raise InstallError("private_stage_content_digest_mismatch")
+
+        _seal_private_stage_for_verification()
         os.fsync(parent_fd)
 
         if _metadata_identity(os.fstat(parent_fd)) != _metadata_identity(parent_before):
