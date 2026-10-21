@@ -14,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "0a3bad16e0ac5c3f179320c638bccf8745aea45e"
+TARGET_BLOB = "04e60b0104d862553ddbb243de5c28fa922c2987"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -34,6 +34,12 @@ assert git("hash-object", str(TARGET)) == TARGET_BLOB
 raw = TARGET.read_bytes()
 compile(raw, str(TARGET), "exec", dont_inherit=True, optimize=0)
 text = raw.decode("utf-8")
+assert '"reset", "--hard"' not in text
+assert '"checkout", TARGET_HEAD' not in text
+assert '"read-tree", TARGET_HEAD' in text
+assert '"checkout-index", "-a", "-f"' in text
+assert 'candidate_index_generation_changed' in text
+assert '_entry_absent_at(git_fd, "logs", "candidate")' in text
 
 for required in (
     'TARGET_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
@@ -121,6 +127,9 @@ for marker in (
     "reachable_commits=17931",
     "protected_filesystem_mutation=false",
     "network=false",
+    "ref_update_checkout_forbidden=true",
+    "reflog_write_path_absent=true",
+    "retained_index_generation_bound=true",
     "protected_replace_authorized=false",
 ):
     assert marker in plan.stdout.splitlines(), marker
