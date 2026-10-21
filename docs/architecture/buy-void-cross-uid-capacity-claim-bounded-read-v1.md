@@ -27,6 +27,12 @@ size, mode and nlink verification and JSON schema checks are preserved.
 A file that changes remains a **hard HOLD**; no fallback to permissive
 parsing, new claim schema or release bypass is introduced.
 
+The retained claim read open also uses `O_NONBLOCK` together with
+`O_RDONLY|O_NOFOLLOW`. This is an availability/TOCTOU hardening only:
+a pathname swapped to a FIFO between observation and open returns immediately,
+then the existing `fstat` regular-file gate rejects it. The flag does not
+relax claim metadata, byte, ownership, incarnation, or release checks.
+
 ## Synthetic adversary
 
 A separate no-network, nonroot Linux Node test uses the **actual
@@ -39,6 +45,12 @@ the existing failure-retains-lock path. During the subsequent
 requires rejection **before any critical-section callback executes**,
 proves the maximum consumed bytes and buffer are exactly the preflight
 size plus one, and refuses any `readFileSync(numeric_fd)` call.
+
+The same proof also creates a real FIFO at the retained-claim pathname at the
+production observer open cut. It requires the production open flags to contain
+both `O_NOFOLLOW` and `O_NONBLOCK`, requires immediate
+`cross_uid_capacity_lock_claim_metadata_invalid` rejection, and proves the
+critical-section callback never executes.
 
 The focused workflow runs independently on Node 22, 24 and 26, requires
 both the original cross-UID lock proof and the new adversary, and compares

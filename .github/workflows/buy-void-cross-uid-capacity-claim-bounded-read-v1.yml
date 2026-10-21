@@ -55,6 +55,7 @@ jobs:
             "read_cap_preflight_size_plus_one=true" \
             "numeric_fd_readFileSync_called=false" \
             "changed_claim_rejected_before_callback=true" \
+            "fifo_claim_swap_nonblocking_rejected=true" \
             "real_service_or_payment_mutation=false" \
             "production_gate_ready=false" \
             "presale_activation=false" \
