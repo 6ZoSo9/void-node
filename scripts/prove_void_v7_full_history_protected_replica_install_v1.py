@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "cd582bebd871537d3a4f87c8ffd7fd7a03f710ac"
+TARGET_BLOB = "511dec7990b3e59fe24a9f6d302014f7e55478da"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -86,6 +86,7 @@ for required in (
     'private_stage_git_verification_before_world_readable=true',
     'private_stage_named_runtime_uid_acl_required=true',
     'private_stage_acl_group_object_zero_required=true',
+    'private_stage_acl_xattr_roundtrip_required=true',
     'candidate_utf8_path_components_required=true',
     'opened_generation_copy_budget_required=true',
     'write_boundary_precedes_first_stage_mutation=true',
@@ -190,6 +191,11 @@ assert "RENAME_EXCHANGE" not in text
 assert 'os.unlink(LIVE_RELEASE' not in text
 assert 'shutil.rmtree(LIVE_RELEASE' not in text
 assert 'os.rename(LIVE_RELEASE' not in text
+assert "UnicodeError," in text
+assert 'copy_entry_name_not_utf8' in text
+assert 'os.setxattr(acl_fd, POSIX_ACL_ACCESS_XATTR, acl_blob)' in text
+assert 'os.getxattr(acl_fd, POSIX_ACL_ACCESS_XATTR)' in text
+assert 'runtime_uid_acl_mode_projection_invalid' in text
 
 plain = subprocess.run(
     [sys.executable, "-B", str(TARGET), "--source-plan"],
@@ -223,6 +229,7 @@ for marker in (
     "root_owned_immutable_stage_required=true",
     "private_stage_named_runtime_uid_acl_required=true",
     "private_stage_acl_group_object_zero_required=true",
+    "private_stage_acl_xattr_roundtrip_required=true",
     "candidate_utf8_path_components_required=true",
     "rename_noreplace_publication_required=true",
     "trusted_root_launcher_required=true",
@@ -298,6 +305,7 @@ print("private_stage_content_authentication_bound=true")
 print("private_stage_git_verification_before_world_readable_bound=true")
 print("private_stage_named_runtime_uid_acl_bound=true")
 print("private_stage_acl_group_object_zero_bound=true")
+print("private_stage_acl_xattr_roundtrip_bound=true")
 print("candidate_utf8_path_components_bound=true")
 print("opened_generation_copy_budget_bound=true")
 print("write_boundary_precedes_first_stage_mutation_bound=true")
