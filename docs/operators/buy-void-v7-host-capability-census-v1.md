@@ -4,7 +4,7 @@ Marker: \`VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1\`.
 
 Status: **source/read-only host census only**. This stacked Draft depends on the exact
 trusted-launcher source generation at
-\`08356a62bdea145b716c9f4fe1ddbda8fe6800e4\`. It does not merge #3647, install
+\`cb07d6fb752593cc10399eb1f7cd15c4524b8189\`. It does not merge #3647, install
 the launcher, enable fs-verity, create a Python runtime, or mutate Precision.
 
 ## Purpose
@@ -22,23 +22,23 @@ This census observes those facts without changing them.
 
 Stack parent / launcher head:
 
-\`08356a62bdea145b716c9f4fe1ddbda8fe6800e4\`
+\`cb07d6fb752593cc10399eb1f7cd15c4524b8189\`
 
 Reviewed launcher source Git blob:
 
-\`3b6402a1df523842720a24b719c2b3e86c18ed42\`
+\`6ecd7fef155967d35d4500b07da841c4e578c6de\`
 
 Reviewed static launcher ELF SHA-256 from the focused #3647 proof:
 
-\`5e9a5d70b54632b3247184cd9d20df15e43f69ec3ebbd82d4444487d1cbb4a00\`
+\`7ec634fd290c0dd50fd367cf79d4edccdd3d38931ee117c0baa5af24f4c70e57\`
 
 Census source Git blob:
 
-\`917d03e6877aed90cdb0117e229db1938b0c36f6\`
+\`bf908749a5a038863f190d31a8cf9da24f584e58\`
 
 Focused proof Git blob:
 
-\`e6375ce56e1125beab3a2c855c05b297a1e999bb\`
+\`7344cf4373e7411a2becf71805fd6fb075231468\`
 
 ## fs-verity capability observation
 

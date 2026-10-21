@@ -8,9 +8,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_v7_host_capability_census_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "917d03e6877aed90cdb0117e229db1938b0c36f6"
+TARGET_BLOB = "bf908749a5a038863f190d31a8cf9da24f584e58"
 LAUNCHER_REL = "ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v1.c"
-LAUNCHER_BLOB = "3b6402a1df523842720a24b719c2b3e86c18ed42"
+LAUNCHER_BLOB = "6ecd7fef155967d35d4500b07da841c4e578c6de"
 MARKER = "VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1_PROOF"
 
 def git(*args: str) -> str:
@@ -50,8 +50,8 @@ text = raw.decode("utf-8")
 
 for required in (
     'MARKER = "VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1"',
-    'EXPECTED_LAUNCHER_HEAD = "08356a62bdea145b716c9f4fe1ddbda8fe6800e4"',
-    'STATIC_LAUNCHER_SHA256 = "5e9a5d70b54632b3247184cd9d20df15e43f69ec3ebbd82d4444487d1cbb4a00"',
+    'EXPECTED_LAUNCHER_HEAD = "cb07d6fb752593cc10399eb1f7cd15c4524b8189"',
+    'STATIC_LAUNCHER_SHA256 = "7ec634fd290c0dd50fd367cf79d4edccdd3d38931ee117c0baa5af24f4c70e57"',
     'FS_IOC_MEASURE_VERITY = 0xC0046686',
     'FS_VERITY_HASH_ALG_SHA256 = 1',
     'errno.ENODATA',

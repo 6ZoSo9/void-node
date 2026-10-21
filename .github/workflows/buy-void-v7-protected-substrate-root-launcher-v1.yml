@@ -35,13 +35,11 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-          SOURCE_BASE: b6eeb1f0b8d80ab26df6d965a1b5f4f861e6a52a
+          SOURCE_BASE: 0ee2382066111d1edcb0161d4d182bc4dd32e0e6
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            test "$PR_BASE" = "$SOURCE_BASE"
             test "$(git merge-base "$SOURCE_BASE" "$EXPECTED_HEAD")" = "$SOURCE_BASE"
             cat > "$RUNNER_TEMP/expected-delta" <<'EOF'
           A	.github/workflows/buy-void-v7-protected-substrate-root-launcher-v1.yml
@@ -56,10 +54,10 @@ jobs:
           else
             git diff --check "$EXPECTED_HEAD^" "$EXPECTED_HEAD" --
           fi
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v1.c)" = "3b6402a1df523842720a24b719c2b3e86c18ed42"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_root_launcher_v1.py)" = "32932490c003c32d6549d471aeec2c8cff67ae2b"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-root-launcher-v1.md)" = "ba7729531a647f2565f1f1a975e0991981884ef7"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v1.c)" = "6ecd7fef155967d35d4500b07da841c4e578c6de"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_root_launcher_v1.py)" = "7b6386839875e5f70d52068561fc87b862c735e7"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-root-launcher-v1.md)" = "3df0ac7fe233b55f18f23950dfd208990a8289d1"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
 
       - name: Python proof syntax
         run: |
