@@ -46,9 +46,9 @@ jobs:
           LC_ALL=C sort -o "$expected" "$expected"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "e8c3538aa3c3cc5e8a122a9b0ab1123deb1a7876"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py)" = "69b1ff028487a139470671cf0afb8937a299897d"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v5.py)" = "4681363f1e6835f0e710c6b695e151030837122a"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v5.py)" = "210d4c9cbdbc73002d15141283d4f0ab632997d0"
           test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v5.md)" = "be3bdb31cc948d1774dc634d4be34e865dd7cd2d"
 
           git diff --check "$BASE" HEAD
@@ -76,14 +76,13 @@ jobs:
           set -euo pipefail
           python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_install_v5.py --self-test             | tee "$RUNNER_TEMP/v5-self.log"
           grep -Fx 'VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V5_SELF_TEST_GREEN' "$RUNNER_TEMP/v5-self.log"
-          grep -Fx 'trusted_full_history_content_sha256_required=true' "$RUNNER_TEMP/v5-self.log"
-          grep -Fx 'live_shallow_release_cross_binding_required=true' "$RUNNER_TEMP/v5-self.log"
-          grep -Fx 'live_release_acl_aware_tree_custody_required=true' "$RUNNER_TEMP/v5-self.log"
           grep -Fx 'installed_qualifier_v4_bound=true' "$RUNNER_TEMP/v5-self.log"
 
           python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_install_v5.py --source-plan             | tee "$RUNNER_TEMP/v5-source-plan.log"
           grep -Fx 'mode=source-plan' "$RUNNER_TEMP/v5-source-plan.log"
           grep -Fx 'trusted_full_history_content_sha256_required=true' "$RUNNER_TEMP/v5-source-plan.log"
+          grep -Fx 'live_shallow_release_cross_binding_required=true' "$RUNNER_TEMP/v5-source-plan.log"
+          grep -Fx 'live_release_acl_aware_tree_custody_required=true' "$RUNNER_TEMP/v5-source-plan.log"
           grep -Fx 'protected_full_history_replica_source_required=true' "$RUNNER_TEMP/v5-source-plan.log"
           grep -Fx 'full_history_regular_single_link_required=true' "$RUNNER_TEMP/v5-source-plan.log"
           grep -Fx 'live_runtime_release_mutation=false' "$RUNNER_TEMP/v5-source-plan.log"
