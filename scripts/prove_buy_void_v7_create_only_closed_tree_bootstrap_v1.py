@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_REL = "ops/precision/void_buy_void_v7_create_only_closed_tree_bootstrap_v1.c"
 SOURCE = ROOT / SOURCE_REL
-SOURCE_BLOB = "96cd93b4111d3be03d23e383101b69ad26da544e"
+SOURCE_BLOB = "a49639a005d5b9dbcdfe585f34c184a1701fb500"
 PLAN_REL = "ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json"
 PLAN_BLOB = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
 PLAN_ID = "voidv7createonlysealplan1_80486c8e43751493d1480ebdf8be63a26195e465e96f3e1d29b1d7b4765773cc"
@@ -95,6 +95,11 @@ def main():
         for marker in (b"fork_denied=true",b"io_uring_denied=true",b"shared_writable_mmap_denied=true"):
             require(marker in barrier.stdout,"barrier_marker_missing:"+marker.decode())
 
+        malformed=t/"malformed"; msrc=fixture_source(malformed); mparent=malformed/"parent"; mparent.mkdir()
+        mp=msrc/"manifest-v1.conf"; raw=mp.read_bytes(); mp.write_bytes(raw.replace(b"\nentry_count=",b"\n\nentry_count=",1))
+        rejected=run([str(test),"--fixture-apply",str(msrc),str(mparent),"final","stage"],check=False)
+        require(rejected.returncode==2 and b"manifest_noncanonical" in rejected.stdout+rejected.stderr and not (mparent/"final").exists(),"blank_line_manifest_not_rejected")
+
         case=t/"success"; src=fixture_source(case); parent=case/"parent"; parent.mkdir()
         good=run([str(test),"--fixture-apply",str(src),str(parent),"final","stage"])
         require(MARKER.encode()+b"_FIXTURE_GREEN" in good.stdout,"fixture_success_missing")
@@ -136,6 +141,7 @@ def main():
     print("source_blob="+SOURCE_BLOB)
     print("static_bootstrap=true")
     print("plan_contract_70_requirements_bound=true")
+    print("manifest_blank_lines_rejected=true")
     print("single_thread_and_process_creation_barrier_proven=true")
     print("async_destination_io_syscalls_denied=true")
     print("shared_writable_destination_mapping_creation_denied=true")
