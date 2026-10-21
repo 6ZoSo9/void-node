@@ -3,12 +3,14 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 import pathlib
 import subprocess
+import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py"
-TARGET_BLOB = "6347f3109f566c72d92e1e566e5be173586b3008"
+TARGET_BLOB = "64d196b6dc0b779fa13f63440e04c2381444fd32"
 MARKER = "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_PROOF"
 
 
@@ -43,6 +45,11 @@ for required in (
     'EXT4_FEATURE_INCOMPAT_EXTENTS = 0x0040',
     'EXT4_SUPER_MAGIC = 0xEF53',
     'def _parse_mountinfo(',
+    'def _canonical_target(',
+    'target_symlink_forbidden',
+    'target_path_alias_forbidden',
+    'target_generation_changed',
+    'target_path_generation_changed',
     'def _mount_for_target(',
     'def _kernel_config_value(',
     'def _parse_major_minor(',
@@ -53,6 +60,7 @@ for required in (
     'os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK',
     'root_execution_forbidden_for_untrusted_checkout_census',
     'host_fsverity_capability_green',
+    'target_generation_stable',
     'mount_generation_stable',
     'target_mount_generation_changed',
     'ext4_verity_feature_enabled',
@@ -102,6 +110,20 @@ assert selected["mount_point"] == "/opt"
 assert selected["fstype"] == "ext4"
 assert selected["source"] == "/dev/sda3"
 assert module._parse_major_minor(selected["major_minor"]) == (8, 3)
+
+with tempfile.TemporaryDirectory(prefix="void-v7-fsverity-target-") as td:
+    td_path = pathlib.Path(td)
+    real = td_path / "real"
+    real.mkdir()
+    link = td_path / "link"
+    os.symlink(real, link, target_is_directory=True)
+    try:
+        module._canonical_target(link)
+    except module.CensusError as exc:
+        assert str(exc) == "target_symlink_forbidden", str(exc)
+    else:
+        raise AssertionError("target_symlink_not_rejected")
+
 try:
     module._parse_major_minor("8")
 except module.CensusError:
@@ -166,6 +188,8 @@ assert self_test.stderr == "", self_test.stderr
 self_lines = set(self_test.stdout.splitlines())
 for required in (
     "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_SELF_TEST_GREEN",
+    "target_canonical_path_required=true",
+    "terminal_target_generation_revalidation_required=true",
     "mountinfo_longest_prefix_selection_proven=true",
     "mountinfo_escape_decoding_proven=true",
     "mountinfo_device_number_binding_required=true",
@@ -213,6 +237,8 @@ for required in (
     "filesystem_write=false",
     "sudo_required=false",
     "root_execution_forbidden=true",
+    "target_canonical_path_required=true",
+    "terminal_target_generation_revalidation_required=true",
     "external_subprocess=false",
     "ioctl_invocation=false",
     "ext4_superblock_read_only_feature_probe=true",
@@ -228,6 +254,9 @@ print("target_blob=" + TARGET_BLOB)
 print("designated_precision_host_bound=true")
 print("unprivileged_read_only_feature_probe_bound=true")
 print("root_execution_forbidden=true")
+print("target_symlink_adversary_rejected=true")
+print("target_canonical_path_required=true")
+print("terminal_target_generation_revalidation_required=true")
 print("mountinfo_descriptor_read_only_bound=true")
 print("kernel_config_fsverity_observation_bound=true")
 print("ext4_superblock_magic_bound=true")
