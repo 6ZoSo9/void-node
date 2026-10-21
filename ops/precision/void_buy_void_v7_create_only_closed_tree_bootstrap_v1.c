@@ -418,3 +418,101 @@ static void copy_file(int srcroot,int dstroot,entry_v1 *e,unsigned char *buffer)
     unsigned char extra;if(read(src.fd,&extra,1)!=0){close(out);close(src.fd);hold("source_grew_during_copy");}char copy_sha[65];sha_final(&copied,copy_sha);if(strcmp(copy_sha,e->sha256)){close(out);close(src.fd);hold("source_mutation_changed_copy");}
     if(fsync(out)||fchown(out,expected_owner,expected_group)||fchmod(out,e->mode)||fsync(out)){close(out);close(src.fd);hold("destination_finalize_failed");}struct stat st;if(fstat(out,&st)||!S_ISREG(st.st_mode)||st.st_uid!=expected_owner||st.st_gid!=expected_group||st.st_nlink!=1||(uint64_t)st.st_size!=e->size||(st.st_mode&07777)!=e->mode){close(out);close(src.fd);hold("destination_final_metadata_invalid");}e->dev=st.st_dev;e->ino=st.st_ino;e->nlink=st.st_nlink;close(out);close(src.fd);
     int verify_parent=open_dir_path_at(dstroot,parent);int verify=openat(verify_parent,leaf,O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);close(verify_parent);if(verify<0)hold("destination_reopen_failed");char sha[65];sha_fd_exact(verify,e->size,sha);struct stat vst;if(fstat(verify,&vst)||vst.st_dev!=e->dev||vst.st_ino!=e->ino||vst.st_nlink!=1||strcmp(sha,e->sha256)){close(verify);hold("destination_reopen_verification_failed");}close(verify);
+}
+static void verify_entry(int rootfd,entry_v1 *e){
+    char parent[PATH_MAX],leaf[NAME_MAX+1];split_parent(e->path,parent,leaf);int dfd=open_dir_path_at(rootfd,parent);struct stat st;if(fstatat(dfd,leaf,&st,AT_SYMLINK_NOFOLLOW)){close(dfd);hold("verify_entry_missing");}if(e->kind=='D'){if(!S_ISDIR(st.st_mode)||S_ISLNK(st.st_mode)||st.st_uid!=expected_owner||st.st_gid!=expected_group||(st.st_mode&07777)!=0555){close(dfd);hold("verify_directory_invalid");}e->dev=st.st_dev;e->ino=st.st_ino;e->nlink=st.st_nlink;close(dfd);return;}if(!S_ISREG(st.st_mode)||S_ISLNK(st.st_mode)||st.st_uid!=expected_owner||st.st_gid!=expected_group||st.st_nlink!=1||(uint64_t)st.st_size!=e->size||(st.st_mode&07777)!=e->mode){close(dfd);hold("verify_file_metadata_invalid");}int fd=openat(dfd,leaf,O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);close(dfd);if(fd<0)hold("verify_file_open_failed");char sha[65];sha_fd_exact(fd,e->size,sha);struct stat aft;if(fstat(fd,&aft)||aft.st_dev!=st.st_dev||aft.st_ino!=st.st_ino||strcmp(sha,e->sha256)){close(fd);hold("verify_file_content_invalid");}e->dev=st.st_dev;e->ino=st.st_ino;e->nlink=st.st_nlink;close(fd);
+}
+static void capture_directory_identities(int rootfd,manifest_v1 *m){
+    for(size_t i=0;i<m->count;i++){
+        entry_v1 *e=&m->entries[i];
+        if(e->kind!='D') continue;
+        int fd=open_dir_path_at(rootfd,e->path);struct stat st;
+        if(fstat(fd,&st)||!S_ISDIR(st.st_mode)||S_ISLNK(st.st_mode)||st.st_uid!=expected_owner||st.st_gid!=expected_group||st.st_nlink<2){close(fd);hold("directory_identity_capture_failed");}
+        e->dev=st.st_dev;e->ino=st.st_ino;e->nlink=st.st_nlink;close(fd);
+    }
+}
+static void fsync_dirs(int rootfd,manifest_v1 *m){for(size_t i=m->count;i>0;i--){entry_v1 *e=&m->entries[i-1];if(e->kind=='D'){int fd=open_dir_path_at(rootfd,e->path);if(fsync(fd)){close(fd);hold("directory_fsync_failed");}close(fd);}}if(fsync(rootfd))hold("root_fsync_failed");}
+static void close_tree_dirs(int rootfd,manifest_v1 *m){for(size_t i=m->count;i>0;i--){entry_v1 *e=&m->entries[i-1];if(e->kind=='D'){int fd=open_dir_path_at(rootfd,e->path);if(fchown(fd,expected_owner,expected_group)||fchmod(fd,0555)||fsync(fd)){close(fd);hold("directory_close_metadata_failed");}close(fd);}}if(fchown(rootfd,expected_owner,expected_group)||fchmod(rootfd,0555)||fsync(rootfd))hold("root_close_metadata_failed");}
+static void require_no_writable_dest_fds(manifest_v1 *m,const entry_v1 *receipt_state,int rootfd){
+    struct stat rst;if(fstat(rootfd,&rst))hold("fd_census_root_stat_failed");int d=open("/proc/self/fd",O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(d<0)hold("fd_census_open_failed");char buf[8192];for(;;){long n=syscall(SYS_getdents64,d,buf,sizeof(buf));if(n<0&&errno==EINTR)continue;if(n<0){close(d);hold("fd_census_getdents_failed");}if(!n)break;for(long off=0;off<n;){struct linux_dirent64_local *x=(void *)(buf+off);unsigned num=numeric_name(x->d_name);if(num&&num!=(unsigned)d){struct stat st;if(!fstat((int)num,&st)){bool match=(st.st_dev==rst.st_dev&&st.st_ino==rst.st_ino);for(size_t i=0;!match&&i<m->count;i++) if(m->entries[i].dev==st.st_dev&&m->entries[i].ino==st.st_ino) match=true;
+                    if(!match&&receipt_state&&receipt_state->dev==st.st_dev&&receipt_state->ino==st.st_ino) match=true;
+                    if(match){int fl=fcntl((int)num,F_GETFL);if(fl>=0&&((fl&O_ACCMODE)==O_WRONLY||(fl&O_ACCMODE)==O_RDWR)){close(d);hold("writable_destination_fd_retained");}}}}off+=x->d_reclen;}}close(d);
+}
+static size_t appendf(char *buf,size_t cap,size_t off,const char *fmt,...){va_list ap;va_start(ap,fmt);int n=vsnprintf(buf+off,cap-off,fmt,ap);va_end(ap);if(n<0||(size_t)n>=cap-off)hold("receipt_buffer_exceeded");return off+(size_t)n;}
+static void self_sha(char out[65]){int fd=open("/proc/self/exe",O_RDONLY|O_CLOEXEC);if(fd<0)hold("self_open_failed");struct stat st;if(fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_size<=0){close(fd);hold("self_metadata_invalid");}sha_fd_exact(fd,(uint64_t)st.st_size,out);close(fd);}
+static size_t build_receipt(char *buf,size_t cap,manifest_v1 *m,struct stat rootst,const char selfhash[65]){
+    size_t off=0;off=appendf(buf,cap,off,"schema=%s\nseal_mode=%s\nplan_contract_id=%s\nplan_contract_blob=%s\nmanifest_sha256=%s\nmanifest_bytes=%zu\nsource_generation=%s\nbootstrap_sha256=%s\nroot_dev=%ju\nroot_ino=%ju\npayload_count=%zu\n",RECEIPT_SCHEMA,SEAL_MODE,PLAN_ID,PLAN_BLOB,m->sha256,m->raw_size,m->generation,selfhash,(uintmax_t)rootst.st_dev,(uintmax_t)rootst.st_ino,m->count);
+    for(size_t i=0;i<m->count;i++){entry_v1 *e=&m->entries[i];off=appendf(buf,cap,off,"entry=%c|%04o|%s|%" PRIu64 "|%s|%ju|%ju|%ju\n",e->kind,e->mode,e->path,e->kind=='F'?e->size:0,e->kind=='F'?e->sha256:"-",(uintmax_t)e->dev,(uintmax_t)e->ino,(uintmax_t)e->nlink);}
+    return off;
+}
+static void create_receipt(int rootfd,char *raw,size_t size,entry_v1 *receipt_state){int fd=openat(rootfd,RECEIPT_NAME,O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC|O_NOFOLLOW,0600);if(fd<0)hold("receipt_create_failed");size_t off=0;while(off<size){ssize_t w=write(fd,raw+off,size-off);if(w<0&&errno==EINTR)continue;if(w<=0){close(fd);hold("receipt_write_failed");}off+=(size_t)w;}if(fsync(fd)||fchown(fd,expected_owner,expected_group)||fchmod(fd,0444)||fsync(fd)){close(fd);hold("receipt_finalize_failed");}struct stat st;if(fstat(fd,&st)||!S_ISREG(st.st_mode)||st.st_nlink!=1||st.st_uid!=expected_owner||st.st_gid!=expected_group||(st.st_mode&07777)!=0444||(size_t)st.st_size!=size){close(fd);hold("receipt_metadata_invalid");}receipt_state->kind='F';receipt_state->mode=0444;receipt_state->path=(char *)RECEIPT_NAME;receipt_state->size=size;sha_bytes(raw,size,receipt_state->sha256);receipt_state->dev=st.st_dev;receipt_state->ino=st.st_ino;receipt_state->nlink=st.st_nlink;close(fd);}
+static void verify_receipt_exact(int rootfd,const char *expected,size_t size){
+    struct stat st;
+    if(fstatat(rootfd,RECEIPT_NAME,&st,AT_SYMLINK_NOFOLLOW)||!S_ISREG(st.st_mode)||S_ISLNK(st.st_mode)||st.st_uid!=expected_owner||st.st_gid!=expected_group||st.st_nlink!=1||(st.st_mode&07777)!=0444||(size_t)st.st_size!=size) hold("receipt_visible_invalid");
+    int fd=openat(rootfd,RECEIPT_NAME,O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
+    if(fd<0) hold("receipt_open_failed");
+    unsigned char buf[65536];size_t off=0;
+    while(off<size){size_t want=size-off;if(want>sizeof(buf))want=sizeof(buf);ssize_t n=read(fd,buf,want);if(n<0&&errno==EINTR)continue;if(n<=0){close(fd);hold("receipt_short_read");}if(memcmp(buf,expected+off,(size_t)n)){close(fd);hold("receipt_content_mismatch");}off+=(size_t)n;}
+    unsigned char extra;if(read(fd,&extra,1)!=0){close(fd);hold("receipt_grew");}
+    close(fd);
+}
+static void verify_tree(int rootfd,manifest_v1 *m,const char *receipt,size_t receipt_size){struct stat rootst;if(fstat(rootfd,&rootst)||!S_ISDIR(rootst.st_mode)||rootst.st_uid!=expected_owner||rootst.st_gid!=expected_group||(rootst.st_mode&07777)!=0555)hold("final_root_metadata_invalid");for(size_t i=0;i<m->count;i++)verify_entry(rootfd,&m->entries[i]);verify_receipt_exact(rootfd,receipt,receipt_size);}
+
+static int fixture_apply(const char *source_root,const char *parent_path,const char *final_name,const char *stage_name){
+    fixture_mode=true;expected_owner=getuid();expected_group=getgid();if(!clean_abs(source_root)||!clean_abs(parent_path)||!clean_rel(final_name)||strchr(final_name,'/')||!clean_rel(stage_name)||strchr(stage_name,'/'))hold("fixture_paths_invalid");
+    char manifest_path[PATH_MAX],payload_path[PATH_MAX];if(snprintf(manifest_path,sizeof(manifest_path),"%s/%s",source_root,FIXED_MANIFEST_NAME)>=(int)sizeof(manifest_path)||snprintf(payload_path,sizeof(payload_path),"%s/%s",source_root,FIXED_PAYLOAD_NAME)>=(int)sizeof(payload_path))hold("fixture_path_too_long");
+    manifest_v1 m=parse_manifest(manifest_path);int payloadfd=open(payload_path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(payloadfd<0)hold("payload_root_open_failed");int pfd=open(parent_path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(pfd<0){close(payloadfd);hold("final_parent_open_failed");}
+    char selfhash[65];self_sha(selfhash);size_t receipt_cap=MAX_RECEIPT_BYTES;char *receipt=malloc(receipt_cap);unsigned char *io=malloc(IO_BUFFER_BYTES);if(!receipt||!io)hold("fixture_buffer_alloc_failed");
+    struct stat existing;if(!fstatat(pfd,final_name,&existing,AT_SYMLINK_NOFOLLOW)){
+        int finalfd=openat(pfd,final_name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(finalfd<0)hold("existing_final_open_failed");for(size_t i=0;i<m.count;i++)verify_entry(finalfd,&m.entries[i]);struct stat rst;if(fstat(finalfd,&rst))hold("existing_final_stat_failed");size_t rs=build_receipt(receipt,receipt_cap,&m,rst,selfhash);verify_receipt_exact(finalfd,receipt,rs);if(fsync(pfd))hold("existing_parent_fsync_failed");close(finalfd);printf("%s_FIXTURE_ALREADY_GREEN\n",MARKER);receipt_common(stdout);free(io);free(receipt);close(payloadfd);close(pfd);free_manifest(&m);return 0;
+    }else if(errno!=ENOENT)hold("final_state_observation_failed");
+    if(!fstatat(pfd,stage_name,&existing,AT_SYMLINK_NOFOLLOW)||errno!=ENOENT)hold("stage_preexisting");if(mkdirat(pfd,stage_name,0700))hold("stage_create_failed");int stagefd=openat(pfd,stage_name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(stagefd<0)hold("stage_open_failed");if(fchown(stagefd,expected_owner,expected_group)||fchmod(stagefd,0700))hold("stage_private_metadata_failed");
+    install_write_barrier();
+    for(size_t i=0;i<m.count;i++)if(m.entries[i].kind=='D')mkdir_rel(stagefd,m.entries[i].path,0700);
+    for(size_t i=0;i<m.count;i++)if(m.entries[i].kind=='F')copy_file(payloadfd,stagefd,&m.entries[i],io);
+    capture_directory_identities(stagefd,&m);
+    struct stat stage_st;if(fstat(stagefd,&stage_st))hold("stage_stat_failed");size_t receipt_size=build_receipt(receipt,receipt_cap,&m,stage_st,selfhash);entry_v1 receipt_state={0};create_receipt(stagefd,receipt,receipt_size,&receipt_state);
+    close_tree_dirs(stagefd,&m);for(size_t i=0;i<m.count;i++)verify_entry(stagefd,&m.entries[i]);verify_receipt_exact(stagefd,receipt,receipt_size);require_no_writable_dest_fds(&m,&receipt_state,stagefd);require_single_thread();require_no_shared_writable_mapping();fsync_dirs(stagefd,&m);
+    if(rename_noreplace(pfd,stage_name,final_name)){hold("publication_rename_noreplace_failed");}publication_performed=true;
+#ifdef VOID_V7_CLOSED_TREE_TEST_HOOKS
+    if(fixture_mode&&getenv("VOID_V7_TEST_EXIT_AFTER_RENAME")) _exit(73);
+#endif
+    if(fsync(pfd))hold("parent_fsync_failed_after_publication");parent_fsync_completed=true;int finalfd=openat(pfd,final_name,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW);if(finalfd<0)hold("final_open_failed");verify_tree(finalfd,&m,receipt,receipt_size);final_verification_completed=true;close(finalfd);
+    printf("%s_FIXTURE_GREEN\n",MARKER);printf("publication=true\nparent_fsync_completed=true\nfinal_verification_completed=true\n");printf("single_threaded_write_phase=true\nasync_destination_io_forbidden=true\ndestination_io_quiescence_before_publication=true\nseccomp_process_creation_denied=true\nseccomp_fd_passing_denied=true\nseccomp_shared_writable_mapping_denied=true\n");receipt_common(stdout);
+    free(io);free(receipt);close(stagefd);close(payloadfd);close(pfd);free_manifest(&m);return 0;
+}
+
+static void barrier_self_test(void){
+    install_write_barrier();
+    errno=0;
+#ifdef __NR_fork
+    long f=syscall(__NR_fork);if(f!=-1||errno!=EPERM)hold("barrier_fork_not_denied");
+#endif
+#ifdef __NR_io_uring_setup
+    errno=0;long u=syscall(__NR_io_uring_setup,1,NULL);if(u!=-1||errno!=EPERM)hold("barrier_io_uring_not_denied");
+#endif
+    errno=0;void *p=mmap(NULL,4096,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS,-1,0);if(p!=MAP_FAILED||errno!=EPERM)hold("barrier_shared_write_mmap_not_denied");
+    printf("%s_BARRIER_SELF_TEST_GREEN\n",MARKER);printf("fork_denied=true\nio_uring_denied=true\nshared_writable_mmap_denied=true\n");receipt_common(stdout);
+}
+static void task_parser_self_test(void){char tmp[]="/tmp/void-v7-task-fixture.XXXXXX";char *d=mkdtemp(tmp);if(!d)hold("task_fixture_create_failed");char a[PATH_MAX],b[PATH_MAX];snprintf(a,sizeof(a),"%s/123",d);snprintf(b,sizeof(b),"%s/456",d);if(mkdir(a,0700)||count_tasks_path(d)!=1U||mkdir(b,0700)||count_tasks_path(d)!=2U)hold("task_parser_fixture_failed");rmdir(a);rmdir(b);rmdir(d);printf("%s_TASK_PARSER_SELF_TEST_GREEN\n",MARKER);}
+static void source_plan(void){printf("%s\n",MARKER);printf("mode=source-plan\nsource_only=true\nimplementation_candidate=true\nproduction_apply_enabled=false\nproduction_payload_manifest_lock_bound=false\nfixed_final_root=%s/%s\n",FIXED_FINAL_PARENT,FIXED_FINAL_NAME);printf("single_threaded_write_phase_required=true\nasync_destination_io_forbidden=true\ndestination_io_quiescence_before_publication_required=true\natomic_noreplace_publication_required=true\ndurable_receipt_required=true\nnew_launcher_generation_authorized=false\nbootstrap_candidate_accepted=false\nroot_execution=false\nprotected_filesystem_mutation=false\n");receipt_common(stdout);}
+static void self_test(void){if(!hexn(PLAN_BLOB,40)||strncmp(PLAN_ID,"voidv7createonlysealplan1_",26)||PLAN_REQUIREMENTS!=70U)hold("compile_contract_invalid");if(strlen(ACCEPTED_MANIFEST_SHA256)&&!hexn(ACCEPTED_MANIFEST_SHA256,64))hold("accepted_manifest_compile_hash_invalid");task_parser_self_test();printf("%s_SELF_TEST_GREEN\n",MARKER);printf("manifest_parser_bounded=true\nfresh_inode_create_flags_bound=true\nretained_source_hash_before_copy=true\ndestination_exact_hash_after_copy=true\nreceipt_self_hash_cycle_absent=true\nreceipt_nlink_one_required=true\nproduction_apply_enabled=%s\n",(strlen(ACCEPTED_MANIFEST_SHA256)==64&&ACCEPTED_MANIFEST_BYTES>0)?"true":"false");receipt_common(stdout);}
+
+static void production_disabled(void){
+    printf("%s_HOLD reason=production_payload_manifest_lock_not_bound\n",MARKER);
+    printf("root_execution=false\nprotected_filesystem_mutation=false\nbootstrap_candidate_accepted=false\n");
+    receipt_common(stdout);
+    if (false) (void)fixture_apply(FIXED_SOURCE_ROOT,FIXED_FINAL_PARENT,FIXED_FINAL_NAME,FIXED_STAGE_NAME);
+    exit(2);
+}
+int main(int argc,char **argv){
+    setvbuf(stdout,NULL,_IONBF,0);setvbuf(stderr,NULL,_IONBF,0);
+    if(argc==2&&!strcmp(argv[1],"--self-test")){self_test();return 0;}
+    if(argc==2&&!strcmp(argv[1],"--barrier-self-test")){barrier_self_test();return 0;}
+    if(argc==2&&!strcmp(argv[1],"--source-plan")){source_plan();return 0;}
+#ifdef VOID_V7_CLOSED_TREE_TEST_HOOKS
+    if(argc==6&&!strcmp(argv[1],"--fixture-apply")){return fixture_apply(argv[2],argv[3],argv[4],argv[5]);}
+#endif
+    if(argc>=2&&(!strcmp(argv[1],"--plan")||!strcmp(argv[1],"--apply")))production_disabled();
+    fprintf(stderr,"%s_HOLD reason=usage\n",MARKER);receipt_common(stderr);return 2;
+}
