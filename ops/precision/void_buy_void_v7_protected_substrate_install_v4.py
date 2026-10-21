@@ -260,35 +260,6 @@ def _metadata_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int
         st.st_size, st.st_mtime_ns, st.st_ctime_ns,
     )
 
-def _trusted_tool_ancestor_snapshot(path: pathlib.Path, label: str) -> tuple[pathlib.Path, tuple[tuple[str, int, int, int, int, int, int], ...]]:
-    try:
-        resolved = path.resolve(strict=True)
-    except OSError as exc:
-        raise InstallError(label + "_tool_unavailable") from exc
-    if not resolved.is_absolute():
-        raise InstallError(label + "_tool_not_absolute")
-    current = resolved.parent
-    rows: list[tuple[str, int, int, int, int, int, int]] = []
-    audit_paths = [resolved]
-    while True:
-        st = os.lstat(current)
-        mode = stat.S_IMODE(st.st_mode)
-        if (
-            not stat.S_ISDIR(st.st_mode)
-            or stat.S_ISLNK(st.st_mode)
-            or st.st_uid != 0
-            or st.st_gid != 0
-            or mode & 0o022
-        ):
-            raise InstallError(label + "_tool_ancestor_custody_invalid:" + os.fspath(current))
-        rows.append((os.fspath(current), st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink))
-        audit_paths.append(current)
-        if current == current.parent:
-            break
-        current = current.parent
-    _runtime_uid_write_audit_builtin(audit_paths, label + "_tool")
-    return resolved, tuple(rows)
-
 def _read_tool_fd(fd: int, max_bytes: int, label: str) -> bytes:
     os.lseek(fd, 0, os.SEEK_SET)
     chunks: list[bytes] = []
@@ -1308,7 +1279,7 @@ def self_test() -> None:
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[extensions]\nworktreeConfig = true\n", "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text('[remote "origin"]\npromisor = true\n', "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[core]\nrepositoryformatversion = 0\nbare = false\nautocrlf = true\n", "utf-8"))
-    with tempfile.TemporaryDirectory(prefix="void-v7-worktree-manifest-self-test-") as td:
+    with tempfile.TemporaryDirectory(prefix="void-v7-direct-tree-self-test-") as td:
         manifest_root = pathlib.Path(td)
         (manifest_root / ".git").mkdir()
         (manifest_root / "sub").mkdir()
@@ -1319,20 +1290,27 @@ def self_test() -> None:
         os.chmod(executable, 0o755)
         link = manifest_root / "link"
         link.symlink_to("plain.txt")
-        manifest = {
-            "plain.txt": ("100644", git_blob_sha1(plain.read_bytes())),
-            "sub/run.sh": ("100755", git_blob_sha1(executable.read_bytes())),
-            "link": ("120000", git_blob_sha1(b"plain.txt")),
-        }
-        _verify_worktree_manifest(manifest_root, manifest, "self_test_manifest")
+
+        sub_record = b"100755 run.sh\0" + bytes.fromhex(git_blob_sha1(executable.read_bytes()))
+        sub_tree = hashlib.sha1(
+            b"tree " + str(len(sub_record)).encode("ascii") + b"\0" + sub_record
+        ).hexdigest()
+        root_records = [
+            (b"link\0", b"120000 link\0" + bytes.fromhex(git_blob_sha1(b"plain.txt"))),
+            (b"plain.txt\0", b"100644 plain.txt\0" + bytes.fromhex(git_blob_sha1(plain.read_bytes()))),
+            (b"sub/", b"40000 sub\0" + bytes.fromhex(sub_tree)),
+        ]
+        root_records.sort(key=lambda item: item[0])
+        root_body = b"".join(record for _key, record in root_records)
+        expected_tree = hashlib.sha1(
+            b"tree " + str(len(root_body)).encode("ascii") + b"\0" + root_body
+        ).hexdigest()
+        assert _git_tree_oid_from_worktree(manifest_root, "self_test_tree") == expected_tree
+
         ignored = manifest_root / "ignored.tmp"
         ignored.write_bytes(b"ignored-but-published")
-        try:
-            _verify_worktree_manifest(manifest_root, manifest, "self_test_manifest")
-        except InstallError:
-            pass
-        else:
-            raise AssertionError("ignored_untracked_manifest_adversary_not_rejected")
+        assert _git_tree_oid_from_worktree(manifest_root, "self_test_tree") != expected_tree
+    print("direct_worktree_git_tree_oid_fixture_green=true")
     print("git_real_in_tree_dir_required=true")
     print("git_commondir_indirection_rejected=true")
     print("git_object_alternates_rejected=true")
@@ -1345,14 +1323,17 @@ def self_test() -> None:
     print("git_core_attributesfile_rejected=true")
     print("git_filter_driver_rejected=true")
     print("git_local_config_exact_allowlist_required=true")
-    print("git_raw_head_tree_manifest_required=true")
-    print("git_ignored_untracked_rejected_by_manifest=true")
+    print("git_dynamic_observer_authority_removed=true")
+    print("direct_main_ref_required=true")
+    print("direct_worktree_git_tree_oid_required=true")
+    print("trusted_launcher_expected_head_tree_pair_required=true")
+    print("dynamic_git_execution_not_authoritative=true")
+    print("untracked_paths_change_direct_tree_oid=true")
     print("git_worktree_config_extension_rejected=true")
     print("git_promisor_partial_clone_rejected=true")
-    print("git_exact_dir_common_toplevel_required=true")
+    print("git_direct_main_ref_generation_required=true")
     print("git_metadata_provenance_required_for_all_roots=true")
-    print("trusted_tool_root_descriptor_execution_required=true")
-    print("trusted_tool_ancestor_acl_custody_required=true")
+    print("dynamic_git_root_or_runtime_exec_removed=true")
     print("runtime_write_audit_external_helper_free=true")
     print("source_release_ancestor_acl_custody_required=true")
     print("source_release_ancestor_generation_revalidation_required=true")
