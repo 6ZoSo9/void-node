@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_v7_host_capability_census_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "074c1906092b9564c81690df982b011af61c9e2f"
+TARGET_BLOB = "9322374e36b5be9b2b10780ae4413c45d0d648d8"
 LAUNCHER_REL = "ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v1.c"
 LAUNCHER_BLOB = "3b6402a1df523842720a24b719c2b3e86c18ed42"
 MARKER = "VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1_PROOF"
@@ -63,11 +63,16 @@ for required in (
     '"python_elf_pt_interp_forbidden"',
     '"python_elf_pt_dynamic_forbidden"',
     '"stdlib_zip_lib_dynload_forbidden"',
+    'info.orig_filename',
+    '"stdlib_zip_filename_sanitized_or_truncated"',
+    '"static_python_runtime_generation_proof_required"',
+    '"DERIVE_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF"',
+    '"candidate_shape_observation_complete"',
+    '"runtime_import_closure_established"',
     '"candidate_execution": False',
     '"fsverity_enablement": False',
     '"filesystem_write": False',
     '"protected_filesystem_mutation": False',
-    '"DERIVE_REVIEWED_V7_HOST_INSTALL_PLAN"',
     '"SATISFY_V7_HOST_CAPABILITY_HOLDS"',
 ):
     assert required in text, required
@@ -76,6 +81,9 @@ assert "import subprocess" not in text
 assert "from subprocess" not in text
 assert "subprocess.run(" not in text
 assert "subprocess.Popen(" not in text
+
+assert "DERIVE_REVIEWED_V7_HOST_INSTALL_PLAN" not in text
+assert 'result["status"] = "GREEN"' not in text
 
 for forbidden in (
     "FS_IOC_ENABLE_VERITY",
@@ -103,6 +111,8 @@ assert cp.returncode == 0 and cp.stderr == ""
 lines = cp.stdout.splitlines()
 for line in (
     "VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1_SELF_TEST_GREEN",
+    "unsanitized_zip_member_name_required=true",
+    "runtime_import_closure_proof_required=true",
     "filesystem_write=false",
     "protected_filesystem_mutation=false",
     "fsverity_enablement=false",
@@ -119,6 +129,9 @@ for line in (
 print(MARKER + "_GREEN")
 print("target_blob=" + TARGET_BLOB)
 print("launcher_blob=" + LAUNCHER_BLOB)
+print("unsanitized_zip_member_name_required=true")
+print("runtime_import_closure_proof_required=true")
+print("census_cannot_authorize_host_install=true")
 print("fsverity_measure_only=true")
 print("fsverity_enablement=false")
 print("candidate_execution=false")
