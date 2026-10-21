@@ -55,8 +55,8 @@ jobs:
             git merge-base --is-ancestor "$BASE" "$EXPECTED_HEAD"
             git diff --check "$BASE" "$EXPECTED_HEAD" --
           fi
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_static_python_runtime_generation_proof_v1.py)" = "0a4066ebf58e8adc9018c278353203c99d72cace"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_static_python_runtime_generation_proof_v1.py)" = "66c0d5bbfd180525f13becbb14f4e6d962ef0cbd"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_static_python_runtime_generation_proof_v1.py)" = "54ca3a6d8cb2abe2941514f8025430c201d5e272"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_static_python_runtime_generation_proof_v1.py)" = "590fc864c7352d1eabc60893893d1bfad7845712"
           test "$(git rev-parse HEAD:docs/operators/buy-void-v7-static-python-runtime-generation-proof-v1.md)" = "25f7ff2a1d2b7084e10089590f1e5bee0cfb9ce6"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 

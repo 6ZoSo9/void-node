@@ -7,7 +7,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_v7_static_python_runtime_generation_proof_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "0a4066ebf58e8adc9018c278353203c99d72cace"
+TARGET_BLOB = "54ca3a6d8cb2abe2941514f8025430c201d5e272"
 V5_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v5.py"
 V5_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 MARKER = "VOID_BUY_VOID_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF_V1_PROOF"
