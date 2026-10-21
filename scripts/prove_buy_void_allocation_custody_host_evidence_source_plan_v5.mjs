@@ -152,7 +152,7 @@ const planDigest=crypto.createHash("sha256")
 assert.equal(parsed.plan_id,"voidbuycusthostsrcplan5_"+planDigest);
 
 assert.ok(Array.isArray(parsed.source_bindings));
-assert.equal(parsed.source_bindings.length,21);
+assert.equal(parsed.source_bindings.length,26);
 const seen=new Set();
 let previous="";
 for(const row of parsed.source_bindings){
@@ -187,7 +187,8 @@ for(const relative of [...seen,...SELF_PATHS]){
 }
 
 console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_SOURCE_PLAN_V5_PROOF_GREEN");
-console.log("source_binding_count=21");
+console.log("source_binding_count=26");
+console.log("custody_service_v2_direct_source_closure_bound=true");
 console.log("declared_base_tree_verified=true");
 console.log("declared_base_ancestor_verified=true");
 console.log("exact_four_add_only_scope_verified=true");
