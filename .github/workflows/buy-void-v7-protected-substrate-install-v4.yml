@@ -136,4 +136,3 @@ jobs:
           grep -Fx 'public_presale_activation=false' "$RUNNER_TEMP/proof.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/proof.log"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-
