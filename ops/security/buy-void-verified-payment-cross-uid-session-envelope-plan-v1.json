@@ -1,0 +1,253 @@
+{
+  "authority": {
+    "capacity_lock_claim_read_nonblocking_independent_review_complete": false,
+    "capacity_lock_claim_read_nonblocking_source_evidence_verified": true,
+    "capacity_lock_claim_read_nonblocking_verified": false,
+    "common_host_session_envelope_implemented": false,
+    "complete_runtime_source_closure": false,
+    "cross_uid_lock_release_authorized": false,
+    "custody_recovery_authorized": false,
+    "deployed_artifact_generation_verified": false,
+    "external_high_water_witness_verified": false,
+    "funds_movement": false,
+    "operator_route_mounted": false,
+    "payment_acceptance": false,
+    "pre_mutation_zero_effect_witness_implemented": false,
+    "presale_activation": false,
+    "protected_phase_witness_implemented": false,
+    "public_http_handler_installed": false,
+    "runtime_integration": false,
+    "source_plan_only": true,
+    "transaction_broadcast": false,
+    "trusted_clock_bound": false,
+    "web_private_root_write_authority": false
+  },
+  "capacity_lock_claim_reader_source_evidence": {
+    "focused_workflow_run": 39618226898,
+    "independent_review_complete": false,
+    "node22_node24_node26_and_cross_node_success": true,
+    "proof_git_blob_sha1": "4c70b8f9f30eee30395a0f13b028de2007c28249",
+    "proof_path": "scripts/prove_buy_void_cross_uid_capacity_claim_bounded_read_v1.mjs",
+    "source_git_blob_sha1": "94f0a0dd8997e1e2c0fab54044f19d70d983d441",
+    "source_head": "7197eb96ff3ce2d3f630545a85c150b694d20b3b",
+    "workflow_git_blob_sha1": "cbb5e1cecf613b8bbc7e3b3aafd8ee1e31e582a9",
+    "workflow_path": ".github/workflows/buy-void-cross-uid-capacity-claim-bounded-read-v1.yml"
+  },
+  "current_outcome_policy": {
+    "allocation_present": "retain_until_terminal_revalidation_and_protected_witness",
+    "held": "retain",
+    "observed_no_target_capacity_effect": "retain_until_pre_mutation_zero_effect_witness",
+    "verified_allocation_missing": "retain_and_require_exclusive_recovery"
+  },
+  "future_release_requirements": [
+    "same_original_claim_owner",
+    "same_claim_nonce_staging_pid_and_process_start",
+    "same_request_id",
+    "same_payment_verified_event_sha256",
+    "same_web_and_custody_artifact_generations",
+    "exact_phase_transition_and_seq_increment",
+    "protected_phase_witness_sha256",
+    "repeated_descriptor_bound_observation_unchanged",
+    "coordinated_storage_rollback_excluded",
+    "exact_allocation_handoff_receipt_when_allocation_effect_possible",
+    "terminal_claim_owner_revalidation",
+    "release_parent_fsync",
+    "pre_mutation_zero_effect_witness_sha256",
+    "zero_effect_witness_binds_original_claim_incarnation",
+    "zero_effect_witness_binds_request_payment_lineage",
+    "zero_effect_witness_binds_request_operator_payment_durable_roots_and_tips",
+    "zero_effect_witness_binds_allocation_ledger_and_high_water_generations",
+    "zero_effect_witness_proves_no_payment_append_allocation_publication_sidecar_or_pending_intent_effect",
+    "zero_effect_witness_binds_reviewed_rollback_exclusion_domain",
+    "zero_effect_witness_binds_reviewed_time_domain",
+    "zero_effect_witness_verification_precedes_release_candidate_classification",
+    "capacity_lock_claim_fifo_nonblocking_independent_review"
+  ],
+  "known_holds": [
+    "cross_uid_capacity_claim_fifo_nonblocking_independent_review_pending",
+    "allocation_custody_service_reserve_and_recover_disabled",
+    "protected_phase_witness_missing",
+    "external_high_water_witness_missing",
+    "operator_route_unmounted",
+    "web_private_root_write_forbidden",
+    "trusted_clock_unbound",
+    "deployed_artifact_generation_unverified",
+    "pre_mutation_zero_effect_witness_missing"
+  ],
+  "phase_model": {
+    "allocation_durable": {
+      "recovery_required": false,
+      "release_candidate": false,
+      "retain_claim": true
+    },
+    "allocation_publication_uncertain": {
+      "recovery_required": true,
+      "release_candidate": false,
+      "retain_claim": true
+    },
+    "claim_acquired": {
+      "recovery_required": false,
+      "release_candidate": false,
+      "retain_claim": true
+    },
+    "payment_append_uncertain": {
+      "recovery_required": true,
+      "release_candidate": false,
+      "retain_claim": true
+    },
+    "payment_durable_allocation_missing": {
+      "recovery_required": true,
+      "release_candidate": false,
+      "retain_claim": true
+    },
+    "pre_mutation_rejected": {
+      "recovery_required": false,
+      "release_candidate": true,
+      "retain_claim": true,
+      "zero_effect_witness_required_when_recovered_from_uncertain": true
+    },
+    "terminal_revalidated": {
+      "recovery_required": false,
+      "release_candidate": true,
+      "retain_claim": true
+    },
+    "uncertain": {
+      "recovery_required": true,
+      "release_candidate": false,
+      "retain_claim": true
+    }
+  },
+  "phase_transition_policy": {
+    "allowed": {
+      "allocation_durable": [
+        "terminal_revalidated",
+        "uncertain"
+      ],
+      "allocation_publication_uncertain": [
+        "allocation_durable",
+        "uncertain"
+      ],
+      "claim_acquired": [
+        "pre_mutation_rejected",
+        "payment_append_uncertain",
+        "uncertain"
+      ],
+      "payment_append_uncertain": [
+        "payment_durable_allocation_missing",
+        "allocation_publication_uncertain",
+        "allocation_durable",
+        "uncertain"
+      ],
+      "payment_durable_allocation_missing": [
+        "allocation_publication_uncertain",
+        "allocation_durable",
+        "uncertain"
+      ],
+      "pre_mutation_rejected": [
+        "terminal_revalidated",
+        "uncertain"
+      ],
+      "terminal_revalidated": [],
+      "uncertain": [
+        "pre_mutation_rejected",
+        "payment_durable_allocation_missing",
+        "allocation_publication_uncertain",
+        "allocation_durable"
+      ]
+    },
+    "generic_protected_witness_sufficient_for_zero_effect": false,
+    "phase_seq_rule": "exact_increment_by_one",
+    "pre_mutation_zero_effect_witness_contract_verification_required": true,
+    "previous_envelope_sha256_required_after_phase0": true,
+    "recovery_from_uncertain_requires_protected_witness": true,
+    "terminal_phase": "terminal_revalidated",
+    "uncertain_to_pre_mutation_rejected_requires_zero_effect_witness": true,
+    "zero_effect_witness_verification_precedes_pre_mutation_classification": true
+  },
+  "plan_id": "voidbuyxuid1_f5aedeb3290db0ce83cad747e97d6fc27b6c3d422263525a2f23df79f126004e",
+  "repository": "6ZoSo9/void-node",
+  "schema": "void.buy.verified_payment.cross_uid_session_envelope_plan.v1",
+  "session_envelope_contract": {
+    "claim_binding_fields": [
+      "claim_nonce",
+      "claim_staging_name",
+      "claim_owner_role",
+      "claim_owner_uid",
+      "claim_pid",
+      "claim_process_start_ticks",
+      "claim_created_at_utc",
+      "web_uid",
+      "custody_uid",
+      "shared_gid"
+    ],
+    "claim_created_at_utc_release_authority": false,
+    "generation_fields": [
+      "claim_generation_sha256",
+      "web_artifact_generation_sha256",
+      "custody_artifact_generation_sha256"
+    ],
+    "lineage_fields": [
+      "request_id",
+      "payment_verified_event_sha256",
+      "allocation_record_id",
+      "allocation_tip_sha256"
+    ],
+    "phase_fields": [
+      "phase",
+      "phase_seq",
+      "previous_envelope_sha256",
+      "protected_phase_witness_sha256",
+      "pre_mutation_zero_effect_witness_sha256"
+    ],
+    "pre_mutation_zero_effect_witness_contract": {
+      "generic_protected_phase_witness_sufficient": false,
+      "release_authority": false,
+      "required_bindings": [
+        "session_id",
+        "original_claim_incarnation",
+        "request_id",
+        "payment_verified_event_sha256",
+        "web_artifact_generation_sha256",
+        "custody_artifact_generation_sha256",
+        "request_ledger_identity_and_tip",
+        "operator_payment_ledger_identity_and_tip",
+        "allocation_ledger_identity_and_tip",
+        "allocation_high_water_generation",
+        "sidecar_and_pending_intent_state",
+        "previous_envelope_sha256",
+        "phase_seq",
+        "reviewed_rollback_exclusion_domain",
+        "reviewed_time_domain"
+      ],
+      "required_for_transition": "uncertain_to_pre_mutation_rejected",
+      "required_zero_effect_claims": [
+        "no_payment_append_effect",
+        "no_allocation_publication_effect",
+        "no_sidecar_effect",
+        "no_pending_intent_effect",
+        "no_earlier_target_capacity_write_effect"
+      ],
+      "verification_result_must_be": true
+    },
+    "session_id_derivation": "sha256(canonical_json_of_claim_incarnation_lineage_phase0_and_artifact_generations)",
+    "session_id_format": "voidbuysess1_<64_lowercase_hex_sha256>",
+    "trusted_clock_release_authority": false
+  },
+  "source_base_head": "7197eb96ff3ce2d3f630545a85c150b694d20b3b",
+  "source_base_tree": "ed7c516dc7d49895a2af576add999c3a5dde945b",
+  "source_binding_count": 11,
+  "source_bindings": {
+    "src/economic/buy_void_allocation_reservation_ledger_v1.ts": "8d84955e1e093a5c5af63241e62b8722fadd2f29",
+    "src/economic/buy_void_allocation_reservation_publication_writer_v1.ts": "b460963c25a87153551090ed97e9c716aad0b727",
+    "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs": "94f0a0dd8997e1e2c0fab54044f19d70d983d441",
+    "src/economic/buy_void_cross_uid_failure_reconciliation_v1.mjs": "c0e0b531aab9509f31f74a14df577e3abce5548d",
+    "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts": "eb4fb37c6073415228b312663c45a99d5015c727",
+    "src/economic/buy_void_verified_allocation_replay_binding_v1.ts": "b451bcd895986dadaf6e53954671062068316ccf",
+    "src/economic/buy_void_verified_payment_capacity_admission_v1.ts": "ac8bf352979e0e24d2cab45c3b23949e1bd2b026",
+    "src/economic/buy_void_web_payment_cross_uid_failure_binding_v1.mjs": "6a512f74f3c83c686e995b3cf1bfdeabc5c79140",
+    "src/economic/buy_void_web_payment_cross_uid_lock_validation_v1.mjs": "ec4d1bae5ccf1b0cd3a15dfe6f38b7bda69f1a25",
+    "src/economic/buy_void_web_payment_cross_uid_lock_writer_impl_v1.mjs": "ae7d4b83f2008e0dc4d06beeaccb47b564bd9321",
+    "tools/void-buy-allocation-custody-service-v2.mjs": "3afcc450b11f93209253a5cc10b300596942d07d"
+  },
+  "version": 1
+}
