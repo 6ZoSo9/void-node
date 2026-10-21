@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import pathlib
+import signal
 import stat
 import subprocess
 import tempfile
@@ -85,6 +86,9 @@ _PUBLICATION = "false"
 _STAGE_RETAINED = False
 
 class InstallError(RuntimeError):
+    pass
+
+class TerminationSignal(InstallError):
     pass
 
 def sha256_bytes(raw: bytes) -> str:
@@ -606,9 +610,9 @@ def collect_plan(expected_head: str) -> dict[str, Any]:
         "plan_id": PLAN_PREFIX + hashlib.sha256(canonical(body)).hexdigest(),
     }
 
-def _collect_plan_for_apply(expected_head: str) -> dict[str, Any]:
+def _runtime_uid_child_call(operation: str, expected_head: str = "") -> dict[str, Any]:
     if os.geteuid() != 0 or os.getuid() != 0:
-        raise InstallError("root_required_for_apply_plan_drop")
+        raise InstallError("root_required_for_runtime_uid_child")
     read_fd, write_fd = os.pipe()
     pid = os.fork()
     if pid == 0:
@@ -618,7 +622,12 @@ def _collect_plan_for_apply(expected_head: str) -> dict[str, Any]:
             os.setgid(RUNTIME_GID)
             os.setuid(RUNTIME_UID)
             try:
-                result = collect_plan(expected_head)
+                if operation == "collect_plan":
+                    result: Any = collect_plan(expected_head)
+                elif operation == "verify_stage":
+                    result = _verify_full_history_root(STAGE, 0, 0, 0o555)
+                else:
+                    raise InstallError("runtime_uid_child_operation_invalid")
                 payload = json.dumps(
                     {"ok": True, "result": result},
                     sort_keys=True,
@@ -649,6 +658,7 @@ def _collect_plan_for_apply(expected_head: str) -> dict[str, Any]:
     os.close(write_fd)
     chunks: list[bytes] = []
     total = 0
+    waited = False
     try:
         while True:
             part = os.read(read_fd, 64 * 1024)
@@ -656,24 +666,50 @@ def _collect_plan_for_apply(expected_head: str) -> dict[str, Any]:
                 break
             total += len(part)
             if total > 8 * 1024 * 1024:
-                raise InstallError("apply_plan_child_output_too_large")
+                raise InstallError("runtime_uid_child_output_too_large")
             chunks.append(part)
+        waited_pid, status = os.waitpid(pid, 0)
+        waited = True
+        if (
+            waited_pid != pid
+            or not os.WIFEXITED(status)
+            or os.WEXITSTATUS(status) != 0
+        ):
+            raise InstallError("runtime_uid_child_failed")
+    except BaseException:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        if not waited:
+            try:
+                os.waitpid(pid, 0)
+            except ChildProcessError:
+                pass
+        raise
     finally:
         os.close(read_fd)
-    waited, status = os.waitpid(pid, 0)
-    if waited != pid or not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0:
-        raise InstallError("apply_plan_child_failed")
+
     try:
         envelope = json.loads(b"".join(chunks))
     except json.JSONDecodeError as exc:
-        raise InstallError("apply_plan_child_json_invalid") from exc
+        raise InstallError("runtime_uid_child_json_invalid") from exc
     if not isinstance(envelope, dict) or envelope.get("ok") is not True:
         raise InstallError(
-            "apply_plan_child_hold:" + str(envelope.get("error", "unknown"))
+            "runtime_uid_child_hold:" + str(envelope.get("error", "unknown"))
         )
     result = envelope.get("result")
     if not isinstance(result, dict):
-        raise InstallError("apply_plan_child_result_invalid")
+        raise InstallError("runtime_uid_child_result_invalid")
+    return result
+
+def _collect_plan_for_apply(expected_head: str) -> dict[str, Any]:
+    return _runtime_uid_child_call("collect_plan", expected_head)
+
+def _verify_stage_for_apply(expected_content_sha256: str) -> dict[str, Any]:
+    result = _runtime_uid_child_call("verify_stage")
+    if result.get("content_sha256") != expected_content_sha256:
+        raise InstallError("stage_content_digest_mismatch")
     return result
 
 def source_plan() -> None:
@@ -690,6 +726,8 @@ def source_plan() -> None:
     print("trusted_root_launcher_required=true")
     print("apply_plan_runtime_uid_drop_required=true")
     print("candidate_copy_descriptor_relative=true")
+    print("apply_root_dynamic_git_exec=false")
+    print("termination_signal_reconciliation_required=true")
     print("service_mutation=false")
     print("credential_access=false")
     print("transaction=false")
@@ -986,9 +1024,7 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
 
     _revalidate_install_parent_after_stage(ancestors)
 
-    stage = _verify_full_history_root(STAGE, 0, 0, 0o555)
-    if stage["content_sha256"] != expected_candidate["content_sha256"]:
-        raise InstallError("stage_content_digest_mismatch")
+    _verify_stage_for_apply(expected_candidate["content_sha256"])
 
 def _rename_noreplace() -> None:
     global _PUBLICATION, _STAGE_RETAINED
@@ -1068,9 +1104,9 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
         raise InstallError("stage_state_not_visible_before_publication")
     if not _same_binding(rebound["body"], planned["body"]):
         raise InstallError("plan_binding_changed_before_publication")
-    stage = _verify_full_history_root(STAGE, 0, 0, 0o555)
-    if stage["content_sha256"] != planned["body"]["candidate"]["content_sha256"]:
-        raise InstallError("stage_revalidation_failed")
+    stage = _verify_stage_for_apply(
+        planned["body"]["candidate"]["content_sha256"]
+    )
 
     _rename_noreplace()
 
@@ -1099,6 +1135,13 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
     print("wc_void_market_activation=false")
     print("funds_movement=false")
     print("next_action=SOURCE_REVIEW_V7_PROTECTED_SUBSTRATE_INSTALLER_FULL_HISTORY_REPLICA_BINDING")
+
+def _termination_signal_handler(signum: int, _frame: Any) -> None:
+    raise TerminationSignal("termination_signal:" + str(signum))
+
+def _install_termination_signal_handlers() -> None:
+    signal.signal(signal.SIGTERM, _termination_signal_handler)
+    signal.signal(signal.SIGHUP, _termination_signal_handler)
 
 def _reconcile_publication_receipt() -> None:
     global _PUBLICATION, _STAGE_RETAINED
@@ -1178,6 +1221,7 @@ def main() -> int:
         return 0
     if not args.expected_plan_id:
         raise InstallError("expected_plan_id_required")
+    _install_termination_signal_handlers()
     apply(args.expected_head, args.expected_plan_id, args.confirm)
     return 0
 
