@@ -130,6 +130,12 @@ count/size/mtime/ctime and SHA-256, checked across `verify-pack`, and rehashed
 again at terminal verification. Replacing or modifying either pack leaf after
 object verification therefore cannot produce a GREEN candidate.
 
+The final `.git/index` leaf is held to the same standard: its retained
+descriptor is bound to the full file-generation identity and SHA-256 immediately
+after publication, its visible name is rebound, and both generation and digest
+are checked again during terminal verification. An in-place or replacement
+index edit after the cached-tree comparison cannot still produce GREEN.
+
 ## Authority boundary
 
 `--self-test` and `--plan` are read-only and retain explicit
