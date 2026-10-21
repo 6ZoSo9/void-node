@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import io
 import json
 import os
 import pathlib
@@ -52,6 +53,19 @@ def _read_fd_bounded(path: pathlib.Path, maximum: int) -> bytes:
         os.close(fd)
 
 
+def _gzip_decompress_bounded(raw: bytes, maximum: int) -> bytes:
+    try:
+        with gzip.GzipFile(fileobj=io.BytesIO(raw), mode="rb") as stream:
+            out = stream.read(maximum + 1)
+            if len(out) > maximum:
+                raise CensusError("kernel_config_uncompressed_limit")
+            if stream.read(1):
+                raise CensusError("kernel_config_uncompressed_limit")
+            return out
+    except MemoryError as exc:
+        raise CensusError("kernel_config_decompression_memory_error") from exc
+
+
 def _read_config_text() -> tuple[str | None, str]:
     release = os.uname().release
     boot = pathlib.Path("/boot") / ("config-" + release)
@@ -65,11 +79,9 @@ def _read_config_text() -> tuple[str | None, str]:
     if proc.exists():
         try:
             raw = _read_fd_bounded(proc, MAX_CONFIG_BYTES)
-            text = gzip.decompress(raw)
-            if len(text) > MAX_CONFIG_BYTES:
-                raise CensusError("kernel_config_uncompressed_limit")
+            text = _gzip_decompress_bounded(raw, MAX_CONFIG_BYTES)
             return text.decode("utf-8", "strict"), os.fspath(proc)
-        except (OSError, UnicodeError, gzip.BadGzipFile, CensusError):
+        except (OSError, UnicodeError, gzip.BadGzipFile, EOFError, CensusError):
             pass
     return None, "unavailable"
 
@@ -633,6 +645,7 @@ def self_test() -> int:
     print("ext4_verity_ro_compat_bit_bound=true")
     print("ext4_extents_incompat_bit_bound=true")
     print("kernel_config_fsverity_parser_bound=true")
+    print("kernel_config_gzip_output_bounded=true")
     print("external_subprocess=false")
     print("ioctl_invocation=false")
     _emit_false_authority()
