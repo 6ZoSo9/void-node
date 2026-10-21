@@ -14,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "cf6832b6cb4233fb03d9b6e74ae00396183831c0"
+TARGET_BLOB = "b49bf5e6d0954c9d6c9af76f5ad3e0cb5c47c6d0"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -51,9 +51,13 @@ for required in (
     'candidate_fsck_output_nonempty',
     '_path_line_or_control_character',
     'pwd.getpwuid(os.getuid())',
+    'ACCOUNT_HOME_ROOT = Path("/home")',
+    'account_home_outside_allowed_user_root',
+    'root_account_forbidden',
     'def _physical_output_root()',
     '_directory_alias_forbidden',
     'output_parent_alias_forbidden',
+    'output_under_source_checkout',
     'protected_replace_authorized=false',
 ):
     assert required in text, required
@@ -75,8 +79,11 @@ assert selftest.returncode == 0 and selftest.stderr == ""
 assert "VOID_V7_SOURCE_RELEASE_FULL_HISTORY_RESEAL_V1_SELF_TEST_GREEN" in selftest.stdout.splitlines()
 assert "receipt_line_separators_rejected=true" in selftest.stdout.splitlines()
 assert "passwd_account_home_required=true" in selftest.stdout.splitlines()
+assert "account_home_directly_under_physical_home_root_required=true" in selftest.stdout.splitlines()
+assert "protected_account_home_rejected=true" in selftest.stdout.splitlines()
 assert "physical_downloads_root_required=true" in selftest.stdout.splitlines()
 assert "output_parent_aliases_rejected=true" in selftest.stdout.splitlines()
+assert "source_checkout_output_rejected=true" in selftest.stdout.splitlines()
 
 account_home = Path(pwd.getpwuid(os.getuid()).pw_dir)
 spoofed_env = dict(os.environ)
@@ -147,8 +154,11 @@ print("shallow_graft_alternate_commondir_rejected=true")
 print("output_scope_guard_bound=true")
 print("receipt_line_separator_guard_bound=true")
 print("passwd_account_home_binding_bound=true")
+print("physical_account_home_root_binding_bound=true")
+print("protected_account_home_rejection_bound=true")
 print("physical_downloads_root_binding_bound=true")
 print("output_parent_alias_rejection_bound=true")
+print("source_checkout_output_rejection_bound=true")
 print("protected_filesystem_mutation=false")
 print("network=false")
 print("protected_replace_authorized=false")
