@@ -26,11 +26,11 @@ Installed qualifier V4 Git blob:
 
 Launcher V2 source Git blob:
 
-`6f42ac327bfcbdd8eed3c13f8499be4165458659`
+`0aa8d3a990de662b8c3c9928d4c31452d8299ca7`
 
 Launcher V2 proof Git blob:
 
-`bb5d9849715d69fc9912865ce8966f9c2f30bc4e`
+`1c3503a9fe504559e22cdab9a2d423414be137dc`
 
 These are source identities only. Installed launcher/runtime/source generations require separate host qualification.
 
