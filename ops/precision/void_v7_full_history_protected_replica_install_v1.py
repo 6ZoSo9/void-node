@@ -1746,6 +1746,8 @@ def self_test() -> None:
     print("private_stage_named_runtime_uid_acl_required=true")
     print("private_stage_acl_xattr_roundtrip_required=true")
     print("private_stage_acl_group_object_zero_required=true")
+    print("runtime_uid_child_capability_clear_required=true")
+    print("runtime_uid_child_capability_status_zero_required=true")
     print("candidate_utf8_path_components_required=true")
     print("rename_noreplace_publication_required=true")
     print("trusted_root_launcher_required=true")
