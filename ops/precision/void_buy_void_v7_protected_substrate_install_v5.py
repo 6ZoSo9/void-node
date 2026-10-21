@@ -1418,6 +1418,8 @@ def source_plan() -> None:
     print("trusted_full_history_content_sha256_required=true")
     print("live_shallow_release_cross_binding_required=true")
     print("protected_full_history_replica_source_required=true")
+    print("v4_installer_dependency_bound=true")
+    print("full_history_replica_installer_dependency_bound=true")
     print("trusted_full_history_content_sha256_required=true")
     print("live_shallow_release_cross_binding_required=true")
     print("protected_full_history_replica_source_required=true")
@@ -1584,7 +1586,7 @@ def self_test() -> None:
     print("source_release_ancestor_acl_custody_required=true")
     print("source_release_ancestor_generation_revalidation_required=true")
     assert QUALIFIER_REL.endswith("_installed_qualification_v4.py") and len(QUALIFIER_BLOB) == 40
-    print("installed_qualifier_v3_bound=true")
+    print("installed_qualifier_v4_bound=true")
     print("partial_publication_truthful=true"); print("no_rollback_after_publication=true")
     print("service_mutation=false"); print("transaction=false"); print("funds_movement=false")
 
