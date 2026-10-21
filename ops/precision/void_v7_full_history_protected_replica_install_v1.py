@@ -1026,6 +1026,9 @@ def source_plan() -> None:
     print("candidate_copy_descriptor_relative=true")
     print("candidate_copy_incremental_enumeration_required=true")
     print("candidate_copy_iterative_depth_bound_required=true")
+    print("candidate_copy_operation_bound_node_budget_required=true")
+    print("candidate_copy_operation_bound_byte_budget_required=true")
+    print("candidate_copy_exact_planned_counts_required=true")
     print("apply_root_dynamic_git_exec=false")
     print("termination_signal_reconciliation_required=true")
     print("install_parent_publication_lease_required=true")
@@ -1039,6 +1042,9 @@ def source_plan() -> None:
     print("runtime_uid_child_capability_status_zero_required=true")
     print("candidate_copy_incremental_enumeration_required=true")
     print("candidate_copy_iterative_depth_bound_required=true")
+    print("candidate_copy_operation_bound_node_budget_required=true")
+    print("candidate_copy_operation_bound_byte_budget_required=true")
+    print("candidate_copy_exact_planned_counts_required=true")
     print("candidate_utf8_path_components_required=true")
     print("candidate_receipt_safe_path_components_required=true")
     print("terminal_reason_line_sanitization_required=true")
@@ -1374,7 +1380,7 @@ def _copy_candidate_tree_iterative(
     depth_limit: int = MAX_COPY_DEPTH,
     total_limit: int = MAX_TOTAL_BYTES,
 ) -> tuple[int, int]:
-    if node_limit < 1:
+    if node_limit < 0:
         raise InstallError("copy_node_limit_invalid")
     if depth_limit < 0:
         raise InstallError("copy_depth_limit_invalid")
@@ -1528,12 +1534,32 @@ def _copy_candidate_tree_iterative(
 
     return nodes, total
 
+def _planned_candidate_copy_limits(
+    expected_candidate: dict[str, Any],
+) -> tuple[int, int]:
+    if not isinstance(expected_candidate, dict):
+        raise InstallError("planned_candidate_shape_invalid")
+    nodes = expected_candidate.get("nodes")
+    regular_file_bytes = expected_candidate.get("regular_file_bytes")
+    if type(nodes) is not int or nodes < 0 or nodes > MAX_NODES:
+        raise InstallError("planned_candidate_nodes_invalid")
+    if (
+        type(regular_file_bytes) is not int
+        or regular_file_bytes < 0
+        or regular_file_bytes > MAX_TOTAL_BYTES
+    ):
+        raise InstallError("planned_candidate_regular_file_bytes_invalid")
+    return nodes, regular_file_bytes
+
 def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
     global _WRITE_BOUNDARY_ENTERED, _STAGE_RETAINED
 
     if STAGE.exists() or STAGE.is_symlink():
         raise InstallError("stage_preexisting")
 
+    planned_nodes, planned_regular_file_bytes = _planned_candidate_copy_limits(
+        expected_candidate
+    )
     ancestors = _ancestor_custody(INSTALL_PARENT)
     candidate_before = CANDIDATE.lstat()
     if (
@@ -1575,10 +1601,14 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
         nodes, total = _copy_candidate_tree_iterative(
             candidate_fd,
             stage_fd,
-            node_limit=MAX_NODES,
+            node_limit=planned_nodes,
             depth_limit=MAX_COPY_DEPTH,
-            total_limit=MAX_TOTAL_BYTES,
+            total_limit=planned_regular_file_bytes,
         )
+        if nodes != planned_nodes:
+            raise InstallError("copy_planned_node_count_mismatch")
+        if total != planned_regular_file_bytes:
+            raise InstallError("copy_planned_regular_file_bytes_mismatch")
         candidate_after = CANDIDATE.lstat()
         if (
             _metadata_identity(os.fstat(candidate_fd)) != _metadata_identity(candidate_before)
