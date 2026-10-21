@@ -939,7 +939,16 @@ def exact_binary_root(root: pathlib.Path, filename: str, expected_sha: str, expe
     _require_runtime_uid_nonwritable([root], label + "_installed_root")
     if _metadata_identity(root.lstat()) != root_identity:
         raise InstallError(label + "_root_generation_changed")
-    if sorted(os.listdir(root)) != [filename]:
+    root_entries: list[str] = []
+    try:
+        with os.scandir(root) as scan:
+            for entry in scan:
+                root_entries.append(entry.name)
+                if len(root_entries) > 1:
+                    raise InstallError(label + "_root_entries_invalid")
+    except OSError as exc:
+        raise InstallError(label + "_root_scandir_failed") from exc
+    if root_entries != [filename]:
         raise InstallError(label + "_root_entries_invalid")
     path = root / filename
     fst = path.lstat()
