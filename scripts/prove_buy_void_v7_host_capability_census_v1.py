@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_v7_host_capability_census_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "3efe934886e8fef40b192f1ba1b45d17699e3d85"
+TARGET_BLOB = "5bc0cc5dc53cecb931821b83f9112daf461539d0"
 LAUNCHER_REL = "ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c"
 LAUNCHER_BLOB = "0aa8d3a990de662b8c3c9928d4c31452d8299ca7"
 MARKER = "VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1_PROOF"
@@ -52,7 +52,7 @@ for required in (
     'MARKER = "VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1"',
     'EXPECTED_LAUNCHER_HEAD = "48830177ac85663d9a95e180e5cb8e08e53e6227"',
     'STATIC_LAUNCHER_SHA256 = "014565eb9d285c53163effa78572214e9dd9e4e5f8cc54ae27d6879e9f545a64"',
-    'LANDING_BASE_MAIN = "47acc1485ab264a1a33d6a8c70072c2c18ce56e4"',
+    'LANDING_BASE_MAIN = "0d93be0a7ae1395449a386d4fbe14bb680f51c3f"',
     'FS_IOC_MEASURE_VERITY = 0xC0046686',
     'FS_VERITY_HASH_ALG_SHA256 = 1',
     'errno.ENODATA',
