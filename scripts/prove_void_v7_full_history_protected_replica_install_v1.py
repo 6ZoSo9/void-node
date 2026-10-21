@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "f3c17c0b6ff9635f8978a50daf92f3261bfb3b59"
+TARGET_BLOB = "5ad6a9211a95110944db493e1a58e750a0261bd2"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -72,6 +72,11 @@ for required in (
     '"diff-index", "--cached", "--quiet", SOURCE_HEAD, "--"',
     'git_index_head_equality_required=true',
     'git_metadata_leaves_nonexecutable_required=true',
+    'def _seal_private_stage_for_verification()',
+    'private_stage_content_digest_mismatch',
+    'stage_seal_private_file_mode_invalid:',
+    'stage_seal_private_directory_mode_invalid:',
+    'private_stage_before_content_authentication=true',
     'os.setgid(RUNTIME_GID)',
     'os.setuid(RUNTIME_UID)',
     'def _copy_regular_at(',
@@ -179,6 +184,7 @@ for marker in (
     "install_parent_publication_lease_required=true",
     "git_index_head_equality_required=true",
     "git_metadata_leaves_nonexecutable_required=true",
+    "private_stage_before_content_authentication=true",
     "service_mutation=false",
     "credential_access=false",
     "transaction=false",
@@ -202,6 +208,7 @@ print("termination_signal_reconciliation_bound=true")
 print("install_parent_publication_lease_bound=true")
 print("git_index_head_equality_bound=true")
 print("git_metadata_leaves_nonexecutable_bound=true")
+print("private_stage_content_authentication_bound=true")
 print("live_release_replacement_forbidden=true")
 print("source_plan_inert=true")
 print("service_mutation=false")
