@@ -705,7 +705,7 @@ def _git_tree_oid_from_worktree(root: pathlib.Path, label: str) -> str:
                 if total > MAX_TOTAL_BYTES:
                     raise InstallError(label + "_worktree_total_bytes_limit")
                 oid = _read_regular_git_blob_sha1_exact(child, identity, label + "_worktree_blob")
-                mode = b"100755" if stat.S_IMODE(st.st_mode) & 0o111 else b"100644"
+                mode = b"100755" if stat.S_IMODE(st.st_mode) & stat.S_IXUSR else b"100644"
                 sort_key = raw_name + b"\0"
             elif stat.S_ISLNK(st.st_mode):
                 target_raw = os.fsencode(os.readlink(child))
