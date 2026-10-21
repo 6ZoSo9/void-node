@@ -84,19 +84,35 @@ candidate is reported as `retained_needs_inspection` and left untouched; a
 missing or substituted visible root reports residual state as unknown rather
 than deleting through an unproven generation.
 
-## Reflog-safe worktree materialization
+## Descriptor-relative worktree materialization
 
-The builder does not run `git reset --hard` or another ref-updating checkout.
-After the object pack and exact `refs/heads/main` file are created through
-retained descriptors, it builds an index in a retained temporary directory using
-`git read-tree`, materializes the tracked worktree with `git checkout-index`,
-then copies the exact index bytes into `.git/index` with
-`O_EXCL|O_NOFOLLOW` and retains that index generation for terminal
-verification. `.git/logs` must remain absent before and after this phase.
+The builder does not run `git reset --hard`, `git checkout-index`, or another
+Git command that traverses writable candidate descendants.
 
-This removes the reflog write surface identified during review: no Git operation
-in candidate construction updates HEAD or another ref after the reviewed main
-ref is written.
+After the exact object pack and `refs/heads/main` file are created through
+retained descriptors, `git read-tree` writes only the temporary index bound by
+`GIT_INDEX_FILE=/proc/self/fd/.../index`. The builder then reads the exact
+target tree manifest from the candidate object store and materializes the
+worktree itself:
+
+- the accepted tree must contain only directories and regular mode-`100644`
+  or mode-`100755` blobs; symlinks, gitlinks and other entry modes HOLD;
+- every directory is created relative to an already retained parent descriptor
+  and reopened with `O_DIRECTORY|O_NOFOLLOW`;
+- every regular file is created with `O_EXCL|O_NOFOLLOW` relative to its
+  retained parent descriptor;
+- blob bytes are read by exact object ID and rebound to their Git blob hash;
+- all 298 tracked directory descriptors remain retained through terminal
+  verification;
+- terminal verification requires exact direct-entry sets, retained/visible
+  directory identity, regular-file mode and Git blob identity for all 11,648
+  tracked files.
+
+The final `.git/index` is published with `O_EXCL|O_NOFOLLOW`, retained by
+descriptor, and compared read-only with the accepted target using
+`git diff-index --cached --quiet`. `.git/logs` remains forbidden. No
+candidate Git command updates a ref or delegates descendant worktree writes to
+Git pathname traversal.
 
 ## Authority boundary
 
