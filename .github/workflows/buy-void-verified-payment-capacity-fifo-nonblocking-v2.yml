@@ -36,7 +36,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$(git rev-list --parents -n 1 HEAD | awk '{print $2}')" = "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"
+          git merge-base --is-ancestor "851940b36e9fc0d3d8f00503d4b56f613e6312b4" HEAD
+          test "$(git merge-base "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c" HEAD)" = "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"
+          test "$(git rev-list --count "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"..HEAD)" -ge 2
+          test "$(git rev-list --count --merges "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"..HEAD)" -eq 0
           git merge-base --is-ancestor "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c" HEAD
           printf '%s\n' \
             'A	.github/workflows/buy-void-verified-payment-capacity-fifo-nonblocking-v2.yml' \
