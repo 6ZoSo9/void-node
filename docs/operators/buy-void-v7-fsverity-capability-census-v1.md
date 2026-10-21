@@ -38,9 +38,14 @@ The census uses:
 
 For ext4 only, V1 attempts a direct `O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK` read of the mounted block device's superblock and checks:
 
+- the resolved block device's major/minor matches mountinfo's mounted-device `major:minor`;
+- the opened descriptor's `st_rdev` still matches that same mounted-device number;
 - ext4 magic `0xEF53`;
 - incompatible-feature `EXTENTS` bit `0x0040`;
-- read-only-compatible `VERITY` bit `0x8000`.
+- read-only-compatible `VERITY` bit `0x8000`;
+- a terminal re-read of `/proc/self/mountinfo` still selects the identical `/opt` mount row after the kernel/device probes.
+
+Any device-number drift or mount-generation drift is HOLD.
 
 If the ordinary user cannot read the block device, the census reports HOLD. **That HOLD must not be worked around with sudo against the ordinary checkout.** The missing privileged feature observation must later be performed only through a separately reviewed trusted first-instruction host lane.
 
@@ -85,7 +90,9 @@ GREEN means V1 directly observed all of its conservative ext4 requirements:
 - readable underlying block device;
 - valid ext4 superblock;
 - extents feature enabled;
-- ext4 verity RO_COMPAT feature enabled.
+- ext4 verity RO_COMPAT feature enabled;
+- mounted-device major/minor remained bound;
+- terminal `/opt` mount generation remained unchanged.
 
 GREEN is capability evidence only. It is not installation or apply authority.
 
