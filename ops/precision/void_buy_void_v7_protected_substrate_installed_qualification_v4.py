@@ -171,6 +171,7 @@ def _content_digest(
     ):
         raise QualifyError("tree_root_metadata_invalid")
     root_identity = _metadata_identity(rst)
+    _require_runtime_nonwritable(root_abs, "tree_root")
     h = hashlib.sha256()
     nodes = 0
     total = 0
@@ -200,11 +201,13 @@ def _content_digest(
             if stat.S_ISDIR(st.st_mode):
                 if stat.S_IMODE(st.st_mode) & 0o022:
                     raise QualifyError("tree_directory_group_or_world_writable:" + rel)
+                _require_runtime_nonwritable(child, "tree_directory")
                 h.update(b"D\0" + rel.encode("utf-8") + b"\0")
                 pending.append((child, rel))
             elif stat.S_ISREG(st.st_mode):
                 if stat.S_IMODE(st.st_mode) & 0o022:
                     raise QualifyError("tree_file_group_or_world_writable:" + rel)
+                _require_runtime_nonwritable(child, "tree_file")
                 file_size, file_sha256, _oid, _identity = _stream_regular(
                     child, "tree_file", git_blob=False
                 )
@@ -397,6 +400,7 @@ def qualify(expected_full_history_content_sha256: str) -> None:
     expected = _hex(expected_full_history_content_sha256, 64, "expected_full_history_content_sha256")
     require_runtime_identity()
     _verify_repo_root(LIVE_RELEASE, "live_release", root_mode=0o555, shallow=True)
+    live_before = _content_digest(LIVE_RELEASE, 0, 0, 0o555)
     _verify_repo_root(FULL_HISTORY_RELEASE, "full_history_release", root_mode=0o555, shallow=False)
     _verify_repo_root(SOURCE, "protected_source", root_mode=0o755, shallow=False)
 
@@ -412,13 +416,15 @@ def qualify(expected_full_history_content_sha256: str) -> None:
 
     full_after = _content_digest(FULL_HISTORY_RELEASE, 0, 0, 0o555)
     source_after = _content_digest(SOURCE, 0, 0, 0o755)
-    if full_after != full_before or source_after != source_before:
+    live_after = _content_digest(LIVE_RELEASE, 0, 0, 0o555)
+    if full_after != full_before or source_after != source_before or live_after != live_before:
         raise QualifyError("source_generation_changed_during_qualification")
     _verify_repo_root(LIVE_RELEASE, "live_release_terminal", root_mode=0o555, shallow=True)
 
     print(MARKER)
     print("status=INSTALLED_QUALIFICATION_V4_GREEN")
     print("live_shallow_release_cross_binding_green=true")
+    print("live_release_acl_aware_tree_custody_green=true")
     print("full_history_provenance_digest_green=true")
     print("protected_source_full_history_digest_green=true")
     print("expected_full_history_content_sha256=" + expected)
@@ -482,6 +488,7 @@ def self_test() -> None:
     print(MARKER + "_SELF_TEST_GREEN")
     print("trusted_full_history_content_sha256_required=true")
     print("content_digest_matches_replica_v1_contract=true")
+    print("acl_aware_whole_tree_nonwritability_required=true")
     print("direct_worktree_tree_oid_required=true")
     print("external_repository_observer=false")
     print("funds_movement=false")
