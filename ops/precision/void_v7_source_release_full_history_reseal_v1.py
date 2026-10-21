@@ -42,6 +42,7 @@ MAX_FDINFO_BYTES = 64 * 1024
 MOUNTINFO_PATH = Path("/proc/self/mountinfo")
 
 _CANDIDATE_CREATED = False
+_BUILD_WRITE_BOUNDARY_ENTERED = False
 _CLEANUP_ATTEMPTED = False
 _CLEANUP_COMPLETED = False
 _CLEANUP_RESIDUAL_UNKNOWN = False
@@ -1068,7 +1069,7 @@ def _cleanup_candidate(
     return (True, True, False, "absent", "candidate_empty_removed")
 
 def build(output: Path) -> None:
-    global _CANDIDATE_CREATED
+    global _CANDIDATE_CREATED, _BUILD_WRITE_BOUNDARY_ENTERED
     global _CLEANUP_ATTEMPTED, _CLEANUP_COMPLETED, _CLEANUP_RESIDUAL_UNKNOWN
     global _CANDIDATE_RESIDUAL_STATE, _CLEANUP_REASON
 
@@ -1092,6 +1093,7 @@ def build(output: Path) -> None:
         parent_identity = _directory_lease_identity(os.fstat(parent_fd))
         _revalidate_parent_lease(output, parent_fd, parent_identity)
 
+        _BUILD_WRITE_BOUNDARY_ENTERED = True
         os.mkdir(output.name, mode=0o700, dir_fd=parent_fd)
         _CANDIDATE_CREATED = True
         # Child creation may change directory link counts; the stable retained
@@ -1314,8 +1316,12 @@ def build(output: Path) -> None:
     print("pack_and_ref_aliases_rejected=true")
     print("candidate_cleanup_attempted=false")
     print("candidate_retained_on_success=true")
-    print("source_repository_mutation=false")
-    print("protected_filesystem_mutation=false")
+    print("current_uid_filesystem_write_boundary=true")
+    print("same_uid_namespace_relocation_isolation=false")
+    print("intended_source_repository_mutation=false")
+    print("intended_protected_filesystem_mutation=false")
+    print("source_repository_mutation=unknown")
+    print("protected_filesystem_mutation=unknown")
     print("network=false")
     print("protected_replace_authorized=false")
 
@@ -1446,7 +1452,9 @@ def self_test() -> None:
     print("closed_git_config_required=true")
     print("shallow_graft_alternate_commondir_rejected=true")
     print("output_restricted_to_downloads=true")
+    print("build_mode_nonmutation_claim_forbidden=true")
     print("protected_filesystem_mutation=false")
+    print("source_repository_mutation=false")
     print("network=false")
 
 def plan() -> None:
@@ -1460,7 +1468,12 @@ def plan() -> None:
         else:
             print(key + "=" + str(value))
     print("candidate_build_write_scope=" + _receipt_safe_path(_configured_output_root(), "candidate_build_write_scope"))
+    print("build_mode_current_uid_write_boundary=true")
+    print("build_mode_same_uid_namespace_relocation_isolation=false")
+    print("build_mode_source_repository_mutation_claim=unknown")
+    print("build_mode_protected_filesystem_mutation_claim=unknown")
     print("protected_filesystem_mutation=false")
+    print("source_repository_mutation=false")
     print("network=false")
     print("protected_replace_authorized=false")
 
@@ -1492,5 +1505,15 @@ if __name__ == "__main__":
         print("candidate_cleanup_residual_unknown=" + str(_CLEANUP_RESIDUAL_UNKNOWN).lower())
         print("candidate_residual_state=" + _CANDIDATE_RESIDUAL_STATE)
         print("candidate_cleanup_reason=" + re.sub(r"[^A-Za-z0-9_:.-]", "_", _CLEANUP_REASON[:300]))
-        print("source_repository_mutation=false"); print("protected_filesystem_mutation=false"); print("network=false")
+        print("build_write_boundary_entered=" + str(_BUILD_WRITE_BOUNDARY_ENTERED).lower())
+        if _BUILD_WRITE_BOUNDARY_ENTERED:
+            print("same_uid_namespace_relocation_isolation=false")
+            print("intended_source_repository_mutation=false")
+            print("intended_protected_filesystem_mutation=false")
+            print("source_repository_mutation=unknown")
+            print("protected_filesystem_mutation=unknown")
+        else:
+            print("source_repository_mutation=false")
+            print("protected_filesystem_mutation=false")
+        print("network=false")
         print("protected_replace_authorized=false"); raise SystemExit(2)
