@@ -9,6 +9,21 @@ const source = readFileSync(viewsPath, "utf8");
 const client = readFileSync(clientPath, "utf8");
 const canonicalSource = readFileSync(canonicalPricePath, "utf8");
 const canonicalLaunchGate = readFileSync("src/economic/buy_void_coupled_launch_gate_v1.mjs", "utf8");
+const checkoutContractDoc = readFileSync(
+  "docs/public/buy-void-public-checkout-contract-v1.md", "utf8",
+);
+// Internal duplicate suppression is not an authenticated public 200/201
+// recovery path. A buyer must not infer that a lost POST was unsuccessful.
+assert.match(checkoutContractDoc,
+  /unauthenticated public POST returns a generic HTTP 409/u,
+  "public checkout contract must describe anonymous duplicate conflict");
+assert.match(checkoutContractDoc,
+  /REQUEST OUTCOME UNCONFIRMED — DO NOT SEND FUNDS OR RESUBMIT/u,
+  "public checkout contract must forbid payment/retry after ambiguous POST");
+assert.doesNotMatch(checkoutContractDoc,
+  /Repeating the same\s+amount on the same payment chain is idempotent/u,
+  "public checkout must not misrepresent a generic 409 as successful recovery");
+
 assert.match(canonicalLaunchGate, /const LIVE_ACTIVATION_MAX_LEASE_MS = 5 \* 60 \* 1000;/u,
   "client checkout receipt lifetime must match canonical five-minute activation lease");
 
@@ -2292,6 +2307,7 @@ console.log("multi_intent_guard_memory_bounded=32");
 console.log("prior_receipt_not_misbound_to_different_intent=1");
 console.log("equivalent_usdc_atoms_retry_blocked=1");
 console.log("ambiguous_server_commit_not_declared_not_created=1");
+console.log("anonymous_duplicate_checkout_409_no_resubmit_documented=true");
 console.log("request_outcome_survives_readiness_refresh=1");
 console.log("confirmed_receipt_bound_to_readiness_serial=1");
 console.log("open_to_open_readiness_refresh_retires_payment_instructions=1");
