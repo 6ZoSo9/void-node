@@ -69,7 +69,7 @@ export function attachBlockRangeErrorV1(
       ? "range_span_exceeds_limit"
       : "invalid_bounds";
 
-  const recoveryFrom = validFrom ? from : 0;
+  const recoveryFrom = validHead && head < 0 ? 0 : validFrom ? from : 0;
   const recoveryCeiling =
     recoveryFrom <=
     Number.MAX_SAFE_INTEGER - (ATTACH_BLOCK_RANGE_MAX_SPAN - 1)

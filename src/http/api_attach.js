@@ -50,7 +50,7 @@ function attachBlockRangeErrorV1(fromRaw, toRaw, head) {
         boundedTo - from >= exports.ATTACH_BLOCK_RANGE_MAX_SPAN
         ? "range_span_exceeds_limit"
         : "invalid_bounds";
-    var recoveryFrom = validFrom ? from : 0;
+    var recoveryFrom = validHead && head < 0 ? 0 : validFrom ? from : 0;
     var recoveryCeiling = recoveryFrom <=
         Number.MAX_SAFE_INTEGER - (exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1)
         ? recoveryFrom + exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1

@@ -144,6 +144,11 @@ assert.deepEqual(
   { from: 0, to: -1 },
   "empty-store recovery must preserve the no-data sentinel",
 );
+assert.deepEqual(
+  attachBlockRangeErrorV1("5", "bad", -1).recovery,
+  { from: 0, to: -1 },
+  "empty-store recovery must ignore malformed-request lower bounds",
+);
 const beyondHeadRecovery = attachBlockRangeErrorV1(
   "1001",
   "invalid",
