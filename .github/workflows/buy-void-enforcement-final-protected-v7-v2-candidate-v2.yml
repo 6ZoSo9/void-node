@@ -323,7 +323,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 9f610b351ad48b214fa04dc6b961e4a202049913
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -331,9 +331,10 @@ jobs:
           node-version: 24
       - name: Bind exact V3 lock generation
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: 9f610b351ad48b214fa04dc6b961e4a202049913
         run: |
           set -euo pipefail
+          echo "HISTORICAL_V3_LOCK_SOURCE_PROOF_EXACT_HEAD=9f610b351ad48b214fa04dc6b961e4a202049913"
           CANDIDATE_HEAD=a93016c2e1b0656e9abe8a7607bc35c6cf94eb37
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$CANDIDATE_HEAD" "$EXPECTED_HEAD")" = "$CANDIDATE_HEAD"
