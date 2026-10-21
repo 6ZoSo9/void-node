@@ -678,7 +678,7 @@ def _git_tree_oid_from_worktree(root: pathlib.Path, label: str) -> str:
                     nodes += 1
                     if nodes > MAX_NODES:
                         raise InstallError(label + "_worktree_node_limit")
-                    names.append(name)
+                    names.append(entry.name)
         except OSError as exc:
             raise InstallError(label + "_worktree_scandir_failed:" + os.fspath(directory)) from exc
         for name in names:
@@ -811,7 +811,7 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
             nodes += 1
             if nodes > MAX_NODES:
                 raise InstallError("tree_node_limit")
-            child, relative = directory / name, (rel / name).as_posix()
+            child, relative = directory / entry.name, (rel / entry.name).as_posix()
             st = os.lstat(child)
             mode = stat.S_IMODE(st.st_mode)
             if st.st_uid != 0 or st.st_gid != 0:
@@ -825,7 +825,7 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
                     raise InstallError("tree_directory_generation_changed_before_descent:" + relative)
                 runtime_directories.append(child)
                 records.append((child, relative, "D", mode, identity, None))
-                pending.append((child, rel / name))
+                pending.append((child, rel / entry.name))
             elif stat.S_ISREG(st.st_mode):
                 if st.st_size > MAX_FILE_BYTES:
                     raise InstallError("tree_file_size_limit:" + relative)
@@ -1056,7 +1056,7 @@ def _copy_tree(src_root: pathlib.Path, dst_root: pathlib.Path) -> None:
         for entry in sorted(os.scandir(src_dir), key=lambda e: e.name):
             count += 1
             if count > MAX_NODES: raise InstallError("copy_node_limit")
-            src, dst, st = src_dir / name, dst_dir / name, os.lstat(src_dir / name)
+            src, dst, st = src_dir / entry.name, dst_dir / entry.name, os.lstat(src_dir / entry.name)
             mode = stat.S_IMODE(st.st_mode)
             if st.st_uid != 0 or st.st_gid != 0: raise InstallError("source_node_not_root_owned:" + os.fspath(src))
             if stat.S_ISDIR(st.st_mode):
