@@ -15,7 +15,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "a7dbf325c42f68dfa1d3820e4b628089b04091ad"
+TARGET_BLOB = "c4e6ddaf22babe84d57aa442073abbbcffe47c22"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -47,6 +47,11 @@ assert "def _git_run(" not in text
 assert "def git_text(" not in text
 assert "def git_bytes(" not in text
 assert "def git_ancestor(" not in text
+assert "os.listdir(" not in text
+assert "sorted(os.scandir" not in text
+assert "list(os.scandir" not in text
+assert "def _bounded_directory_names(" in text
+assert "def _require_exact_directory_names(" in text
 
 for required in (
     'BASE_HEAD = "6a577bc61bd95524597e534b37a531c5b60ee7c1"',
@@ -584,6 +589,7 @@ print("built_in_full_history_object_closure_bound=true")
 print("trusted_expected_head_tree_pair_bound=true")
 print("packed_repository_oracle_green=true")
 print("corrupt_pack_rejection_bound=true")
+print("class_wide_bounded_directory_scans_bound=true")
 print("termination_signal_reconciliation_bound=true")
 print("install_parent_publication_lease_bound=true")
 print("git_index_head_equality_bound=true")
