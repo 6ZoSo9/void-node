@@ -8,9 +8,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_v7_host_capability_census_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "bf908749a5a038863f190d31a8cf9da24f584e58"
-LAUNCHER_REL = "ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v1.c"
-LAUNCHER_BLOB = "6ecd7fef155967d35d4500b07da841c4e578c6de"
+TARGET_BLOB = "3efe934886e8fef40b192f1ba1b45d17699e3d85"
+LAUNCHER_REL = "ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c"
+LAUNCHER_BLOB = "0aa8d3a990de662b8c3c9928d4c31452d8299ca7"
 MARKER = "VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1_PROOF"
 
 def git(*args: str) -> str:
@@ -50,8 +50,8 @@ text = raw.decode("utf-8")
 
 for required in (
     'MARKER = "VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1"',
-    'EXPECTED_LAUNCHER_HEAD = "cb07d6fb752593cc10399eb1f7cd15c4524b8189"',
-    'STATIC_LAUNCHER_SHA256 = "7ec634fd290c0dd50fd367cf79d4edccdd3d38931ee117c0baa5af24f4c70e57"',
+    'EXPECTED_LAUNCHER_HEAD = "48830177ac85663d9a95e180e5cb8e08e53e6227"',
+    'STATIC_LAUNCHER_SHA256 = "014565eb9d285c53163effa78572214e9dd9e4e5f8cc54ae27d6879e9f545a64"',
     'FS_IOC_MEASURE_VERITY = 0xC0046686',
     'FS_VERITY_HASH_ALG_SHA256 = 1',
     'errno.ENODATA',
@@ -82,6 +82,9 @@ for required in (
     '"DERIVE_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF"',
     '"candidate_shape_observation_complete"',
     '"runtime_import_closure_established"',
+    '"runtime_contract": "v5"',
+    '"v5_runtime_shape_inventory=true"',
+    '"ctypes/__init__.py"',
     '"candidate_execution": False',
     '"fsverity_enablement": False',
     '"filesystem_write": False',
@@ -94,6 +97,7 @@ assert "import subprocess" not in text
 assert "from subprocess" not in text
 assert "subprocess.run(" not in text
 assert "subprocess.Popen(" not in text
+assert '"subprocess.py"' not in text
 
 assert "DERIVE_REVIEWED_V7_HOST_INSTALL_PLAN" not in text
 assert 'result["status"] = "GREEN"' not in text
@@ -132,6 +136,7 @@ for line in (
     "stdlib_zip_unsupported_versions_hold=true",
     "stdlib_zip_directory_preflight_bounded=true",
     "runtime_import_closure_proof_required=true",
+    "v5_runtime_shape_inventory=true",
     "filesystem_write=false",
     "protected_filesystem_mutation=false",
     "fsverity_enablement=false",
@@ -156,6 +161,7 @@ print("stdlib_zip_invalid_utf8_names_hold=true")
 print("stdlib_zip_unsupported_versions_hold=true")
 print("stdlib_zip_directory_preflight_bounded=true")
 print("runtime_import_closure_proof_required=true")
+print("v5_runtime_shape_inventory=true")
 print("census_cannot_authorize_host_install=true")
 print("fsverity_measure_only=true")
 print("fsverity_enablement=false")
