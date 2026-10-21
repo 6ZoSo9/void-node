@@ -55,9 +55,9 @@ jobs:
             git merge-base --is-ancestor "$BASE" "$EXPECTED_HEAD"
             git diff --check "$BASE" "$EXPECTED_HEAD" --
           fi
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_static_python_runtime_generation_proof_v1.py)" = "889b37ec6126d2e2ca62c988b07b989a4bf3ca80"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_static_python_runtime_generation_proof_v1.py)" = "8804b3fc9129d794bb274ba9323f0424e6fb94e8"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-static-python-runtime-generation-proof-v1.md)" = "626991d25952f1f1f41770663daa0f449f74a532"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_static_python_runtime_generation_proof_v1.py)" = "1219563d191e708bedd3a47909cb7dca1cb8d0e1"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_static_python_runtime_generation_proof_v1.py)" = "4a37f9bae9298fae809d4b74ee8d8e86771ee223"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-static-python-runtime-generation-proof-v1.md)" = "bf6cbfd78707b016562184f768d75c88886694f0"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 
       - name: Python syntax
