@@ -61,7 +61,7 @@ assert.equal(candidate.predecessor_v1.source_base_head, "7197eb96ff3ce2d3f630545
 assert.equal(candidate.predecessor_v1.source_transition_count, 1);
 
 assert.equal(candidate.marker, VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_CANDIDATE_V2);
-assert.match(candidate.candidate_id, /^voidbuycustodybundle1_[0-9a-f]{64}$/u);
+assert.match(candidate.candidate_id, /^voidbuycustodybundle2_[0-9a-f]{64}$/u);
 assert.equal(candidate.entrypoint, "tools/void-buy-allocation-custody-service-v2.mjs");
 assert.equal(candidate.compiler.typescript_version, "5.9.3");
 assert.deepEqual(
