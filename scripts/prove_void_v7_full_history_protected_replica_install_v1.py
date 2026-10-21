@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "a27a08d169337351bdf92c5e42b7069bfb4d273e"
+TARGET_BLOB = "158df3f1d0fc0040bb10d2cb63df12ea788a1748"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -33,6 +33,16 @@ assert git("hash-object", str(TARGET)) == TARGET_BLOB
 raw = TARGET.read_bytes()
 compile(raw, str(TARGET), "exec", dont_inherit=True, optimize=0)
 text = raw.decode("utf-8")
+assert 'def _stream_regular_hashes_stable(' in text
+assert 'byte_read_limit_too_large' in text
+assert 'b"blob " + str(opened.st_size).encode("ascii") + b"\\0"' in text
+assert '_stream_regular_hashes_stable(\n        git_dir / "index"' in text
+assert '_stream_regular_hashes_stable(\n        git_dir / "objects" / "pack" / pack_name' in text
+assert '_stream_regular_hashes_stable(\n                child, "worktree_file", git_blob=True' in text
+assert '_stream_regular_hashes_stable(\n                    child, "tree_file", git_blob=False' in text
+assert '_read_regular_stable(child, "worktree_file")' not in text
+assert '_read_regular_stable(child, "tree_file")' not in text
+
 
 for required in (
     'BASE_HEAD = "e99772502c80fefafef3b6a836a408b66ddded76"',
@@ -53,6 +63,8 @@ for required in (
     'candidate_copy_operation_bound_node_budget_required=true',
     'candidate_copy_operation_bound_byte_budget_required=true',
     'candidate_copy_exact_planned_counts_required=true',
+    'large_file_authentication_streamed=true',
+    'byte_returning_reads_tiny_metadata_only=true',
     'def _planned_candidate_copy_limits(',
     'CANDIDATE = pathlib.Path("/home/zoso/Downloads/void-v7-full-history-candidate-6011fc")',
     'LIVE_RELEASE = pathlib.Path("/opt/void-node-live/releases/" + SOURCE_HEAD)',
@@ -320,6 +332,8 @@ for marker in (
     "candidate_copy_operation_bound_node_budget_required=true",
     "candidate_copy_operation_bound_byte_budget_required=true",
     "candidate_copy_exact_planned_counts_required=true",
+    "large_file_authentication_streamed=true",
+    "byte_returning_reads_tiny_metadata_only=true",
     "candidate_utf8_path_components_required=true",
     "candidate_receipt_safe_path_components_required=true",
     "candidate_printable_path_components_required=true",
@@ -366,6 +380,8 @@ for marker in (
     "candidate_copy_operation_bound_node_budget_required=true",
     "candidate_copy_operation_bound_byte_budget_required=true",
     "candidate_copy_exact_planned_counts_required=true",
+    "large_file_authentication_streamed=true",
+    "byte_returning_reads_tiny_metadata_only=true",
     "apply_root_dynamic_git_exec=false",
     "termination_signal_reconciliation_required=true",
     "install_parent_publication_lease_required=true",
@@ -407,6 +423,8 @@ print("candidate_copy_iterative_depth_bound=true")
 print("candidate_copy_operation_bound_node_budget_bound=true")
 print("candidate_copy_operation_bound_byte_budget_bound=true")
 print("candidate_copy_exact_planned_counts_bound=true")
+print("large_file_authentication_streamed_bound=true")
+print("byte_returning_reads_tiny_metadata_only_bound=true")
 print("install_parent_stage_transition_bound=true")
 print("root_dynamic_git_exec_forbidden_bound=true")
 print("termination_signal_reconciliation_bound=true")
