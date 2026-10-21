@@ -647,7 +647,15 @@ def _runtime_uid_child_call(operation: str, expected_head: str = "") -> dict[str
             try:
                 if operation == "collect_plan":
                     result: Any = collect_plan(expected_head)
+                elif operation == "verify_stage_private":
+                    if os.access(STAGE, os.W_OK, effective_ids=True):
+                        raise InstallError("runtime_uid_private_stage_writable")
+                    result = _verify_full_history_root(
+                        STAGE, 0, RUNTIME_GID, 0o550
+                    )
                 elif operation == "verify_stage":
+                    if os.access(STAGE, os.W_OK, effective_ids=True):
+                        raise InstallError("runtime_uid_final_stage_writable")
                     result = _verify_full_history_root(STAGE, 0, 0, 0o555)
                 else:
                     raise InstallError("runtime_uid_child_operation_invalid")
@@ -729,6 +737,12 @@ def _runtime_uid_child_call(operation: str, expected_head: str = "") -> dict[str
 def _collect_plan_for_apply(expected_head: str) -> dict[str, Any]:
     return _runtime_uid_child_call("collect_plan", expected_head)
 
+def _verify_private_stage_for_apply(expected_content_sha256: str) -> dict[str, Any]:
+    result = _runtime_uid_child_call("verify_stage_private")
+    if result.get("content_sha256") != expected_content_sha256:
+        raise InstallError("private_stage_git_verified_digest_mismatch")
+    return result
+
 def _verify_stage_for_apply(expected_content_sha256: str) -> dict[str, Any]:
     result = _runtime_uid_child_call("verify_stage")
     if result.get("content_sha256") != expected_content_sha256:
@@ -755,6 +769,9 @@ def source_plan() -> None:
     print("git_index_head_equality_required=true")
     print("git_metadata_leaves_nonexecutable_required=true")
     print("private_stage_before_content_authentication=true")
+    print("private_stage_git_verification_before_world_readable=true")
+    print("opened_generation_copy_budget_required=true")
+    print("write_boundary_precedes_first_stage_mutation=true")
     print("service_mutation=false")
     print("credential_access=false")
     print("transaction=false")
@@ -864,16 +881,22 @@ def _copy_regular_at(
     src_dir_fd: int,
     dst_dir_fd: int,
     name: str,
-    executable: bool,
-) -> None:
+    expected_source: tuple[int, int, int, int, int, int, int, int, int],
+    remaining_budget: int,
+) -> int:
     before = os.stat(name, dir_fd=src_dir_fd, follow_symlinks=False)
+    if _metadata_identity(before) != expected_source:
+        raise InstallError("copy_source_generation_changed_before_open:" + name)
     if (
         not stat.S_ISREG(before.st_mode)
         or stat.S_ISLNK(before.st_mode)
         or before.st_nlink != 1
         or before.st_size < 0
         or before.st_size > MAX_FILE_BYTES
+        or before.st_size > remaining_budget
     ):
+        if before.st_size > remaining_budget:
+            raise InstallError("copy_total_bytes_limit")
         raise InstallError("copy_source_regular_invalid:" + name)
     sfd = os.open(
         name,
@@ -883,7 +906,7 @@ def _copy_regular_at(
     dfd = None
     try:
         opened = os.fstat(sfd)
-        if _metadata_identity(opened) != _metadata_identity(before):
+        if _metadata_identity(opened) != expected_source:
             raise InstallError("copy_source_rebound:" + name)
         dfd = os.open(
             name,
@@ -908,19 +931,23 @@ def _copy_regular_at(
         after = os.fstat(sfd)
         visible = os.stat(name, dir_fd=src_dir_fd, follow_symlinks=False)
         if (
-            _metadata_identity(after) != _metadata_identity(opened)
-            or _metadata_identity(visible) != _metadata_identity(opened)
+            _metadata_identity(after) != expected_source
+            or _metadata_identity(visible) != expected_source
         ):
             raise InstallError("copy_source_changed:" + name)
         os.fchown(dfd, 0, 0)
-        os.fchmod(dfd, 0o500 if executable else 0o400)
+        os.fchmod(
+            dfd,
+            0o500 if (stat.S_IMODE(opened.st_mode) & stat.S_IXUSR) else 0o400,
+        )
         os.fsync(dfd)
+        return opened.st_size
     finally:
         if dfd is not None:
             os.close(dfd)
         os.close(sfd)
 
-def _seal_private_stage_for_verification() -> None:
+def _prepare_private_stage_for_runtime_verification() -> None:
     pending: list[pathlib.Path] = [STAGE]
     directories: list[pathlib.Path] = []
     files: list[pathlib.Path] = []
@@ -931,15 +958,15 @@ def _seal_private_stage_for_verification() -> None:
             path = pathlib.Path(entry.path)
             st = path.lstat()
             if stat.S_ISLNK(st.st_mode):
-                raise InstallError("stage_seal_symlink_forbidden:" + os.fspath(path))
+                raise InstallError("stage_prepare_symlink_forbidden:" + os.fspath(path))
             if st.st_uid != 0 or st.st_gid != 0:
-                raise InstallError("stage_seal_owner_invalid:" + os.fspath(path))
+                raise InstallError("stage_prepare_owner_invalid:" + os.fspath(path))
             if stat.S_ISDIR(st.st_mode):
                 pending.append(path)
             elif stat.S_ISREG(st.st_mode):
                 files.append(path)
             else:
-                raise InstallError("stage_seal_kind_invalid:" + os.fspath(path))
+                raise InstallError("stage_prepare_kind_invalid:" + os.fspath(path))
 
     for path in files:
         fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
@@ -947,8 +974,11 @@ def _seal_private_stage_for_verification() -> None:
             st = os.fstat(fd)
             private_mode = stat.S_IMODE(st.st_mode)
             if private_mode not in (0o400, 0o500):
-                raise InstallError("stage_seal_private_file_mode_invalid:" + os.fspath(path))
-            os.fchmod(fd, 0o555 if private_mode == 0o500 else 0o444)
+                raise InstallError(
+                    "stage_prepare_private_file_mode_invalid:" + os.fspath(path)
+                )
+            os.fchown(fd, 0, RUNTIME_GID)
+            os.fchmod(fd, 0o550 if private_mode == 0o500 else 0o440)
             os.fsync(fd)
         finally:
             os.close(fd)
@@ -961,7 +991,69 @@ def _seal_private_stage_for_verification() -> None:
         try:
             st = os.fstat(fd)
             if stat.S_IMODE(st.st_mode) != 0o700:
-                raise InstallError("stage_seal_private_directory_mode_invalid:" + os.fspath(directory))
+                raise InstallError(
+                    "stage_prepare_private_directory_mode_invalid:"
+                    + os.fspath(directory)
+                )
+            os.fchown(fd, 0, RUNTIME_GID)
+            os.fchmod(fd, 0o550)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+def _seal_verified_stage_for_publication() -> None:
+    pending: list[pathlib.Path] = [STAGE]
+    directories: list[pathlib.Path] = []
+    files: list[pathlib.Path] = []
+    while pending:
+        directory = pending.pop()
+        directories.append(directory)
+        for entry in os.scandir(directory):
+            path = pathlib.Path(entry.path)
+            st = path.lstat()
+            if stat.S_ISLNK(st.st_mode):
+                raise InstallError("stage_seal_symlink_forbidden:" + os.fspath(path))
+            if st.st_uid != 0 or st.st_gid != RUNTIME_GID:
+                raise InstallError("stage_seal_owner_invalid:" + os.fspath(path))
+            if stat.S_ISDIR(st.st_mode):
+                pending.append(path)
+            elif stat.S_ISREG(st.st_mode):
+                files.append(path)
+            else:
+                raise InstallError("stage_seal_kind_invalid:" + os.fspath(path))
+
+    for path in files:
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            st = os.fstat(fd)
+            verification_mode = stat.S_IMODE(st.st_mode)
+            if verification_mode not in (0o440, 0o550):
+                raise InstallError(
+                    "stage_seal_verification_file_mode_invalid:" + os.fspath(path)
+                )
+            os.fchown(fd, 0, 0)
+            os.fchmod(fd, 0o555 if verification_mode == 0o550 else 0o444)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+
+    for directory in sorted(directories, key=lambda p: len(p.parts), reverse=True):
+        fd = os.open(
+            directory,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        )
+        try:
+            st = os.fstat(fd)
+            if (
+                st.st_uid != 0
+                or st.st_gid != RUNTIME_GID
+                or stat.S_IMODE(st.st_mode) != 0o550
+            ):
+                raise InstallError(
+                    "stage_seal_verification_directory_invalid:"
+                    + os.fspath(directory)
+                )
+            os.fchown(fd, 0, 0)
             os.fchmod(fd, 0o555)
             os.fsync(fd)
         finally:
@@ -997,8 +1089,11 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
         if _metadata_identity(os.fstat(candidate_fd)) != _metadata_identity(candidate_before):
             raise InstallError("copy_candidate_root_rebound")
         parent_before = os.fstat(parent_fd)
-        os.mkdir(STAGE_NAME, 0o700, dir_fd=parent_fd)
+        # Conservative truth boundary: from this point onward reconciliation
+        # must inspect stage/target even if the first mutating syscall fails or
+        # a catchable signal lands immediately after the kernel creates STAGE.
         _WRITE_BOUNDARY_ENTERED = True
+        os.mkdir(STAGE_NAME, 0o700, dir_fd=parent_fd)
         _STAGE_RETAINED = True
         stage_fd = os.open(
             STAGE_NAME,
@@ -1051,15 +1146,16 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
                             os.close(child_dst)
                         os.close(child_src)
                 elif stat.S_ISREG(st.st_mode):
-                    total += st.st_size
-                    if total > MAX_TOTAL_BYTES:
-                        raise InstallError("copy_total_bytes_limit")
-                    _copy_regular_at(
+                    copied = _copy_regular_at(
                         src_fd,
                         dst_fd,
                         name,
-                        bool(stat.S_IMODE(st.st_mode) & stat.S_IXUSR),
+                        _metadata_identity(st),
+                        MAX_TOTAL_BYTES - total,
                     )
+                    total += copied
+                    if total > MAX_TOTAL_BYTES:
+                        raise InstallError("copy_total_bytes_limit")
                 else:
                     raise InstallError("copy_kind_invalid:" + label + "/" + name)
             if _metadata_identity(os.fstat(src_fd)) != source_before:
@@ -1083,7 +1179,23 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
         if private_digest != expected_candidate["content_sha256"]:
             raise InstallError("private_stage_content_digest_mismatch")
 
-        _seal_private_stage_for_verification()
+        # Do not expose copied bytes to world-readability until the exact
+        # staged Git generation is authenticated under the runtime identity.
+        # UID/GID 1000 receives read/search only on root-owned stage bytes it
+        # already supplied; no write bit is granted.
+        _prepare_private_stage_for_runtime_verification()
+        private_verified = _verify_private_stage_for_apply(
+            expected_candidate["content_sha256"]
+        )
+        if private_verified.get("content_sha256") != expected_candidate["content_sha256"]:
+            raise InstallError("private_stage_git_binding_mismatch")
+
+        _seal_verified_stage_for_publication()
+        final_private_digest, _final_nodes, _final_bytes = _content_digest(
+            STAGE, 0, 0, 0o555
+        )
+        if final_private_digest != expected_candidate["content_sha256"]:
+            raise InstallError("sealed_stage_content_digest_mismatch")
         os.fsync(parent_fd)
 
         if _metadata_identity(os.fstat(parent_fd)) != _metadata_identity(parent_before):
