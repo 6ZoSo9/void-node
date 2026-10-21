@@ -1,0 +1,466 @@
+name: VOID V7 protected full-history replica install v1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/precision/void_v7_full_history_protected_replica_install_v1.py'
+      - 'scripts/prove_void_v7_full_history_protected_replica_install_v1.py'
+      - 'docs/operators/void-v7-full-history-protected-replica-install-v1.md'
+      - '.github/workflows/void-v7-full-history-protected-replica-install-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protected-replica-source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact scope and reviewed dependencies
+        run: |
+          set -euo pipefail
+
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "a4d5762fe0e1c41b0919b8abb827123e556552ca"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "159585cc7e0f483a21584f4db0c4d54796012689"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "08668740ba2303dae66f5418a786a4f0e940c2a7"
+
+          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "4448acb51cbc15d845550a55cd11c38f4185a7b3"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = "3fe1158a0fdf19fa4307c2a8122314b75ee36345"
+
+          git merge-base --is-ancestor 6a577bc61bd95524597e534b37a531c5b60ee7c1 HEAD
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cat > /tmp/expected <<'EOF'
+          A	.github/workflows/void-v7-full-history-protected-replica-install-v1.yml
+          A	docs/operators/void-v7-full-history-protected-replica-install-v1.md
+          A	ops/precision/void_v7_full_history_protected_replica_install_v1.py
+          A	scripts/prove_void_v7_full_history_protected_replica_install_v1.py
+          EOF
+            git diff --name-status "${{ github.event.pull_request.base.sha }}" HEAD -- | sort > /tmp/actual
+            sort /tmp/expected > /tmp/expected.sorted
+            diff -u /tmp/expected.sorted /tmp/actual
+          fi
+
+          git diff --check
+          test "$(git rev-parse --is-shallow-repository)" = false
+
+      # The focused proof exercises compressed-entry and decoded-cache memory ceilings.
+      - name: Syntax and focused proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for rel in (
+              "ops/precision/void_v7_full_history_protected_replica_install_v1.py",
+              "scripts/prove_void_v7_full_history_protected_replica_install_v1.py",
+          ):
+              raw = Path(rel).read_bytes()
+              compile(raw, rel, "exec", dont_inherit=True, optimize=0)
+          PY
+          ! grep -F 'import subprocess' ops/precision/void_v7_full_history_protected_replica_install_v1.py
+          ! grep -F '/usr/bin/git' ops/precision/void_v7_full_history_protected_replica_install_v1.py
+          ! grep -F 'subprocess.' ops/precision/void_v7_full_history_protected_replica_install_v1.py
+          python3 -I -B scripts/prove_void_v7_full_history_protected_replica_install_v1.py
+
+      - name: Exercise bounded privileged copy walker
+        run: |
+          set -euo pipefail
+          sudo -n /usr/bin/python3 -I -B - <<'PY'
+          import os
+          import pathlib
+          import runpy
+          import tempfile
+
+          mod = runpy.run_path(
+              "ops/precision/void_v7_full_history_protected_replica_install_v1.py",
+              run_name="void_v7_copy_walker_fixture",
+          )
+          InstallError = mod["InstallError"]
+          walk = mod["_copy_candidate_tree_iterative"]
+          planned_limits = mod["_planned_candidate_copy_limits"]
+
+          if os.geteuid() != 0 or os.getuid() != 0:
+              raise SystemExit("fixture_root_required")
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-copy-width-fixture-"
+          ) as td:
+              root = pathlib.Path(td)
+              src = root / "src"
+              dst = root / "dst"
+              src.mkdir()
+              dst.mkdir()
+              for index in range(6):
+                  (src / ("n" + str(index))).mkdir()
+              src_fd = os.open(
+                  src,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              dst_fd = os.open(
+                  dst,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  try:
+                      walk(
+                          src_fd,
+                          dst_fd,
+                          node_limit=3,
+                          depth_limit=8,
+                          total_limit=1024,
+                      )
+                  except InstallError as exc:
+                      if str(exc) != "copy_node_limit":
+                          raise
+                  else:
+                      raise SystemExit("fixture_width_limit_not_enforced")
+              finally:
+                  os.close(dst_fd)
+                  os.close(src_fd)
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-copy-depth-fixture-"
+          ) as td:
+              root = pathlib.Path(td)
+              src = root / "src"
+              dst = root / "dst"
+              src.mkdir()
+              dst.mkdir()
+              current = src
+              for index in range(5):
+                  current = current / ("d" + str(index))
+                  current.mkdir()
+              src_fd = os.open(
+                  src,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              dst_fd = os.open(
+                  dst,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  try:
+                      walk(
+                          src_fd,
+                          dst_fd,
+                          node_limit=100,
+                          depth_limit=2,
+                          total_limit=1024,
+                      )
+                  except InstallError as exc:
+                      if str(exc) != "copy_depth_limit":
+                          raise
+                  else:
+                      raise SystemExit("fixture_depth_limit_not_enforced")
+              finally:
+                  os.close(dst_fd)
+                  os.close(src_fd)
+
+          print("VOID_V7_BOUNDED_COPY_WALKER_FIXTURE_GREEN")
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-copy-plan-exact-fixture-"
+          ) as td:
+              root = pathlib.Path(td)
+              src = root / "src"
+              dst = root / "dst"
+              src.mkdir()
+              dst.mkdir()
+              (src / "x").write_bytes(b"x")
+              node_limit, byte_limit = planned_limits({
+                  "nodes": 1,
+                  "regular_file_bytes": 1,
+              })
+              src_fd = os.open(
+                  src,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              dst_fd = os.open(
+                  dst,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  observed = walk(
+                      src_fd,
+                      dst_fd,
+                      node_limit=node_limit,
+                      depth_limit=8,
+                      total_limit=byte_limit,
+                  )
+                  if observed != (node_limit, byte_limit):
+                      raise SystemExit("fixture_exact_plan_counts_mismatch")
+              finally:
+                  os.close(dst_fd)
+                  os.close(src_fd)
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-copy-plan-node-race-fixture-"
+          ) as td:
+              root = pathlib.Path(td)
+              src = root / "src"
+              dst = root / "dst"
+              src.mkdir()
+              dst.mkdir()
+              (src / "a").write_bytes(b"")
+              (src / "b").write_bytes(b"")
+              node_limit, byte_limit = planned_limits({
+                  "nodes": 1,
+                  "regular_file_bytes": 0,
+              })
+              src_fd = os.open(
+                  src,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              dst_fd = os.open(
+                  dst,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  try:
+                      walk(
+                          src_fd,
+                          dst_fd,
+                          node_limit=node_limit,
+                          depth_limit=8,
+                          total_limit=byte_limit,
+                      )
+                  except InstallError as exc:
+                      if str(exc) != "copy_node_limit":
+                          raise
+                  else:
+                      raise SystemExit("fixture_plan_node_race_not_rejected")
+                  created = list(dst.iterdir())
+                  if len(created) != node_limit:
+                      raise SystemExit(
+                          "fixture_plan_node_budget_materialization_mismatch:"
+                          + str(len(created))
+                      )
+              finally:
+                  os.close(dst_fd)
+                  os.close(src_fd)
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-copy-plan-byte-race-fixture-"
+          ) as td:
+              root = pathlib.Path(td)
+              src = root / "src"
+              dst = root / "dst"
+              src.mkdir()
+              dst.mkdir()
+              inflated = src / "inflated"
+              fd = os.open(
+                  inflated,
+                  os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC,
+                  0o600,
+              )
+              try:
+                  os.ftruncate(fd, 4096)
+              finally:
+                  os.close(fd)
+              node_limit, byte_limit = planned_limits({
+                  "nodes": 1,
+                  "regular_file_bytes": 1024,
+              })
+              src_fd = os.open(
+                  src,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              dst_fd = os.open(
+                  dst,
+                  os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+              )
+              try:
+                  try:
+                      walk(
+                          src_fd,
+                          dst_fd,
+                          node_limit=node_limit,
+                          depth_limit=8,
+                          total_limit=byte_limit,
+                      )
+                  except InstallError as exc:
+                      if str(exc) != "copy_total_bytes_limit":
+                          raise
+                  else:
+                      raise SystemExit("fixture_plan_byte_race_not_rejected")
+                  if (dst / "inflated").exists():
+                      raise SystemExit("fixture_inflated_destination_created")
+              finally:
+                  os.close(dst_fd)
+                  os.close(src_fd)
+
+          print("VOID_V7_OPERATION_BOUND_COPY_BUDGET_FIXTURE_GREEN")
+          PY
+
+      - name: Exercise bounded-memory large-file authentication
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import hashlib
+          import os
+          import pathlib
+          import resource
+          import runpy
+          import tempfile
+
+          mod = runpy.run_path(
+              "ops/precision/void_v7_full_history_protected_replica_install_v1.py",
+              run_name="void_v7_stream_hash_fixture",
+          )
+          stream_hashes = mod["_stream_regular_hashes_stable"]
+
+          size = 96 * 1024 * 1024
+          limit = 160 * 1024 * 1024
+          resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+
+          with tempfile.TemporaryDirectory(
+              prefix="void-v7-stream-hash-fixture-"
+          ) as td:
+              path = pathlib.Path(td) / "large-zero"
+              fd = os.open(
+                  path,
+                  os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC,
+                  0o600,
+              )
+              try:
+                  os.ftruncate(fd, size)
+              finally:
+                  os.close(fd)
+
+              observed_size, observed_sha256, observed_blob, _identity = (
+                  stream_hashes(
+                      path,
+                      "fixture_large_regular",
+                      maximum=size,
+                      git_blob=True,
+                  )
+              )
+              if observed_size != size:
+                  raise SystemExit("fixture_stream_size_mismatch")
+
+              sha256 = hashlib.sha256()
+              blob = hashlib.sha1()
+              blob.update(b"blob " + str(size).encode("ascii") + b"\0")
+              chunk = b"\0" * (1024 * 1024)
+              remaining = size
+              while remaining:
+                  part = chunk if remaining >= len(chunk) else chunk[:remaining]
+                  sha256.update(part)
+                  blob.update(part)
+                  remaining -= len(part)
+
+              if observed_sha256 != sha256.hexdigest():
+                  raise SystemExit("fixture_stream_sha256_mismatch")
+              if observed_blob != blob.hexdigest():
+                  raise SystemExit("fixture_stream_git_blob_mismatch")
+
+          print("VOID_V7_STREAMING_AUTH_MEMORY_BOUND_FIXTURE_GREEN")
+          PY
+
+      - name: Exercise hostile-securebits capability drop
+        run: |
+          set -euo pipefail
+          sudo -n /usr/bin/python3 -I -B - <<'PY'
+          import ctypes
+          import os
+          import runpy
+
+          mod = runpy.run_path(
+              "ops/precision/void_v7_full_history_protected_replica_install_v1.py",
+              run_name="void_v7_capability_fixture",
+          )
+
+          if os.geteuid() != 0 or os.getuid() != 0:
+              raise SystemExit("fixture_root_required")
+
+          libc = ctypes.CDLL(None, use_errno=True)
+          prctl = libc.prctl
+          prctl.argtypes = [
+              ctypes.c_int,
+              ctypes.c_ulong,
+              ctypes.c_ulong,
+              ctypes.c_ulong,
+              ctypes.c_ulong,
+          ]
+          prctl.restype = ctypes.c_int
+
+          PR_SET_SECUREBITS = 28
+          SECBIT_NO_SETUID_FIXUP = 1 << 2
+          if prctl(PR_SET_SECUREBITS, SECBIT_NO_SETUID_FIXUP, 0, 0, 0) != 0:
+              raise SystemExit("fixture_securebits_setup_failed")
+
+          before = {}
+          with open("/proc/self/status", "r", encoding="ascii") as fh:
+              for line in fh:
+                  if line.startswith(("CapInh:", "CapPrm:", "CapEff:", "CapAmb:")):
+                      key, value = line.split(":", 1)
+                      before[key] = value.strip()
+          if int(before.get("CapEff", "0"), 16) == 0:
+              raise SystemExit("fixture_effective_caps_missing")
+
+          fields = mod["_drop_runtime_child_privileges"]()
+          if os.getresuid() != (1000, 1000, 1000):
+              raise SystemExit("fixture_uid_drop_failed")
+          if os.getresgid() != (1000, 1000, 1000) or os.getgroups() != []:
+              raise SystemExit("fixture_gid_drop_failed")
+          for key in ("CapInh", "CapPrm", "CapEff", "CapAmb"):
+              if int(fields[key], 16) != 0:
+                  raise SystemExit("fixture_capability_not_zero:" + key)
+          if fields["NoNewPrivs"] != "1":
+              raise SystemExit("fixture_no_new_privs_lost")
+          print("VOID_V7_RUNTIME_UID_CAPABILITY_DROP_FIXTURE_GREEN")
+          PY
+
+      - name: Recheck inert source plan
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_v7_full_history_protected_replica_install_v1.py             --source-plan             | tee "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'source_only=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'host_read=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'host_write=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'create_only=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'live_release_mutation=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'trusted_root_launcher_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'apply_plan_runtime_uid_drop_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'runtime_uid_child_no_new_privs_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'runtime_uid_child_capability_clear_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'runtime_uid_child_capability_status_zero_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_copy_descriptor_relative=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_copy_incremental_enumeration_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_copy_iterative_depth_bound_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_copy_operation_bound_node_budget_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_copy_operation_bound_byte_budget_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_copy_exact_planned_counts_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'large_file_authentication_streamed=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'byte_returning_reads_tiny_metadata_only=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_receipt_safe_path_components_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_printable_path_components_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'terminal_reason_line_sanitization_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'terminal_reason_printable_sanitization_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'apply_root_dynamic_git_exec=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'dynamic_git_provenance_authority_removed=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'built_in_pack_index_verification_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'built_in_full_history_object_closure_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'trusted_expected_head_tree_pair_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'termination_signal_reconciliation_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'install_parent_publication_lease_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'git_index_head_equality_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'git_metadata_leaves_nonexecutable_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'private_stage_before_content_authentication=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'private_stage_git_verification_before_world_readable=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'private_stage_named_runtime_uid_acl_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'private_stage_acl_group_object_zero_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_utf8_path_components_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'opened_generation_copy_budget_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'write_boundary_precedes_first_stage_mutation=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'service_mutation=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'transaction=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/source-plan.log"
