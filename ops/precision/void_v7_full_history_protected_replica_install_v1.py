@@ -1040,6 +1040,8 @@ def source_plan() -> None:
     print("candidate_copy_incremental_enumeration_required=true")
     print("candidate_copy_iterative_depth_bound_required=true")
     print("candidate_utf8_path_components_required=true")
+    print("candidate_receipt_safe_path_components_required=true")
+    print("terminal_reason_line_sanitization_required=true")
     print("opened_generation_copy_budget_required=true")
     print("write_boundary_precedes_first_stage_mutation=true")
     print("service_mutation=false")
