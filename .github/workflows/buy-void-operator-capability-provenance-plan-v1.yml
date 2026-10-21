@@ -53,7 +53,7 @@ jobs:
           log="$RUNNER_TEMP/operator-capability-provenance-plan-v1.log"
           node scripts/prove_buy_void_operator_capability_provenance_plan_v1.mjs | tee "$log"
           grep -Fx 'VOID_BUY_VOID_OPERATOR_CAPABILITY_PROVENANCE_PLAN_V1_GREEN' "$log"
-          grep -Fx 'plan_id=voidbvcred1_4f249b986dc14848c4fe90fc4040ba635ba081e313dadbc2e81e95f2b7c95e68' "$log"
+          grep -Fx 'plan_id=voidbvcred1_205e49c5ce39c2f8c8e2edb21cf258ecac97ea5e4677c07b1ec20b0de0938479' "$log"
           grep -Fx 'source_binding_count=4' "$log"
           grep -Fx 'future_requirement_count=17' "$log"
           grep -Fx 'base_repository_loadcredential_provisioning_present=false' "$log"

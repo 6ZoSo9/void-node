@@ -50,7 +50,7 @@
     "credential_generation_bound_to_operator_principal_authentication_plan",
     "service_hardening_no_new_privileges_and_empty_capability_sets_separate_gate"
   ],
-  "plan_id": "voidbvcred1_4f249b986dc14848c4fe90fc4040ba635ba081e313dadbc2e81e95f2b7c95e68",
+  "plan_id": "voidbvcred1_205e49c5ce39c2f8c8e2edb21cf258ecac97ea5e4677c07b1ec20b0de0938479",
   "repository": "6ZoSo9/void-node",
   "schema": "void_buy_void_operator_capability_provenance_plan_v1",
   "source_bindings": {

@@ -7,9 +7,9 @@ Base generation:
 - repository: `6ZoSo9/void-node`
 - head: `47acc1485ab264a1a33d6a8c70072c2c18ce56e4`
 - tree: `6f5ff9b2bd081a355186084fab74eeb10322ce6e`
-- plan ID: `voidbvcred1_4f249b986dc14848c4fe90fc4040ba635ba081e313dadbc2e81e95f2b7c95e68`
-- plan Git blob: `0e7f9b1866f2c7eba3f55c3b042e38f7a359cf28`
-- proof Git blob: `33e14ed4e9b13c3c22937e28663b4897c5973a27`
+- plan ID: `voidbvcred1_205e49c5ce39c2f8c8e2edb21cf258ecac97ea5e4677c07b1ec20b0de0938479`
+- plan Git blob: `9ef24c6c9861f9ff215d900dbcb40bb6fc6cffb5`
+- proof Git blob: `f79635c1ddfbe3bdbd9244755fb193ad69156e27`
 
 ## Purpose
 

@@ -8,8 +8,8 @@ const ROOT=process.cwd();
 const BASE_HEAD="47acc1485ab264a1a33d6a8c70072c2c18ce56e4";
 const BASE_TREE="6f5ff9b2bd081a355186084fab74eeb10322ce6e";
 const PLAN_PATH="ops/security/buy-void-operator-capability-provenance-plan-v1.json";
-const PLAN_BLOB="0e7f9b1866f2c7eba3f55c3b042e38f7a359cf28";
-const PLAN_ID="voidbvcred1_4f249b986dc14848c4fe90fc4040ba635ba081e313dadbc2e81e95f2b7c95e68";
+const PLAN_BLOB="9ef24c6c9861f9ff215d900dbcb40bb6fc6cffb5";
+const PLAN_ID="voidbvcred1_205e49c5ce39c2f8c8e2edb21cf258ecac97ea5e4677c07b1ec20b0de0938479";
 const CREDENTIAL_ID="buy-void-operator-capability-v1";
 const OWNED=Object.freeze([
   ".github/workflows/buy-void-operator-capability-provenance-plan-v1.yml",
