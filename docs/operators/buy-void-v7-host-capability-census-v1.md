@@ -34,11 +34,11 @@ Reviewed static launcher ELF SHA-256 from the focused #3647 proof:
 
 Census source Git blob:
 
-\`9322374e36b5be9b2b10780ae4413c45d0d648d8\`
+\`2881a6d1d9c669aa367a2d265d652b197e9c8492\`
 
 Focused proof Git blob:
 
-\`1a8c3984c98fad4a3f12d0f2ad590f87b671b97b\`
+\`17f7c628ee012d925a67859eddba07f07bdb3915\`
 
 ## fs-verity capability observation
 
@@ -96,6 +96,12 @@ When `--stdlib-candidate <path>` is supplied, the census:
   `ZipInfo.filename`, and rejects any truncation/sanitization mismatch;
 - rejects duplicate canonical names, symlinks, path traversal and
   `lib-dynload`;
+- requires the raw ZIP member path to equal its canonical POSIX spelling
+  (so `./argparse.py`, repeated separators and dot components cannot masquerade
+  as an importable Python module);
+- counts required `*.py` paths only when backed by regular file entries,
+  never a directory placeholder such as `argparse.py/`; explicit nonregular
+  file types are rejected;
 - inventories the visible direct pure-Python modules needed by the V4 installer:
   `argparse`, `ctypes`, `hashlib`, `json`, `pathlib`, `shutil`,
   `stat`, `subprocess`, `tempfile`, and `typing`;

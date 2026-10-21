@@ -150,9 +150,15 @@ def normalize_zip_name(name: str) -> str:
     if "\\" in name or "\x00" in name or name.startswith("/"):
         raise CensusError("stdlib_zip_path_invalid")
     p = PurePosixPath(name)
-    if not name or any(part in ("", ".", "..") for part in p.parts):
+    # PurePosixPath removes ./, repeated separators and trailing slashes.
+    # Reject those raw spellings rather than counting renamed ZIP entries.
+    if (
+        not name
+        or name != p.as_posix()
+        or any(part in ("", ".", "..") for part in name.split("/"))
+    ):
         raise CensusError("stdlib_zip_path_invalid")
-    return p.as_posix()
+    return name
 
 def canonical_zip_member(info: zipfile.ZipInfo) -> str:
     original = info.orig_filename
@@ -162,37 +168,37 @@ def canonical_zip_member(info: zipfile.ZipInfo) -> str:
     raw_name = original[:-1] if info.is_dir() and original.endswith("/") else original
     return normalize_zip_name(raw_name)
 
-def inspect_stdlib_zip(path: Path, fd: int, expected: os.stat_result) -> dict[str, object]:
-    file_obj = os.fdopen(os.dup(fd), "rb", closefd=True)
-    try:
-        with zipfile.ZipFile(file_obj, "r") as zf:
-            infos = zf.infolist()
-            if not infos or len(infos) > MAX_ZIP_ENTRIES:
-                raise CensusError("stdlib_zip_entry_count_invalid")
-            names: set[str] = set()
-            duplicate = False
-            symlink = False
-            lib_dynload = False
-            for info in infos:
-                name = canonical_zip_member(info)
-                if name in names:
-                    duplicate = True
-                names.add(name)
-                unix_mode = (info.external_attr >> 16) & 0xFFFF
-                if stat.S_ISLNK(unix_mode):
-                    symlink = True
-                if name == "lib-dynload" or name.startswith("lib-dynload/"):
-                    lib_dynload = True
-            missing = [name for name in REQUIRED_STDLIB_PATHS if name not in names]
-            if duplicate:
-                raise CensusError("stdlib_zip_duplicate_path")
-            if symlink:
-                raise CensusError("stdlib_zip_symlink_forbidden")
-            if lib_dynload:
-                raise CensusError("stdlib_zip_lib_dynload_forbidden")
-    except zipfile.BadZipFile as exc:
-        raise CensusError("stdlib_zip_invalid") from exc
-    revalidate(path, fd, expected)
+def inspect_stdlib_zip_infos(infos: list[zipfile.ZipInfo]) -> dict[str, object]:
+    if not infos or len(infos) > MAX_ZIP_ENTRIES:
+        raise CensusError("stdlib_zip_entry_count_invalid")
+    names: set[str] = set()
+    regular_files: set[str] = set()
+    duplicate = False
+    symlink = False
+    lib_dynload = False
+    for info in infos:
+        name = canonical_zip_member(info)
+        if name in names:
+            duplicate = True
+        names.add(name)
+        unix_mode = (info.external_attr >> 16) & 0xFFFF
+        if stat.S_ISLNK(unix_mode):
+            symlink = True
+        elif not info.is_dir():
+            # ZIP archives may omit file-type bits. Reject explicit special
+            # file types and never count directories as importable .py files.
+            if stat.S_IFMT(unix_mode) not in (0, stat.S_IFREG):
+                raise CensusError("stdlib_zip_nonregular_file_forbidden")
+            regular_files.add(name)
+        if name == "lib-dynload" or name.startswith("lib-dynload/"):
+            lib_dynload = True
+    missing = [name for name in REQUIRED_STDLIB_PATHS if name not in regular_files]
+    if duplicate:
+        raise CensusError("stdlib_zip_duplicate_path")
+    if symlink:
+        raise CensusError("stdlib_zip_symlink_forbidden")
+    if lib_dynload:
+        raise CensusError("stdlib_zip_lib_dynload_forbidden")
     return {
         "entry_count": len(names),
         "required_paths_present": not missing,
@@ -201,6 +207,16 @@ def inspect_stdlib_zip(path: Path, fd: int, expected: os.stat_result) -> dict[st
         "symlinks_absent": True,
         "duplicates_absent": True,
     }
+
+def inspect_stdlib_zip(path: Path, fd: int, expected: os.stat_result) -> dict[str, object]:
+    file_obj = os.fdopen(os.dup(fd), "rb", closefd=True)
+    try:
+        with zipfile.ZipFile(file_obj, "r") as zf:
+            result = inspect_stdlib_zip_infos(zf.infolist())
+    except zipfile.BadZipFile as exc:
+        raise CensusError("stdlib_zip_invalid") from exc
+    revalidate(path, fd, expected)
+    return result
 
 def classify_verity_errno(code: int) -> dict[str, object]:
     if code == errno.ENODATA:
@@ -373,8 +389,37 @@ def self_test() -> None:
     normal = zipfile.ZipInfo("json/__init__.py")
     assert canonical_zip_member(normal) == "json/__init__.py"
 
+    # Adversaries that previously passed required file-name presence checks.
+    for malformed in ("./argparse.py", "json//__init__.py", "json/./__init__.py"):
+        try:
+            canonical_zip_member(zipfile.ZipInfo(malformed))
+        except CensusError as exc:
+            assert str(exc) == "stdlib_zip_path_invalid"
+        else:
+            raise AssertionError("noncanonical_zip_member_accepted:" + malformed)
+
+    valid_file = zipfile.ZipInfo("argparse.py")
+    directory_only = zipfile.ZipInfo("argparse.py/")
+    assert "argparse.py" not in inspect_stdlib_zip_infos(
+        [valid_file]
+    )["missing_required_paths"]
+    assert "argparse.py" in inspect_stdlib_zip_infos(
+        [directory_only]
+    )["missing_required_paths"]
+
+    special_file = zipfile.ZipInfo("argparse.py")
+    special_file.external_attr = (stat.S_IFDIR | 0o755) << 16
+    try:
+        inspect_stdlib_zip_infos([special_file])
+    except CensusError as exc:
+        assert str(exc) == "stdlib_zip_nonregular_file_forbidden"
+    else:
+        raise AssertionError("special_zip_member_accepted_as_regular")
+
     print(MARKER + "_SELF_TEST_GREEN")
     print("unsanitized_zip_member_name_required=true")
+    print("stdlib_zip_canonical_raw_components_required=true")
+    print("stdlib_zip_required_regular_files_only=true")
     print("runtime_import_closure_proof_required=true")
     print("filesystem_write=false")
     print("protected_filesystem_mutation=false")
