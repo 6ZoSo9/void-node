@@ -8,7 +8,7 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py"
-TARGET_BLOB = "09f30bc74e91c5771e276918c61b43606f293181"
+TARGET_BLOB = "54ddabb1981279b62ea4c26700cc60464450346b"
 MARKER = "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_PROOF"
 
 
@@ -48,7 +48,7 @@ for required in (
     'def _read_ext4_superblock(',
     'os.pread(fd, EXT4_SUPERBLOCK_BYTES, EXT4_SUPERBLOCK_OFFSET)',
     'os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK',
-    'root_required_for_read_only_block_feature_census',
+    'root_execution_forbidden_for_untrusted_checkout_census',
     'host_fsverity_capability_green',
     'ext4_verity_feature_enabled',
     'ext4_extents_feature_enabled',
@@ -194,21 +194,23 @@ for required in (
     "mode=--plan",
     "read_only=true",
     "filesystem_write=false",
-    "sudo_required=true",
+    "sudo_required=false",
+    "root_execution_forbidden=true",
     "external_subprocess=false",
     "ioctl_invocation=false",
     "ext4_superblock_read_only_feature_probe=true",
     "fsverity_enablement=false",
     "protected_host_install=false",
     "protected_v4_apply=false",
-    "next_action=RUN_READ_ONLY_FSVERITY_CAPABILITY_CENSUS_ON_PRECISION",
+    "next_action=RUN_UNPRIVILEGED_READ_ONLY_FSVERITY_CAPABILITY_CENSUS_ON_PRECISION",
 ):
     assert required in plan_lines, required
 
 print(MARKER + "_GREEN")
 print("target_blob=" + TARGET_BLOB)
 print("designated_precision_host_bound=true")
-print("root_read_only_block_feature_probe_bound=true")
+print("unprivileged_read_only_feature_probe_bound=true")
+print("root_execution_forbidden=true")
 print("mountinfo_descriptor_read_only_bound=true")
 print("kernel_config_fsverity_observation_bound=true")
 print("ext4_superblock_magic_bound=true")
