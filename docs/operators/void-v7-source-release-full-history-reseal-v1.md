@@ -58,7 +58,9 @@ It:
     store; path replacement therefore cannot redirect helper writes;
 13. revalidates the complete Downloads ancestor chain, mount-point census and
     visible inode identities at mutation boundaries and before GREEN;
-14. performs generation-bound descriptor cleanup after failure and reports
+14. performs generation-bound descriptor cleanup after failure, binds every
+    traversed cleanup directory to the retained candidate's Linux mount ID via
+    `/proc/self/fdinfo`, refuses cross-mount descent, and reports
     attempted/completed/residual-unknown cleanup state instead of silently
     ignoring cleanup errors;
 15. rejects C0, DEL, NEL (`U+0085`), Unicode line separator (`U+2028`) and
