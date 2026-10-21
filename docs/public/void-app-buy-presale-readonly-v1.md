@@ -171,3 +171,18 @@ Ethereum responses through rail HOLD and subsequent verified reopening;
 no additional POST or wallet transaction is performed. This remains a
 browser-only safety condition, not server payment idempotency or presale
 activation.
+
+## Suspended-tab and browser-history receipt recheck
+
+Browser timers may be throttled or suspended in inactive tabs or while a page
+is stored in the back-forward cache. The Buy view now calls its existing
+fail-closed receipt-expiry/clock-skew checker when the tab becomes visible,
+the window regains focus, or a page is shown again. A hidden visibility-change
+event does not revalidate a receipt. The existing irreversible expiration
+flag remains authoritative even if the wall clock later moves backwards.
+
+This is an immediate in-memory check only: it does **not** fetch a new
+readiness generation, extend an old payment lease, retry any POST, recover
+server request status, sign, or move funds. The existing VM proof injects
+suspended timers, elapsed monotonic time, a rolled-back wall clock, and
+wall-time-only suspension, then checks all three resume signals.
