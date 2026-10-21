@@ -444,14 +444,19 @@ with tempfile.TemporaryDirectory(prefix="void-v7-builtin-pack-proof-") as td:
     fake_idx.rename(pack_dir / original_idx)
     pack = pack_dir / original_pack
 
-    with pack.open("r+b") as fh:
-        fh.seek(16)
-        original = fh.read(1)
-        assert original
-        fh.seek(16)
-        fh.write(bytes([original[0] ^ 0x01]))
-        fh.flush()
-        os.fsync(fh.fileno())
+    original_pack_mode = pack.stat().st_mode & 0o7777
+    os.chmod(pack, original_pack_mode | 0o200)
+    try:
+        with pack.open("r+b") as fh:
+            fh.seek(16)
+            original = fh.read(1)
+            assert original
+            fh.seek(16)
+            fh.write(bytes([original[0] ^ 0x01]))
+            fh.flush()
+            os.fsync(fh.fileno())
+    finally:
+        os.chmod(pack, original_pack_mode)
     try:
         module._ObjectStore(repo, "proof_corrupt", exact_pack_only=True)
     except module.InstallError:
