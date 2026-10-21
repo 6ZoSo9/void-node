@@ -84,7 +84,7 @@ for required in (
     'def _read_loose(',
     '_loose_object_size_limit',
     '_loose_zlib_incomplete',
-    'def _ObjectStore',
+    'class _ObjectStore:',
     'def _apply_git_delta(',
     'def _parse_commit_object(',
     'def _parse_tree_object(',
