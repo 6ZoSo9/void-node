@@ -27,15 +27,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "158df3f1d0fc0040bb10d2cb63df12ea788a1748"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "d600bca18dcfe8b4194d263c339b9af05cf2de4c"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "2eab16104ff30110bc9bf18abc5567111fa4f4fa"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "c4e6ddaf22babe84d57aa442073abbbcffe47c22"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "21c5eaaf9a96b3b0ab8f9cfa084f88f1f39d8b16"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "2f65219171370b01fdf4755045e2952502d6608c"
 
           test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "4448acb51cbc15d845550a55cd11c38f4185a7b3"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = "3fe1158a0fdf19fa4307c2a8122314b75ee36345"
 
-          git merge-base --is-ancestor e99772502c80fefafef3b6a836a408b66ddded76 HEAD
+          git merge-base --is-ancestor 6a577bc61bd95524597e534b37a531c5b60ee7c1 HEAD
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             cat > /tmp/expected <<'EOF'
@@ -64,6 +64,9 @@ jobs:
               raw = Path(rel).read_bytes()
               compile(raw, rel, "exec", dont_inherit=True, optimize=0)
           PY
+          ! grep -F 'import subprocess' ops/precision/void_v7_full_history_protected_replica_install_v1.py
+          ! grep -F '/usr/bin/git' ops/precision/void_v7_full_history_protected_replica_install_v1.py
+          ! grep -F 'subprocess.' ops/precision/void_v7_full_history_protected_replica_install_v1.py
           python3 -I -B scripts/prove_void_v7_full_history_protected_replica_install_v1.py
 
       - name: Exercise bounded privileged copy walker
@@ -442,6 +445,10 @@ jobs:
           grep -Fx 'terminal_reason_line_sanitization_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'terminal_reason_printable_sanitization_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'apply_root_dynamic_git_exec=false' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'dynamic_git_provenance_authority_removed=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'built_in_pack_index_verification_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'built_in_full_history_object_closure_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'trusted_expected_head_tree_pair_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'termination_signal_reconciliation_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'install_parent_publication_lease_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'git_index_head_equality_required=true' "$RUNNER_TEMP/source-plan.log"
