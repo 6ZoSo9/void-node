@@ -15,7 +15,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "09eeb8596a19025a46709cfeb081d76313b678c0"
+TARGET_BLOB = "2a040b1935d07a85e7291b3c2a542717aef60145"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -71,7 +71,12 @@ for required in (
     'REACHABLE_COMMITS = 17931',
     'MAX_COPY_DEPTH = 128',
     'MAX_GIT_OBJECT_BYTES = 128 * 1024 * 1024',
+    'MAX_PACK_ENTRY_BYTES = MAX_GIT_OBJECT_BYTES + 2 * 1024 * 1024',
+    'MAX_PACK_CACHE_BYTES = 64 * 1024 * 1024',
     'class _PackReader:',
+    'self.cache_bytes = 0',
+    'def _entry_span(',
+    '_pack_entry_size_limit',
     'def _read_loose(',
     '_loose_object_size_limit',
     '_loose_zlib_incomplete',
@@ -534,6 +539,8 @@ for marker in (
     "terminal_reason_printable_sanitization_required=true",
     "rename_noreplace_publication_required=true",
     "trusted_root_launcher_required=true",
+    "pack_entry_span_bound_required=true",
+    "pack_cache_byte_budget_required=true",
     "dynamic_git_provenance_authority_removed=true",
     "built_in_pack_index_verification_required=true",
     "built_in_full_history_object_closure_required=true",
@@ -635,6 +642,8 @@ print("trusted_expected_head_tree_pair_bound=true")
 print("loose_object_oracle_green=true")
 print("packed_repository_oracle_green=true")
 print("pack_filename_digest_binding_bound=true")
+print("pack_entry_span_bound=true")
+print("pack_cache_byte_budget_bound=true")
 print("corrupt_pack_rejection_bound=true")
 print("bounded_git_object_decompression_bound=true")
 print("class_wide_bounded_directory_scans_bound=true")
