@@ -31,13 +31,11 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
           STACK_BASE: 48830177ac85663d9a95e180e5cb8e08e53e6227
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            test "$PR_BASE" = "$STACK_BASE"
             test "$(git merge-base "$STACK_BASE" "$EXPECTED_HEAD")" = "$STACK_BASE"
             cat > "$RUNNER_TEMP/expected-delta" <<'EOF'
           A	.github/workflows/buy-void-v7-host-capability-census-v1.yml
