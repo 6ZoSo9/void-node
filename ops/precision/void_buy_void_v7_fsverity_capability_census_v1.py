@@ -123,6 +123,49 @@ def _parse_mountinfo(text: str) -> list[dict[str, Any]]:
     return rows
 
 
+def _target_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int, int]:
+    return (
+        st.st_dev,
+        st.st_ino,
+        st.st_mode,
+        st.st_uid,
+        st.st_gid,
+        st.st_mtime_ns,
+        st.st_ctime_ns,
+    )
+
+
+def _canonical_target(
+    target: pathlib.Path,
+) -> tuple[pathlib.Path, tuple[int, int, int, int, int, int, int]]:
+    raw = pathlib.Path(os.path.abspath(os.fspath(target)))
+    try:
+        before = os.lstat(raw)
+    except OSError as exc:
+        raise CensusError(
+            "target_path_unavailable_errno_"
+            + str(exc.errno if exc.errno is not None else "unknown")
+        ) from exc
+    if stat.S_ISLNK(before.st_mode):
+        raise CensusError("target_symlink_forbidden")
+    if not stat.S_ISDIR(before.st_mode):
+        raise CensusError("target_not_directory")
+    try:
+        resolved = raw.resolve(strict=True)
+        after = os.lstat(raw)
+    except OSError as exc:
+        raise CensusError(
+            "target_path_resolution_failed_errno_"
+            + str(exc.errno if exc.errno is not None else "unknown")
+        ) from exc
+    if resolved != raw:
+        raise CensusError("target_path_alias_forbidden")
+    identity = _target_identity(before)
+    if _target_identity(after) != identity:
+        raise CensusError("target_generation_changed")
+    return raw, identity
+
+
 def _mount_for_target(rows: list[dict[str, Any]], target: pathlib.Path) -> dict[str, Any]:
     target_s = os.path.abspath(os.fspath(target))
     matches: list[dict[str, Any]] = []
@@ -257,9 +300,10 @@ def collect() -> dict[str, Any]:
     if os.getuid() == 0 or os.geteuid() == 0:
         raise CensusError("root_execution_forbidden_for_untrusted_checkout_census")
 
+    target_path, target_identity = _canonical_target(TARGET)
     mountinfo = _read_fd_bounded(pathlib.Path("/proc/self/mountinfo"), MAX_PROC_BYTES)
     rows = _parse_mountinfo(mountinfo.decode("utf-8", "strict"))
-    mount = _mount_for_target(rows, TARGET)
+    mount = _mount_for_target(rows, target_path)
     fstype = str(mount["fstype"])
     source = str(mount["source"])
     expected_major_minor = _parse_major_minor(str(mount["major_minor"]))
@@ -304,15 +348,21 @@ def collect() -> dict[str, Any]:
         except (OSError, CensusError) as exc:
             ext4["feature_probe_error"] = str(exc)
 
+    closing_target_path, closing_target_identity = _canonical_target(TARGET)
+    target_generation_stable = (
+        closing_target_path == target_path
+        and closing_target_identity == target_identity
+    )
     closing_mountinfo = _read_fd_bounded(
         pathlib.Path("/proc/self/mountinfo"), MAX_PROC_BYTES
     )
     closing_rows = _parse_mountinfo(closing_mountinfo.decode("utf-8", "strict"))
-    closing_mount = _mount_for_target(closing_rows, TARGET)
-    mount_generation_stable = mount == closing_mount
+    closing_mount = _mount_for_target(closing_rows, closing_target_path)
+    mount_generation_stable = target_generation_stable and mount == closing_mount
 
     authoritative_ext4_ready = (
         fstype == "ext4"
+        and target_generation_stable
         and mount_generation_stable
         and not read_only_mount
         and not dax_requested
@@ -325,6 +375,8 @@ def collect() -> dict[str, Any]:
     )
 
     reasons: list[str] = []
+    if not target_generation_stable:
+        reasons.append("target_path_generation_changed")
     if not mount_generation_stable:
         reasons.append("target_mount_generation_changed")
     if fstype != "ext4":
@@ -364,6 +416,9 @@ def collect() -> dict[str, Any]:
         },
         "target": {
             "path": os.fspath(TARGET),
+            "canonical_path": os.fspath(target_path),
+            "canonical_path_required": True,
+            "target_generation_stable": target_generation_stable,
             "mount_point": mount["mount_point"],
             "fstype": fstype,
             "source": source,
@@ -411,6 +466,8 @@ def plan() -> int:
     print("target=/opt")
     print("sudo_required=false")
     print("root_execution_forbidden=true")
+    print("target_canonical_path_required=true")
+    print("terminal_target_generation_revalidation_required=true")
     print("external_subprocess=false")
     print("ioctl_invocation=false")
     print("ext4_superblock_read_only_feature_probe=true")
@@ -437,6 +494,8 @@ def run() -> int:
     print("kernel_config_source=" + result["kernel"]["config_source"])
     print("kernel_config_fs_verity=" + result["kernel"]["config_fs_verity"])
     print("kernel_fsverity_support_observed=" + str(result["kernel"]["fsverity_support_observed"]).lower())
+    print("target_canonical_path=" + str(result["target"]["canonical_path"]))
+    print("target_generation_stable=" + str(result["target"]["target_generation_stable"]).lower())
     print("mount_point=" + str(result["target"]["mount_point"]))
     print("mount_fstype=" + result["target"]["fstype"])
     print("mount_source=" + result["target"]["source"])
@@ -510,6 +569,8 @@ def self_test() -> int:
     assert _decode_mount_field("/a\\040b") == "/a b"
 
     print(MARKER + "_SELF_TEST_GREEN")
+    print("target_canonical_path_required=true")
+    print("terminal_target_generation_revalidation_required=true")
     print("mountinfo_longest_prefix_selection_proven=true")
     print("mountinfo_escape_decoding_proven=true")
     print("mountinfo_device_number_binding_required=true")
