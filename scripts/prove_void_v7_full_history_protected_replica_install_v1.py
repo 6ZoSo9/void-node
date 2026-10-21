@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 import sys
 from pathlib import Path
+import importlib.util
+import os
 import subprocess
+import tempfile
 
 MARKER = "VOID_V7_FULL_HISTORY_PROTECTED_REPLICA_INSTALL_V1_PROOF"
 if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
@@ -12,7 +15,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "158df3f1d0fc0040bb10d2cb63df12ea788a1748"
+TARGET_BLOB = "a7dbf325c42f68dfa1d3820e4b628089b04091ad"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -33,21 +36,22 @@ assert git("hash-object", str(TARGET)) == TARGET_BLOB
 raw = TARGET.read_bytes()
 compile(raw, str(TARGET), "exec", dont_inherit=True, optimize=0)
 text = raw.decode("utf-8")
-assert 'def _stream_regular_hashes_stable(' in text
-assert 'byte_read_limit_too_large' in text
-assert 'b"blob " + str(opened.st_size).encode("ascii") + b"\\0"' in text
-assert '_stream_regular_hashes_stable(\n        git_dir / "index"' in text
-assert '_stream_regular_hashes_stable(\n        git_dir / "objects" / "pack" / pack_name' in text
-assert '_stream_regular_hashes_stable(\n                child, "worktree_file", git_blob=True' in text
-assert '_stream_regular_hashes_stable(\n                    child, "tree_file", git_blob=False' in text
-assert '_read_regular_stable(child, "worktree_file")' not in text
-assert '_read_regular_stable(child, "tree_file")' not in text
 
+# Production provenance must be built-in. Git is permitted only in this proof
+# as an oracle for disposable fixtures.
+assert "import subprocess" not in text
+assert "subprocess." not in text
+assert "/usr/bin/git" not in text
+assert "FIXED_GIT" not in text
+assert "def _git_run(" not in text
+assert "def git_text(" not in text
+assert "def git_bytes(" not in text
+assert "def git_ancestor(" not in text
 
 for required in (
-    'BASE_HEAD = "e99772502c80fefafef3b6a836a408b66ddded76"',
+    'BASE_HEAD = "6a577bc61bd95524597e534b37a531c5b60ee7c1"',
     'BUILDER_BLOB = "030182d544a92cd6c67868fa4c4f3e83188e4249"',
-    'V4_BLOB = "94112afa2f805e0a6ce881a490c1c64e31e0413e"',
+    'V4_BLOB = "4448acb51cbc15d845550a55cd11c38f4185a7b3"',
     'ATOMIC_BLOB = "3fe1158a0fdf19fa4307c2a8122314b75ee36345"',
     'SOURCE_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
     'SOURCE_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"',
@@ -55,6 +59,32 @@ for required in (
     '"6b7fc90219676a96f5a2c34619e4cfdf3f002244"',
     'REACHABLE_COMMITS = 17931',
     'MAX_COPY_DEPTH = 128',
+    'def _PackReader',
+    'def _ObjectStore',
+    'def _apply_git_delta(',
+    'def _parse_commit_object(',
+    'def _parse_tree_object(',
+    'def _verify_full_history_graph(',
+    'def _read_index_manifest(',
+    'def _verify_worktree_manifest(',
+    'history_object_closure_not_exact',
+    'history_reachable_commit_count_mismatch',
+    '_pack_checksum_mismatch',
+    '_idx_checksum_mismatch',
+    '_pack_entry_crc_mismatch',
+    '_object_oid_mismatch:',
+    '_delta_cycle_or_depth',
+    '_thin_pack_forbidden',
+    '_index_head_mismatch',
+    'built_in_object_closure_verified',
+    'built_in_shallow_provenance_verified',
+    'dynamic_git_provenance_authority_removed=true',
+    'built_in_pack_index_verification_required=true',
+    'built_in_full_history_object_closure_required=true',
+    'trusted_expected_head_tree_pair_required=true',
+    'parser.add_argument("--expected-tree", default="")',
+    'expected_tree_required',
+    '"expected_tree": expected_tree',
     'def _copy_candidate_tree_iterative(',
     'copy_node_limit',
     'copy_depth_limit',
@@ -106,7 +136,6 @@ for required in (
     'install_parent_descriptor_identity_mismatch',
     'install_parent_descriptor_generation_changed',
     'git_regular_leaf_metadata_invalid:',
-    '"diff-index", "--cached", "--quiet", SOURCE_HEAD, "--"',
     'git_index_head_equality_required=true',
     'git_metadata_leaves_nonexecutable_required=true',
     'def _prepare_private_stage_for_runtime_verification()',
@@ -138,18 +167,6 @@ for required in (
     'def _set_runtime_uid_read_acl_fd(',
     'def _remove_runtime_uid_read_acl_fd(',
     'copy_entry_name_not_utf8',
-    'stage_prepare_private_file_mode_invalid:',
-    'stage_seal_verification_file_mode_invalid:',
-    'private_stage_before_content_authentication=true',
-    'os.setgid(RUNTIME_GID)',
-    'os.setuid(RUNTIME_UID)',
-    'def _copy_regular_at(',
-    'os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW',
-    'copy_candidate_root_rebound',
-    'install_parent_stage_link_count_transition_invalid',
-    'full_root_reachable_commit_count_mismatch',
-    'full_root_missing_object',
-    'full_root_fsck_output_nonempty',
     'live_release_parent_object_unexpectedly_present',
     'stage_content_digest_mismatch',
     'plan_binding_changed_before_publication',
@@ -158,6 +175,135 @@ for required in (
     'trusted_root_launcher_required=true',
 ):
     assert required in text, required
+
+# Exercise the built-in pack/index/object graph reader against Git only as a
+# disposable test oracle. Shared subtrees intentionally appear at a/ and b/.
+spec = importlib.util.spec_from_file_location("void_v7_replica_builtin_provenance", TARGET)
+assert spec is not None and spec.loader is not None
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+def fixture_git(repo: Path, *args: str) -> str:
+    cp = subprocess.run(
+        ["/usr/bin/git", "-C", str(repo), *args],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        timeout=60,
+        check=False,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/nonexistent",
+            "LANG": "C",
+            "LC_ALL": "C",
+            "TZ": "UTC",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null",
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_PAGER": "",
+        },
+    )
+    if cp.returncode != 0:
+        raise RuntimeError("fixture_git_failed:" + args[0] + ":" + cp.stderr)
+    return cp.stdout.strip()
+
+with tempfile.TemporaryDirectory(prefix="void-v7-builtin-pack-proof-") as td:
+    repo = Path(td) / "repo"
+    repo.mkdir()
+    fixture_git(repo, "init", "-q", "-b", "main")
+    fixture_git(repo, "config", "user.name", "VOID proof")
+    fixture_git(repo, "config", "user.email", "proof@invalid")
+    (repo / "root.txt").write_text("one\n", "utf-8")
+    fixture_git(repo, "add", "--", "root.txt")
+    fixture_git(repo, "commit", "-q", "-m", "one")
+
+    for dirname in ("a", "b"):
+        (repo / dirname).mkdir()
+        (repo / dirname / "same.txt").write_text("same\n", "utf-8")
+    (repo / "run.sh").write_text("#!/bin/sh\nexit 0\n", "utf-8")
+    os.chmod(repo / "run.sh", 0o755)
+    fixture_git(repo, "add", "--", "a", "b", "run.sh")
+    fixture_git(repo, "commit", "-q", "-m", "two")
+
+    os.symlink("a/same.txt", repo / "link")
+    (repo / "root.txt").write_text("three\n", "utf-8")
+    fixture_git(repo, "add", "--", "root.txt", "link")
+    fixture_git(repo, "commit", "-q", "-m", "three")
+
+    head = fixture_git(repo, "rev-parse", "HEAD")
+    tree = fixture_git(repo, "rev-parse", "HEAD^{tree}")
+    parent_lines = fixture_git(repo, "cat-file", "-p", head)
+    parents = tuple(
+        line[7:] for line in parent_lines.splitlines() if line.startswith("parent ")
+    )
+    commits = int(fixture_git(repo, "rev-list", "--count", head))
+    oracle_oids = {
+        line.split(" ", 1)[0]
+        for line in fixture_git(repo, "rev-list", "--objects", head).splitlines()
+        if line
+    }
+
+    fixture_git(repo, "-c", "pack.writeReverseIndex=false", "repack", "-a", "-d")
+    fixture_git(repo, "prune-packed")
+    # Remove empty fanout directories left by some Git versions; production
+    # candidates are already required to have the exact pack-only layout.
+    objects = repo / ".git" / "objects"
+    for entry in list(objects.iterdir()):
+        if len(entry.name) == 2 and entry.name not in ("info",):
+            try:
+                entry.rmdir()
+            except OSError:
+                pass
+    fixture_git(repo, "read-tree", head)
+
+    old_constants = (
+        module.SOURCE_HEAD,
+        module.SOURCE_TREE,
+        module.SOURCE_PARENTS,
+        module.REACHABLE_COMMITS,
+    )
+    module.SOURCE_HEAD = head
+    module.SOURCE_TREE = tree
+    module.SOURCE_PARENTS = parents
+    module.REACHABLE_COMMITS = commits
+    store = module._ObjectStore(repo, "proof_pack", exact_pack_only=True)
+    try:
+        manifest, observed_commits, observed_objects = module._verify_full_history_graph(store)
+        assert observed_commits == commits
+        assert observed_objects == len(oracle_oids)
+        assert store.all_oids() == oracle_oids
+        assert module._read_index_manifest(repo / ".git" / "index", "proof_index") == manifest
+        module._verify_worktree_manifest(repo, manifest)
+        assert "a/same.txt" in manifest and "b/same.txt" in manifest
+        assert manifest["a/same.txt"] == manifest["b/same.txt"]
+        assert manifest["run.sh"][0] == "100755"
+        assert manifest["link"][0] == "120000"
+    finally:
+        store.close()
+        (
+            module.SOURCE_HEAD,
+            module.SOURCE_TREE,
+            module.SOURCE_PARENTS,
+            module.REACHABLE_COMMITS,
+        ) = old_constants
+
+    pack = next((repo / ".git" / "objects" / "pack").glob("*.pack"))
+    with pack.open("r+b") as fh:
+        fh.seek(16)
+        original = fh.read(1)
+        assert original
+        fh.seek(16)
+        fh.write(bytes([original[0] ^ 0x01]))
+        fh.flush()
+        os.fsync(fh.fileno())
+    try:
+        module._ObjectStore(repo, "proof_corrupt", exact_pack_only=True)
+    except module.InstallError:
+        pass
+    else:
+        raise AssertionError("corrupt_pack_not_rejected")
 
 # Privileged source apply must not become a supported mutable-checkout pattern.
 assert 'root_required_for_privileged_apply' in text
@@ -169,9 +315,8 @@ assert 'privileged_source_writable:' in text
 apply_start = text.index("def apply(")
 apply_end = text.index("def _termination_signal_handler(")
 apply_text = text[apply_start:apply_end]
-assert "_git_run(" not in apply_text
-assert "git_text(" not in apply_text
-assert "git_bytes(" not in apply_text
+assert "subprocess." not in apply_text
+assert "/usr/bin/git" not in apply_text
 assert "_verify_full_history_root(" not in apply_text
 
 copy_start = text.index("def _copy_candidate_to_stage(")
@@ -282,6 +427,7 @@ assert 'os.unlink(LIVE_RELEASE' not in text
 assert 'shutil.rmtree(LIVE_RELEASE' not in text
 assert 'os.rename(LIVE_RELEASE' not in text
 assert "UnicodeError," in text
+assert "subprocess.SubprocessError" not in text
 assert 'copy_entry_name_not_utf8' in text
 assert 'copy_entry_name_control_forbidden' in text
 assert 'def _receipt_safe_text(' in text
@@ -338,6 +484,10 @@ for marker in (
     "terminal_reason_printable_sanitization_required=true",
     "rename_noreplace_publication_required=true",
     "trusted_root_launcher_required=true",
+    "dynamic_git_provenance_authority_removed=true",
+    "built_in_pack_index_verification_required=true",
+    "built_in_full_history_object_closure_required=true",
+    "trusted_expected_head_tree_pair_required=true",
     "service_mutation=false",
     "credential_access=false",
     "transaction=false",
@@ -380,6 +530,10 @@ for marker in (
     "large_file_authentication_streamed=true",
     "byte_returning_reads_tiny_metadata_only=true",
     "apply_root_dynamic_git_exec=false",
+    "dynamic_git_provenance_authority_removed=true",
+    "built_in_pack_index_verification_required=true",
+    "built_in_full_history_object_closure_required=true",
+    "trusted_expected_head_tree_pair_required=true",
     "termination_signal_reconciliation_required=true",
     "install_parent_publication_lease_required=true",
     "git_index_head_equality_required=true",
@@ -424,6 +578,12 @@ print("large_file_authentication_streamed_bound=true")
 print("byte_returning_reads_tiny_metadata_only_bound=true")
 print("install_parent_stage_transition_bound=true")
 print("root_dynamic_git_exec_forbidden_bound=true")
+print("dynamic_git_provenance_authority_removed_bound=true")
+print("built_in_pack_index_verification_bound=true")
+print("built_in_full_history_object_closure_bound=true")
+print("trusted_expected_head_tree_pair_bound=true")
+print("packed_repository_oracle_green=true")
+print("corrupt_pack_rejection_bound=true")
 print("termination_signal_reconciliation_bound=true")
 print("install_parent_publication_lease_bound=true")
 print("git_index_head_equality_bound=true")
