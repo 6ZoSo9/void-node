@@ -65,7 +65,7 @@ required = (
     'candidate_ctypes_not_from_exact_zip',
     'candidate_native_ctypes_not_builtin',
     'candidate_renameat2_unavailable',
-    '["-I", "-B", "-S", "-c", PROBE',
+    'os.fspath(python_target), "-I", "-B", "-S", "-c", PROBE',
     'V5_BOOTSTRAP = r',
     'synthetic_v5 = root / "synthetic-repo" / V5_REL',
     '"-I", "-B", "-S", "-c", V5_BOOTSTRAP',
