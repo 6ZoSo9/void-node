@@ -12,7 +12,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "ec68e404202a17fe2684b5d4aa5c82a72670b031"
+TARGET_BLOB = "ee69feaf5a106f66e489955621ec58bf57a86c6b"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -96,7 +96,7 @@ with tempfile.TemporaryDirectory(prefix="void-v7-reseal-proof-") as td:
         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, timeout=240, check=False,
     )
-    # The production builder intentionally restricts outputs to /home/zoso/Downloads.
+    # The production builder intentionally restricts outputs to the current account's Downloads directory.
     # This proof therefore requires the guard to reject an arbitrary temporary root.
     assert built.returncode == 2
     assert "reason=output_outside_downloads" in built.stdout.splitlines()
@@ -105,7 +105,8 @@ print(MARKER + "_GREEN")
 print("target_blob=" + TARGET_BLOB)
 print("exact_target_commit_tree_parents_bound=true")
 print("reachable_commit_count_17931_bound=true")
-print("complete_object_graph_required=true")\nprint("single_process_pack_and_index_generation_bound=true")
+print("complete_object_graph_required=true")
+print("single_process_pack_and_index_generation_bound=true")
 print("closed_git_config_required=true")
 print("shallow_graft_alternate_commondir_rejected=true")
 print("output_scope_guard_bound=true")
