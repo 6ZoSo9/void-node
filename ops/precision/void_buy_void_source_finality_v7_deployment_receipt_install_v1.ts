@@ -21,6 +21,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../..");
 const SHA40=/^[0-9a-f]{40}$/u;
 const SHA256=/^[0-9a-f]{64}$/u;
 const SAFE_LOCK_PATH=/^ops\/security\/[A-Za-z0-9._\/-]+\.json$/u;
+const CURRENT_TRACKED_SOURCE_MAX_BYTES=16*1024*1024;
 const PROTECTED_DISPATCH_MARKER_V1="VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1";
 const PROTECTED_NATIVE_PREENTRY_MARKER_V1="VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1";
 const PROTECTED_SOURCE_ROOT_V1="/opt/void-buy-void-v7-reviewed-v1";
@@ -103,14 +104,17 @@ function inspectCurrentTrackedSourceRowV1(
   );
   const absolute=path.join(repositoryRoot,...relative.split("/"));
   const before=fs.lstatSync(absolute);
-  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1,
-    "current_enforcement_source_not_direct_regular_file:"+relative);
-  const bytes=fs.readFileSync(absolute);
-  const after=fs.lstatSync(absolute);
-  for(const key of ["dev","ino","size","mtimeMs","ctimeMs","nlink"] as const){
-    assert.equal(after[key],before[key],
-      "current_enforcement_source_changed:"+relative+":"+key);
-  }
+  assert.ok(
+    before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&
+    before.size>0&&before.size<=CURRENT_TRACKED_SOURCE_MAX_BYTES,
+    "current_enforcement_source_not_direct_regular_file:"+relative,
+  );
+  const bytes=readObservedRegularFileV1(
+    absolute,
+    before,
+    CURRENT_TRACKED_SOURCE_MAX_BYTES,
+    "current_enforcement_source:"+relative,
+  );
   const visibleBlob=currentSourceBlobV1(bytes);
   const headBlob=git(repositoryRoot,["rev-parse","--verify","HEAD:"+relative]);
   assert.equal(visibleBlob,headBlob,
