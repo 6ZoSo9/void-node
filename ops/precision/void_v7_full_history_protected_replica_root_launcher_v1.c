@@ -378,7 +378,7 @@ int main(int argc,char **argv){
     int installer_fd=open_regular_mode(FIXED_INSTALLER,INSTALLER_BYTES,0444,false,&installer_id);
     require_fsverity_sha256(installer_fd,"installer_fsverity_required");
     char installer_hash[65];hash_exact_fd(installer_fd,INSTALLER_BYTES,installer_hash);if(strcmp(installer_hash,INSTALLER_SHA256))hold("installer_content_mismatch");revalidate_file(FIXED_INSTALLER,installer_fd,installer_id);
-    char *policy_raw=read_policy_bytes(policy_fd,(size_t)policy_id.size);policy_v2 policy=parse_policy(policy_raw,(size_t)policy_id.size);free(policy_raw);revalidate_file(FIXED_POLICY,policy_fd,policy_id);
+    char *policy_raw=read_policy_bytes(policy_fd,(size_t)policy_id.size);policy_v1 policy=parse_policy(policy_raw,(size_t)policy_id.size);free(policy_raw);revalidate_file(FIXED_POLICY,policy_fd,policy_id);
     int python_fd=open_regular_mode(FIXED_PYTHON,MAX_PYTHON_BYTES,0555,true,&python_id);
     require_fsverity_sha256(python_fd,"python_fsverity_required");
     if((size_t)python_id.size!=policy.python_bytes)hold("python_size_mismatch");
