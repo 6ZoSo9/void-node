@@ -22,12 +22,14 @@ if (
 
 import argparse
 import ctypes
+import errno
 import hashlib
 import json
 import os
 import pathlib
 import signal
 import stat
+import struct
 import subprocess
 import tempfile
 from typing import Any
@@ -35,11 +37,11 @@ from typing import Any
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MARKER = _BOOTSTRAP_MARKER
 
-BASE_HEAD = "6011fc906a98cb005567f8dd1fa8a3ea184beb12"
+BASE_HEAD = "e99772502c80fefafef3b6a836a408b66ddded76"
 BUILDER_REL = "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
 BUILDER_BLOB = "030182d544a92cd6c67868fa4c4f3e83188e4249"
 V4_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
-V4_BLOB = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"
+V4_BLOB = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
 ATOMIC_REL = "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
 ATOMIC_BLOB = "3fe1158a0fdf19fa4307c2a8122314b75ee36345"
 
@@ -110,6 +112,127 @@ def _metadata_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int
         st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink,
         st.st_size, st.st_mtime_ns, st.st_ctime_ns,
     )
+
+POSIX_ACL_XATTR_VERSION = 0x0002
+POSIX_ACL_ACCESS_XATTR = "system.posix_acl_access"
+POSIX_ACL_DEFAULT_XATTR = "system.posix_acl_default"
+ACL_USER_OBJ = 0x01
+ACL_USER = 0x02
+ACL_GROUP_OBJ = 0x04
+ACL_MASK = 0x10
+ACL_OTHER = 0x20
+ACL_UNDEFINED_ID = 0xFFFFFFFF
+
+def _runtime_uid_read_acl_blob(owner_perm: int, runtime_perm: int) -> bytes:
+    if owner_perm not in range(8) or runtime_perm not in range(8):
+        raise InstallError("private_stage_acl_permission_invalid")
+    entries = (
+        (ACL_USER_OBJ, owner_perm, ACL_UNDEFINED_ID),
+        (ACL_USER, runtime_perm, RUNTIME_UID),
+        (ACL_GROUP_OBJ, 0, ACL_UNDEFINED_ID),
+        (ACL_MASK, runtime_perm, ACL_UNDEFINED_ID),
+        (ACL_OTHER, 0, ACL_UNDEFINED_ID),
+    )
+    return struct.pack("<I", POSIX_ACL_XATTR_VERSION) + b"".join(
+        struct.pack("<HHI", tag, perm, ident) for tag, perm, ident in entries
+    )
+
+def _remove_default_acl_if_present_fd(fd: int, label: str) -> None:
+    try:
+        os.removexattr(fd, POSIX_ACL_DEFAULT_XATTR)
+    except OSError as exc:
+        if exc.errno != errno.ENODATA:
+            raise InstallError(label + "_default_acl_remove_failed:" + str(exc.errno)) from exc
+
+def _set_runtime_uid_read_acl_fd(
+    fd: int,
+    owner_perm: int,
+    runtime_perm: int,
+    label: str,
+    *,
+    directory: bool,
+) -> None:
+    st = os.fstat(fd)
+    expected_private_mode = owner_perm << 6
+    if (
+        st.st_uid != 0
+        or st.st_gid != 0
+        or stat.S_IMODE(st.st_mode) != expected_private_mode
+        or (directory and not stat.S_ISDIR(st.st_mode))
+        or (not directory and not stat.S_ISREG(st.st_mode))
+    ):
+        raise InstallError(label + "_private_metadata_invalid")
+    if directory:
+        _remove_default_acl_if_present_fd(fd, label)
+    blob = _runtime_uid_read_acl_blob(owner_perm, runtime_perm)
+    try:
+        os.setxattr(fd, POSIX_ACL_ACCESS_XATTR, blob)
+    except OSError as exc:
+        raise InstallError(label + "_access_acl_set_failed:" + str(exc.errno)) from exc
+    try:
+        observed = os.getxattr(fd, POSIX_ACL_ACCESS_XATTR)
+    except OSError as exc:
+        raise InstallError(label + "_access_acl_readback_failed:" + str(exc.errno)) from exc
+    if observed != blob:
+        raise InstallError(label + "_access_acl_readback_mismatch")
+    after = os.fstat(fd)
+    expected_acl_mode = (owner_perm << 6) | (runtime_perm << 3)
+    if (
+        after.st_uid != 0
+        or after.st_gid != 0
+        or stat.S_IMODE(after.st_mode) != expected_acl_mode
+    ):
+        raise InstallError(label + "_access_acl_mode_projection_invalid")
+    os.fsync(fd)
+
+def _verify_runtime_uid_read_acl_fd(
+    fd: int,
+    owner_perm: int,
+    runtime_perm: int,
+    label: str,
+    *,
+    directory: bool,
+) -> None:
+    st = os.fstat(fd)
+    expected_acl_mode = (owner_perm << 6) | (runtime_perm << 3)
+    if (
+        st.st_uid != 0
+        or st.st_gid != 0
+        or stat.S_IMODE(st.st_mode) != expected_acl_mode
+        or (directory and not stat.S_ISDIR(st.st_mode))
+        or (not directory and not stat.S_ISREG(st.st_mode))
+    ):
+        raise InstallError(label + "_acl_metadata_invalid")
+    expected = _runtime_uid_read_acl_blob(owner_perm, runtime_perm)
+    try:
+        observed = os.getxattr(fd, POSIX_ACL_ACCESS_XATTR)
+    except OSError as exc:
+        raise InstallError(label + "_access_acl_missing:" + str(exc.errno)) from exc
+    if observed != expected:
+        raise InstallError(label + "_access_acl_mismatch")
+
+def _remove_runtime_uid_read_acl_fd(
+    fd: int,
+    owner_perm: int,
+    runtime_perm: int,
+    label: str,
+    *,
+    directory: bool,
+) -> None:
+    _verify_runtime_uid_read_acl_fd(
+        fd, owner_perm, runtime_perm, label, directory=directory
+    )
+    try:
+        os.removexattr(fd, POSIX_ACL_ACCESS_XATTR)
+    except OSError as exc:
+        raise InstallError(label + "_access_acl_remove_failed:" + str(exc.errno)) from exc
+    try:
+        os.getxattr(fd, POSIX_ACL_ACCESS_XATTR)
+    except OSError as exc:
+        if exc.errno != errno.ENODATA:
+            raise InstallError(label + "_access_acl_postremove_probe_failed:" + str(exc.errno)) from exc
+    else:
+        raise InstallError(label + "_access_acl_postremove_still_present")
 
 def _git_env() -> dict[str, str]:
     return {
@@ -675,8 +798,12 @@ def _runtime_uid_child_call(operation: str, expected_head: str = "") -> dict[str
                 elif operation == "verify_stage_private":
                     if os.access(STAGE, os.W_OK, effective_ids=True):
                         raise InstallError("runtime_uid_private_stage_writable")
+                    if not os.access(
+                        STAGE, os.R_OK | os.X_OK, effective_ids=True
+                    ):
+                        raise InstallError("runtime_uid_private_stage_not_readable")
                     result = _verify_full_history_root(
-                        STAGE, 0, RUNTIME_GID, 0o550
+                        STAGE, 0, 0, 0o750
                     )
                 elif operation == "verify_stage":
                     if os.access(STAGE, os.W_OK, effective_ids=True):
@@ -796,6 +923,9 @@ def source_plan() -> None:
     print("git_metadata_leaves_nonexecutable_required=true")
     print("private_stage_before_content_authentication=true")
     print("private_stage_git_verification_before_world_readable=true")
+    print("private_stage_named_runtime_uid_acl_required=true")
+    print("private_stage_acl_group_object_zero_required=true")
+    print("candidate_utf8_path_components_required=true")
     print("opened_generation_copy_budget_required=true")
     print("write_boundary_precedes_first_stage_mutation=true")
     print("service_mutation=false")
@@ -997,15 +1127,19 @@ def _prepare_private_stage_for_runtime_verification() -> None:
     for path in files:
         fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
         try:
-            st = os.fstat(fd)
-            private_mode = stat.S_IMODE(st.st_mode)
-            if private_mode not in (0o400, 0o500):
+            private_mode = stat.S_IMODE(os.fstat(fd).st_mode)
+            if private_mode == 0o400:
+                _set_runtime_uid_read_acl_fd(
+                    fd, 0o4, 0o4, "stage_prepare_file", directory=False
+                )
+            elif private_mode == 0o500:
+                _set_runtime_uid_read_acl_fd(
+                    fd, 0o5, 0o5, "stage_prepare_exec", directory=False
+                )
+            else:
                 raise InstallError(
                     "stage_prepare_private_file_mode_invalid:" + os.fspath(path)
                 )
-            os.fchown(fd, 0, RUNTIME_GID)
-            os.fchmod(fd, 0o550 if private_mode == 0o500 else 0o440)
-            os.fsync(fd)
         finally:
             os.close(fd)
 
@@ -1015,15 +1149,14 @@ def _prepare_private_stage_for_runtime_verification() -> None:
             os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
         )
         try:
-            st = os.fstat(fd)
-            if stat.S_IMODE(st.st_mode) != 0o700:
+            if stat.S_IMODE(os.fstat(fd).st_mode) != 0o700:
                 raise InstallError(
                     "stage_prepare_private_directory_mode_invalid:"
                     + os.fspath(directory)
                 )
-            os.fchown(fd, 0, RUNTIME_GID)
-            os.fchmod(fd, 0o550)
-            os.fsync(fd)
+            _set_runtime_uid_read_acl_fd(
+                fd, 0o7, 0o5, "stage_prepare_directory", directory=True
+            )
         finally:
             os.close(fd)
 
@@ -1039,7 +1172,7 @@ def _seal_verified_stage_for_publication() -> None:
             st = path.lstat()
             if stat.S_ISLNK(st.st_mode):
                 raise InstallError("stage_seal_symlink_forbidden:" + os.fspath(path))
-            if st.st_uid != 0 or st.st_gid != RUNTIME_GID:
+            if st.st_uid != 0 or st.st_gid != 0:
                 raise InstallError("stage_seal_owner_invalid:" + os.fspath(path))
             if stat.S_ISDIR(st.st_mode):
                 pending.append(path)
@@ -1051,14 +1184,21 @@ def _seal_verified_stage_for_publication() -> None:
     for path in files:
         fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
         try:
-            st = os.fstat(fd)
-            verification_mode = stat.S_IMODE(st.st_mode)
-            if verification_mode not in (0o440, 0o550):
+            verification_mode = stat.S_IMODE(os.fstat(fd).st_mode)
+            if verification_mode == 0o440:
+                _remove_runtime_uid_read_acl_fd(
+                    fd, 0o4, 0o4, "stage_seal_file", directory=False
+                )
+                os.fchmod(fd, 0o444)
+            elif verification_mode == 0o550:
+                _remove_runtime_uid_read_acl_fd(
+                    fd, 0o5, 0o5, "stage_seal_exec", directory=False
+                )
+                os.fchmod(fd, 0o555)
+            else:
                 raise InstallError(
                     "stage_seal_verification_file_mode_invalid:" + os.fspath(path)
                 )
-            os.fchown(fd, 0, 0)
-            os.fchmod(fd, 0o555 if verification_mode == 0o550 else 0o444)
             os.fsync(fd)
         finally:
             os.close(fd)
@@ -1069,21 +1209,27 @@ def _seal_verified_stage_for_publication() -> None:
             os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
         )
         try:
-            st = os.fstat(fd)
-            if (
-                st.st_uid != 0
-                or st.st_gid != RUNTIME_GID
-                or stat.S_IMODE(st.st_mode) != 0o550
-            ):
+            if stat.S_IMODE(os.fstat(fd).st_mode) != 0o750:
                 raise InstallError(
                     "stage_seal_verification_directory_invalid:"
                     + os.fspath(directory)
                 )
-            os.fchown(fd, 0, 0)
+            _remove_runtime_uid_read_acl_fd(
+                fd, 0o7, 0o5, "stage_seal_directory", directory=True
+            )
             os.fchmod(fd, 0o555)
             os.fsync(fd)
         finally:
             os.close(fd)
+
+def _require_utf8_copy_component(name: str) -> None:
+    try:
+        raw = name.encode("utf-8", "strict")
+        roundtrip = raw.decode("utf-8", "strict")
+    except UnicodeError as exc:
+        raise InstallError("copy_entry_name_not_utf8") from exc
+    if roundtrip != name or name in ("", ".", "..") or "/" in name:
+        raise InstallError("copy_entry_name_invalid")
 
 def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
     global _WRITE_BOUNDARY_ENTERED, _STAGE_RETAINED
@@ -1137,8 +1283,7 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
             source_before = _metadata_identity(os.fstat(src_fd))
             names = sorted(os.listdir(src_fd))
             for name in names:
-                if name in ("", ".", "..") or "/" in name:
-                    raise InstallError("copy_entry_name_invalid:" + label)
+                _require_utf8_copy_component(name)
                 nodes += 1
                 if nodes > MAX_NODES:
                     raise InstallError("copy_node_limit")
@@ -1448,7 +1593,35 @@ def self_test() -> None:
     print("live_release_mutation=false")
     print("full_history_candidate_reauthentication_required=true")
     print("live_shallow_runtime_cross_binding_required=true")
+    acl = _runtime_uid_read_acl_blob(0o7, 0o5)
+    if len(acl) != 44:
+        raise AssertionError("runtime_uid_acl_blob_size_invalid")
+    version = struct.unpack_from("<I", acl, 0)[0]
+    entries = tuple(
+        struct.unpack_from("<HHI", acl, 4 + index * 8)
+        for index in range(5)
+    )
+    if version != POSIX_ACL_XATTR_VERSION:
+        raise AssertionError("runtime_uid_acl_version_invalid")
+    if entries != (
+        (ACL_USER_OBJ, 0o7, ACL_UNDEFINED_ID),
+        (ACL_USER, 0o5, RUNTIME_UID),
+        (ACL_GROUP_OBJ, 0, ACL_UNDEFINED_ID),
+        (ACL_MASK, 0o5, ACL_UNDEFINED_ID),
+        (ACL_OTHER, 0, ACL_UNDEFINED_ID),
+    ):
+        raise AssertionError("runtime_uid_acl_entries_invalid")
+    try:
+        _require_utf8_copy_component("\udcff")
+    except InstallError as exc:
+        if str(exc) != "copy_entry_name_not_utf8":
+            raise
+    else:
+        raise AssertionError("invalid_utf8_copy_component_not_rejected")
     print("root_owned_immutable_stage_required=true")
+    print("private_stage_named_runtime_uid_acl_required=true")
+    print("private_stage_acl_group_object_zero_required=true")
+    print("candidate_utf8_path_components_required=true")
     print("rename_noreplace_publication_required=true")
     print("trusted_root_launcher_required=true")
     print("service_mutation=false")
