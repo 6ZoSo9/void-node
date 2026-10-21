@@ -26,7 +26,7 @@ The launcher source Git blob is:
 
 The source proof Git blob is:
 
-`7e5a0d029847ae36b8359c926dab3c8b9a8c482e`.
+`7b6386839875e5f70d52068561fc87b862c735e7`.
 
 These are source identities only. A later installed launcher must be separately bound to its compiled ELF identity.
 
