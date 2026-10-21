@@ -4,7 +4,7 @@
 
 Plan only. This does not change the landed trusted launcher V2 and does not install anything.
 
-Plan ID: `voidv7createonlysealplan1_75281a6e6c25053a7c6e5e249eed2b8c49e99733429d8b82631e3a6fdf9bb85e`.
+Plan ID: `voidv7createonlysealplan1_31d2c4116b8296d5b41b7ed6f7faf4101691a1d34f06158c11ab8f91463dc2db`.
 
 Base: `main@0d93be0a7ae1395449a386d4fbe14bb680f51c3f`.
 
@@ -28,12 +28,22 @@ For each destination the future installer must:
 2. create a fresh root-private destination inode;
 3. write exact bytes through the retained destination descriptor;
 4. fsync data, set final root ownership/mode, and fsync metadata;
-5. close every writable destination descriptor;
-6. prove its own descriptor table contains no writable handle to any trusted staged inode;
-7. reopen each file read-only/no-follow/nonblocking and revalidate device, inode, owner, mode, nlink, size and SHA-256;
-8. require the accepted destination size and SHA-256 to equal the exact pre-copy pinned source size and SHA-256 before any publication.
+5. keep the entire destination-write phase single-process: while any trusted destination write FD is live, forbid fork/clone/vfork/posix_spawn/helper creation, descriptor inheritance/duplication into another process, SCM_RIGHTS or other FD passing, and any UID/GID drop;
+6. never create a MAP_SHARED|PROT_WRITE mapping of a trusted destination inode, and forbid process creation while any writable shared destination mapping exists;
+7. close every writable destination descriptor;
+8. treat the installer's own FD-table census only as local evidence, never as proof of cross-process containment;
+9. reopen each file read-only/no-follow/nonblocking and revalidate device, inode, owner, mode, nlink, size and SHA-256;
+10. require the accepted destination size and SHA-256 to equal the exact pre-copy pinned source size and SHA-256 before any publication.
 
 Only after the complete tree and a closed installation receipt are read-only revalidated may the whole tree be published with same-filesystem kernel-atomic **no-replace** semantics. A check-for-absence followed by an ordinary replace-capable rename is not authority. The retained final parent is then fsynced and the visible generation is revalidated.
+
+## Cross-process retained-authority adversaries
+
+Fresh root-private inodes and `O_CLOEXEC` are necessary but insufficient. `FD_CLOEXEC` only closes a descriptor across exec; it does not revoke a writable open-file description inherited across fork, and a writable descriptor can also be explicitly transferred to another process. The future bootstrap construction phase must therefore be a single-process critical section from the first trusted-destination writable open through closure of the last trusted-destination writable FD. No fork/clone/vfork/posix_spawn/helper, no `SCM_RIGHTS` or equivalent FD transfer, and no credential drop may occur inside that interval.
+
+The same rule applies to writable shared mappings. Closing an FD and chmodding an inode read-only do not revoke an existing `MAP_SHARED|PROT_WRITE` mapping, and a forked descendant can inherit that mapping. The future bootstrap must never create such a mapping for a trusted destination inode and must not create descendants while any equivalent writable mapping authority exists.
+
+The source proof deliberately demonstrates both Linux hazards with disposable unprivileged temporary files: a forked child writes through an inherited `O_CLOEXEC` destination FD after the parent closes/chmods it, and another child writes through an inherited writable shared mapping after the FD is closed. Those controls prove why the plan must preclude the authority before publication; they do not implement or accept the alternative seal.
 
 ## Same-UID adversary
 
@@ -57,7 +67,7 @@ Launcher V2 remains unchanged and continues to require fs-verity.
 
 A create-only provenance seal can only be consumed by a **new launcher generation** whose policy explicitly selects one reviewed seal mode. The new launcher must preserve V2's exact hashing, retained descriptors, terminal generation checks, static first-instruction boundary and V5 operation bindings.
 
-The alternative's threat model covers unprivileged/same-UID retained-handle and pathname races. It does not claim resistance to an arbitrary malicious root with post-install kernel/filesystem mutation authority.
+The alternative's threat model covers unprivileged/same-UID retained-handle, inherited/transferred descriptor, inherited writable shared-mapping, and pathname races. It does not claim resistance to an arbitrary malicious root with post-install kernel/filesystem mutation authority.
 
 ## Bootstrap gate
 

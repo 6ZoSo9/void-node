@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import {execFileSync} from "node:child_process";
+import os from "node:os";
+import path from "node:path";
 
 const PLAN_PATH="ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json";
-const PLAN_ID="voidv7createonlysealplan1_75281a6e6c25053a7c6e5e249eed2b8c49e99733429d8b82631e3a6fdf9bb85e";
+const PLAN_ID="voidv7createonlysealplan1_31d2c4116b8296d5b41b7ed6f7faf4101691a1d34f06158c11ab8f91463dc2db";
 const SOURCE_BASE="0d93be0a7ae1395449a386d4fbe14bb680f51c3f";
 const LAUNCHER="ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c";
 const LAUNCHER_PROOF="scripts/prove_buy_void_v7_protected_substrate_root_launcher_v2.py";
@@ -38,7 +40,20 @@ const REQUIRED=[
   "destination_final_mode_must_match_closed_policy",
   "destination_file_must_be_fsynced_after_final_metadata",
   "all_destination_writable_descriptors_must_be_closed_before_publication",
+  "bootstrap_write_phase_must_remain_single_process_while_any_destination_writable_descriptor_is_live",
+  "fork_clone_vfork_posix_spawn_and_helper_process_creation_forbidden_while_any_destination_writable_descriptor_is_live",
+  "destination_writable_descriptor_inheritance_or_duplication_into_another_process_forbidden",
+  "scm_rights_or_other_fd_passing_of_destination_writable_descriptors_forbidden",
+  "uid_or_gid_drop_forbidden_while_any_destination_writable_descriptor_is_live",
+  "installer_own_fd_table_census_is_not_sufficient_cross_process_containment_evidence",
+  "forked_child_retained_destination_writable_fd_adversary_must_hold_before_publication",
   "installer_must_prove_its_own_fd_table_contains_no_writable_descriptor_to_staged_trusted_inodes_before_publication",
+  "destination_inode_must_never_be_mapped_map_shared_with_prot_write",
+  "writable_shared_mapping_of_destination_inode_must_never_be_inherited_by_descendant",
+  "process_creation_forbidden_while_any_destination_writable_shared_mapping_exists",
+  "destination_shared_writable_mapping_must_not_be_transferred_or_recreated_before_publication",
+  "closed_destination_fd_and_read_only_mode_do_not_prove_absence_of_retained_writable_shared_mapping",
+  "forked_child_retained_shared_writable_mapping_adversary_must_hold_before_publication",
   "trusted_files_must_be_reopened_read_only_nofollow_nonblocking_after_write_fd_close",
   "read_only_reopen_must_revalidate_dev_ino_owner_mode_nlink_size_and_sha256",
   "accepted_destination_size_and_sha256_must_equal_pre_copy_pinned_source_size_and_sha256_before_publication",
@@ -72,7 +87,7 @@ const REQUIRED=[
   "bootstrap_installer_first_entry_trust_remains_separate_gate",
   "arbitrary_malicious_root_after_install_is_outside_this_alternative_seal_threat_model",
   "same_uid_and_unprivileged_retained_handle_adversary_is_inside_threat_model",
-  "host_capability_and_install_execution_require_separate_explicit_authorization"
+  "host_capability_and_install_execution_require_separate_explicit_authorization",
 ];
 
 function canonical(v){
@@ -96,6 +111,48 @@ function git(...args){
   }).trim();
 }
 
+function proveRetainedAuthorityControls(){
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-v7-seal-plan-"));
+  try{
+    const py=`import mmap, os, sys
+root=sys.argv[1]
+fd_path=os.path.join(root,"fd-adversary.bin")
+fd=os.open(fd_path, os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_CLOEXEC, 0o600)
+os.write(fd,b"GOOD")
+r,w=os.pipe(); pid=os.fork()
+if pid==0:
+    try:
+        os.close(w); os.read(r,1); os.lseek(fd,0,os.SEEK_SET); os.write(fd,b"EDIT"); os.fsync(fd); os._exit(0)
+    except BaseException: os._exit(7)
+os.close(r); os.chmod(fd_path,0o400); os.close(fd); os.write(w,b"x"); os.close(w)
+_,status=os.waitpid(pid,0)
+assert os.waitstatus_to_exitcode(status)==0
+assert open(fd_path,"rb").read()==b"EDIT"
+print("child_retained_fd_wrote_after_parent_close=true")
+map_path=os.path.join(root,"mmap-adversary.bin")
+mfd=os.open(map_path, os.O_RDWR|os.O_CREAT|os.O_EXCL|os.O_CLOEXEC, 0o600)
+os.write(mfd,b"GOOD")
+mm=mmap.mmap(mfd,4,flags=mmap.MAP_SHARED,prot=mmap.PROT_READ|mmap.PROT_WRITE)
+r,w=os.pipe(); pid=os.fork()
+if pid==0:
+    try:
+        os.close(w); os.read(r,1); mm[:]=b"EDIT"; mm.flush(); os._exit(0)
+    except BaseException: os._exit(8)
+os.close(r); os.chmod(map_path,0o400); os.close(mfd); os.write(w,b"x"); os.close(w)
+_,status=os.waitpid(pid,0)
+assert os.waitstatus_to_exitcode(status)==0
+assert open(map_path,"rb").read()==b"EDIT"
+mm.close()
+print("child_retained_shared_mapping_wrote_after_fd_close=true")`;
+    const out=execFileSync("/usr/bin/python3",["-I","-B","-c",py,temp],{
+      encoding:"utf8",stdio:["ignore","pipe","pipe"],
+      env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},timeout:5000,
+    });
+    assert.match(out,/^child_retained_fd_wrote_after_parent_close=true$/mu);
+    assert.match(out,/^child_retained_shared_mapping_wrote_after_fd_close=true$/mu);
+  }finally{ fs.rmSync(temp,{recursive:true,force:true}); }
+}
+proveRetainedAuthorityControls();
 const plan=JSON.parse(fs.readFileSync(PLAN_PATH,"utf8"));
 const {plan_id,...withoutId}=plan;
 assert.equal(plan_id,PLAN_ID);
@@ -127,6 +184,10 @@ assert.equal(plan.observed_host_hold.fs_ioc_measure_verity_result,"ENOTSUP");
 assert.equal(plan.observed_host_hold.fsverity_host_readiness_established,false);
 assert.equal(plan.candidate_alternative.name,"CREATE_ONLY_CLOSED_TREE_V1");
 assert.equal(plan.candidate_alternative.kernel_cryptographic_verified_reads,false);
+assert.equal(plan.candidate_alternative.single_process_write_phase_required,true);
+assert.equal(plan.candidate_alternative.destination_write_fd_inheritance_or_transfer_forbidden,true);
+assert.equal(plan.candidate_alternative.writable_shared_destination_mapping_forbidden,true);
+assert.equal(plan.candidate_alternative.installer_own_fd_table_census_sufficient,false);
 assert.deepEqual(plan.future_requirements,REQUIRED);
 assert.equal(new Set(REQUIRED).size,REQUIRED.length);
 
@@ -178,6 +239,14 @@ console.log("pinned_source_identity_must_equal_accepted_destination=true");
 console.log("kernel_atomic_noreplace_required=true");
 console.log("receipt_self_hash_cycle_forbidden=true");
 console.log("published_payload_and_receipt_nlink_one_required=true");
+console.log("single_process_destination_write_phase_required=true");
+console.log("destination_write_fd_inheritance_or_transfer_forbidden=true");
+console.log("scm_rights_destination_fd_passing_forbidden=true");
+console.log("uid_drop_with_destination_write_fd_forbidden=true");
+console.log("writable_shared_destination_mapping_forbidden=true");
+console.log("installer_own_fd_table_census_sufficient=false");
+console.log("retained_child_fd_adversary_demonstrated=true");
+console.log("retained_child_shared_mapping_adversary_demonstrated=true");
 console.log("new_launcher_generation_authorized=false");
 console.log("bootstrap_installer_implementation_authorized=false");
 console.log("host_capability_probe_authorized=false");
