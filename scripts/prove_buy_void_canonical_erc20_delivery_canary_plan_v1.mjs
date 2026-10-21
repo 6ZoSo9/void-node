@@ -7,8 +7,8 @@ const ROOT=process.cwd();
 const BASE_HEAD="0d93be0a7ae1395449a386d4fbe14bb680f51c3f";
 const BASE_TREE="199f3949a8955077124822269560b1a4e1ed5e30";
 const PLAN_PATH="ops/security/buy-void-canonical-erc20-delivery-canary-plan-v1.json";
-const PLAN_BLOB="f7ddea68b33c2abfc4ca31deff12155e41fc0112";
-const PLAN_ID="voidbverc20canary1_39e4119fd0a807d16b32b8f936b36cc24939d6c772e7a3af83deed779eef07a4";
+const PLAN_BLOB="cdcb389c19c3a2e0133b2bb458c89e38dd3480c1";
+const PLAN_ID="voidbverc20canary1_a98009b1b59f737965db77ccc9291df28b18ad00014f3aa70781e2573acb0666";
 const OWNED=Object.freeze([
   ".github/workflows/buy-void-canonical-erc20-delivery-canary-plan-v1.yml",
   "docs/architecture/buy-void-canonical-erc20-delivery-canary-plan-v1.md",
@@ -38,7 +38,7 @@ const SOURCE_BINDINGS=Object.freeze({
   "src/economic/participant_postpurchase_raw_submission_v1.ts":"6019f20517270ee21bf4900ba4f15cccfb32fd2a",
   "tools/void-participant-postpurchase-voidtoken-control-v1.mjs":"e8fef2dd13d3a0a4dd1f597934d2f7305fe2464e",
   "src/economic/buy_void_fulfillment_journal_v1.ts":"7c4b099d835b84f50867e873fca763767c80c015",
-  "src/economic/buy_void_inventory_reservation_journal_v1.ts":"dc15061a3c4f09c31da678aa26a731708e70d6c",
+  "src/economic/buy_void_inventory_reservation_journal_v1.ts":"dc15061a3c4f09ec31da678aa26a731708e70d6c",
   "src/economic/buy_void_pipeline_coordinator_v1.ts":"318aaa6a1534fed0d2ab934a78d2a5de187f7ef8",
   "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts":"e284a38a4b7f3d498b07e77c661d6eef3b742e7a",
   "src/economic/buy_void_filesystem_bakery_lock_v1.ts":"9bd47abb857368d928c0ca289766cdf3571629ba",
@@ -137,7 +137,7 @@ assert.deepEqual(plan.source_bindings,SOURCE_BINDINGS,"source_bindings_drift");
 assert.deepEqual([...plan.future_requirements].sort(),[...REQUIRED].sort(),"future_requirements_drift");
 assert.deepEqual(plan.current_observations,OBS,"current_observations_drift");
 assert.deepEqual(plan.authority,AUTH,"authority_drift");
-for(const [path,expected] of Object.entries(SOURCE_BINDINGS))assert.equal(gitBlob(fs.readFileSync(path)),expected,"source_blob_drift:"+path);
+for(const [path,expected] of Object.entries(SOURCE_BINDINGS)){assert.match(expected,/^[0-9a-f]{40}$/,"source_binding_sha_invalid:"+path);assert.equal(gitBlob(fs.readFileSync(path)),expected,"source_blob_drift:"+path);}
 const config=source("src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts");
 for(const text of ['canonical_chain_id: "2050"','canonical_asset: "void_token_erc20"','canonical_delivery_runtime_activation_ready: false','canonical_delivery_runtime_parent_mounted: true','canonical_delivery_execution_ready: false','presale_inventory_funding_ready: false','disabled_delivery_canary_max_may_be_lower: true','public_delivery_activation_requires_presale_capacity_max: true','production_broad_delivery_configuration_verified: false','canonical_delivery_action: "sign_and_broadcast"','durable_wallet_nonce_reservation_required: true','signed_hash_custody_required: true','write_ahead_broadcast_intent_required: true','receipt_reconciliation_required: true'])assert.ok(config.includes(text),"configuration_contract_missing:"+text);
 const retired=source("scripts/buy_void_production_canary_candidate_reservation_v1.ts");

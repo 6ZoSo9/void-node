@@ -77,7 +77,7 @@ jobs:
           log="$RUNNER_TEMP/canonical-erc20-delivery-canary-plan-v1.log"
           node scripts/prove_buy_void_canonical_erc20_delivery_canary_plan_v1.mjs | tee "$log"
           grep -Fx 'VOID_BUY_VOID_CANONICAL_ERC20_DELIVERY_CANARY_PLAN_V1_GREEN' "$log"
-          grep -Fx 'plan_id=voidbverc20canary1_39e4119fd0a807d16b32b8f936b36cc24939d6c772e7a3af83deed779eef07a4' "$log"
+          grep -Fx 'plan_id=voidbverc20canary1_a98009b1b59f737965db77ccc9291df28b18ad00014f3aa70781e2573acb0666' "$log"
           grep -Fx 'source_binding_count=28' "$log"
           grep -Fx 'future_requirement_count=30' "$log"
           grep -Fx 'canonical_asset=void_token_erc20' "$log"
