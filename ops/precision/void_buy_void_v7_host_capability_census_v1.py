@@ -154,6 +154,14 @@ def normalize_zip_name(name: str) -> str:
         raise CensusError("stdlib_zip_path_invalid")
     return p.as_posix()
 
+def canonical_zip_member(info: zipfile.ZipInfo) -> str:
+    original = info.orig_filename
+    visible = info.filename
+    if original != visible:
+        raise CensusError("stdlib_zip_filename_sanitized_or_truncated")
+    raw_name = original[:-1] if info.is_dir() and original.endswith("/") else original
+    return normalize_zip_name(raw_name)
+
 def inspect_stdlib_zip(path: Path, fd: int, expected: os.stat_result) -> dict[str, object]:
     file_obj = os.fdopen(os.dup(fd), "rb", closefd=True)
     try:
@@ -166,8 +174,7 @@ def inspect_stdlib_zip(path: Path, fd: int, expected: os.stat_result) -> dict[st
             symlink = False
             lib_dynload = False
             for info in infos:
-                raw_name = info.filename[:-1] if info.is_dir() and info.filename.endswith("/") else info.filename
-                name = normalize_zip_name(raw_name)
+                name = canonical_zip_member(info)
                 if name in names:
                     duplicate = True
                 names.add(name)
@@ -354,7 +361,21 @@ def self_test() -> None:
         else:
             raise AssertionError("invalid_zip_path_accepted:" + bad)
 
+    truncated = zipfile.ZipInfo("argparse.py\x00../../x")
+    assert truncated.orig_filename != truncated.filename
+    try:
+        canonical_zip_member(truncated)
+    except CensusError as exc:
+        assert str(exc) == "stdlib_zip_filename_sanitized_or_truncated"
+    else:
+        raise AssertionError("sanitized_zip_filename_accepted")
+
+    normal = zipfile.ZipInfo("json/__init__.py")
+    assert canonical_zip_member(normal) == "json/__init__.py"
+
     print(MARKER + "_SELF_TEST_GREEN")
+    print("unsanitized_zip_member_name_required=true")
+    print("runtime_import_closure_proof_required=true")
     print("filesystem_write=false")
     print("protected_filesystem_mutation=false")
     print("fsverity_enablement=false")
@@ -389,6 +410,9 @@ def run(args: argparse.Namespace) -> int:
         "funds_movement": False,
     }
     reasons: list[str] = []
+    fsverity_supported = False
+    python_shape_ok = False
+    stdlib_shape_ok = False
 
     try:
         target_st = os.lstat(target)
@@ -405,7 +429,8 @@ def run(args: argparse.Namespace) -> int:
             result["fsverity"] = verity
         finally:
             os.close(probe_fd)
-        if not bool(verity["supported"]):
+        fsverity_supported = bool(verity["supported"])
+        if not fsverity_supported:
             reasons.append("target_filesystem_fsverity_unavailable")
     except (OSError, CensusError) as exc:
         result["fsverity_probe_error"] = str(exc)
@@ -416,6 +441,7 @@ def run(args: argparse.Namespace) -> int:
             result["python_candidate"] = inspect_candidate(
                 Path(args.python_candidate), kind="python"
             )
+            python_shape_ok = True
         except (OSError, CensusError) as exc:
             result["python_candidate_error"] = str(exc)
             reasons.append("python_candidate_invalid")
@@ -429,24 +455,34 @@ def run(args: argparse.Namespace) -> int:
             zip_info = stdlib.get("zip")
             if not isinstance(zip_info, dict) or not bool(zip_info.get("required_paths_present")):
                 reasons.append("stdlib_required_paths_missing")
+            else:
+                stdlib_shape_ok = True
         except (OSError, CensusError) as exc:
             result["stdlib_candidate_error"] = str(exc)
             reasons.append("stdlib_candidate_invalid")
     else:
         reasons.append("stdlib_candidate_required")
 
+    shape_observation_complete = (
+        fsverity_supported and python_shape_ok and stdlib_shape_ok and not reasons
+    )
+    result["candidate_shape_observation_complete"] = shape_observation_complete
+    result["runtime_import_closure_established"] = False
+    if shape_observation_complete:
+        reasons.append("static_python_runtime_generation_proof_required")
+
     result["reasons"] = sorted(set(reasons))
-    result["status"] = "GREEN" if not reasons else "HOLD"
+    result["status"] = "HOLD"
     result["next_action"] = (
-        "DERIVE_REVIEWED_V7_HOST_INSTALL_PLAN"
-        if not reasons
+        "DERIVE_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF"
+        if result["reasons"] == ["static_python_runtime_generation_proof_required"]
         else "SATISFY_V7_HOST_CAPABILITY_HOLDS"
     )
 
     print(MARKER)
-    print("status=" + str(result["status"]))
+    print("status=HOLD")
     print("result_json=" + canonical(result))
-    return 0 if not reasons else 2
+    return 2
 
 def main() -> int:
     parser = argparse.ArgumentParser()
