@@ -15,7 +15,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "2a040b1935d07a85e7291b3c2a542717aef60145"
+TARGET_BLOB = "5f1b153ac1078d5bd1ff75f983a4fe5fb8f48560"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -621,6 +621,8 @@ for marker in (
     "large_file_authentication_streamed=true",
     "byte_returning_reads_tiny_metadata_only=true",
     "apply_root_dynamic_git_exec=false",
+    "pack_entry_span_bound_required=true",
+    "pack_cache_byte_budget_required=true",
     "dynamic_git_provenance_authority_removed=true",
     "built_in_pack_index_verification_required=true",
     "built_in_full_history_object_closure_required=true",
