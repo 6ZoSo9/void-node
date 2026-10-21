@@ -199,15 +199,21 @@ def require_privileged_source_custody() -> None:
         if _metadata_identity(directory.lstat()) != expected_directory:
             raise InstallError("privileged_source_directory_generation_changed_before_scandir:" + os.fspath(directory))
 
-        entries = list(os.scandir(directory))
+        entry_names: list[str] = []
+        try:
+            with os.scandir(directory) as scan:
+                for entry in scan:
+                    checked += 1
+                    if checked > MAX_NODES:
+                        raise InstallError("privileged_source_node_limit")
+                    entry_names.append(entry.name)
+        except OSError as exc:
+            raise InstallError("privileged_source_scandir_failed:" + os.fspath(directory)) from exc
         if _metadata_identity(directory.lstat()) != expected_directory:
             raise InstallError("privileged_source_directory_generation_changed_during_scandir:" + os.fspath(directory))
 
-        for entry in entries:
-            checked += 1
-            if checked > MAX_NODES:
-                raise InstallError("privileged_source_node_limit")
-            path = pathlib.Path(entry.path)
+        for entry_name in entry_names:
+            path = directory / entry_name
             st = os.lstat(path)
             if st.st_uid != 0 or st.st_gid != 0:
                 raise InstallError("privileged_source_node_owner_invalid:" + os.fspath(path))
@@ -807,11 +813,18 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
     # Pass 1 is metadata-only: no regular-file contents are opened or read.
     while pending:
         directory, rel = pending.pop()
-        for entry in sorted(os.scandir(directory), key=lambda e: e.name):
-            nodes += 1
-            if nodes > MAX_NODES:
-                raise InstallError("tree_node_limit")
-            child, relative = directory / entry.name, (rel / entry.name).as_posix()
+        entry_names: list[str] = []
+        try:
+            with os.scandir(directory) as scan:
+                for entry in scan:
+                    nodes += 1
+                    if nodes > MAX_NODES:
+                        raise InstallError("tree_node_limit")
+                    entry_names.append(entry.name)
+        except OSError as exc:
+            raise InstallError("tree_scandir_failed:" + os.fspath(directory)) from exc
+        for entry_name in sorted(entry_names):
+            child, relative = directory / entry_name, (rel / entry_name).as_posix()
             st = os.lstat(child)
             mode = stat.S_IMODE(st.st_mode)
             if st.st_uid != 0 or st.st_gid != 0:
@@ -825,7 +838,7 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
                     raise InstallError("tree_directory_generation_changed_before_descent:" + relative)
                 runtime_directories.append(child)
                 records.append((child, relative, "D", mode, identity, None))
-                pending.append((child, rel / entry.name))
+                pending.append((child, rel / entry_name))
             elif stat.S_ISREG(st.st_mode):
                 if st.st_size > MAX_FILE_BYTES:
                     raise InstallError("tree_file_size_limit:" + relative)
@@ -1053,10 +1066,18 @@ def _copy_tree(src_root: pathlib.Path, dst_root: pathlib.Path) -> None:
     count = 0; total = 0
     def recurse(src_dir: pathlib.Path, dst_dir: pathlib.Path) -> None:
         nonlocal count, total
-        for entry in sorted(os.scandir(src_dir), key=lambda e: e.name):
-            count += 1
-            if count > MAX_NODES: raise InstallError("copy_node_limit")
-            src, dst, st = src_dir / entry.name, dst_dir / entry.name, os.lstat(src_dir / entry.name)
+        entry_names: list[str] = []
+        try:
+            with os.scandir(src_dir) as scan:
+                for entry in scan:
+                    count += 1
+                    if count > MAX_NODES:
+                        raise InstallError("copy_node_limit")
+                    entry_names.append(entry.name)
+        except OSError as exc:
+            raise InstallError("copy_scandir_failed:" + os.fspath(src_dir)) from exc
+        for entry_name in sorted(entry_names):
+            src, dst, st = src_dir / entry_name, dst_dir / entry_name, os.lstat(src_dir / entry_name)
             mode = stat.S_IMODE(st.st_mode)
             if st.st_uid != 0 or st.st_gid != 0: raise InstallError("source_node_not_root_owned:" + os.fspath(src))
             if stat.S_ISDIR(st.st_mode):
