@@ -270,6 +270,27 @@ def _exact_candidate_git_layout(root: pathlib.Path, owner_uid: int, owner_gid: i
             or stat.S_IMODE(st.st_mode) & 0o022
         ):
             raise InstallError("git_directory_metadata_invalid:" + os.fspath(p))
+    git_leaf_paths = (
+        git_dir / "HEAD",
+        git_dir / "config",
+        git_dir / "index",
+        git_dir / "refs" / "heads" / "main",
+        git_dir / "objects" / "pack" / next(n for n in packs if n.endswith(".pack")),
+        git_dir / "objects" / "pack" / next(n for n in packs if n.endswith(".idx")),
+    )
+    for leaf in git_leaf_paths:
+        st = leaf.lstat()
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or stat.S_ISLNK(st.st_mode)
+            or st.st_nlink != 1
+            or st.st_uid != owner_uid
+            or st.st_gid != owner_gid
+            or stat.S_IMODE(st.st_mode) & 0o022
+            or stat.S_IMODE(st.st_mode) & 0o111
+        ):
+            raise InstallError("git_regular_leaf_metadata_invalid:" + os.fspath(leaf))
+
     head, _ = _read_regular_stable(git_dir / "HEAD", "git_head", 256)
     config, _ = _read_regular_stable(git_dir / "config", "git_config", 4096)
     main_ref, _ = _read_regular_stable(git_dir / "refs" / "heads" / "main", "git_main_ref", 256)
@@ -453,6 +474,7 @@ def _verify_full_history_root(root: pathlib.Path, expected_uid: int, expected_gi
     if fsck.stdout or fsck.stderr:
         raise InstallError("full_root_fsck_output_nonempty")
     _verify_worktree(root)
+    _git_run(root, "diff-index", "--cached", "--quiet", SOURCE_HEAD, "--")
     if git_text(root, "status", "--porcelain=v1", "--untracked-files=all") != "":
         raise InstallError("full_root_not_clean")
     digest, nodes, total = _content_digest(
@@ -506,6 +528,7 @@ def _verify_live_shallow_release() -> dict[str, Any]:
         raise InstallError("live_release_tree_mismatch")
     if git_text(root, "symbolic-ref", "--quiet", "--short", "HEAD") != "main":
         raise InstallError("live_release_branch_mismatch")
+    _git_run(root, "diff-index", "--cached", "--quiet", SOURCE_HEAD, "--")
     if git_text(root, "status", "--porcelain=v1", "--untracked-files=all") != "":
         raise InstallError("live_release_not_clean")
     for parent in SOURCE_PARENTS:
@@ -729,6 +752,8 @@ def source_plan() -> None:
     print("apply_root_dynamic_git_exec=false")
     print("termination_signal_reconciliation_required=true")
     print("install_parent_publication_lease_required=true")
+    print("git_index_head_equality_required=true")
+    print("git_metadata_leaves_nonexecutable_required=true")
     print("service_mutation=false")
     print("credential_access=false")
     print("transaction=false")
