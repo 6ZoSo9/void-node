@@ -53,6 +53,7 @@ REACHABLE_COMMITS = 17931
 
 RUNTIME_UID = 1000
 RUNTIME_GID = 1000
+PR_SET_NO_NEW_PRIVS = 38
 CANDIDATE = pathlib.Path("/home/zoso/Downloads/void-v7-full-history-candidate-6011fc")
 LIVE_RELEASE = pathlib.Path("/opt/void-node-live/releases/" + SOURCE_HEAD)
 
@@ -641,9 +642,33 @@ def _runtime_uid_child_call(operation: str, expected_head: str = "") -> dict[str
     if pid == 0:
         try:
             os.close(read_fd)
+            libc = ctypes.CDLL(None, use_errno=True)
+            prctl = getattr(libc, "prctl", None)
+            if prctl is None:
+                raise InstallError("runtime_uid_child_prctl_unavailable")
+            prctl.argtypes = [
+                ctypes.c_int,
+                ctypes.c_ulong,
+                ctypes.c_ulong,
+                ctypes.c_ulong,
+                ctypes.c_ulong,
+            ]
+            prctl.restype = ctypes.c_int
+            if prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
+                err = ctypes.get_errno()
+                raise InstallError(
+                    "runtime_uid_child_no_new_privs_failed:"
+                    + str(err if err is not None else "unknown")
+                )
             os.setgroups([])
             os.setgid(RUNTIME_GID)
             os.setuid(RUNTIME_UID)
+            if (
+                os.getresuid() != (RUNTIME_UID, RUNTIME_UID, RUNTIME_UID)
+                or os.getresgid() != (RUNTIME_GID, RUNTIME_GID, RUNTIME_GID)
+                or os.getgroups() != []
+            ):
+                raise InstallError("runtime_uid_child_identity_drop_incomplete")
             try:
                 if operation == "collect_plan":
                     result: Any = collect_plan(expected_head)
@@ -762,6 +787,7 @@ def source_plan() -> None:
     print("live_release_mutation=false")
     print("trusted_root_launcher_required=true")
     print("apply_plan_runtime_uid_drop_required=true")
+    print("runtime_uid_child_no_new_privs_required=true")
     print("candidate_copy_descriptor_relative=true")
     print("apply_root_dynamic_git_exec=false")
     print("termination_signal_reconciliation_required=true")
