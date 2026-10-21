@@ -1,0 +1,109 @@
+name: VOID Buy VOID protected V7 V2 lock V4 reader repair V1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.md"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: prove reader-repair lock / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact reader-repair lock generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$EXPECTED_BASE" = "895c2bf320defbbca5fba6792e2a75126b2c4d76"
+          test "$(git merge-base "895c2bf320defbbca5fba6792e2a75126b2c4d76" "$EXPECTED_HEAD")" = "895c2bf320defbbca5fba6792e2a75126b2c4d76"
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            'A	.github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.yml' \
+            'A	docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.md' \
+            'A	ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json' \
+            'A	scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs' | sort > "$expected"
+          git diff --name-status "895c2bf320defbbca5fba6792e2a75126b2c4d76" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json)" = "5196ef79428d870ec2620aff6191ba5273067785"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs)" = "c7919430273d27a2701d1bfc2914389111fa97d7"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.md)" = "412262d8f1de1270a4816773754d9157b304be7a"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "5893e300a78dc4ca7729ef47f95a8e3eea2043cf"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs)" = "f33a579e62c8201de24d5076cfcbffab66df8dae"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs)" = "51a51a7f85c8068269bad0e09e3ae872c4323a58"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "245ce93ebfb53478211fab765489e88d8fa23c4a"
+          git diff --check "895c2bf320defbbca5fba6792e2a75126b2c4d76" "$EXPECTED_HEAD" --
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove exact reader-repair V4 lock
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs --self-test
+          out="$RUNNER_TEMP/lock-v4-reader-repair-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs --derive > "$out"
+          cmp "$out" ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json
+          test "$(git hash-object "$out")" = "5196ef79428d870ec2620aff6191ba5273067785"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-protected-v7-v2-lock-v4-reader-repair-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/lock-v4-reader-repair-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-protected-v7-v2-lock-v4-reader-repair-${{ github.event.pull_request.head.sha }}-node-*
+          merge-multiple: true
+          path: lock-v4-reader-repair
+      - name: Require Node 22 24 26 equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "lock-v4-reader-repair/lock-v4-reader-repair-$node.json"; done
+          cmp lock-v4-reader-repair/lock-v4-reader-repair-22.json lock-v4-reader-repair/lock-v4-reader-repair-24.json
+          cmp lock-v4-reader-repair/lock-v4-reader-repair-22.json lock-v4-reader-repair/lock-v4-reader-repair-26.json
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const l=JSON.parse(fs.readFileSync("lock-v4-reader-repair/lock-v4-reader-repair-22.json","utf8"));
+          assert.equal(l.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V4_READER_REPAIR_V1");
+          assert.equal(l.candidate_evidence.git_blob_sha1,"5893e300a78dc4ca7729ef47f95a8e3eea2043cf");
+          assert.equal(l.candidate_evidence.candidate_enforcement_set_sha256,"ff084a754e7eb6bef08ec1b1079a17a6110b4333876f0231e46395eed63042d2");
+          assert.equal(l.candidate_enforcement_identity_accepted,true);
+          assert.equal(l.independent_review_complete,false);
+          assert.equal(l.candidate_acceptance_lifecycle_ready,false);
+          assert.equal(l.downstream_candidate_v5_derivation_ready,false);
+          assert.equal(l.deployed_artifact_generation_verified,false);
+          assert.equal(l.runtime_mount_authority,false);
+          assert.equal(l.production_source_finality_authority_ready,false);
+          assert.equal(l.public_presale_activation,false);
+          assert.equal(l.funds_movement,false);
+          console.log("VOID_BUY_VOID_PROTECTED_V7_V2_LOCK_V4_READER_REPAIR_V1_CROSS_NODE_GREEN");
+          NODE
