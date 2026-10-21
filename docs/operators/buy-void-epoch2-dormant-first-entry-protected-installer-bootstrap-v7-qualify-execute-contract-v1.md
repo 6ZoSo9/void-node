@@ -437,3 +437,14 @@ alternate separator while retaining a final LF; every variant must HOLD with
 
 This closes parser permissiveness only. It adds no execution or economic
 authority.
+
+
+## October 20 exact planner byte-sequence repair
+
+Fresh exact-head review of `f87c654` found two remaining transcript-parity gaps: the consumer accepted reordered `key=value` records, and it accepted semantically equivalent but byte-different duplicated JSON lines. The pinned #3518 planner emits one fixed record sequence and exact compact JSON representations.
+
+This generation therefore requires the exact planner record order while parsing and requires the raw `bootstrap_argv_json` and `qualification_contract_json` values to equal the planner's exact serialized bytes. Duplicate-key rejection, type-exact canonical comparison, literal-LF framing, fixed HOLD reasons, and every non-execution authority boundary remain in force.
+
+Adversarial proof swaps `mode` / `read_only`, adds whitespace to the argv JSON, and reverses qualification-object key order; all must HOLD.
+
+No qualification execution, root-plan execution, host/service mutation, credential/signing, transaction/payment, activation, validator/WC, treasury/liquidity, or funds authority is added.

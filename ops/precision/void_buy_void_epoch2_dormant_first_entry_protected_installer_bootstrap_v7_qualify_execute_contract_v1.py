@@ -218,6 +218,53 @@ PLANNER_OUTPUT_KEYS = frozenset({
     "bootstrap_argv_json", "qualification_contract_json", "next_action",
 })
 
+PLANNER_OUTPUT_ORDER = (
+    "mode",
+    "read_only",
+    "nonroot_required",
+    "plan_id",
+    "plan_body_json",
+    "expected_head",
+    "qualifier_git_blob_sha1",
+    "installed_qualification_performed",
+    "installed_qualification_required_before_bootstrap_plan",
+    "qualification_nonroot_execution_required",
+    "qualification_protected_state_read_only_required",
+    "qualification_temporary_git_metadata_write_required",
+    "qualification_git_callbacks_neutralized_required",
+    "qualification_preliminary_git_local_config_isolation_required",
+    "qualification_preliminary_git_lazy_fetch_disabled_required",
+    "qualification_preliminary_git_protocols_denied_required",
+    "qualification_preliminary_git_object_alternates_rejection_required",
+    "qualification_descriptor_bound_source_execution_required",
+    "expected_installed_bootstrap_identity_bound",
+    "accepted_launcher_identity_green",
+    "accepted_launcher_lock_id",
+    "accepted_launcher_candidate_id",
+    "launcher_runtime_head_contract_accepted",
+    "launcher_superseded_v1_lock_install_authority",
+    "accepted_native_identity_green",
+    "bootstrap_execution_performed",
+    "protected_installer_apply_performed",
+    "filesystem_write",
+    "service_mutation",
+    "systemd_mutation",
+    "credential_access",
+    "private_key_access",
+    "signing",
+    "transaction",
+    "rpc_call",
+    "payment_acceptance",
+    "public_presale_activation",
+    "wc_void_market_activation",
+    "treasury_liquidity_action",
+    "funds_movement",
+    "production_host_evidence_authority",
+    "bootstrap_argv_json",
+    "qualification_contract_json",
+    "next_action",
+)
+
 AUTHORITY_FALSE_KEYS = (
     "bootstrap_execution_performed",
     "protected_installer_apply_performed",
@@ -336,13 +383,18 @@ def _planner_lines(raw: bytes) -> dict[str, str]:
     lines = text[:-1].split("\n")
     if not lines or lines[0] != PLANNER_MARKER:
         raise ContractError("planner_marker_invalid")
+    records = lines[1:]
+    if len(records) != len(PLANNER_OUTPUT_ORDER):
+        raise ContractError("planner_output_record_count_invalid")
     values: dict[str, str] = {}
-    for line in lines[1:]:
+    for index, line in enumerate(records):
         if not line or "=" not in line:
             raise ContractError("planner_output_line_invalid")
         key, value = line.split("=", 1)
         if not key or key in values:
             raise ContractError("planner_output_duplicate_or_empty_key")
+        if key != PLANNER_OUTPUT_ORDER[index]:
+            raise ContractError("planner_output_record_order_invalid")
         values[key] = value
     return values
 
@@ -737,8 +789,18 @@ def validate_planner_output(raw: bytes) -> dict[str, Any]:
         expected_argv_canonical = canonical(argv)
         emitted_contract_canonical = canonical(emitted_contract)
         expected_contract_canonical = canonical(raw_contract)
+        expected_argv_json = json.dumps(argv, separators=(",", ":"))
+        expected_contract_json = json.dumps(
+            raw_contract,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
     except (ValueError, TypeError, RecursionError) as exc:
         raise ContractError("planner_structured_output_invalid") from exc
+    if values["bootstrap_argv_json"] != expected_argv_json:
+        raise ContractError("planner_argv_line_byte_mismatch")
+    if values["qualification_contract_json"] != expected_contract_json:
+        raise ContractError("planner_qualification_line_byte_mismatch")
     if emitted_argv_canonical != expected_argv_canonical:
         raise ContractError("planner_argv_line_mismatch")
     if emitted_contract_canonical != expected_contract_canonical:
@@ -847,6 +909,8 @@ def source_plan() -> None:
     print("executable_artifact_path_depth_max=128")
     print("planner_next_action_exact_required=true")
     print("planner_output_literal_lf_framing_required=true")
+    print("planner_output_record_order_exact=true")
+    print("planner_structured_json_emission_exact=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")
     print("root_boundary_implementation=separately_reviewed_operator_boundary_required")
     print("qualification_execution_performed=false")
@@ -1472,6 +1536,59 @@ def self_test() -> None:
         else:
             raise AssertionError("alternate_planner_record_separator_accepted")
 
+    reordered_records = _fixture_output().decode("ascii").splitlines()
+    reordered_records[1], reordered_records[2] = (
+        reordered_records[2],
+        reordered_records[1],
+    )
+    try:
+        validate_planner_output(
+            ("\n".join(reordered_records) + "\n").encode("ascii")
+        )
+    except ContractError as exc:
+        if str(exc) != "planner_output_record_order_invalid":
+            raise
+    else:
+        raise AssertionError("planner_output_record_reordering_accepted")
+
+    exact_fixture_values = _planner_lines(_fixture_output())
+    whitespace_argv = json.dumps(
+        json.loads(exact_fixture_values["bootstrap_argv_json"])
+    )
+    try:
+        validate_planner_output(
+            _raw_line_fixture("bootstrap_argv_json", whitespace_argv)
+        )
+    except ContractError as exc:
+        if str(exc) != "planner_argv_line_byte_mismatch":
+            raise
+    else:
+        raise AssertionError("planner_argv_noncanonical_bytes_accepted")
+
+    exact_contract = json.loads(
+        exact_fixture_values["qualification_contract_json"]
+    )
+    reversed_contract = {
+        key: exact_contract[key]
+        for key in reversed(tuple(exact_contract.keys()))
+    }
+    reordered_contract = json.dumps(
+        reversed_contract,
+        separators=(",", ":"),
+    )
+    try:
+        validate_planner_output(
+            _raw_line_fixture(
+                "qualification_contract_json",
+                reordered_contract,
+            )
+        )
+    except ContractError as exc:
+        if str(exc) != "planner_qualification_line_byte_mismatch":
+            raise
+    else:
+        raise AssertionError("planner_qualification_noncanonical_bytes_accepted")
+
     try:
         validate_planner_output(
             _raw_line_fixture("bootstrap_argv_json", "9" * 10000)
@@ -1510,6 +1627,8 @@ def self_test() -> None:
     print("planner_hold_reason_line_injection_rejected=true")
     print("planner_json_parser_version_independent_hold=true")
     print("planner_output_literal_lf_framing_required=true")
+    print("planner_output_record_order_exact=true")
+    print("planner_structured_json_emission_exact=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")
     print("qualification_nonroot_required=true")
     print("qualification_descriptor_bound_git_object_required=true")

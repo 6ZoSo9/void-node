@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "dab45181313541d84dee84383cfcf9297e69bad3"
+TARGET_BLOB = "f02bd5303be49f1b950f731e160cfb3b5cd4a7a9"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -54,13 +54,63 @@ def pin(relative: str, expected: str) -> bytes:
 
 
 target_raw = pin(TARGET_REL, TARGET_BLOB)
-pin(PLANNER_REL, PLANNER_BLOB)
+planner_raw = pin(PLANNER_REL, PLANNER_BLOB)
 pin(PLANNER_PROOF_REL, PLANNER_PROOF_BLOB)
 pin(QUALIFIER_REL, QUALIFIER_BLOB)
 
 source = target_raw.decode("utf-8", "strict")
 compile(source, TARGET_REL, "exec", dont_inherit=True)
 tree = ast.parse(source)
+
+planner_source = planner_raw.decode("utf-8", "strict")
+planner_tree = ast.parse(planner_source)
+planner_emit = next(
+    node
+    for node in planner_tree.body
+    if isinstance(node, ast.FunctionDef) and node.name == "emit_plan"
+)
+planner_emit_order: list[str] = []
+for statement in planner_emit.body:
+    if not (
+        isinstance(statement, ast.Expr)
+        and isinstance(statement.value, ast.Call)
+        and isinstance(statement.value.func, ast.Name)
+        and statement.value.func.id == "print"
+        and statement.value.args
+    ):
+        continue
+    argument = statement.value.args[0]
+    prefix = None
+    if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+        prefix = argument.value
+    elif (
+        isinstance(argument, ast.BinOp)
+        and isinstance(argument.op, ast.Add)
+        and isinstance(argument.left, ast.Constant)
+        and isinstance(argument.left.value, str)
+    ):
+        prefix = argument.left.value
+    if prefix is not None and "=" in prefix:
+        planner_emit_order.append(prefix.split("=", 1)[0])
+
+consumer_order_assignment = next(
+    node
+    for node in tree.body
+    if isinstance(node, ast.Assign)
+    and any(
+        isinstance(target, ast.Name)
+        and target.id == "PLANNER_OUTPUT_ORDER"
+        for target in node.targets
+    )
+)
+consumer_order = tuple(ast.literal_eval(consumer_order_assignment.value))
+assert tuple(planner_emit_order) == consumer_order
+planner_emit_source = ast.get_source_segment(planner_source, planner_emit) or ""
+assert 'json.dumps(body["bootstrap_argv"], separators=(",", ":"))' in planner_emit_source
+assert (
+    'json.dumps(body["qualification_contract"], sort_keys=True, separators=(",", ":"))'
+    in planner_emit_source
+)
 
 for required in (
     'CONTRACT_PREFIX = "voidbuye2protectedbootstrapv7exec1_"',
@@ -150,6 +200,8 @@ for forbidden in ("O_WRONLY", "O_RDWR", "O_CREAT", "O_TRUNC"):
 
 planner_lines_source = ast.get_source_segment(source, functions["_planner_lines"]) or ""
 assert 'text[:-1].split("\\n")' in planner_lines_source
+assert 'key != PLANNER_OUTPUT_ORDER[index]' in planner_lines_source
+assert 'planner_output_record_order_invalid' in planner_lines_source
 for separator_literal in ('"\\r"', '"\\v"', '"\\f"', '"\\x1c"', '"\\x1d"', '"\\x1e"'):
     assert separator_literal in planner_lines_source
 
@@ -166,6 +218,10 @@ for required in (
     "planner_qualification_line_mismatch",
     "planner_next_action_mismatch",
     "object_pairs_hook=_reject_duplicate_object_pairs",
+    "expected_argv_json = json.dumps(",
+    "expected_contract_json = json.dumps(",
+    "planner_argv_line_byte_mismatch",
+    "planner_qualification_line_byte_mismatch",
     "emitted_contract_canonical = canonical(emitted_contract)",
     "expected_contract_canonical = canonical(raw_contract)",
     '_require_exact_keys(body, PLANNER_BODY_KEYS, "planner_body")',
@@ -269,6 +325,8 @@ for expected in (
     "planner_hold_reason_line_injection_rejected=true",
     "planner_json_parser_version_independent_hold=true",
     "planner_output_literal_lf_framing_required=true",
+    "planner_output_record_order_exact=true",
+    "planner_structured_json_emission_exact=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
     "qualification_nonroot_required=true",
     "qualification_descriptor_bound_git_object_required=true",
@@ -320,6 +378,8 @@ for expected in (
     "executable_artifact_path_depth_max=128",
     "planner_next_action_exact_required=true",
     "planner_output_literal_lf_framing_required=true",
+    "planner_output_record_order_exact=true",
+    "planner_structured_json_emission_exact=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
     "root_boundary_implementation=separately_reviewed_operator_boundary_required",
     "qualification_execution_performed=false",
@@ -363,6 +423,10 @@ print("planner_json_parser_failures_hold=true")
 print("planner_hold_reason_line_injection_rejected=true")
 print("planner_json_parser_version_independent_hold=true")
 print("planner_output_literal_lf_framing_required=true")
+print("planner_output_record_order_exact=true")
+print("planner_structured_json_emission_exact=true")
+print("planner_output_record_order_bound_to_emit_plan=true")
+print("planner_structured_json_bytes_bound_to_emit_plan=true")
 print("unconsumed_tool_metadata_not_execution_authority=true")
 print("nonroot_qualification_phase_required=true")
 print("descriptor_bound_qualification_source_required=true")
