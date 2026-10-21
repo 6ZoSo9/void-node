@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "cf0f5cd84eeb1995070ab0ea099c95424c1837e2"
+TARGET_BLOB = "cd582bebd871537d3a4f87c8ffd7fd7a03f710ac"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -35,9 +35,9 @@ compile(raw, str(TARGET), "exec", dont_inherit=True, optimize=0)
 text = raw.decode("utf-8")
 
 for required in (
-    'BASE_HEAD = "6011fc906a98cb005567f8dd1fa8a3ea184beb12"',
+    'BASE_HEAD = "e99772502c80fefafef3b6a836a408b66ddded76"',
     'BUILDER_BLOB = "030182d544a92cd6c67868fa4c4f3e83188e4249"',
-    'V4_BLOB = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"',
+    'V4_BLOB = "94112afa2f805e0a6ce881a490c1c64e31e0413e"',
     'ATOMIC_BLOB = "3fe1158a0fdf19fa4307c2a8122314b75ee36345"',
     'SOURCE_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"',
     'SOURCE_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"',
@@ -84,9 +84,19 @@ for required in (
     'private_stage_content_digest_mismatch',
     'private_stage_git_verified_digest_mismatch',
     'private_stage_git_verification_before_world_readable=true',
+    'private_stage_named_runtime_uid_acl_required=true',
+    'private_stage_acl_group_object_zero_required=true',
+    'candidate_utf8_path_components_required=true',
     'opened_generation_copy_budget_required=true',
     'write_boundary_precedes_first_stage_mutation=true',
     'runtime_uid_private_stage_writable',
+    'runtime_uid_private_stage_not_readable',
+    'POSIX_ACL_ACCESS_XATTR = "system.posix_acl_access"',
+    'ACL_GROUP_OBJ = 0x04',
+    'def _runtime_uid_read_acl_blob(',
+    'def _set_runtime_uid_read_acl_fd(',
+    'def _remove_runtime_uid_read_acl_fd(',
+    'copy_entry_name_not_utf8',
     'stage_prepare_private_file_mode_invalid:',
     'stage_seal_verification_file_mode_invalid:',
     'private_stage_before_content_authentication=true',
@@ -138,6 +148,13 @@ assert copy_text.index("_verify_private_stage_for_apply(") < copy_text.index(
 assert "MAX_TOTAL_BYTES - total" in copy_text
 assert "total += copied" in copy_text
 assert "total += st.st_size" not in copy_text
+assert "_require_utf8_copy_component(name)" in copy_text
+assert "copy_entry_name_not_utf8" in text
+assert "os.fchown(fd, 0, RUNTIME_GID)" not in text
+assert "stage_prepare_named_runtime_uid_acl" not in text
+assert "private_stage_named_runtime_uid_acl_required=true" in text
+assert "private_stage_acl_group_object_zero_required=true" in text
+assert "candidate_utf8_path_components_required=true" in text
 
 copy_regular_start = text.index("def _copy_regular_at(")
 copy_regular_end = text.index(
@@ -163,8 +180,10 @@ assert runtime_child_text.index("os.setgroups([])") < runtime_child_text.index(
 assert "os.getresuid() != (RUNTIME_UID, RUNTIME_UID, RUNTIME_UID)" in runtime_child_text
 assert "os.getresgid() != (RUNTIME_GID, RUNTIME_GID, RUNTIME_GID)" in runtime_child_text
 assert "_verify_full_history_root(" in runtime_child_text
-assert "STAGE, 0, RUNTIME_GID, 0o550" in runtime_child_text
+assert "STAGE, 0, 0, 0o750" in runtime_child_text
 assert "runtime_uid_private_stage_writable" in runtime_child_text
+assert "runtime_uid_private_stage_not_readable" in runtime_child_text
+assert "STAGE, 0, RUNTIME_GID, 0o550" not in runtime_child_text
 
 # No live-root replacement primitive is allowed in this create-only lane.
 assert "RENAME_EXCHANGE" not in text
@@ -202,6 +221,9 @@ for marker in (
     "full_history_candidate_reauthentication_required=true",
     "live_shallow_runtime_cross_binding_required=true",
     "root_owned_immutable_stage_required=true",
+    "private_stage_named_runtime_uid_acl_required=true",
+    "private_stage_acl_group_object_zero_required=true",
+    "candidate_utf8_path_components_required=true",
     "rename_noreplace_publication_required=true",
     "trusted_root_launcher_required=true",
     "service_mutation=false",
@@ -243,6 +265,9 @@ for marker in (
     "git_metadata_leaves_nonexecutable_required=true",
     "private_stage_before_content_authentication=true",
     "private_stage_git_verification_before_world_readable=true",
+    "private_stage_named_runtime_uid_acl_required=true",
+    "private_stage_acl_group_object_zero_required=true",
+    "candidate_utf8_path_components_required=true",
     "opened_generation_copy_budget_required=true",
     "write_boundary_precedes_first_stage_mutation=true",
     "service_mutation=false",
@@ -271,6 +296,9 @@ print("git_index_head_equality_bound=true")
 print("git_metadata_leaves_nonexecutable_bound=true")
 print("private_stage_content_authentication_bound=true")
 print("private_stage_git_verification_before_world_readable_bound=true")
+print("private_stage_named_runtime_uid_acl_bound=true")
+print("private_stage_acl_group_object_zero_bound=true")
+print("candidate_utf8_path_components_bound=true")
 print("opened_generation_copy_budget_bound=true")
 print("write_boundary_precedes_first_stage_mutation_bound=true")
 print("live_release_replacement_forbidden=true")
