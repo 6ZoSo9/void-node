@@ -268,6 +268,12 @@ def _direct_git_root(root: pathlib.Path, label: str) -> pathlib.Path:
         raise InstallError(label + "_git_dir_invalid")
     if git_dir.resolve(strict=True) != git_dir:
         raise InstallError(label + "_git_dir_alias_forbidden")
+    objects = git_dir / "objects"
+    ost = objects.lstat()
+    if not stat.S_ISDIR(ost.st_mode) or stat.S_ISLNK(ost.st_mode):
+        raise InstallError(label + "_objects_dir_invalid")
+    if objects.resolve(strict=True) != objects:
+        raise InstallError(label + "_objects_dir_alias_forbidden")
     for path in (
         git_dir / "commondir",
         git_dir / "config.worktree",
@@ -1048,12 +1054,46 @@ def _flatten_tree_manifest(
                     raise InstallError("tree_graph_path_limit")
     return manifest, objects
 
+def _collect_tree_object_closure(
+    store: _ObjectStore,
+    root_tree_oid: str,
+    reachable: set[str],
+    verified_trees: set[str],
+) -> None:
+    stack: list[tuple[str, int]] = [(root_tree_oid, 0)]
+    while stack:
+        oid, depth = stack.pop()
+        if oid in verified_trees:
+            continue
+        if depth > MAX_COPY_DEPTH:
+            raise InstallError("history_tree_depth_limit")
+        obj_type, data = store.read_object(oid)
+        if obj_type != "tree":
+            raise InstallError("history_tree_type_invalid:" + oid)
+        verified_trees.add(oid)
+        reachable.add(oid)
+        for mode, _name, child_oid in _parse_tree_object(data, "history_tree"):
+            if mode == "40000":
+                stack.append((child_oid, depth + 1))
+            else:
+                child_type, _child_data = store.read_object(child_oid)
+                if child_type != "blob":
+                    raise InstallError("history_blob_type_invalid:" + child_oid)
+                reachable.add(child_oid)
+            if len(reachable) > MAX_NODES:
+                raise InstallError("history_object_count_limit")
+
 def _verify_full_history_graph(store: _ObjectStore) -> tuple[dict[str, tuple[str, str]], int, int]:
     reachable: set[str] = set()
     commits: set[str] = set()
-    trees_seen: set[str] = set()
+    verified_trees: set[str] = set()
     stack = [SOURCE_HEAD]
-    top_manifest: dict[str, tuple[str, str]] | None = None
+
+    top_manifest, _top_objects = _flatten_tree_manifest(store, SOURCE_TREE)
+    _collect_tree_object_closure(
+        store, SOURCE_TREE, reachable, verified_trees
+    )
+
     while stack:
         oid = stack.pop()
         if oid in commits:
@@ -1062,30 +1102,26 @@ def _verify_full_history_graph(store: _ObjectStore) -> tuple[dict[str, tuple[str
         if obj_type != "commit":
             raise InstallError("history_commit_type_invalid:" + oid)
         tree_oid, parents = _parse_commit_object(data, "history")
-        if oid == SOURCE_HEAD:
-            if tree_oid != SOURCE_TREE or parents != SOURCE_PARENTS:
-                raise InstallError("history_source_commit_binding_mismatch")
+        if oid == SOURCE_HEAD and (
+            tree_oid != SOURCE_TREE or parents != SOURCE_PARENTS
+        ):
+            raise InstallError("history_source_commit_binding_mismatch")
         commits.add(oid)
         reachable.add(oid)
         if len(commits) > REACHABLE_COMMITS:
             raise InstallError("history_commit_count_overflow")
         stack.extend(parents)
-        manifest, tree_objects = _flatten_tree_manifest(store, tree_oid)
-        reachable.update(tree_objects)
-        trees_seen.update(tree_objects)
-        if tree_oid == SOURCE_TREE:
-            top_manifest = manifest
+        _collect_tree_object_closure(
+            store, tree_oid, reachable, verified_trees
+        )
         if len(reachable) > MAX_NODES:
             raise InstallError("history_object_count_limit")
+
     if len(commits) != REACHABLE_COMMITS:
         raise InstallError("history_reachable_commit_count_mismatch")
-    if top_manifest is None:
-        raise InstallError("history_source_tree_missing")
     all_oids = store.all_oids()
     if reachable != all_oids:
         raise InstallError("history_object_closure_not_exact")
-    for oid in tuple(all_oids):
-        store.read_object(oid)
     store.revalidate()
     return top_manifest, len(commits), len(all_oids)
 
