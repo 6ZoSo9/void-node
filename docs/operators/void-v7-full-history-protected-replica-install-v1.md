@@ -145,6 +145,18 @@ Python surrogate escapes therefore becomes a normal `InstallError` and enters
 the same retained-stage/publication reconciliation path; it cannot escape through
 a later digest `UnicodeEncodeError`.
 
+Candidate traversal is also resource-bounded before protected publication.
+The root copy path never calls `listdir()` or sorts/materializes a complete
+attacker-controlled directory. It consumes `os.scandir(fd)` incrementally,
+charges the global `MAX_NODES=250000` budget as each entry is yielded, and
+uses an explicit depth-first descriptor stack rather than Python recursion.
+Directory descent is capped at `MAX_COPY_DEPTH=128`, well below interpreter
+recursion limits and with a bounded number of simultaneously retained directory
+descriptors. Over-wide and over-deep candidates therefore raise
+`InstallError("copy_node_limit")` or `InstallError("copy_depth_limit")`
+inside the normal write-boundary reconciliation path rather than risking OOM or
+`RecursionError`.
+
 Creating the stage is the only expected install-parent namespace transition.
 The install-parent device/inode/owner/mode must remain stable, and its directory
 link count may change only by the single stage-directory transition permitted by
