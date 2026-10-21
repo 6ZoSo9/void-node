@@ -28,9 +28,9 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "15100270386f48ee6fb8e3efa6f85d79ec2dbaf3"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v1.py)" = "5d7151e63b092dccfb9ad9589094d84a7b3000a4"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v1.md)" = "6537318feebbe69594a18f11de80a9999dc39d81"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "9b83dd5122e54a85e0b7e2d8ced350d5633a66d6"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v1.py)" = "21b559c6b66b2fbd5235e3741bb7cebbe080fff2"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v1.md)" = "13b6504fb23215087f7f908614f213c89ba48978"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git merge-base --is-ancestor "${{ github.event.pull_request.base.sha }}" HEAD
             cat > /tmp/expected <<'EOF'
