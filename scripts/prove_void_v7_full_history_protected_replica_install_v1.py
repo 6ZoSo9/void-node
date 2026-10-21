@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import hashlib
 from pathlib import Path
 import importlib.util
 import os
@@ -90,6 +91,14 @@ for required in (
     'def _parse_tree_object(',
     'def _verify_full_history_graph(',
     'def _read_index_manifest(',
+    'def _next_optional_index_extension(',
+    '_required_extension_forbidden',
+    '_path_length_sentinel_invalid',
+    '_padding_nonzero',
+    'git_index_optional_extensions_bounded=true',
+    'git_index_required_extensions_rejected=true',
+    'git_index_v2_zero_padding_required=true',
+    'git_index_v2_name_length_sentinel_required=true',
     'def _verify_worktree_manifest(',
     'history_object_closure_not_exact',
     'history_reachable_commit_count_mismatch',
@@ -318,6 +327,92 @@ with tempfile.TemporaryDirectory(prefix="void-v7-builtin-pack-proof-") as td:
         assert manifest["a/same.txt"] == manifest["b/same.txt"]
         assert manifest["run.sh"][0] == "100755"
         assert manifest["link"][0] == "120000"
+
+        # Canonical v2 index adversaries. Preserve checksum-covered optional
+        # extensions and recompute the trailer so rejection is semantic.
+        index_path = repo / ".git" / "index"
+        original_index = index_path.read_bytes()
+        assert original_index[:4] == b"DIRC"
+        assert int.from_bytes(original_index[4:8], "big") == 2
+        entry_count = int.from_bytes(original_index[8:12], "big")
+        assert entry_count > 0
+
+        def index_entry_layout(raw_index: bytes):
+            rows = []
+            entry_offset = 12
+            content_end = len(raw_index) - 20
+            for _ in range(entry_count):
+                fixed = raw_index[entry_offset:entry_offset + 62]
+                assert len(fixed) == 62
+                flags = int.from_bytes(fixed[60:62], "big")
+                name_start = entry_offset + 62
+                nul = raw_index.index(b"\0", name_start, content_end)
+                name_len = nul - name_start
+                entry_len = 62 + name_len + 1
+                padded_len = (entry_len + 7) & ~7
+                next_offset = entry_offset + padded_len
+                assert next_offset <= content_end
+                rows.append(
+                    (entry_offset, flags, name_start, nul, next_offset)
+                )
+                entry_offset = next_offset
+            return rows
+
+        layouts = index_entry_layout(original_index)
+
+        padding_row = next(
+            row for row in layouts if row[4] > row[3] + 1
+        )
+        bad_padding = bytearray(original_index)
+        bad_padding[padding_row[3] + 1] = 0x41
+        bad_padding[-20:] = hashlib.sha1(
+            bad_padding[:-20]
+        ).digest()
+        bad_padding_path = repo / ".git" / "index-proof-bad-padding"
+        bad_padding_path.write_bytes(bad_padding)
+        try:
+            module._read_index_manifest(
+                bad_padding_path, "proof_index_bad_padding"
+            )
+        except module.InstallError as exc:
+            assert str(exc) == "proof_index_bad_padding_padding_nonzero"
+        else:
+            raise AssertionError("nonzero_index_padding_not_rejected")
+        finally:
+            bad_padding_path.unlink()
+
+        short_row = next(
+            row for row in layouts if row[3] - row[2] < 0x0fff
+        )
+        bad_sentinel = bytearray(original_index)
+        flags_offset = short_row[0] + 60
+        original_flags = int.from_bytes(
+            bad_sentinel[flags_offset:flags_offset + 2], "big"
+        )
+        bad_flags = (original_flags & 0xf000) | 0x0fff
+        bad_sentinel[flags_offset:flags_offset + 2] = bad_flags.to_bytes(
+            2, "big"
+        )
+        bad_sentinel[-20:] = hashlib.sha1(
+            bad_sentinel[:-20]
+        ).digest()
+        bad_sentinel_path = repo / ".git" / "index-proof-bad-sentinel"
+        bad_sentinel_path.write_bytes(bad_sentinel)
+        try:
+            module._read_index_manifest(
+                bad_sentinel_path, "proof_index_bad_sentinel"
+            )
+        except module.InstallError as exc:
+            assert (
+                str(exc)
+                == "proof_index_bad_sentinel_path_length_sentinel_invalid"
+            )
+        else:
+            raise AssertionError(
+                "short_index_path_length_sentinel_not_rejected"
+            )
+        finally:
+            bad_sentinel_path.unlink()
     finally:
         store.close()
         (
@@ -575,6 +670,10 @@ for marker in (
     "trusted_root_launcher_required=true",
     "pack_entry_span_bound_required=true",
     "pack_cache_byte_budget_required=true",
+    "git_index_optional_extensions_bounded=true",
+    "git_index_required_extensions_rejected=true",
+    "git_index_v2_zero_padding_required=true",
+    "git_index_v2_name_length_sentinel_required=true",
     "dynamic_git_provenance_authority_removed=true",
     "built_in_pack_index_verification_required=true",
     "built_in_full_history_object_closure_required=true",
@@ -630,6 +729,10 @@ for marker in (
     "termination_signal_reconciliation_required=true",
     "install_parent_publication_lease_required=true",
     "git_index_head_equality_required=true",
+    "git_index_optional_extensions_bounded=true",
+    "git_index_required_extensions_rejected=true",
+    "git_index_v2_zero_padding_required=true",
+    "git_index_v2_name_length_sentinel_required=true",
     "git_metadata_leaves_nonexecutable_required=true",
     "private_stage_before_content_authentication=true",
     "private_stage_git_verification_before_world_readable=true",
@@ -686,6 +789,10 @@ print("class_wide_bounded_directory_scans_bound=true")
 print("termination_signal_reconciliation_bound=true")
 print("install_parent_publication_lease_bound=true")
 print("git_index_head_equality_bound=true")
+print("git_index_optional_extensions_bounded=true")
+print("git_index_required_extensions_rejected=true")
+print("git_index_v2_zero_padding_bound=true")
+print("git_index_v2_name_length_sentinel_bound=true")
 print("git_metadata_leaves_nonexecutable_bound=true")
 print("private_stage_content_authentication_bound=true")
 print("private_stage_git_verification_before_world_readable_bound=true")

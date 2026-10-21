@@ -358,9 +358,12 @@ The built-in pack reader validates version-2 pack indexes, fanout tables, CRCs,
 32/64-bit offsets, pack/index SHA-1 trailers, compressed object framing,
 OFS/REF deltas and final Git object IDs. Decompression is bounded by the reviewed
 per-object ceiling. The built-in index reader accepts only version 2, rejects
-staged/extended flags and extensions, and requires exact equality with the source
-tree. All production directory enumeration is fail-fast and node-bounded before
-names are retained.
+staged/extended flags and all required (lowercase-signature) extensions, permits
+only bounded optional uppercase-signature extensions as opaque checksum-covered
+bytes, enforces exact pathname-length encoding (the 0xFFF sentinel is valid only
+for paths at least that long), authenticates required v2 entry padding as NUL,
+and requires exact equality with the source tree. All production directory
+enumeration is fail-fast and node-bounded before names are retained.
 
 The live shallow predecessor is evaluated by the same built-in object reader:
 the shallow marker contains only the accepted head, the accepted commit/tree are

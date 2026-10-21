@@ -1261,7 +1261,10 @@ def _read_index_manifest(path: pathlib.Path, label: str) -> dict[str, tuple[str,
                 if byte == b"\0":
                     break
                 name.extend(byte)
-            if name_limit != 0x0fff and name_limit != len(name):
+            if name_limit == 0x0fff:
+                if len(name) < 0x0fff:
+                    raise InstallError(label + "_path_length_sentinel_invalid")
+            elif name_limit != len(name):
                 raise InstallError(label + "_path_length_mismatch")
             try:
                 rel = bytes(name).decode("utf-8", "strict")
@@ -1290,7 +1293,15 @@ def _read_index_manifest(path: pathlib.Path, label: str) -> dict[str, tuple[str,
                 raise InstallError(label + "_duplicate_path")
             manifest[rel] = (mode, oid)
             entry_len = 62 + len(name) + 1
-            offset += (entry_len + 7) & ~7
+            padded_len = (entry_len + 7) & ~7
+            padding_len = padded_len - entry_len
+            if padding_len:
+                padding = _pread_exact(
+                    fd, cursor, padding_len, label + "_padding"
+                )
+                if padding != b"\0" * padding_len:
+                    raise InstallError(label + "_padding_nonzero")
+            offset += padded_len
         content_end = size - 20
         extension_count = 0
         while offset < content_end:
@@ -2031,6 +2042,10 @@ def source_plan() -> None:
     print("termination_signal_reconciliation_required=true")
     print("install_parent_publication_lease_required=true")
     print("git_index_head_equality_required=true")
+    print("git_index_optional_extensions_bounded=true")
+    print("git_index_required_extensions_rejected=true")
+    print("git_index_v2_zero_padding_required=true")
+    print("git_index_v2_name_length_sentinel_required=true")
     print("git_metadata_leaves_nonexecutable_required=true")
     print("private_stage_before_content_authentication=true")
     print("private_stage_git_verification_before_world_readable=true")
@@ -2971,6 +2986,8 @@ def self_test() -> None:
             os.close(ext_fd)
     print("git_index_optional_extensions_bounded=true")
     print("git_index_required_extensions_rejected=true")
+    print("git_index_v2_zero_padding_required=true")
+    print("git_index_v2_name_length_sentinel_required=true")
     assert _PackReader._entry_span(
         12, 12 + MAX_PACK_ENTRY_BYTES, "self_test_pack"
     ) == MAX_PACK_ENTRY_BYTES
