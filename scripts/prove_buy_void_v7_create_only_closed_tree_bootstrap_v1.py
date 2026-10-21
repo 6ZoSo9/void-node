@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_REL = "ops/precision/void_buy_void_v7_create_only_closed_tree_bootstrap_v1.c"
 SOURCE = ROOT / SOURCE_REL
-SOURCE_BLOB = "3036fa8c72fe5699433a60ed2c597f8cd96204ff"
+SOURCE_BLOB = "2a8397c85d698d168f2257ec801557281b73c04d"
 PLAN_REL = "ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json"
 PLAN_BLOB = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
 PLAN_ID = "voidv7createonlysealplan1_80486c8e43751493d1480ebdf8be63a26195e465e96f3e1d29b1d7b4765773cc"
@@ -111,6 +111,11 @@ def main():
         again=run([str(test),"--fixture-apply",str(src),str(parent),"final","stage"])
         require(MARKER.encode()+b"_FIXTURE_ALREADY_GREEN" in again.stdout,"idempotent_exact_final_not_accepted")
 
+        os.chmod(final,0o755); (final/"unexpected-extra").write_bytes(b"extra\n"); os.chmod(final/"unexpected-extra",0o444); os.chmod(final,0o555)
+        extra=run([str(test),"--fixture-apply",str(src),str(parent),"final","stage"],check=False)
+        require(extra.returncode==2 and b"unexpected_tree_entry" in extra.stdout+extra.stderr and not (parent/"stage").exists(),"unexpected_final_entry_not_rejected")
+        os.chmod(final,0o755); (final/"unexpected-extra").unlink(); os.chmod(final,0o555)
+
         os.chmod(final/"policy.conf",0o644); (final/"policy.conf").write_bytes(b"tamper\n"); os.chmod(final/"policy.conf",0o444)
         bad=run([str(test),"--fixture-apply",str(src),str(parent),"final","stage"],check=False)
         require(bad.returncode==2 and not (parent/"stage").exists(),"mismatched_final_not_held")
@@ -151,6 +156,7 @@ def main():
     print("source_mutation_after_pin_rejected_before_publication=true")
     print("fresh_inode_atomic_noreplace_fixture_green=true")
     print("exact_idempotent_final_fixture_green=true")
+    print("unexpected_final_entries_rejected=true")
     print("mismatched_existing_final_holds_without_repair=true")
     print("crash_after_publish_revalidation_fixture_green=true")
     print("production_payload_manifest_lock_bound=false")
