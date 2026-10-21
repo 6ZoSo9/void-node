@@ -568,7 +568,22 @@ def _drop_namespace_capabilities() -> None:
     except OSError as exc:
         raise RuntimeProofError("namespace_capability_drop_failed:errno_" + str(exc.errno)) from exc
 
+def _require_sealed_snapshot_fd(fd: int, *, mode: int, label: str) -> None:
+    st = os.fstat(fd)
+    if (
+        not stat.S_ISREG(st.st_mode)
+        or stat.S_IMODE(st.st_mode) != mode
+    ):
+        raise RuntimeProofError(label + "_snapshot_fd_metadata_invalid")
+    try:
+        seals = fcntl.fcntl(fd, F_GET_SEALS)
+    except OSError as exc:
+        raise RuntimeProofError(label + "_snapshot_fd_seals_unavailable") from exc
+    if seals & REQUIRED_SEALS != REQUIRED_SEALS:
+        raise RuntimeProofError(label + "_snapshot_fd_not_sealed")
+
 def _bind_sealed_fd(fd: int, target: Path, *, mode: int, label: str) -> None:
+    _require_sealed_snapshot_fd(fd, mode=mode, label=label)
     created = os.open(
         target,
         os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC,
@@ -891,8 +906,30 @@ def self_test() -> None:
             seals = fcntl.fcntl(snapshot_fd, F_GET_SEALS)
             assert seals & REQUIRED_SEALS == REQUIRED_SEALS
             assert os.pread(snapshot_fd, len(b"snapshot-bytes"), 0) == b"snapshot-bytes"
+            _require_sealed_snapshot_fd(
+                snapshot_fd,
+                mode=0o444,
+                label="self_test_snapshot",
+            )
         finally:
             os.close(snapshot_fd)
+
+    unsealed_fd = os.memfd_create("void-v7-runtime-proof-unsealed", MFD_ALLOW_SEALING)
+    try:
+        os.fchmod(unsealed_fd, 0o444)
+        try:
+            _require_sealed_snapshot_fd(
+                unsealed_fd,
+                mode=0o444,
+                label="self_test_unsealed",
+            )
+        except RuntimeProofError as exc:
+            if str(exc) != "self_test_unsealed_snapshot_fd_not_sealed":
+                raise
+        else:
+            raise AssertionError("unsealed_snapshot_fd_not_rejected")
+    finally:
+        os.close(unsealed_fd)
 
     with tempfile.TemporaryDirectory(prefix="void-v7-runtime-elf-self-test-") as td:
         path = Path(td) / "fake"
@@ -967,6 +1004,7 @@ def self_test() -> None:
     print("landlock_v3_filesystem_confinement_required=true")
     print("seccomp_network_process_escape_denial_required=true")
     print("same_uid_immutable_runtime_snapshot_required=true")
+    print("sealed_snapshot_fd_admission_required=true")
     print("fsverity_host_readiness_established=false")
     print("protected_host_install=false")
     print("protected_v5_apply=false")
