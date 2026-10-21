@@ -8,6 +8,7 @@ if sys.flags.optimize != 0 or not __debug__:
     print(MARKER); print("status=HOLD"); print("reason=python_optimization_forbidden"); raise SystemExit(2)
 
 import argparse
+import hashlib
 import os
 from pathlib import Path
 import pwd
@@ -337,6 +338,276 @@ def _open_directory_at(dir_fd: int, name: str, label: str) -> int:
         raise ResealError(label + "_directory_kind_invalid")
     return fd
 
+def _git_blob_oid(raw: bytes) -> str:
+    h = hashlib.sha1()
+    h.update(b"blob " + str(len(raw)).encode("ascii") + b"\0")
+    h.update(raw)
+    return h.hexdigest()
+
+def _candidate_tree_manifest(
+    work_fd: int,
+    git_fd: int,
+    objects_fd: int,
+) -> tuple[tuple[str, str, tuple[bytes, ...]], ...]:
+    raw = _candidate_run(
+        work_fd, git_fd, objects_fd,
+        "ls-tree", "-rz", "-t", "--full-tree", TARGET_TREE,
+    )
+    records: list[tuple[str, str, tuple[bytes, ...]]] = []
+    seen: set[tuple[bytes, ...]] = set()
+    directories: set[tuple[bytes, ...]] = {()}
+    for record in raw.split(b"\0"):
+        if not record:
+            continue
+        metadata, sep, raw_path = record.partition(b"\t")
+        if sep != b"\t":
+            raise ResealError("candidate_tree_record_missing_tab")
+        fields = metadata.split(b" ")
+        if len(fields) != 3:
+            raise ResealError("candidate_tree_record_metadata_invalid")
+        mode_raw, type_raw, oid_raw = fields
+        try:
+            mode = mode_raw.decode("ascii", "strict")
+            obj_type = type_raw.decode("ascii", "strict")
+            oid = oid_raw.decode("ascii", "strict")
+        except UnicodeDecodeError as exc:
+            raise ResealError("candidate_tree_record_not_ascii") from exc
+        if HEX40.fullmatch(oid) is None:
+            raise ResealError("candidate_tree_oid_invalid")
+        components = tuple(raw_path.split(b"/"))
+        if (
+            not components
+            or any(part in (b"", b".", b"..") or b"\0" in part for part in components)
+            or components[0] == b".git"
+        ):
+            raise ResealError("candidate_tree_path_invalid")
+        if components in seen:
+            raise ResealError("candidate_tree_path_duplicate")
+        seen.add(components)
+        if mode == "040000":
+            if obj_type != "tree":
+                raise ResealError("candidate_tree_directory_type_invalid")
+            directories.add(components)
+        elif mode in ("100644", "100755"):
+            if obj_type != "blob":
+                raise ResealError("candidate_tree_regular_type_invalid")
+        else:
+            raise ResealError("candidate_tree_entry_mode_unsupported:" + mode)
+        records.append((mode, oid, components))
+    for mode, _oid, components in records:
+        parent = components[:-1]
+        if parent not in directories:
+            raise ResealError("candidate_tree_parent_missing")
+        if mode == "040000":
+            directories.add(components)
+    if not records:
+        raise ResealError("candidate_tree_manifest_empty")
+    return tuple(records)
+
+def _write_worktree_regular_at(
+    dir_fd: int,
+    name: bytes,
+    data: bytes,
+    mode: int,
+    label: str,
+) -> tuple[int, int, int, int, int, int]:
+    fd = os.open(
+        name,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
+        mode,
+        dir_fd=dir_fd,
+    )
+    try:
+        os.fchmod(fd, mode)
+        st = os.fstat(fd)
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or st.st_nlink != 1
+            or st.st_uid != os.getuid()
+            or stat.S_IMODE(st.st_mode) != mode
+        ):
+            raise ResealError(label + "_created_file_metadata_invalid")
+        view = memoryview(data)
+        offset = 0
+        while offset < len(view):
+            written = os.write(fd, view[offset:])
+            if written <= 0:
+                raise ResealError(label + "_short_write")
+            offset += written
+        os.fsync(fd)
+        final = os.fstat(fd)
+        if _identity(final) != _identity(st)[:5] + (st.st_nlink,):
+            # Size/mutation times are intentionally not part of _identity().
+            # The file generation is rebound below by visible inode metadata
+            # and its exact Git blob digest.
+            pass
+        return _identity(final)
+    finally:
+        os.close(fd)
+
+def _read_worktree_regular_at(
+    dir_fd: int,
+    name: bytes,
+    expected_mode: int,
+    expected_oid: str,
+    label: str,
+) -> tuple[int, int, int, int, int, int]:
+    fd = os.open(
+        name,
+        os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        dir_fd=dir_fd,
+    )
+    try:
+        st = os.fstat(fd)
+        if (
+            not stat.S_ISREG(st.st_mode)
+            or st.st_nlink != 1
+            or st.st_uid != os.getuid()
+            or stat.S_IMODE(st.st_mode) != expected_mode
+            or st.st_size < 0
+            or st.st_size > MAX_OUTPUT
+        ):
+            raise ResealError(label + "_file_metadata_invalid")
+        chunks: list[bytes] = []
+        remaining = st.st_size
+        while remaining:
+            part = os.read(fd, min(65536, remaining))
+            if not part:
+                raise ResealError(label + "_short_read")
+            chunks.append(part)
+            remaining -= len(part)
+        if os.read(fd, 1):
+            raise ResealError(label + "_file_grew")
+        raw = b"".join(chunks)
+        if _git_blob_oid(raw) != expected_oid:
+            raise ResealError(label + "_blob_mismatch")
+        return _identity(st)
+    finally:
+        os.close(fd)
+
+def _materialize_candidate_worktree(
+    work_fd: int,
+    git_fd: int,
+    objects_fd: int,
+) -> tuple[
+    tuple[tuple[str, str, tuple[bytes, ...]], ...],
+    dict[tuple[bytes, ...], int],
+    dict[tuple[bytes, ...], tuple[int, int, int, int, int]],
+]:
+    manifest = _candidate_tree_manifest(work_fd, git_fd, objects_fd)
+    directory_fds: dict[tuple[bytes, ...], int] = {(): work_fd}
+    directory_ids: dict[
+        tuple[bytes, ...], tuple[int, int, int, int, int]
+    ] = {(): _directory_lease_identity(os.fstat(work_fd))}
+    try:
+        for mode, _oid, components in sorted(
+            (row for row in manifest if row[0] == "040000"),
+            key=lambda row: (len(row[2]), row[2]),
+        ):
+            parent = components[:-1]
+            parent_fd = directory_fds.get(parent)
+            if parent_fd is None:
+                raise ResealError("candidate_materialize_parent_fd_missing")
+            name = components[-1]
+            os.mkdir(name, mode=0o755, dir_fd=parent_fd)
+            child_fd = _open_directory_at(
+                parent_fd, name, "candidate_worktree_directory"
+            )
+            os.fchmod(child_fd, 0o755)
+            child_st = os.fstat(child_fd)
+            visible = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+            if (
+                _directory_lease_identity(child_st)
+                != _directory_lease_identity(visible)
+                or child_st.st_uid != os.getuid()
+                or stat.S_IMODE(child_st.st_mode) != 0o755
+            ):
+                os.close(child_fd)
+                raise ResealError("candidate_worktree_directory_generation_invalid")
+            directory_fds[components] = child_fd
+            directory_ids[components] = _directory_lease_identity(child_st)
+
+        for mode, oid, components in (
+            row for row in manifest if row[0] != "040000"
+        ):
+            parent_fd = directory_fds.get(components[:-1])
+            if parent_fd is None:
+                raise ResealError("candidate_materialize_file_parent_missing")
+            raw = _candidate_run(
+                work_fd, git_fd, objects_fd,
+                "cat-file", "blob", oid,
+            )
+            if _git_blob_oid(raw) != oid:
+                raise ResealError("candidate_materialize_source_blob_mismatch")
+            file_mode = 0o755 if mode == "100755" else 0o644
+            _write_worktree_regular_at(
+                parent_fd,
+                components[-1],
+                raw,
+                file_mode,
+                "candidate_worktree_regular",
+            )
+        return manifest, directory_fds, directory_ids
+    except BaseException:
+        for path, fd in sorted(
+            directory_fds.items(), key=lambda item: len(item[0]), reverse=True
+        ):
+            if path and fd >= 0:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+        raise
+
+def _verify_materialized_candidate_worktree(
+    work_fd: int,
+    manifest: tuple[tuple[str, str, tuple[bytes, ...]], ...],
+    directory_fds: dict[tuple[bytes, ...], int],
+    directory_ids: dict[
+        tuple[bytes, ...], tuple[int, int, int, int, int]
+    ],
+) -> None:
+    expected_children: dict[tuple[bytes, ...], set[bytes]] = {
+        path: set() for path in directory_fds
+    }
+    expected_children[()].add(b".git")
+    for _mode, _oid, components in manifest:
+        expected_children.setdefault(components[:-1], set()).add(components[-1])
+
+    for path, fd in directory_fds.items():
+        expected_id = directory_ids[path]
+        if _directory_lease_identity(os.fstat(fd)) != expected_id:
+            raise ResealError("candidate_worktree_directory_lease_changed")
+        actual = {os.fsencode(name) for name in os.listdir(fd)}
+        if actual != expected_children.get(path, set()):
+            raise ResealError("candidate_worktree_directory_entries_mismatch")
+        if path:
+            parent_fd = directory_fds[path[:-1]]
+            visible = os.stat(
+                path[-1], dir_fd=parent_fd, follow_symlinks=False
+            )
+            if (
+                not stat.S_ISDIR(visible.st_mode)
+                or stat.S_ISLNK(visible.st_mode)
+                or _directory_lease_identity(visible) != expected_id
+            ):
+                raise ResealError(
+                    "candidate_worktree_directory_visible_generation_changed"
+                )
+
+    for mode, oid, components in manifest:
+        if mode == "040000":
+            continue
+        parent_fd = directory_fds[components[:-1]]
+        expected_mode = 0o755 if mode == "100755" else 0o644
+        _read_worktree_regular_at(
+            parent_fd,
+            components[-1],
+            expected_mode,
+            oid,
+            "candidate_worktree_regular",
+        )
+
 def _parents(root: Path, commit: str) -> tuple[str, ...]:
     raw = _text(root, "cat-file", "-p", commit)
     parents = tuple(line[7:] for line in raw.splitlines() if line.startswith("parent "))
@@ -518,8 +789,6 @@ def verify_candidate_lease(
     if _candidate_parents(candidate_fd, git_fd, objects_fd, TARGET_HEAD) != TARGET_PARENTS:
         raise ResealError("candidate_parent_set_mismatch")
     _candidate_complete_graph(candidate_fd, git_fd, objects_fd)
-    if _candidate_text(candidate_fd, git_fd, objects_fd, "status", "--porcelain=v1", "--untracked-files=all", index_file_fd=index_fd) != "":
-        raise ResealError("candidate_worktree_not_clean")
     if _candidate_text(candidate_fd, git_fd, objects_fd, "write-tree", index_file_fd=index_fd) != TARGET_TREE:
         raise ResealError("candidate_index_tree_mismatch")
     fsck = _candidate_run(
@@ -728,6 +997,13 @@ def build(output: Path) -> None:
     output = _validate_output(output)
 
     parent_fd = candidate_fd = git_fd = objects_fd = pack_fd = refs_fd = heads_fd = index_tmp_fd = index_fd = -1
+    worktree_directory_fds: dict[tuple[bytes, ...], int] = {}
+    worktree_directory_ids: dict[
+        tuple[bytes, ...], tuple[int, int, int, int, int]
+    ] = {}
+    worktree_manifest: tuple[
+        tuple[str, str, tuple[bytes, ...]], ...
+    ] = ()
     parent_identity = candidate_identity = None
     try:
         parent_fd = os.open(
@@ -841,10 +1117,18 @@ def build(output: Path) -> None:
             "read-tree", TARGET_HEAD,
             index_dir_fd=index_tmp_fd,
         )
-        _candidate_run(
-            candidate_fd, git_fd, objects_fd,
-            "checkout-index", "-a", "-f",
-            index_dir_fd=index_tmp_fd,
+        (
+            worktree_manifest,
+            worktree_directory_fds,
+            worktree_directory_ids,
+        ) = _materialize_candidate_worktree(
+            candidate_fd, git_fd, objects_fd
+        )
+        _verify_materialized_candidate_worktree(
+            candidate_fd,
+            worktree_manifest,
+            worktree_directory_fds,
+            worktree_directory_ids,
         )
         index_bytes = _read_regular_at(
             index_tmp_fd, "index", "candidate_temp_index", max_bytes=MAX_OUTPUT
@@ -880,6 +1164,12 @@ def build(output: Path) -> None:
             objects_fd,
             index_fd,
         )
+        _verify_materialized_candidate_worktree(
+            candidate_fd,
+            worktree_manifest,
+            worktree_directory_fds,
+            worktree_directory_ids,
+        )
     except BaseException:
         if parent_fd >= 0 and candidate_fd >= 0 and candidate_identity is not None:
             (
@@ -899,6 +1189,16 @@ def build(output: Path) -> None:
             _CLEANUP_REASON = "candidate_created_before_descriptor_lease"
         raise
     finally:
+        for path, fd in sorted(
+            worktree_directory_fds.items(),
+            key=lambda item: len(item[0]),
+            reverse=True,
+        ):
+            if path and fd >= 0:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
         for fd in (index_fd, index_tmp_fd, heads_fd, refs_fd, pack_fd, objects_fd, git_fd, candidate_fd, parent_fd):
             if fd >= 0:
                 try:
@@ -917,6 +1217,10 @@ def build(output: Path) -> None:
     print("ref_update_checkout_forbidden=true")
     print("reflog_write_path_absent=true")
     print("retained_index_generation_bound=true")
+    print("checkout_index_forbidden=true")
+    print("descriptor_relative_worktree_materialization=true")
+    print("regular_files_only_tree_contract=true")
+    print("terminal_worktree_manifest_revalidation=true")
     print("candidate_cleanup_attempted=false")
     print("candidate_retained_on_success=true")
     print("source_repository_mutation=false")
