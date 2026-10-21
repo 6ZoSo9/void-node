@@ -1,35 +1,36 @@
-# Buy VOID allocation-custody observer nonblocking V2
+# Buy VOID allocation-custody observer nonblocking source V2
 
 ## Purpose
 
-This source-only successor closes the transitive FIFO-open availability HOLD found while reviewing Draft #3515. Historical V1 observer files remain unchanged.
+This is a code-only security successor for the two observer implementations blocking Draft #3515. Historical V1 files remain immutable, and the V2 source files deliberately preserve the exact V1 emitted evidence contracts.
 
-V2 adds `O_NONBLOCK` only to the retained-descriptor, read-only regular-file opens in:
+## Compatibility contract
 
-- `tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v2.mjs`;
-- `tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v2.mjs`.
+The V2 files keep the V1 evidence schemas, markers, versions and `voidwlrie1_...` qualification domain. This is intentional: the security change is only how regular files are opened. The immutable rollback-independence V1 classifier and current #3515 evidence validators therefore continue to authenticate the same evidence format.
 
-Directory traversal continues to require `O_DIRECTORY|O_NOFOLLOW`. The regular-file readers retain their file-type, owner/group, link-count, mode, bounded-size and before/open/after generation checks.
+The rollback-policy V2 source imports the installation-evidence **source V2** file but calls the same V1 evidence function/contract.
 
-The rollback-policy V2 observer imports the installation-evidence V2 observer, so its storage observation is nonblocking transitively. Because the immutable rollback-independence classifier still requires installation-evidence V1 schema/marker/qualification identity, V2 constructs a private V1-compatible view by canonicalizing the same V2 storage fields under the historical V1 schema and recomputing the exact `voidwlrie1_...` ID. The V2 rollback receipt itself binds the original `voidwlrie2_...` installation qualification ID and separately records the V1 compatibility ID; the historical classifier is not modified or weakened.
+## Security repair
+
+Only retained-descriptor regular-file opens change to `O_RDONLY|O_NOFOLLOW|O_NONBLOCK`. Directory traversal remains `O_DIRECTORY|O_NOFOLLOW`. Existing type, ownership, link-count, mode, size, and before/open/after generation checks remain unchanged.
 
 ## Proof
 
 `scripts/prove_buy_void_allocation_custody_observer_nonblocking_v2.mjs`:
 
-- content-binds the immutable V1 observer blobs;
-- statically requires the V2 regular-file opens to include `O_NONBLOCK`;
-- proves a canonical V2 installation result adapts into the immutable V1 rollback classifier while the V2 rollback receipt preserves the V2 qualification ID;
-- runs the actual V2 installation reader against a regular-file-to-FIFO swap;
-- runs the actual V2 root-owned policy reader against the same swap;
-- executes both FIFO cases in child processes with a 3-second timeout, so loss of `O_NONBLOCK` fails rather than hanging CI.
+- content-binds both immutable V1 source blobs;
+- requires the V2 source implementations to carry `O_NONBLOCK` on their sole regular-file opens;
+- proves a canonical V1 installation + rollback-policy positive classification remains accepted through the V2 source implementation;
+- runs the actual V2 installation and root-owned policy readers against regular-file→FIFO swaps in child processes with a three-second timeout.
 
-The policy FIFO fixture runs as root only inside GitHub Actions and uses a temporary root-owned directory under `/root`. It does not touch the production policy path.
+The root-only policy fixture uses a temporary directory under `/root`; it never touches the production policy path.
+
+## Downstream
+
+#3515 remains Draft/HOLD and is not rebound by this PR. After exact-head V2 source/CI/review acceptance, a separate #3515 rebind may change only the pinned observer source paths/blobs while preserving its V1 evidence validation semantics.
 
 ## Authority
 
-Source/proof/CI only. No live Precision observation, storage bootstrap, journal/high-water write, rollback, service mutation, credentials, signing, payment acceptance, presale/WC activation, treasury/liquidity action or funds movement.
-
-This PR does not rebind #3515. That is a separate successor step after exact-head V2 source/CI/review acceptance.
+Source/proof/CI only. No live host observation, storage mutation, rollback, service change, credential/signing, payment acceptance, presale/WC activation, treasury/liquidity action or funds movement.
 
 PROTECT THE CORE.

@@ -18,10 +18,10 @@ import {
   resolveMountForPathV1,
 } from "./void-buy-void-allocation-custody-preflight-v1.mjs";
 
-export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V2 =
-  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V2";
+export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1 =
+  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1";
 
-export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V2 =
+export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V1 =
   Object.freeze({
     source_only_collector: true,
     designated_host_read_only_observation: true,
@@ -29,8 +29,6 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLAT
     canonical_replay_high_water_required: true,
     descriptor_bound_root_observation: true,
     descriptor_bound_file_reads: true,
-    nonblocking_regular_file_open_required: true,
-    fifo_swap_blocking_forbidden: true,
     terminal_root_and_file_revalidation: true,
     double_census_required: true,
     proc_mountinfo_read: true,
@@ -870,10 +868,10 @@ function classifySnapshot(snapshot, live) {
 
   const normalized = Object.freeze({
     schema:
-      "void_buy_void_allocation_custody_witness_live_read_replay_installation_evidence_v2",
+      "void_buy_void_allocation_custody_witness_live_read_replay_installation_evidence_v1",
     marker:
-      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V2,
-    version: 2,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1,
+    version: 1,
     parent_writer_marker:
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_WRITER_V1,
     high_water_marker:
@@ -900,7 +898,7 @@ function classifySnapshot(snapshot, live) {
       binding.high_water.ready_for_issue,
   });
   const qualificationId =
-    "voidwlrie2_" +
+    "voidwlrie1_" +
     crypto
       .createHash("sha256")
       .update(canonicalJson(normalized), "utf8")
@@ -912,8 +910,8 @@ function classifySnapshot(snapshot, live) {
       ? "LIVE_REPLAY_STORAGE_DOMAINS_QUALIFIED"
       : "REPLAY_STORAGE_DOMAINS_CLASSIFIED_TEST_ONLY",
     marker:
-      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V2,
-    version: 2,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1,
+    version: 1,
     qualification_id: qualificationId,
     normalized,
     operation_performed: false,
@@ -936,7 +934,7 @@ function classifySnapshot(snapshot, live) {
     production_gate_ready: false,
     funds_movement: false,
     authority:
-      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V2,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V1,
   });
 }
 
@@ -950,8 +948,8 @@ export function testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayIns
       ok: false,
       status: "HOLD",
       marker:
-        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V2,
-      version: 2,
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1,
+      version: 1,
       reason: String(error?.message || error || "snapshot_invalid"),
       operation_performed: false,
       live_storage_observation_proven: false,
@@ -962,7 +960,7 @@ export function testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayIns
       production_gate_ready: false,
       funds_movement: false,
       authority:
-        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V2,
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V1,
     });
   }
 }
@@ -1121,7 +1119,7 @@ export function testOnlyStableBuyVoidAllocationCustodyWitnessLiveReadReplayInsta
   );
 }
 
-export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV2(
+export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1(
   input = {},
 ) {
   try {
@@ -1139,8 +1137,8 @@ export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallation
       ok: false,
       status: "HOLD",
       marker:
-        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V2,
-      version: 2,
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1,
+      version: 1,
       reason: String(error?.message || error || "installation_evidence_failed"),
       operation_performed: false,
       live_storage_observation_proven: false,
@@ -1151,7 +1149,7 @@ export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallation
       production_gate_ready: false,
       funds_movement: false,
       authority:
-        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V2,
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_AUTHORITY_V1,
     });
   }
 }
@@ -1169,7 +1167,7 @@ if (
 ) {
   if (process.argv.includes("--help")) {
     process.stdout.write([
-      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V2,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1,
       "read_only=true",
       "storage_bootstrap=false",
       "protected_high_water_custody_proven=false",
@@ -1184,7 +1182,7 @@ if (
     ].join("\n"));
   } else {
     const decision =
-      inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV2({
+      inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1({
         journal_root: arg("--journal-root"),
         high_water_root: arg("--high-water-root"),
         expected_hostname: arg("--expected-hostname"),

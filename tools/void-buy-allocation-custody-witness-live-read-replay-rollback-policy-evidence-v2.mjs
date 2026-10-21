@@ -5,8 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV2 as
-    inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1,
+  inspectBuyVoidAllocationCustodyWitnessLiveReadReplayInstallationEvidenceV1,
 } from "./void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v2.mjs";
 import {
   VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_INDEPENDENCE_V1,
@@ -14,10 +13,10 @@ import {
   classifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackIndependenceV1,
 } from "../dist/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_independence_v1.js";
 
-export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V2 =
-  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V2";
+export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V1 =
+  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V1";
 
-export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V2 =
+export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V1 =
   Object.freeze({
     source_only_collector: true,
     designated_host_read_only_observation: true,
@@ -25,10 +24,6 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_
     root_owned_nonwritable_parent_chain_required: true,
     root_owned_read_only_policy_file_required: true,
     descriptor_bound_policy_read: true,
-    nonblocking_regular_file_open_required: true,
-    transitive_installation_observer_v2_required: true,
-    v2_installation_to_v1_parent_adapter_required: true,
-    fifo_swap_blocking_forbidden: true,
     canonical_policy_control_required: true,
     canonical_parent_rollback_classifier_required: true,
     live_replay_storage_reobservation_required: true,
@@ -69,21 +64,12 @@ export const VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_
     funds_movement: false,
   });
 
-const INSTALLATION_V1_SCHEMA =
-  "void_buy_void_allocation_custody_witness_live_read_replay_installation_evidence_v1";
-const INSTALLATION_V1_MARKER =
-  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V1";
-const INSTALLATION_V2_SCHEMA =
-  "void_buy_void_allocation_custody_witness_live_read_replay_installation_evidence_v2";
-const INSTALLATION_V2_MARKER =
-  "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_INSTALLATION_EVIDENCE_V2";
-
 const CONTROL_SCHEMA =
   "void_buy_void_allocation_custody_witness_live_read_replay_rollback_control_v1";
 const CONTROL_MARKER =
   "VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_CONTROL_V1";
 const RECEIPT_SCHEMA =
-  "void_buy_void_allocation_custody_witness_live_read_replay_rollback_policy_evidence_receipt_v2";
+  "void_buy_void_allocation_custody_witness_live_read_replay_rollback_policy_evidence_receipt_v1";
 const POLICY_PATH =
   "/etc/void/buy-void-allocation-custody-witness-live-read-replay-rollback-controls-v1.json";
 const MAX_POLICY_BYTES = 64 * 1024;
@@ -395,60 +381,6 @@ function normalizePolicyObservation(value) {
     ctime_ns: raw.ctime_ns,
     control,
   });
-}
-
-function adaptInstallationEvidenceV2ForRollbackIndependenceV1(installation) {
-  if (
-    !installation ||
-    typeof installation !== "object" ||
-    Array.isArray(installation) ||
-    installation.ok !== true ||
-    installation.status !== "LIVE_REPLAY_STORAGE_DOMAINS_QUALIFIED" ||
-    installation.marker !== INSTALLATION_V2_MARKER ||
-    installation.version !== 2 ||
-    typeof installation.qualification_id !== "string" ||
-    !/^voidwlrie2_[0-9a-f]{64}$/u.test(installation.qualification_id) ||
-    !installation.normalized ||
-    typeof installation.normalized !== "object" ||
-    Array.isArray(installation.normalized) ||
-    installation.normalized.schema !== INSTALLATION_V2_SCHEMA ||
-    installation.normalized.marker !== INSTALLATION_V2_MARKER ||
-    installation.normalized.version !== 2
-  ) {
-    fail("witness_replay_rollback_policy_evidence_installation_v2_invalid");
-  }
-  const expectedV2 =
-    "voidwlrie2_" +
-    crypto.createHash("sha256")
-      .update(canonicalJson(installation.normalized), "utf8")
-      .digest("hex");
-  if (expectedV2 !== installation.qualification_id) {
-    fail("witness_replay_rollback_policy_evidence_installation_v2_qualification_invalid");
-  }
-  const normalizedV1 = Object.freeze({
-    ...installation.normalized,
-    schema: INSTALLATION_V1_SCHEMA,
-    marker: INSTALLATION_V1_MARKER,
-    version: 1,
-  });
-  const qualificationV1 =
-    "voidwlrie1_" +
-    crypto.createHash("sha256")
-      .update(canonicalJson(normalizedV1), "utf8")
-      .digest("hex");
-  return Object.freeze({
-    ...installation,
-    marker: INSTALLATION_V1_MARKER,
-    version: 1,
-    qualification_id: qualificationV1,
-    normalized: normalizedV1,
-  });
-}
-
-export function testOnlyAdaptInstallationEvidenceV2ForRollbackIndependenceV1(
-  installation,
-) {
-  return adaptInstallationEvidenceV2ForRollbackIndependenceV1(installation);
 }
 
 function buildPolicy(control, installation, nowMs) {
@@ -803,14 +735,10 @@ function classifyObserved({
     installation_evidence,
     verification_now_ms,
   );
-  const parentInstallation =
-    adaptInstallationEvidenceV2ForRollbackIndependenceV1(
-      installation_evidence,
-    );
   const parent =
     classifyBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackIndependenceV1({
       verification_now_ms,
-      installation_evidence: parentInstallation,
+      installation_evidence,
       rollback_policy: policy,
     });
   if (parent.ok !== true) {
@@ -823,8 +751,8 @@ function classifyObserved({
   const normalized = Object.freeze({
     schema: RECEIPT_SCHEMA,
     marker:
-      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V2,
-    version: 2,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V1,
+    version: 1,
     parent_marker:
       VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_INDEPENDENCE_V1,
     policy_path: observedPolicy.path,
@@ -834,8 +762,6 @@ function classifyObserved({
     policy_file_mode: observedPolicy.mode,
     policy_file_nlink: observedPolicy.nlink,
     installation_qualification_id:
-      installation_evidence.qualification_id,
-    installation_v1_compatibility_qualification_id:
       parent.installation_qualification_id,
     installation_high_water_sha256:
       parent.installation_high_water_sha256,
@@ -857,8 +783,8 @@ function classifyObserved({
       ? "LIVE_ROLLBACK_POLICY_OBSERVED"
       : "ROLLBACK_POLICY_CLASSIFIED_TEST_ONLY",
     marker:
-      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V2,
-    version: 2,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V1,
+    version: 1,
     receipt_sha256: receiptSha,
     normalized,
     parent_qualification: parent,
@@ -884,7 +810,7 @@ function classifyObserved({
     production_gate_ready: false,
     funds_movement: false,
     authority:
-      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V2,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V1,
   });
 }
 
@@ -903,8 +829,8 @@ export function testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayRol
       ok: false,
       status: "HOLD",
       marker:
-        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V2,
-      version: 2,
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V1,
+      version: 1,
       reason: String(error?.message || error || "classification_failed"),
       policy_file_installation_proven: false,
       live_policy_observation_proven: false,
@@ -915,12 +841,12 @@ export function testOnlyClassifyBuyVoidAllocationCustodyWitnessLiveReadReplayRol
       production_gate_ready: false,
       funds_movement: false,
       authority:
-        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V2,
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V1,
     });
   }
 }
 
-export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyEvidenceV2(
+export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyEvidenceV1(
   input = {},
 ) {
   try {
@@ -995,8 +921,8 @@ export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPoli
       ok: false,
       status: "HOLD",
       marker:
-        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V2,
-      version: 2,
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V1,
+      version: 1,
       reason: String(error?.message || error || "live_observation_failed"),
       policy_file_installation_proven: false,
       live_policy_observation_proven: false,
@@ -1007,7 +933,7 @@ export function inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPoli
       production_gate_ready: false,
       funds_movement: false,
       authority:
-        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V2,
+        VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_AUTHORITY_V1,
     });
   }
 }
@@ -1025,7 +951,7 @@ if (
 ) {
   if (process.argv.includes("--help")) {
     process.stdout.write([
-      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V2,
+      VOID_BUY_VOID_ALLOCATION_CUSTODY_WITNESS_LIVE_READ_REPLAY_ROLLBACK_POLICY_EVIDENCE_V1,
       "read_only=true",
       "policy_path=" + POLICY_PATH,
       "live_policy_enforcement_proven=false",
@@ -1040,7 +966,7 @@ if (
     ].join("\n"));
   } else {
     const result =
-      inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyEvidenceV2({
+      inspectBuyVoidAllocationCustodyWitnessLiveReadReplayRollbackPolicyEvidenceV1({
         journal_root: arg("--journal-root"),
         high_water_root: arg("--high-water-root"),
         expected_hostname: arg("--expected-hostname"),
