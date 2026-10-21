@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_REL = "ops/precision/void_buy_void_v7_create_only_closed_tree_bootstrap_v1.c"
 SOURCE = ROOT / SOURCE_REL
-SOURCE_BLOB = "a49639a005d5b9dbcdfe585f34c184a1701fb500"
+SOURCE_BLOB = "3036fa8c72fe5699433a60ed2c597f8cd96204ff"
 PLAN_REL = "ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json"
 PLAN_BLOB = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
 PLAN_ID = "voidv7createonlysealplan1_80486c8e43751493d1480ebdf8be63a26195e465e96f3e1d29b1d7b4765773cc"
@@ -78,6 +78,8 @@ def main():
     require(not re.search(r"\b(?:pthread_create|fork|vfork|posix_spawn|aio_write|lio_listio)\s*\(",text),"forbidden_production_callsite")
     require("syscall(__NR_fork)" in text and "__NR_io_uring_enter" in text and "__NR_io_submit" in text,"barrier_syscalls_not_bound")
     require(text.count("mmap(NULL,4096,PROT_READ|PROT_WRITE,MAP_SHARED|MAP_ANONYMOUS") == 1,"shared_mmap_only_self_test")
+    fixture_body=text[text.index("static int fixture_apply("):text.index("static void barrier_self_test(")]
+    require(fixture_body.index("install_write_barrier();") < fixture_body.index("open(parent_path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW)"),"write_barrier_after_destination_parent_authority")
 
     cc=discover(("cc","gcc","clang")); readelf=discover(("readelf",))
     with tempfile.TemporaryDirectory(prefix="void-v7-closed-tree-proof-") as td:
@@ -143,6 +145,7 @@ def main():
     print("plan_contract_70_requirements_bound=true")
     print("manifest_blank_lines_rejected=true")
     print("single_thread_and_process_creation_barrier_proven=true")
+    print("write_barrier_precedes_destination_parent_authority=true")
     print("async_destination_io_syscalls_denied=true")
     print("shared_writable_destination_mapping_creation_denied=true")
     print("source_mutation_after_pin_rejected_before_publication=true")
