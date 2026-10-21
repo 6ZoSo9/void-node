@@ -83,7 +83,7 @@ SELECTOR_BYTES = 26680
 RUNTIME_UID = 1000
 RUNTIME_GID = 1000
 FIXED_GIT = pathlib.Path("/usr/bin/git")
-FIXED_SETPRIV = pathlib.Path("/usr/bin/setpriv")
+PR_SET_NO_NEW_PRIVS = 38
 MAX_NODES = 250000
 MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
@@ -361,6 +361,34 @@ def _revalidate_trusted_tool_lease(
     if sha256_bytes(_read_tool_fd(fd, max_bytes, label)) != digest:
         raise InstallError(label + "_tool_retained_sha256_changed")
 
+def _drop_to_runtime_identity_preexec() -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    prctl = getattr(libc, "prctl", None)
+    if prctl is None:
+        raise OSError("prctl_unavailable")
+    prctl.argtypes = [
+        ctypes.c_int,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+    ]
+    prctl.restype = ctypes.c_int
+    if prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
+        err = ctypes.get_errno()
+        raise OSError(err, "pr_set_no_new_privs_failed")
+    os.setgroups([])
+    os.setgid(RUNTIME_GID)
+    os.setuid(RUNTIME_UID)
+    if (
+        os.getuid() != RUNTIME_UID
+        or os.geteuid() != RUNTIME_UID
+        or os.getgid() != RUNTIME_GID
+        or os.getegid() != RUNTIME_GID
+        or os.getgroups() != []
+    ):
+        raise OSError("runtime_identity_drop_incomplete")
+
 def _run_runtime_observer_tool(
     tool: pathlib.Path,
     args: list[str],
@@ -371,6 +399,12 @@ def _run_runtime_observer_tool(
     env: dict[str, str],
 ) -> subprocess.CompletedProcess[Any]:
     if os.geteuid() == RUNTIME_UID and os.getegid() == RUNTIME_GID:
+        if (
+            os.getuid() != RUNTIME_UID
+            or os.getgid() != RUNTIME_GID
+            or os.getgroups() != []
+        ):
+            raise InstallError("repository_observer_identity_invalid")
         return subprocess.run(
             [os.fspath(tool), *args],
             input=input_data,
@@ -384,47 +418,34 @@ def _run_runtime_observer_tool(
         )
     if os.geteuid() != 0 or os.getuid() != 0:
         raise InstallError("repository_observer_identity_invalid")
-    setpriv_fd = tool_fd = -1
+    tool_fd = -1
     try:
-        setpriv_fd, setpriv_path, setpriv_identity, setpriv_ancestors, setpriv_sha = _open_trusted_tool_lease(
-            FIXED_SETPRIV, "setpriv"
-        )
         tool_fd, tool_path, tool_identity, tool_ancestors, tool_sha = _open_trusted_tool_lease(
             tool, "observer_tool"
         )
-        argv = [
-            f"/proc/self/fd/{setpriv_fd}",
-            "--no-new-privs",
-            "--reuid=" + str(RUNTIME_UID),
-            "--regid=" + str(RUNTIME_GID),
-            "--clear-groups",
-            f"/proc/self/fd/{tool_fd}",
-            *args,
-        ]
-        cp = subprocess.run(
-            argv,
-            input=input_data,
-            stdin=None if input_data is not None else subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=text,
-            check=False,
-            timeout=timeout,
-            env=env,
-            pass_fds=(setpriv_fd, tool_fd),
-        )
+        try:
+            cp = subprocess.run(
+                [f"/proc/self/fd/{tool_fd}", *args],
+                input=input_data,
+                stdin=None if input_data is not None else subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=text,
+                check=False,
+                timeout=timeout,
+                env=env,
+                pass_fds=(tool_fd,),
+                preexec_fn=_drop_to_runtime_identity_preexec,
+            )
+        except (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired) as exc:
+            raise InstallError("runtime_observer_execution_failed") from exc
         _revalidate_trusted_tool_lease(
             tool_fd, tool_path, tool_identity, tool_ancestors, tool_sha, "observer_tool"
-        )
-        _revalidate_trusted_tool_lease(
-            setpriv_fd, setpriv_path, setpriv_identity, setpriv_ancestors, setpriv_sha, "setpriv"
         )
         return cp
     finally:
         if tool_fd >= 0:
             os.close(tool_fd)
-        if setpriv_fd >= 0:
-            os.close(setpriv_fd)
 
 def _read_metadata_file(path: pathlib.Path, label: str, max_bytes: int = 1024 * 1024) -> tuple[bytes, tuple[int, int, int, int, int, int, int, int, int]]:
     before = path.lstat()

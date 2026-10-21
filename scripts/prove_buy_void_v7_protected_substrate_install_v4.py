@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="6e187a9a6e782df13ecd423fc80c82b759a8f6db"
+assert gblob(INS)=="94112afa2f805e0a6ce881a490c1c64e31e0413e"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -118,10 +118,14 @@ required=(
     'def _open_trusted_tool_lease(',
     'def _revalidate_trusted_tool_lease(',
     'def _run_runtime_observer_tool(',
-    'f"/proc/self/fd/{setpriv_fd}"',
     'f"/proc/self/fd/{tool_fd}"',
-    'pass_fds=(setpriv_fd, tool_fd)',
-    '"--clear-groups"',
+    'pass_fds=(tool_fd,)',
+    'preexec_fn=_drop_to_runtime_identity_preexec',
+    'PR_SET_NO_NEW_PRIVS = 38',
+    'def _drop_to_runtime_identity_preexec() -> None:',
+    'prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)',
+    'os.setgid(RUNTIME_GID)',
+    'os.setuid(RUNTIME_UID)',
     'os.access(raw_path, os.W_OK, effective_ids=True)',
     '_require_runtime_uid_nonwritable(runtime_paths, "privileged_source")',
     '_require_runtime_uid_nonwritable(runtime_paths, "install_parent")',
@@ -148,8 +152,18 @@ for stale in ('tree_digest(SOURCE_RELEASE)','tree_digest(SOURCE_TARGET)','tree_d
 assert 'RUN_INSTALLED_QUALIFICATION_V2' not in src
 assert 'FIXED_PYTHON' not in src
 assert '_RUNTIME_WRITE_AUDIT_CODE' not in src
-assert 'argv = [os.fspath(FIXED_SETPRIV)' not in src
-assert 'os.fspath(FIXED_SETPRIV), "--no-new-privs"' not in src
+assert 'FIXED_SETPRIV' not in src
+assert 'setpriv_fd' not in src
+assert '"--no-new-privs"' not in src
+assert 'preexec_fn=_drop_to_runtime_identity_preexec' in src
+observer_drop=src[src.index('def _drop_to_runtime_identity_preexec'):src.index('def _run_runtime_observer_tool(')]
+assert observer_drop.index('prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)') < observer_drop.index('os.setgroups([])')
+assert observer_drop.index('os.setgroups([])') < observer_drop.index('os.setgid(RUNTIME_GID)') < observer_drop.index('os.setuid(RUNTIME_UID)')
+observer_run=src[src.index('def _run_runtime_observer_tool('):src.index('def _read_metadata_file(')]
+assert 'f"/proc/self/fd/{tool_fd}"' in observer_run
+assert 'pass_fds=(tool_fd,)' in observer_run
+assert 'preexec_fn=_drop_to_runtime_identity_preexec' in observer_run
+assert 'setpriv' not in observer_run.lower()
 tree_body=src[src.index('def tree_digest('):src.index('def candidate_fd_metadata_valid(')]
 dir_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_directories, "tree_directories")')
 reg_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_regulars, "tree_regulars")')
@@ -424,6 +438,9 @@ print("mode_only_nonwritable_is_insufficient_model=true")
 print("installer_acl_aware_runtime_uid_write_audit_bound=true")
 print("runtime_uid_cleared_groups_write_audit_bound=true")
 print("runtime_write_audit_external_helper_free_bound=true")
+print("runtime_observer_root_time_setpriv_exec_removed=true")
+print("runtime_observer_no_new_privs_before_uid_drop_bound=true")
+print("runtime_observer_direct_uid_gid_drop_before_tool_exec_bound=true")
 print("trusted_tool_root_descriptor_execution_bound=true")
 print("trusted_tool_ancestor_acl_custody_bound=true")
 print("trusted_tool_terminal_revalidation_bound=true")
