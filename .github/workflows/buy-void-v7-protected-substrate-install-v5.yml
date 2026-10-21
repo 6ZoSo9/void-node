@@ -48,7 +48,7 @@ jobs:
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py)" = "69b1ff028487a139470671cf0afb8937a299897d"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v5.py)" = "210d4c9cbdbc73002d15141283d4f0ab632997d0"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v5.py)" = "d62952830f96435f42858528310113f1887aba5e"
           test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v5.md)" = "be3bdb31cc948d1774dc634d4be34e865dd7cd2d"
 
           git diff --check "$BASE" HEAD
