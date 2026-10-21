@@ -46,13 +46,13 @@ parents.
 
 ## Source dependencies
 
-This lane is anchored after merge `6011fc906a98cb005567f8dd1fa8a3ea184beb12`
-and binds these unchanged reviewed dependencies:
+This lane is anchored after landed V4 security repair merge
+`e99772502c80fefafef3b6a836a408b66ddded76` and binds these reviewed dependencies:
 
 - merged user-space reseal builder blob
   `030182d544a92cd6c67868fa4c4f3e83188e4249`;
 - V7 protected substrate installer V4 blob
-  `6e187a9a6e782df13ecd423fc80c82b759a8f6db`;
+  `94112afa2f805e0a6ce881a490c1c64e31e0413e`;
 - reviewed atomic-upgrade reference implementation blob
   `3fe1158a0fdf19fa4307c2a8122314b75ee36345`.
 
@@ -108,8 +108,8 @@ Apply:
 4. copies the untrusted candidate with descriptor-relative no-follow reads into a root-owned private stage;
 5. charges the cumulative protected-write budget from the exact opened source descriptor generation, not a stale pathname stat;
 6. authenticates the complete private-stage content digest;
-7. changes the authenticated stage only to root-owned, GID-1000 **read/search-only** verification modes and runs the full Git/worktree/object verifier after dropping to UID/GID 1000;
-8. only after that Git verification succeeds, seals the exact stage to final root:root immutable read/execute modes and rechecks the complete content digest;
+7. keeps the authenticated stage `root:root`, installs an exact POSIX access ACL that grants **only named UID 1000** read/search permission (group-object and other entries are zero), and runs the full Git/worktree/object verifier after dropping to UID/GID 1000;
+8. only after that Git verification succeeds, removes the temporary UID-specific ACL, seals the exact stage to final root:root immutable read/execute modes, and rechecks the complete content digest;
 9. fsyncs the complete staged generation;
 10. revalidates candidate and live shallow bindings;
 11. publishes once with `renameat2(RENAME_NOREPLACE)`;
@@ -138,6 +138,12 @@ created. The helper returns that exact copied size; the caller never charges the
 budget from a stale outer pathname stat. Source generation is revalidated after
 the read, and bytes are written only into the retained root-owned stage
 descriptor graph.
+
+Every descriptor-relative candidate component must also round-trip strict UTF-8
+before a destination entry is created. A raced byte filename represented through
+Python surrogate escapes therefore becomes a normal `InstallError` and enters
+the same retained-stage/publication reconciliation path; it cannot escape through
+a later digest `UnicodeEncodeError`.
 
 Creating the stage is the only expected install-parent namespace transition.
 The install-parent device/inode/owner/mode must remain stable, and its directory
@@ -190,25 +196,34 @@ Root Python first computes the complete content digest over that private stage
 without executing Git and requires exact equality with the reviewed candidate
 digest. That digest alone is **not** treated as Git authority.
 
-Before any group/world-readable final mode is granted, the already-authenticated
-stage is transitioned to a temporary verification-only generation:
+Before any broad-readable final mode is granted, the already-authenticated
+stage is transitioned to a temporary verification-only generation without
+changing ownership:
 
-- owner remains root;
-- group becomes runtime GID 1000;
-- directories become `0550`;
-- nonexecutables become `0440`;
-- executables become `0550`;
-- UID/GID 1000 must not have write access.
+- every stage node remains `root:root`;
+- an exact Linux POSIX access ACL names UID 1000 only;
+- the ACL user-object entry preserves root owner permissions;
+- the named UID-1000 entry grants read, plus search/execute where required;
+- the ACL group-object and other entries are exactly zero;
+- the ACL mask equals only the named UID-1000 permission;
+- directories project mode `0750`, nonexecutables `0440`, and executables
+  `0550` while the ACL is present;
+- UID 1000 must be able to read/search the stage but must not have write access.
 
-A forked verifier then clears supplementary groups, drops to UID/GID 1000, and
-runs the complete non-shallow Git/object/index/worktree verification against
-that exact stage. Thus the dynamic Git process executes non-root, while the
-runtime user receives read/search access only to bytes that originated from its
-own candidate and cannot modify the stage.
+Because ownership never moves away from root, UID 1000 cannot chmod the staged
+generation. Because group-object permission is zero, another account that merely
+shares GID 1000 receives no access; the temporary authority is tied to the exact
+numeric UID.
 
-Only after this exact staged Git generation is GREEN are files/directories
-changed to final root:root `0444`/`0555` modes. Root then recomputes the full
-content digest and requires exact equality again before publication.
+A forked verifier then sets `PR_SET_NO_NEW_PRIVS`, clears supplementary groups,
+drops every UID/GID slot to 1000, and runs the complete non-shallow
+Git/object/index/worktree verification against that exact ACL-bound stage. The
+root parent verifies the ACL bytes and metadata before the child is admitted.
+
+Only after this exact staged Git generation is GREEN are the named-user ACLs
+removed and files/directories changed to final root:root `0444`/`0555`
+modes. Root then recomputes the full content digest and requires exact equality
+again before publication.
 
 This closes the race where candidate bytes could change between candidate Git
 verification and plan digest calculation: even if the untrusted plan observes a
