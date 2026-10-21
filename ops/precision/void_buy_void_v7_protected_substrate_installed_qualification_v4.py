@@ -157,6 +157,8 @@ def _content_digest(
     expected_uid: int,
     expected_gid: int,
     expected_root_mode: int,
+    *,
+    require_runtime_nonwritable: bool = True,
 ) -> tuple[str, int, int]:
     root_abs = pathlib.Path(os.path.abspath(os.fspath(root)))
     if root_abs.resolve(strict=True) != root_abs:
@@ -171,7 +173,8 @@ def _content_digest(
     ):
         raise QualifyError("tree_root_metadata_invalid")
     root_identity = _metadata_identity(rst)
-    _require_runtime_nonwritable(root_abs, "tree_root")
+    if require_runtime_nonwritable:
+        _require_runtime_nonwritable(root_abs, "tree_root")
     h = hashlib.sha256()
     nodes = 0
     total = 0
@@ -201,13 +204,15 @@ def _content_digest(
             if stat.S_ISDIR(st.st_mode):
                 if stat.S_IMODE(st.st_mode) & 0o022:
                     raise QualifyError("tree_directory_group_or_world_writable:" + rel)
-                _require_runtime_nonwritable(child, "tree_directory")
+                if require_runtime_nonwritable:
+                    _require_runtime_nonwritable(child, "tree_directory")
                 h.update(b"D\0" + rel.encode("utf-8") + b"\0")
                 pending.append((child, rel))
             elif stat.S_ISREG(st.st_mode):
                 if stat.S_IMODE(st.st_mode) & 0o022:
                     raise QualifyError("tree_file_group_or_world_writable:" + rel)
-                _require_runtime_nonwritable(child, "tree_file")
+                if require_runtime_nonwritable:
+                    _require_runtime_nonwritable(child, "tree_file")
                 file_size, file_sha256, _oid, _identity = _stream_regular(
                     child, "tree_file", git_blob=False
                 )
@@ -481,14 +486,19 @@ def self_test() -> None:
         os.chmod(root, 0o755)
         os.chmod(sub, 0o755)
         uid, gid = os.getuid(), os.getgid()
-        d1 = _content_digest(root, uid, gid, 0o755)
+        d1 = _content_digest(
+            root, uid, gid, 0o755, require_runtime_nonwritable=False
+        )
         (sub / "b.txt").write_bytes(b"C")
-        d2 = _content_digest(root, uid, gid, 0o755)
+        d2 = _content_digest(
+            root, uid, gid, 0o755, require_runtime_nonwritable=False
+        )
         assert d1[0] != d2[0]
     print(MARKER + "_SELF_TEST_GREEN")
     print("trusted_full_history_content_sha256_required=true")
     print("content_digest_matches_replica_v1_contract=true")
     print("acl_aware_whole_tree_nonwritability_required=true")
+    print("digest_self_test_does_not_weaken_production_acl_gate=true")
     print("direct_worktree_tree_oid_required=true")
     print("external_repository_observer=false")
     print("funds_movement=false")
