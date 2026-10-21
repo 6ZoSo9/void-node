@@ -553,7 +553,7 @@ def _revalidate_install_parent_after_stage(
         if before[:6] != after[:6]:
             raise InstallError("install_parent_ancestor_identity_changed:" + before[0])
         if index == 0:
-            if after[6] != before[6] + 1:
+            if after[6] not in (before[6], before[6] + 1):
                 raise InstallError("install_parent_stage_link_count_transition_invalid")
         elif after[6] != before[6]:
             raise InstallError("install_parent_ancestor_link_count_changed:" + before[0])
@@ -728,6 +728,7 @@ def source_plan() -> None:
     print("candidate_copy_descriptor_relative=true")
     print("apply_root_dynamic_git_exec=false")
     print("termination_signal_reconciliation_required=true")
+    print("install_parent_publication_lease_required=true")
     print("service_mutation=false")
     print("credential_access=false")
     print("transaction=false")
@@ -1026,16 +1027,36 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
 
     _verify_stage_for_apply(expected_candidate["content_sha256"])
 
-def _rename_noreplace() -> None:
+def _rename_noreplace(
+    expected_ancestors: tuple[tuple[str, int, int, int, int, int, int], ...]
+) -> None:
     global _PUBLICATION, _STAGE_RETAINED
+    _revalidate_install_parent_after_stage(expected_ancestors)
     libc = ctypes.CDLL(None, use_errno=True)
     fn = getattr(libc, "renameat2", None)
     if fn is None:
         raise InstallError("renameat2_unavailable")
-    fn.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    fn.argtypes = [
+        ctypes.c_int, ctypes.c_char_p,
+        ctypes.c_int, ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
     fn.restype = ctypes.c_int
-    parent_fd = os.open(INSTALL_PARENT, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    parent_fd = os.open(
+        INSTALL_PARENT,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+    )
     try:
+        row = expected_ancestors[0]
+        opened = os.fstat(parent_fd)
+        if (
+            opened.st_dev,
+            opened.st_ino,
+            opened.st_uid,
+            opened.st_gid,
+            opened.st_mode,
+        ) != row[1:6]:
+            raise InstallError("install_parent_descriptor_identity_mismatch")
         if fn(
             parent_fd,
             STAGE_NAME.encode("ascii"),
@@ -1047,8 +1068,18 @@ def _rename_noreplace() -> None:
         _PUBLICATION = "true"
         _STAGE_RETAINED = False
         os.fsync(parent_fd)
+        after = os.fstat(parent_fd)
+        if (
+            after.st_dev,
+            after.st_ino,
+            after.st_uid,
+            after.st_gid,
+            after.st_mode,
+        ) != row[1:6]:
+            raise InstallError("install_parent_descriptor_generation_changed")
     finally:
         os.close(parent_fd)
+    _revalidate_install_parent_after_stage(expected_ancestors)
 
 def _same_binding(now: dict[str, Any], planned: dict[str, Any]) -> bool:
     return (
@@ -1086,6 +1117,14 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
     planned = _collect_plan_for_apply(expected_head)
     if planned["plan_id"] != expected_plan_id:
         raise InstallError("expected_plan_id_mismatch")
+    raw_ancestors = planned["body"].get("install_parent_custody")
+    if (
+        not isinstance(raw_ancestors, list)
+        or not raw_ancestors
+        or any(not isinstance(row, list) or len(row) != 7 for row in raw_ancestors)
+    ):
+        raise InstallError("planned_install_parent_custody_invalid")
+    planned_ancestors = tuple(tuple(row) for row in raw_ancestors)
     state = planned["body"]["protected_state"]
     if state == "GREEN":
         print(MARKER)
@@ -1108,7 +1147,8 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
         planned["body"]["candidate"]["content_sha256"]
     )
 
-    _rename_noreplace()
+    _revalidate_install_parent_after_stage(planned_ancestors)
+    _rename_noreplace(planned_ancestors)
 
     final = _collect_plan_for_apply(expected_head)
     if final["body"]["protected_state"] != "GREEN":
@@ -1142,6 +1182,7 @@ def _termination_signal_handler(signum: int, _frame: Any) -> None:
 def _install_termination_signal_handlers() -> None:
     signal.signal(signal.SIGTERM, _termination_signal_handler)
     signal.signal(signal.SIGHUP, _termination_signal_handler)
+    signal.signal(signal.SIGQUIT, _termination_signal_handler)
 
 def _reconcile_publication_receipt() -> None:
     global _PUBLICATION, _STAGE_RETAINED
