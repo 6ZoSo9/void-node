@@ -818,7 +818,7 @@ print(json.dumps({
 }, sort_keys=True, separators=(",", ":")))
 '''
 
-def _check_probe(raw: bytes, runtime_root: Path) -> dict[str, Any]:
+def _check_probe(raw: bytes) -> dict[str, Any]:
     try:
         text = raw.decode("utf-8", "strict")
         obj = json.loads(text)
@@ -830,27 +830,24 @@ def _check_probe(raw: bytes, runtime_root: Path) -> dict[str, Any]:
         raise RuntimeProofError("candidate_python_3_12_required")
     if obj.get("isolated") != 1 or obj.get("safe_path") is not True or obj.get("no_site") != 1:
         raise RuntimeProofError("candidate_python_flags_invalid")
-    root = os.path.realpath(runtime_root)
-    executable = obj.get("executable")
-    if not isinstance(executable, str) or executable != os.path.realpath(runtime_root / "bin" / "python3.12-static"):
+    if obj.get("executable") != "/bin/python3.12-static":
         raise RuntimeProofError("candidate_executable_path_mismatch")
     paths = obj.get("sys_path")
     if not isinstance(paths, list) or not paths:
         raise RuntimeProofError("candidate_sys_path_invalid")
     for item in paths:
-        if not isinstance(item, str):
+        if not isinstance(item, str) or not item.startswith("/"):
             raise RuntimeProofError("candidate_sys_path_invalid")
-        if item == "":
-            continue
-        normalized = os.path.realpath(item)
-        if normalized != root and not normalized.startswith(root + os.sep):
+        normalized = os.path.normpath(item)
+        if normalized.startswith("/usr/") or normalized == "/usr":
             raise RuntimeProofError("candidate_host_sys_path_forbidden")
-        lowered = item.lower()
-        if "site-packages" in lowered or "lib-dynload" in lowered:
-            raise RuntimeProofError("candidate_host_extension_path_forbidden")
+        lowered = normalized.lower()
+        if "site-packages" in lowered:
+            raise RuntimeProofError("candidate_site_packages_forbidden")
+        if normalized != "/lib" and not normalized.startswith("/lib/"):
+            raise RuntimeProofError("candidate_sys_path_outside_private_lib")
     ctypes_file = obj.get("ctypes_file")
-    expected_zip_prefix = os.path.realpath(runtime_root / "lib" / "python312.zip") + os.sep
-    if not isinstance(ctypes_file, str) or not ctypes_file.startswith(expected_zip_prefix):
+    if not isinstance(ctypes_file, str) or not ctypes_file.startswith("/lib/python312.zip/"):
         raise RuntimeProofError("candidate_ctypes_not_from_exact_zip")
     if obj.get("_ctypes_origin") != "built-in" or obj.get("_ctypes_file") not in (None, ""):
         raise RuntimeProofError("candidate_native_ctypes_not_builtin")
