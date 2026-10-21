@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: buy-void-v7-host-capability-census-v1-\${{ github.event.pull_request.number || github.ref }}
+  group: buy-void-v7-host-capability-census-v1-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -23,15 +23,15 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Bind exact stacked source generation
         env:
-          EVENT_NAME: \${{ github.event_name }}
-          EXPECTED_HEAD: \${{ github.event.pull_request.head.sha || github.sha }}
-          PR_BASE: \${{ github.event.pull_request.base.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
           STACK_BASE: 08356a62bdea145b716c9f4fe1ddbda8fe6800e4
         run: |
           set -euo pipefail
