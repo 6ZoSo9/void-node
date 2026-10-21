@@ -8,7 +8,7 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py"
-TARGET_BLOB = "54ddabb1981279b62ea4c26700cc60464450346b"
+TARGET_BLOB = "76eff2ed214f26c9b4fca270992a175646de0d2e"
 MARKER = "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_PROOF"
 
 
@@ -52,6 +52,9 @@ for required in (
     'host_fsverity_capability_green',
     'ext4_verity_feature_enabled',
     'ext4_extents_feature_enabled',
+    'permission_denied_read',
+    'feature_probe_error',
+    'HOLD_PRIVILEGED_FEATURE_PROBE_REQUIRES_TRUSTED_FIRST_INSTRUCTION',
     'block_device_write=false',
     'fsverity_enablement=false',
     'protected_host_install=false',
