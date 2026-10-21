@@ -280,6 +280,9 @@ def collect() -> dict[str, Any]:
                 "extents_enabled": bool(observed["extents_enabled"]),
                 "verity_feature_enabled": bool(observed["verity_feature_enabled"]),
             })
+        except PermissionError as exc:
+            ext4["source_device_status"] = "permission_denied_read"
+            ext4["feature_probe_error"] = "errno_" + str(exc.errno)
         except (OSError, CensusError) as exc:
             ext4["feature_probe_error"] = str(exc)
 
@@ -307,7 +310,7 @@ def collect() -> dict[str, Any]:
     if not fs_driver_present:
         reasons.append("mounted_filesystem_driver_not_listed")
     if fstype == "ext4":
-        if ext4["source_device_status"] != "ok":
+        if ext4["source_device_status"] != "ok" or ext4["feature_probe_error"] is not None:
             reasons.append("ext4_source_block_device_not_readable_unprivileged")
         if ext4["magic_valid"] is not True:
             reasons.append("ext4_superblock_magic_not_proven")
@@ -427,7 +430,10 @@ def run() -> int:
             else (
                 "HOLD_PRIVILEGED_FEATURE_PROBE_REQUIRES_TRUSTED_FIRST_INSTRUCTION"
                 if result["target"]["fstype"] == "ext4"
-                and result["ext4"]["source_device_status"] != "ok"
+                and (
+                    result["ext4"]["source_device_status"] != "ok"
+                    or result["ext4"]["feature_probe_error"] is not None
+                )
                 else "HOLD_REVIEW_FSVERITY_CAPABILITY"
             )
         )
