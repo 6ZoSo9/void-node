@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_v7_host_capability_census_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "f8b9c6cbf6b160568823101404eebb708043c185"
+TARGET_BLOB = "db7521b11d476d43e5fa1ae6f616948a70b1758d"
 LAUNCHER_REL = "ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v1.c"
 LAUNCHER_BLOB = "3b6402a1df523842720a24b719c2b3e86c18ed42"
 MARKER = "VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1_PROOF"
@@ -71,6 +71,11 @@ for required in (
     '"stdlib_zip_required_regular_files_only=true"',
     'except (zipfile.BadZipFile, UnicodeError) as exc:',
     '"stdlib_zip_invalid_utf8_names_hold=true"',
+    '"stdlib_zip_unsupported_versions_hold=true"',
+    '"stdlib_zip_directory_preflight_bounded=true"',
+    'preflight_zip_central_directory(',
+    'MAX_ZIP_CENTRAL_DIR_BYTES = 16 * 1024 * 1024',
+    'except (zipfile.BadZipFile, UnicodeError, NotImplementedError) as exc:',
     '"stdlib_zip_filename_sanitized_or_truncated"',
     '"static_python_runtime_generation_proof_required"',
     '"DERIVE_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF"',
@@ -122,6 +127,8 @@ for line in (
     "stdlib_zip_canonical_raw_components_required=true",
     "stdlib_zip_required_regular_files_only=true",
     "stdlib_zip_invalid_utf8_names_hold=true",
+    "stdlib_zip_unsupported_versions_hold=true",
+    "stdlib_zip_directory_preflight_bounded=true",
     "runtime_import_closure_proof_required=true",
     "filesystem_write=false",
     "protected_filesystem_mutation=false",
@@ -143,6 +150,8 @@ print("unsanitized_zip_member_name_required=true")
 print("stdlib_zip_canonical_raw_components_required=true")
 print("stdlib_zip_required_regular_files_only=true")
 print("stdlib_zip_invalid_utf8_names_hold=true")
+print("stdlib_zip_unsupported_versions_hold=true")
+print("stdlib_zip_directory_preflight_bounded=true")
 print("runtime_import_closure_proof_required=true")
 print("census_cannot_authorize_host_install=true")
 print("fsverity_measure_only=true")

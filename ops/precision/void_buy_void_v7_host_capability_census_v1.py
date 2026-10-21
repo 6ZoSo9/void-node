@@ -29,6 +29,7 @@ FS_IOC_MEASURE_VERITY = 0xC0046686
 FS_VERITY_HASH_ALG_SHA256 = 1
 MAX_CANDIDATE_BYTES = 512 * 1024 * 1024
 MAX_ZIP_ENTRIES = 100_000
+MAX_ZIP_CENTRAL_DIR_BYTES = 16 * 1024 * 1024
 
 REQUIRED_STDLIB_PATHS = (
     "argparse.py",
@@ -209,18 +210,68 @@ def inspect_stdlib_zip_infos(infos: list[zipfile.ZipInfo]) -> dict[str, object]:
         "duplicates_absent": True,
     }
 
+def preflight_zip_central_directory(fd: int, size: int) -> int:
+    # zipfile.ZipFile eagerly materializes *every* central-directory entry.
+    # Validate the archive structure and count by bounded descriptor reads
+    # BEFORE constructing any ZipInfo objects.
+    if size < 22:
+        raise CensusError("stdlib_zip_end_record_invalid")
+    tail_size = min(size, 22 + 65535)
+    tail = os.pread(fd, tail_size, size - tail_size)
+    at = tail.rfind(b"PK\x05\x06")
+    if at < 0 or at + 22 > len(tail):
+        raise CensusError("stdlib_zip_end_record_invalid")
+    (_, disk, cd_disk, disk_entries, entries,
+     cd_size, cd_offset, comment_bytes) = struct.unpack_from("<4s4H2IH", tail, at)
+    if (
+        at + 22 + comment_bytes != len(tail)
+        or disk != 0 or cd_disk != 0 or disk_entries != entries
+    ):
+        raise CensusError("stdlib_zip_end_record_invalid")
+    # This census intentionally refuses ZIP64/multidisk/huge directories.
+    # Those features are unnecessary for the bounded static stdlib candidate.
+    if (
+        entries < 1 or entries > MAX_ZIP_ENTRIES or entries == 65535
+        or cd_size > MAX_ZIP_CENTRAL_DIR_BYTES
+        or cd_size == 0xFFFFFFFF or cd_offset == 0xFFFFFFFF
+    ):
+        raise CensusError("stdlib_zip_directory_bounds_invalid")
+    eocd_offset = size - tail_size + at
+    if cd_size < 46 * entries or cd_offset + cd_size != eocd_offset:
+        raise CensusError("stdlib_zip_directory_bounds_invalid")
+    pos = cd_offset
+    for _ in range(entries):
+        if pos + 46 > eocd_offset:
+            raise CensusError("stdlib_zip_directory_bounds_invalid")
+        header = os.pread(fd, 46, pos)
+        if len(header) != 46 or header[:4] != b"PK\x01\x02":
+            raise CensusError("stdlib_zip_directory_entry_invalid")
+        name_bytes, extra_bytes, comment_size = struct.unpack_from("<HHH", header, 28)
+        disk_start = struct.unpack_from("<H", header, 34)[0]
+        if name_bytes == 0 or disk_start != 0:
+            raise CensusError("stdlib_zip_directory_entry_invalid")
+        pos += 46 + name_bytes + extra_bytes + comment_size
+        if pos > eocd_offset:
+            raise CensusError("stdlib_zip_directory_bounds_invalid")
+    if pos != eocd_offset:
+        raise CensusError("stdlib_zip_directory_count_invalid")
+    return entries
+
 def inspect_stdlib_zip(path: Path, fd: int, expected: os.stat_result) -> dict[str, object]:
+    expected_entries = preflight_zip_central_directory(fd, expected.st_size)
     file_obj = os.fdopen(os.dup(fd), "rb", closefd=True)
     with file_obj:
         try:
             with zipfile.ZipFile(file_obj, "r") as zf:
                 result = inspect_stdlib_zip_infos(zf.infolist())
-        except (zipfile.BadZipFile, UnicodeError) as exc:
+        except (zipfile.BadZipFile, UnicodeError, NotImplementedError) as exc:
             # ZIP central-directory names are untrusted. A UTF-8-flagged
             # member with invalid bytes raises UnicodeDecodeError before
             # in-tree member validation; normalize it to machine-readable
             # HOLD instead of leaking a traceback.
             raise CensusError("stdlib_zip_invalid") from exc
+    if result["entry_count"] != expected_entries:
+        raise CensusError("stdlib_zip_directory_count_invalid")
     revalidate(path, fd, expected)
     return result
 
@@ -427,34 +478,71 @@ def self_test() -> None:
     utf8_archive = io.BytesIO()
     with zipfile.ZipFile(utf8_archive, "w", compression=zipfile.ZIP_STORED) as zf:
         zf.writestr("argparse.py", "synthetic")
-    invalid_utf8 = bytearray(utf8_archive.getvalue())
+    def expect_zip_hold(data: bytes | bytearray, expected_reason: str) -> None:
+        archive_fd = os.memfd_create("void-v7-census-zip-adversary", os.MFD_CLOEXEC)
+        try:
+            os.write(archive_fd, data)
+            try:
+                inspect_stdlib_zip(
+                    Path("/proc/self/fd/" + str(archive_fd)),
+                    archive_fd,
+                    os.fstat(archive_fd),
+                )
+            except CensusError as exc:
+                assert str(exc) == expected_reason, str(exc)
+            else:
+                raise AssertionError("malformed_zip_escaped_hold:" + expected_reason)
+        finally:
+            os.close(archive_fd)
+
+    good_zip = utf8_archive.getvalue()
+    preflight_fd = os.memfd_create("void-v7-census-zip-positive", os.MFD_CLOEXEC)
+    try:
+        os.write(preflight_fd, good_zip)
+        assert preflight_zip_central_directory(preflight_fd, len(good_zip)) == 1
+    finally:
+        os.close(preflight_fd)
+
+    invalid_utf8 = bytearray(good_zip)
     central = invalid_utf8.find(b"PK\x01\x02")
     assert central >= 0
     flags = struct.unpack_from("<H", invalid_utf8, central + 8)[0]
     struct.pack_into("<H", invalid_utf8, central + 8, flags | 0x800)
     assert invalid_utf8[central + 46] == ord("a")
     invalid_utf8[central + 46] = 0xff
-    archive_fd = os.memfd_create("void-v7-bad-utf8-zip", os.MFD_CLOEXEC)
-    try:
-        os.write(archive_fd, invalid_utf8)
-        try:
-            inspect_stdlib_zip(
-                Path("/proc/self/fd/" + str(archive_fd)),
-                archive_fd,
-                os.fstat(archive_fd),
-            )
-        except CensusError as exc:
-            assert str(exc) == "stdlib_zip_invalid"
-        else:
-            raise AssertionError("malformed_utf8_zip_name_escaped_hold")
-    finally:
-        os.close(archive_fd)
+    expect_zip_hold(invalid_utf8, "stdlib_zip_invalid")
+
+    unsupported_version = bytearray(good_zip)
+    unsupported_version[central + 6] = 99
+    expect_zip_hold(unsupported_version, "stdlib_zip_invalid")
+
+    # Lying EOCD counts must fail before zipfile materializes ZipInfo objects.
+    two_members = io.BytesIO()
+    with zipfile.ZipFile(two_members, "w", compression=zipfile.ZIP_STORED) as zf:
+        zf.writestr("argparse.py", "one")
+        zf.writestr("hashlib.py", "two")
+    miscounted = bytearray(two_members.getvalue())
+    eocd = miscounted.rfind(b"PK\x05\x06")
+    assert eocd >= 0
+    struct.pack_into("<H", miscounted, eocd + 8, 1)
+    struct.pack_into("<H", miscounted, eocd + 10, 1)
+    expect_zip_hold(miscounted, "stdlib_zip_directory_count_invalid")
+
+    oversized_directory = bytearray(good_zip)
+    eocd = oversized_directory.rfind(b"PK\x05\x06")
+    assert eocd >= 0
+    struct.pack_into(
+        "<I", oversized_directory, eocd + 12, MAX_ZIP_CENTRAL_DIR_BYTES + 1
+    )
+    expect_zip_hold(oversized_directory, "stdlib_zip_directory_bounds_invalid")
 
     print(MARKER + "_SELF_TEST_GREEN")
     print("unsanitized_zip_member_name_required=true")
     print("stdlib_zip_canonical_raw_components_required=true")
     print("stdlib_zip_required_regular_files_only=true")
     print("stdlib_zip_invalid_utf8_names_hold=true")
+    print("stdlib_zip_unsupported_versions_hold=true")
+    print("stdlib_zip_directory_preflight_bounded=true")
     print("runtime_import_closure_proof_required=true")
     print("filesystem_write=false")
     print("protected_filesystem_mutation=false")

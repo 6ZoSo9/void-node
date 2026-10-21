@@ -34,11 +34,11 @@ Reviewed static launcher ELF SHA-256 from the focused #3647 proof:
 
 Census source Git blob:
 
-\`f8b9c6cbf6b160568823101404eebb708043c185\`
+\`db7521b11d476d43e5fa1ae6f616948a70b1758d\`
 
 Focused proof Git blob:
 
-\`82a19669e328e5e58d82263ff5443fe41ffb2f93\`
+\`29e644b8a9cc7b8917eb18b9fc9de7f12ddde39f\`
 
 ## fs-verity capability observation
 
@@ -91,6 +91,11 @@ accepted runtime generation.
 When `--stdlib-candidate <path>` is supplied, the census:
 
 - opens and hashes the exact retained file;
+- uses bounded descriptor-based EOCD and central-directory preflight
+  **before** allowing Python `zipfile` to materialize any `ZipInfo` objects;
+  requires exact classic single-disk central-directory structure/count,
+  rejects ZIP64/multidisk and noncanonical directory framing, and caps central
+  directory bytes at 16 MiB (no candidate payload is decompressed);
 - parses the ZIP central directory without extracting files;
 - checks `ZipInfo.orig_filename` before trusting Python's sanitized
   `ZipInfo.filename`, and rejects any truncation/sanitization mismatch;
@@ -105,7 +110,9 @@ When `--stdlib-candidate <path>` is supplied, the census:
 - normalizes malformed UTF-8 ZIP central-directory member names into
   `stdlib_zip_invalid` (CensusError), preserving the machine-readable HOLD
   path without traceback when a UTF-8-flagged ZIP filename is undecodable;
-  a synthetic memfd regression proves this error conversion;
+  a synthetic memfd regression proves this error conversion; unsupported
+  ZIP extraction versions are also normalized to `stdlib_zip_invalid`
+  instead of uncaught `NotImplementedError`;
 - inventories the visible direct pure-Python modules needed by the V4 installer:
   `argparse`, `ctypes`, `hashlib`, `json`, `pathlib`, `shutil`,
   `stat`, `subprocess`, `tempfile`, and `typing`;
