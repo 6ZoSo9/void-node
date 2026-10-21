@@ -61,7 +61,7 @@ required = (
     'python_elf_pt_dynamic_forbidden',
     'python_elf_pt_load_required',
     'candidate_host_sys_path_forbidden',
-    'candidate_host_extension_path_forbidden',
+    'candidate_sys_path_outside_private_lib',
     'candidate_ctypes_not_from_exact_zip',
     'candidate_native_ctypes_not_builtin',
     'candidate_renameat2_unavailable',
