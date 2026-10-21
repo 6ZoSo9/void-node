@@ -87,6 +87,20 @@ BPF_RET = 0x06
 
 # No network, process spawning/control, namespaces/mounts, io_uring, kernel
 # key/BPF/perf/module surfaces, or handle-based filesystem escape.
+CLONE_NEWNS = 0x00020000
+CLONE_NEWUSER = 0x10000000
+MS_RDONLY = 1
+MS_NOSUID = 2
+MS_NODEV = 4
+MS_NOEXEC = 8
+MS_REMOUNT = 32
+MS_BIND = 4096
+MS_REC = 16384
+MS_PRIVATE = 1 << 18
+SYS_CAPSET = 126
+LINUX_CAPABILITY_VERSION_3 = 0x20080522
+SNAPSHOT_TMP_BYTES = 64 * 1024 * 1024
+
 SECCOMP_DENIED_SYSCALLS = (
     29, 30, 31,                    # SysV shared memory
     41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55,
@@ -109,6 +123,19 @@ class _LandlockPathBeneathAttr(ctypes.Structure):
         ("allowed_access", ctypes.c_uint64),
         ("parent_fd", ctypes.c_int32),
         ("reserved", ctypes.c_uint32),
+    ]
+
+class _CapHeader(ctypes.Structure):
+    _fields_ = [
+        ("version", ctypes.c_uint32),
+        ("pid", ctypes.c_int32),
+    ]
+
+class _CapData(ctypes.Structure):
+    _fields_ = [
+        ("effective", ctypes.c_uint32),
+        ("permitted", ctypes.c_uint32),
+        ("inheritable", ctypes.c_uint32),
     ]
 
 class _SockFilter(ctypes.Structure):
@@ -248,7 +275,24 @@ def _copy_fd_exact(source_fd: int, target: Path, *, size: int, mode: int, label:
     os.chmod(target, mode)
     os.lseek(source_fd, 0, os.SEEK_SET)
 
-def _sealed_memfd(raw: bytes, label: str) -> int:
+def _seal_memfd(fd: int, *, mode: int, label: str) -> None:
+    os.fchmod(fd, mode)
+    os.fsync(fd)
+    os.lseek(fd, 0, os.SEEK_SET)
+    fcntl.fcntl(fd, F_ADD_SEALS, REQUIRED_SEALS)
+    seals = fcntl.fcntl(fd, F_GET_SEALS)
+    if seals & REQUIRED_SEALS != REQUIRED_SEALS:
+        raise RuntimeProofError(label + "_memfd_seals_missing")
+    try:
+        os.write(fd, b"x")
+    except OSError as exc:
+        if exc.errno != errno.EPERM:
+            raise RuntimeProofError(label + "_memfd_write_seal_wrong_errno") from exc
+    else:
+        raise RuntimeProofError(label + "_memfd_write_seal_ineffective")
+    os.lseek(fd, 0, os.SEEK_SET)
+
+def _sealed_memfd(raw: bytes, label: str, *, mode: int = 0o400) -> int:
     if not hasattr(os, "memfd_create"):
         raise RuntimeProofError("memfd_create_unavailable")
     fd = os.memfd_create(label, MFD_ALLOW_SEALING)
@@ -257,24 +301,50 @@ def _sealed_memfd(raw: bytes, label: str) -> int:
         while position < len(raw):
             wrote = os.write(fd, raw[position:])
             if wrote <= 0:
-                raise RuntimeProofError("memfd_short_write")
+                raise RuntimeProofError(label + "_memfd_short_write")
             position += wrote
-        os.lseek(fd, 0, os.SEEK_SET)
-        fcntl.fcntl(fd, F_ADD_SEALS, REQUIRED_SEALS)
-        seals = fcntl.fcntl(fd, F_GET_SEALS)
-        if seals & REQUIRED_SEALS != REQUIRED_SEALS:
-            raise RuntimeProofError("memfd_seals_missing")
-        try:
-            os.write(fd, b"x")
-        except OSError as exc:
-            if exc.errno != errno.EPERM:
-                raise RuntimeProofError("memfd_write_seal_wrong_errno") from exc
-        else:
-            raise RuntimeProofError("memfd_write_seal_ineffective")
-        os.lseek(fd, 0, os.SEEK_SET)
+        _seal_memfd(fd, mode=mode, label=label)
         return fd
     except BaseException:
         os.close(fd)
+        raise
+
+def _sealed_snapshot_from_fd(
+    source_fd: int,
+    *,
+    size: int,
+    expected_sha256: str,
+    mode: int,
+    label: str,
+) -> int:
+    if not hasattr(os, "memfd_create"):
+        raise RuntimeProofError("memfd_create_unavailable")
+    snapshot = os.memfd_create(label, MFD_ALLOW_SEALING)
+    try:
+        os.lseek(source_fd, 0, os.SEEK_SET)
+        h = hashlib.sha256()
+        remaining = size
+        while remaining:
+            part = os.read(source_fd, min(CHUNK, remaining))
+            if not part:
+                raise RuntimeProofError(label + "_snapshot_source_short_read")
+            h.update(part)
+            view = memoryview(part)
+            while view:
+                wrote = os.write(snapshot, view)
+                if wrote <= 0:
+                    raise RuntimeProofError(label + "_snapshot_short_write")
+                view = view[wrote:]
+            remaining -= len(part)
+        if os.read(source_fd, 1):
+            raise RuntimeProofError(label + "_snapshot_source_grew")
+        if h.hexdigest() != expected_sha256:
+            raise RuntimeProofError(label + "_snapshot_sha256_mismatch")
+        _seal_memfd(snapshot, mode=mode, label=label)
+        os.lseek(source_fd, 0, os.SEEK_SET)
+        return snapshot
+    except BaseException:
+        os.close(snapshot)
         raise
 
 def _libc() -> ctypes.CDLL:
