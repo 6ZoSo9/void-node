@@ -212,3 +212,12 @@ The focused proof includes a real symlinked-parent negative fixture and an
 injected post-read parent-generation mismatch. This is source-only path
 compatibility hardening; it does not execute the bootstrap or grant any host,
 credential, signing, payment, activation, treasury/liquidity, or funds authority.
+
+
+### Post-read disappearance HOLD
+
+The post-read retained-parent lookup and the final visible-ancestry leaf lookup
+now translate filesystem lookup failures into the same machine-readable
+`PlanError(..._changed)` HOLD path. A concurrent rename/removal therefore
+cannot escape as an uncaught Python `OSError` traceback. The proof injects
+disappearance at both lookup points and requires deterministic HOLD.

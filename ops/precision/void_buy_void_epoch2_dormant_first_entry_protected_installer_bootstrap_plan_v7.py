@@ -654,8 +654,11 @@ def stable_artifact(
                 remaining -= len(chunk)
             if os.read(fd, 1):
                 raise PlanError(label + "_grew")
-            after = os.fstat(fd)
-            visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+            try:
+                after = os.fstat(fd)
+                visible = os.stat(leaf, dir_fd=parent_fd, follow_symlinks=False)
+            except OSError as exc:
+                raise PlanError(label + "_changed") from exc
             if _metadata(after) != observed or _metadata(visible) != observed:
                 raise PlanError(label + "_changed")
         finally:
@@ -669,11 +672,14 @@ def stable_artifact(
         try:
             if current_leaf != leaf or current_ancestry != ancestry:
                 raise PlanError(label + "_parent_generation_changed")
-            current_visible = os.stat(
-                current_leaf,
-                dir_fd=current_parent,
-                follow_symlinks=False,
-            )
+            try:
+                current_visible = os.stat(
+                    current_leaf,
+                    dir_fd=current_parent,
+                    follow_symlinks=False,
+                )
+            except OSError as exc:
+                raise PlanError(label + "_changed") from exc
             if _metadata(current_visible) != observed:
                 raise PlanError(label + "_changed")
         finally:
@@ -1248,6 +1254,7 @@ def source_plan() -> None:
     print("artifact_physical_ancestor_required=true")
     print("artifact_parent_generation_revalidated=true")
     print("artifact_leaf_open_nonblocking=true")
+    print("artifact_lookup_failure_holds=true")
     print("bootstrap_execution_performed=false")
     print("protected_installer_apply_performed=false")
     print("filesystem_write=false")
@@ -1292,6 +1299,7 @@ def self_test() -> None:
     print("artifact_physical_ancestor_required=true")
     print("artifact_parent_generation_revalidated=true")
     print("artifact_leaf_open_nonblocking=true")
+    print("artifact_lookup_failure_holds=true")
     print("strict_runtime_head_required=true")
     print("qualification_nonroot_execution_required=true")
     print("qualification_descriptor_bound_source_execution_required=true")

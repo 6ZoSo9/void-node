@@ -24,7 +24,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-TARGET_BLOB = "acf0690f07c86bfe2f4b58e1229afce138a67267"
+TARGET_BLOB = "77c38a96f7124bb9bbde661059e38ab5fb324a96"
 
 PREDECESSOR_REL = (
     "ops/precision/"
@@ -202,6 +202,7 @@ for required in (
 ):
     assert required in artifact_source, required
 assert artifact_source.count("_open_physical_artifact_parent(path, label)") >= 2
+assert artifact_source.count('raise PlanError(label + "_changed") from exc') >= 2
 
 for required in (
     "PROTECTED_INSTALLER_BOOTSTRAP_PLAN_V7",
@@ -383,6 +384,42 @@ with tempfile.TemporaryDirectory(prefix="void-v7-artifact-physical-parent-") as 
     else:
         raise AssertionError("symlinked_artifact_parent_accepted")
 
+    original_stat = module.os.stat
+
+    def expect_leaf_lookup_failure(reject_at, fixture_label):
+        leaf_calls = [0]
+
+        def disappearing_stat(path, *args, **kwargs):
+            if (
+                path == b"artifact"
+                and kwargs.get("dir_fd") is not None
+                and kwargs.get("follow_symlinks") is False
+            ):
+                leaf_calls[0] += 1
+                if leaf_calls[0] == reject_at:
+                    raise FileNotFoundError("fixture_disappearance")
+            return original_stat(path, *args, **kwargs)
+
+        module.os.stat = disappearing_stat
+        try:
+            try:
+                module.stable_artifact(
+                    artifact,
+                    expected_bytes=len(artifact_bytes),
+                    expected_sha256=artifact_sha256,
+                    expected_git_blob=artifact_blob,
+                    label=fixture_label,
+                )
+            except module.PlanError as exc:
+                assert str(exc) == fixture_label + "_changed"
+            else:
+                raise AssertionError("artifact_lookup_failure_not_held:" + fixture_label)
+        finally:
+            module.os.stat = original_stat
+
+    expect_leaf_lookup_failure(2, "artifact_postread_disappearance_fixture")
+    expect_leaf_lookup_failure(3, "artifact_rewalk_disappearance_fixture")
+
     original_parent_open = module._open_physical_artifact_parent
     parent_calls = [0]
 
@@ -541,6 +578,7 @@ print("artifact_admission_strengthened=true")
 print("artifact_physical_ancestor_required=true")
 print("artifact_parent_generation_revalidated=true")
 print("artifact_leaf_open_nonblocking=true")
+print("artifact_lookup_failure_holds=true")
 print("repaired_qualifier_blob_bound=true")
 print("repaired_qualifier_contract_loaded=true")
 print("qualification_nonroot_execution_required=true")
