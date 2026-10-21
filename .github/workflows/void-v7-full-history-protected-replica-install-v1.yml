@@ -27,15 +27,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "cf0f5cd84eeb1995070ab0ea099c95424c1837e2"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "ab64e60d0173b168fe085bc06b6f6ef733dcf8aa"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "a1683beeb467d9fb198c4f58dad26220c459a6b2"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "cd582bebd871537d3a4f87c8ffd7fd7a03f710ac"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "4ba1564c3e8a27309df7328c781a7ed302de3f1c"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "5a122ebce0d07c5970e27b5dfc2e0a8a4c52583e"
 
           test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = "3fe1158a0fdf19fa4307c2a8122314b75ee36345"
 
-          git merge-base --is-ancestor 6011fc906a98cb005567f8dd1fa8a3ea184beb12 HEAD
+          git merge-base --is-ancestor e99772502c80fefafef3b6a836a408b66ddded76 HEAD
 
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             cat > /tmp/expected <<'EOF'
@@ -86,6 +86,9 @@ jobs:
           grep -Fx 'git_metadata_leaves_nonexecutable_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'private_stage_before_content_authentication=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'private_stage_git_verification_before_world_readable=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'private_stage_named_runtime_uid_acl_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'private_stage_acl_group_object_zero_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_utf8_path_components_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'opened_generation_copy_budget_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'write_boundary_precedes_first_stage_mutation=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'service_mutation=false' "$RUNNER_TEMP/source-plan.log"
