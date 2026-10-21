@@ -11,7 +11,7 @@ or authorize any protected host action.
 
 Plan ID:
 
-`voidv7staticrenamenoreplacebridge1_fd7206f7f081ecb77c6608b7c740a51c6a421f184effd5090ac1af789c26ad5f`.
+`voidv7staticrenamenoreplacebridge1_651336b0d39ca60917fc03f441e7be835f6064574a99583bd0af3f3608a13598`.
 
 ## Bound landed generations
 
@@ -69,21 +69,35 @@ The operation must:
 
 - use the Linux x86-64 `SYS_renameat2` syscall directly;
 - use exactly `RENAME_NOREPLACE`;
-- use the same already-retained parent directory descriptor for source and
+- require a non-negative integer `parent_fd` whose `fstat()` proves a
+  directory;
+- use that same already-retained parent directory descriptor for source and
   destination;
-- accept only nonempty single path leaves: no NUL, slash, `.`, or `..`;
+- accept only Python `str` leaf names whose UTF-8 representation is exact
+  ASCII, 1–255 bytes, contains no NUL or slash, is neither `.` nor `..`,
+  and requires `old_leaf != new_leaf`;
+- return `None` on success and raise `OSError` carrying the kernel errno on
+  failure;
 - reject unsupported syscall/kernel behavior without fallback;
 - never fall back to `os.rename`, link/unlink composition, shell, external
   executables, `dlopen`, `dlsym`, or an arbitrary host libc.
 
+V6 must catch bridge `OSError` and normalize its `errno` into V5's existing
+`InstallError("rename_noreplace_failed:<errno>")` reason shape before any
+publication/failure receipt is emitted.
+
 Existing destination files, symlinks and directories must remain untouched and
-must fail as no-replace conflicts.
+must fail as no-replace conflicts. The source and destination generations must
+also remain unchanged on every failed no-replace attempt.
 
 ## V5 semantics that V6 must preserve
 
 The bridge does not authorize a broader V6 rewrite. V6 must preserve:
 
 - retained install-parent descriptor provenance and generation checks;
+- exact rejection tests for invalid fd, invalid leaf, same-leaf and missing
+  source cases, in addition to existing-destination file/symlink/directory
+  conflicts;
 - publication truth recorded immediately after successful rename, before parent
   fsync can fail;
 - parent-directory fsync after publication;
