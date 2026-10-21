@@ -793,16 +793,17 @@ class _PackReader:
             pos += 20
             if base_oid not in self.offset_by_oid:
                 raise InstallError(self.label + "_thin_pack_forbidden")
+        if declared > MAX_FILE_BYTES:
+            raise InstallError(self.label + "_pack_object_size_limit")
         comp = entry[pos:]
         dec = zlib.decompressobj()
         raw = dec.decompress(comp, MAX_FILE_BYTES + 1)
-        raw += dec.flush()
         if (
-            not dec.eof
-            or dec.unused_data
+            len(raw) > MAX_FILE_BYTES
             or dec.unconsumed_tail
+            or not dec.eof
+            or dec.unused_data
             or len(raw) != declared
-            or len(raw) > MAX_FILE_BYTES
         ):
             raise InstallError(self.label + "_pack_decompression_invalid")
         type_names = {1: "commit", 2: "tree", 3: "blob", 4: "tag"}
@@ -926,10 +927,16 @@ class _ObjectStore:
     def _read_loose(self, oid: str, path: pathlib.Path) -> tuple[str, bytes]:
         raw, _identity = _read_regular_stable(path, self.label + "_loose", MAX_FILE_BYTES)
         try:
-            decoded = zlib.decompress(raw)
+            dec = zlib.decompressobj()
+            decoded = dec.decompress(raw, MAX_FILE_BYTES + 1)
         except zlib.error as exc:
             raise InstallError(self.label + "_loose_zlib_invalid") from exc
-        if len(decoded) > MAX_FILE_BYTES:
+        if (
+            len(decoded) > MAX_FILE_BYTES
+            or dec.unconsumed_tail
+            or not dec.eof
+            or dec.unused_data
+        ):
             raise InstallError(self.label + "_loose_object_size_limit")
         sep = decoded.find(b"\0")
         if sep <= 0:
@@ -2791,6 +2798,10 @@ def self_test() -> None:
     print("terminal_reason_printable_sanitization_required=true")
     print("rename_noreplace_publication_required=true")
     print("trusted_root_launcher_required=true")
+    print("dynamic_git_provenance_authority_removed=true")
+    print("built_in_pack_index_verification_required=true")
+    print("built_in_full_history_object_closure_required=true")
+    print("trusted_expected_head_tree_pair_required=true")
     print("service_mutation=false")
     print("credential_access=false")
     print("transaction=false")
