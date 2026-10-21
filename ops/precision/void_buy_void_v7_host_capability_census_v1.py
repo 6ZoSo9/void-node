@@ -16,9 +16,9 @@ import zipfile
 MARKER = "VOID_BUY_VOID_V7_HOST_CAPABILITY_CENSUS_V1"
 SCHEMA = "void_buy_void_v7_host_capability_census_v1"
 
-EXPECTED_LAUNCHER_HEAD = "cb07d6fb752593cc10399eb1f7cd15c4524b8189"
-STATIC_LAUNCHER_SHA256 = "7ec634fd290c0dd50fd367cf79d4edccdd3d38931ee117c0baa5af24f4c70e57"
-LANDING_BASE_MAIN = "b6eeb1f0b8d80ab26df6d965a1b5f4f861e6a52a"
+EXPECTED_LAUNCHER_HEAD = "48830177ac85663d9a95e180e5cb8e08e53e6227"
+STATIC_LAUNCHER_SHA256 = "014565eb9d285c53163effa78572214e9dd9e4e5f8cc54ae27d6879e9f545a64"
+LANDING_BASE_MAIN = "47acc1485ab264a1a33d6a8c70072c2c18ce56e4"
 LIVE_SOURCE_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 DEFAULT_FSVERITY_PROBE = Path(
     "/opt/void-node-live/releases/" + LIVE_SOURCE_HEAD + "/package.json"
@@ -39,7 +39,6 @@ REQUIRED_STDLIB_PATHS = (
     "pathlib.py",
     "shutil.py",
     "stat.py",
-    "subprocess.py",
     "tempfile.py",
     "typing.py",
 )
@@ -566,6 +565,7 @@ def self_test() -> None:
     print("stdlib_zip_unsupported_versions_hold=true")
     print("stdlib_zip_directory_preflight_bounded=true")
     print("runtime_import_closure_proof_required=true")
+    print("v5_runtime_shape_inventory=true")
     print("filesystem_write=false")
     print("protected_filesystem_mutation=false")
     print("fsverity_enablement=false")
@@ -585,6 +585,7 @@ def run(args: argparse.Namespace) -> int:
         "read_only": True,
         "expected_launcher_head": EXPECTED_LAUNCHER_HEAD,
         "static_launcher_sha256": STATIC_LAUNCHER_SHA256,
+        "runtime_contract": "v5",
         "landing_base_main": LANDING_BASE_MAIN,
         "target_parent": os.path.abspath(os.fspath(target)),
         "fsverity_probe": os.path.abspath(os.fspath(probe)),
