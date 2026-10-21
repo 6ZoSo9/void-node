@@ -4,7 +4,7 @@
 
 Plan only. This does not change the landed trusted launcher V2 and does not install anything.
 
-Plan ID: `voidv7createonlysealplan1_31d2c4116b8296d5b41b7ed6f7faf4101691a1d34f06158c11ab8f91463dc2db`.
+Plan ID: `voidv7createonlysealplan1_80486c8e43751493d1480ebdf8be63a26195e465e96f3e1d29b1d7b4765773cc`.
 
 Base: `main@0d93be0a7ae1395449a386d4fbe14bb680f51c3f`.
 
@@ -43,7 +43,11 @@ Fresh root-private inodes and `O_CLOEXEC` are necessary but insufficient. `FD_CL
 
 The same rule applies to writable shared mappings. Closing an FD and chmodding an inode read-only do not revoke an existing `MAP_SHARED|PROT_WRITE` mapping, and a forked descendant can inherit that mapping. The future bootstrap must never create such a mapping for a trusted destination inode and must not create descendants while any equivalent writable mapping authority exists.
 
-The source proof deliberately demonstrates both Linux hazards with disposable unprivileged temporary files: a forked child writes through an inherited `O_CLOEXEC` destination FD after the parent closes/chmods it, and another child writes through an inherited writable shared mapping after the FD is closed. Those controls prove why the plan must preclude the authority before publication; they do not implement or accept the alternative seal.
+The write phase must also begin and remain **single-threaded**. A pre-existing secondary thread can race a trusted destination descriptor or duplicate it before the primary path closes the descriptor; forbidding only later `fork()`/process creation is therefore insufficient. Before the first trusted-destination writable descriptor or writable mapping exists, the bootstrap must establish that no secondary thread exists, and it must forbid thread creation (`pthread`, `clone3`, or equivalent) until all destination write authority is gone.
+
+Userspace descriptor closure is also not proof that the kernel has stopped writing. The future bootstrap must not submit destination writes through io_uring, POSIX AIO, Linux AIO, or any equivalent asynchronous interface that can retain an in-flight write request beyond userspace FD closure. Publication requires explicit destination-I/O quiescence: no outstanding kernel-retained write request may still target a trusted destination inode.
+
+The source proof deliberately demonstrates the inherited-FD and inherited-shared-mapping Linux hazards with disposable unprivileged temporary files: a forked child writes through an inherited `O_CLOEXEC` destination FD after the parent closes/chmods it, and another child writes through an inherited writable shared mapping after the FD is closed. Those controls prove why the plan must preclude those authorities before publication. The thread and asynchronous-I/O requirements are plan-level obligations for a future bootstrap proof; this plan does not claim they are already implemented or kernel-enforced.
 
 ## Same-UID adversary
 
