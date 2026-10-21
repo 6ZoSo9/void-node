@@ -14,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "15100270386f48ee6fb8e3efa6f85d79ec2dbaf3"
+TARGET_BLOB = "9b83dd5122e54a85e0b7e2d8ced350d5633a66d6"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -53,6 +53,13 @@ assert 'candidate_git_directory_layout_invalid' in text
 assert 'candidate_objects_directory_layout_invalid' in text
 assert 'candidate_pack_directory_layout_invalid' in text
 assert 'candidate_main_ref_content_invalid' in text
+assert 'def _file_generation_identity(' in text
+assert 'def _sha256_fd(' in text
+assert 'pack_leaf_descriptors_retained=true' in text
+assert 'pack_leaf_generation_and_digest_revalidation=true' in text
+assert 'pack_generation_changed_during_verify' in text
+assert 'candidate_pack_file_digest_changed' in text
+assert 'candidate_pack_index_file_digest_changed' in text
 assert '_BUILD_WRITE_BOUNDARY_ENTERED = False' in text
 assert 'source_repository_mutation=unknown' in text
 assert 'protected_filesystem_mutation=unknown' in text
@@ -108,6 +115,8 @@ for required in (
     'git_metadata_descriptor_revalidation=true',
     'git_metadata_exact_layout=true',
     'pack_and_ref_aliases_rejected=true',
+    'pack_leaf_descriptors_retained=true',
+    'pack_leaf_generation_and_digest_revalidation=true',
     'current_uid_filesystem_write_boundary=true',
     'same_uid_namespace_relocation_isolation=false',
     'source_repository_mutation=unknown',
@@ -255,6 +264,8 @@ print("terminal_index_comparison_read_only_bound=true")
 print("git_metadata_descriptor_revalidation_bound=true")
 print("git_metadata_exact_layout_bound=true")
 print("pack_and_ref_alias_rejection_bound=true")
+print("pack_leaf_descriptor_retention_bound=true")
+print("pack_leaf_generation_digest_revalidation_bound=true")
 print("build_write_boundary_truthful_receipt_bound=true")
 print("same_uid_namespace_isolation_nonclaim_bound=true")
 print("protected_filesystem_mutation=false")
