@@ -51,6 +51,15 @@ on:
       - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
       - "src/economic/buy_void_verified_payment_duplicate_guard_v1.ts"
       - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_erc20_production_configuration_verifier_v1.ts"
+      - "src/economic/buy_void_payment_rpc_observer_v1.ts"
+      - "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts"
+      - "src/economic/buy_void_source_finality_authenticated_composition_v3.ts"
+      - "src/economic/buy_void_source_finality_authority_v2.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v1.ts"
+      - "src/economic/buy_void_source_finality_live_process_binding_v2.ts"
+      - "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts"
   workflow_dispatch:
 
 permissions:
@@ -93,8 +102,8 @@ jobs:
           log="$RUNNER_TEMP/canonical-erc20-delivery-canary-plan-v1.log"
           node scripts/prove_buy_void_canonical_erc20_delivery_canary_plan_v1.mjs | tee "$log"
           grep -Fx 'VOID_BUY_VOID_CANONICAL_ERC20_DELIVERY_CANARY_PLAN_V1_GREEN' "$log"
-          grep -Fx 'plan_id=voidbverc20canary1_2a80aedb75d99fbcbcc9e8d2b8e34b00576aa2947f039b03b240b19118e66250' "$log"
-          grep -Fx 'source_binding_count=44' "$log"
+          grep -Fx 'plan_id=voidbverc20canary1_7d4a65bf7471c039c26c137262df54dfb85dec5f2ae622c94302a72e8c263b2b' "$log"
+          grep -Fx 'source_binding_count=53' "$log"
           grep -Fx 'future_requirement_count=30' "$log"
           grep -Fx 'canonical_asset=void_token_erc20' "$log"
           grep -Fx 'canonical_chain_id=2050' "$log"

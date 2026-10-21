@@ -7,8 +7,8 @@ const ROOT=process.cwd();
 const BASE_HEAD="0d93be0a7ae1395449a386d4fbe14bb680f51c3f";
 const BASE_TREE="199f3949a8955077124822269560b1a4e1ed5e30";
 const PLAN_PATH="ops/security/buy-void-canonical-erc20-delivery-canary-plan-v1.json";
-const PLAN_BLOB="18b606bb861297ce56e1e98d263035d530290bc0";
-const PLAN_ID="voidbverc20canary1_2a80aedb75d99fbcbcc9e8d2b8e34b00576aa2947f039b03b240b19118e66250";
+const PLAN_BLOB="491002161430e1cde8640abe025efa0a202af2e1";
+const PLAN_ID="voidbverc20canary1_7d4a65bf7471c039c26c137262df54dfb85dec5f2ae622c94302a72e8c263b2b";
 const OWNED=Object.freeze([
   ".github/workflows/buy-void-canonical-erc20-delivery-canary-plan-v1.yml",
   "docs/architecture/buy-void-canonical-erc20-delivery-canary-plan-v1.md",
@@ -60,6 +60,15 @@ const SOURCE_BINDINGS=Object.freeze({
   "src/economic/buy_void_verified_allocation_replay_binding_v1.ts":"b451bcd895986dadaf6e53954671062068316ccf",
   "src/economic/buy_void_verified_payment_duplicate_guard_v1.ts":"5a95216e5c264f5b6c1c779a494f2c1ed445801e",
   "src/economic/buy_void_verified_payment_v2.ts":"550ede02fc0b7d6874c324af58b5ef9c5591b311",
+  "src/economic/buy_void_erc20_production_configuration_verifier_v1.ts":"8781b2e9efa8b70de6f0c6a3721be089cab4a976",
+  "src/economic/buy_void_payment_rpc_observer_v1.ts":"0073818ad6f6418e895bf794024c9d678b3bef86",
+  "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts":"419054e00f4d96015cd066be81e8719ee71ac00c",
+  "src/economic/buy_void_source_finality_authenticated_composition_v3.ts":"a3dbe4d0fed3034d3ca2c0b3704a758d7c776090",
+  "src/economic/buy_void_source_finality_authority_v2.ts":"64953050d74bc0bc6d1e6948ae992d6143edca99",
+  "src/economic/buy_void_source_finality_generation_provenance_v7.ts":"390ff1a2ff0437cd8c8693e7807c12275df42573",
+  "src/economic/buy_void_source_finality_live_process_binding_v1.ts":"73f088779f015a554f16e9eecf8a9fd9de0e1594",
+  "src/economic/buy_void_source_finality_live_process_binding_v2.ts":"987c97568a4d1b9814218603df48a65dbfeed18f",
+  "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts":"5d47cd29929f778b07a59647a80c4384b1497a08",
 });
 const REQUIRED=Object.freeze([
   "allocation_reserved_before_canary_required",
