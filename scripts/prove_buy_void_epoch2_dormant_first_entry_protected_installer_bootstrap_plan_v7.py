@@ -24,7 +24,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_plan_v7.py"
 )
-TARGET_BLOB = "77c38a96f7124bb9bbde661059e38ab5fb324a96"
+TARGET_BLOB = "1a093dbac8e424364ec623cc98fafc5c6dac824f"
 
 PREDECESSOR_REL = (
     "ops/precision/"
@@ -192,6 +192,7 @@ for required in (
     "follow_symlinks=False",
     "_parent_not_physical_directory",
     "_parent_rebound",
+    'raise PlanError(label + "_parent_rebound") from exc',
 ):
     assert required in artifact_parent_source, required
 for required in (
@@ -420,6 +421,36 @@ with tempfile.TemporaryDirectory(prefix="void-v7-artifact-physical-parent-") as 
     expect_leaf_lookup_failure(2, "artifact_postread_disappearance_fixture")
     expect_leaf_lookup_failure(3, "artifact_rewalk_disappearance_fixture")
 
+    parent_visible_calls = [0]
+
+    def disappearing_parent_stat(path, *args, **kwargs):
+        if (
+            path == b"physical"
+            and kwargs.get("dir_fd") is not None
+            and kwargs.get("follow_symlinks") is False
+        ):
+            parent_visible_calls[0] += 1
+            if parent_visible_calls[0] == 2:
+                raise FileNotFoundError("fixture_parent_disappearance")
+        return original_stat(path, *args, **kwargs)
+
+    module.os.stat = disappearing_parent_stat
+    try:
+        try:
+            module.stable_artifact(
+                artifact,
+                expected_bytes=len(artifact_bytes),
+                expected_sha256=artifact_sha256,
+                expected_git_blob=artifact_blob,
+                label="artifact_parent_disappearance_fixture",
+            )
+        except module.PlanError as exc:
+            assert str(exc) == "artifact_parent_disappearance_fixture_parent_rebound"
+        else:
+            raise AssertionError("artifact_parent_lookup_failure_not_held")
+    finally:
+        module.os.stat = original_stat
+
     original_parent_open = module._open_physical_artifact_parent
     parent_calls = [0]
 
@@ -579,6 +610,7 @@ print("artifact_physical_ancestor_required=true")
 print("artifact_parent_generation_revalidated=true")
 print("artifact_leaf_open_nonblocking=true")
 print("artifact_lookup_failure_holds=true")
+print("artifact_parent_lookup_failure_holds=true")
 print("repaired_qualifier_blob_bound=true")
 print("repaired_qualifier_contract_loaded=true")
 print("qualification_nonroot_execution_required=true")

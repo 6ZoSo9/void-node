@@ -221,3 +221,11 @@ now translate filesystem lookup failures into the same machine-readable
 `PlanError(..._changed)` HOLD path. A concurrent rename/removal therefore
 cannot escape as an uncaught Python `OSError` traceback. The proof injects
 disappearance at both lookup points and requires deterministic HOLD.
+
+
+### Physical-parent revalidation lookup HOLD
+
+The physical-parent walker also translates a parent component disappearing
+between its no-follow pre-stat/open and visible re-stat into
+`PlanError(..._parent_rebound)`. The proof injects that exact race and requires
+machine-readable HOLD rather than a Python traceback.

@@ -73,11 +73,11 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            77c38a96f7124bb9bbde661059e38ab5fb324a96
+            1a093dbac8e424364ec623cc98fafc5c6dac824f
           test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_installer_bootstrap_plan_v7.py)" = \
-            9e413fc5cfe4da7c6f703a1aacb6663be9705042
+            23fc707919b4e954f5377745424585f028ca40b3
           test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-installer-bootstrap-plan-v7.md)" = \
-            085c724d1733b5b0ec4c204f3aa20fdde9cae549
+            6d3e9a61c0119b2b6e0b70509256084988a8f53e
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_repaired_installed_qualification_v1.py)" = \
             132e03eaea440f3f8c59aeaca879596c677c6bcf
@@ -130,6 +130,7 @@ jobs:
             'artifact_parent_generation_revalidated=true'
             'artifact_leaf_open_nonblocking=true'
             'artifact_lookup_failure_holds=true'
+            'artifact_parent_lookup_failure_holds=true'
             'repaired_qualifier_blob_bound=true'
             'repaired_qualifier_contract_loaded=true'
             'qualification_nonroot_execution_required=true'
@@ -178,6 +179,7 @@ jobs:
             'artifact_parent_generation_revalidated=true'
             'artifact_leaf_open_nonblocking=true'
             'artifact_lookup_failure_holds=true'
+            'artifact_parent_lookup_failure_holds=true'
             'bootstrap_execution_performed=false'
             'protected_installer_apply_performed=false'
             'filesystem_write=false'

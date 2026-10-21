@@ -573,7 +573,12 @@ def _open_physical_artifact_parent(
         fd = os.open(b"/", flags)
     except OSError as exc:
         raise PlanError(label + "_root_directory_unavailable") from exc
-    ancestry = [_directory_identity(os.fstat(fd))]
+    try:
+        root_identity = _directory_identity(os.fstat(fd))
+    except OSError as exc:
+        os.close(fd)
+        raise PlanError(label + "_root_directory_unavailable") from exc
+    ancestry = [root_identity]
     try:
         for part in parts[:-1]:
             try:
@@ -587,8 +592,11 @@ def _open_physical_artifact_parent(
             except OSError as exc:
                 raise PlanError(label + "_parent_not_physical_directory") from exc
             try:
-                opened = os.fstat(child)
-                visible = os.stat(part, dir_fd=fd, follow_symlinks=False)
+                try:
+                    opened = os.fstat(child)
+                    visible = os.stat(part, dir_fd=fd, follow_symlinks=False)
+                except OSError as exc:
+                    raise PlanError(label + "_parent_rebound") from exc
                 if (
                     _directory_identity(before) != _directory_identity(opened)
                     or _directory_identity(opened) != _directory_identity(visible)
@@ -1255,6 +1263,7 @@ def source_plan() -> None:
     print("artifact_parent_generation_revalidated=true")
     print("artifact_leaf_open_nonblocking=true")
     print("artifact_lookup_failure_holds=true")
+    print("artifact_parent_lookup_failure_holds=true")
     print("bootstrap_execution_performed=false")
     print("protected_installer_apply_performed=false")
     print("filesystem_write=false")
@@ -1300,6 +1309,7 @@ def self_test() -> None:
     print("artifact_parent_generation_revalidated=true")
     print("artifact_leaf_open_nonblocking=true")
     print("artifact_lookup_failure_holds=true")
+    print("artifact_parent_lookup_failure_holds=true")
     print("strict_runtime_head_required=true")
     print("qualification_nonroot_execution_required=true")
     print("qualification_descriptor_bound_source_execution_required=true")
