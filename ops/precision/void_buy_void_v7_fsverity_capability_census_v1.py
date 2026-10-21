@@ -11,6 +11,7 @@ import re
 import socket
 import stat
 import struct
+import zlib
 from typing import Any
 
 MARKER = "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1"
@@ -62,6 +63,8 @@ def _gzip_decompress_bounded(raw: bytes, maximum: int) -> bytes:
             if stream.read(1):
                 raise CensusError("kernel_config_uncompressed_limit")
             return out
+    except zlib.error as exc:
+        raise CensusError("kernel_config_decompression_invalid") from exc
     except MemoryError as exc:
         raise CensusError("kernel_config_decompression_memory_error") from exc
 
@@ -646,6 +649,7 @@ def self_test() -> int:
     print("ext4_extents_incompat_bit_bound=true")
     print("kernel_config_fsverity_parser_bound=true")
     print("kernel_config_gzip_output_bounded=true")
+    print("kernel_config_malformed_deflate_hold=true")
     print("external_subprocess=false")
     print("ioctl_invocation=false")
     _emit_false_authority()
