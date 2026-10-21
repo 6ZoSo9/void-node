@@ -214,10 +214,25 @@ def _candidate_run(
     input_data: bytes | None = None,
     allowed=(0,),
     extra_fds: tuple[int, ...] = (),
+    index_file_fd: int | None = None,
+    index_dir_fd: int | None = None,
 ) -> bytes:
     env = _env()
     env["GIT_OBJECT_DIRECTORY"] = "/proc/self/fd/" + str(objects_fd)
-    retained = tuple(dict.fromkeys((work_fd, git_fd, objects_fd, *extra_fds)))
+    if index_file_fd is not None and index_dir_fd is not None:
+        raise ResealError("candidate_index_binding_ambiguous")
+    index_binding_fd = -1
+    if index_file_fd is not None:
+        env["GIT_INDEX_FILE"] = "/proc/self/fd/" + str(index_file_fd)
+        index_binding_fd = index_file_fd
+    elif index_dir_fd is not None:
+        env["GIT_INDEX_FILE"] = "/proc/self/fd/" + str(index_dir_fd) + "/index"
+        index_binding_fd = index_dir_fd
+    retained = tuple(dict.fromkeys((
+        work_fd, git_fd, objects_fd,
+        *((index_binding_fd,) if index_binding_fd >= 0 else ()),
+        *extra_fds,
+    )))
     try:
         cp = subprocess.run(
             _candidate_git_args(git_fd, work_fd, *args),
@@ -238,9 +253,18 @@ def _candidate_run(
         raise ResealError("candidate_git_output_too_large")
     return cp.stdout
 
-def _candidate_text(work_fd: int, git_fd: int, objects_fd: int, *args: str) -> str:
+def _candidate_text(
+    work_fd: int,
+    git_fd: int,
+    objects_fd: int,
+    *args: str,
+    index_file_fd: int | None = None,
+) -> str:
     try:
-        return _candidate_run(work_fd, git_fd, objects_fd, *args).decode("utf-8", "strict").strip()
+        return _candidate_run(
+            work_fd, git_fd, objects_fd, *args,
+            index_file_fd=index_file_fd,
+        ).decode("utf-8", "strict").strip()
     except UnicodeDecodeError as exc:
         raise ResealError("candidate_git_output_not_utf8") from exc
 
@@ -437,6 +461,7 @@ def _verify_candidate_metadata_fds(
     candidate_fd: int,
     git_fd: int,
     objects_fd: int,
+    index_fd: int,
 ) -> None:
     git_visible = os.stat(".git", dir_fd=candidate_fd, follow_symlinks=False)
     if _identity(git_visible) != _identity(os.fstat(git_fd)) or not stat.S_ISDIR(git_visible.st_mode):
@@ -455,6 +480,15 @@ def _verify_candidate_metadata_fds(
     finally:
         os.close(object_info_fd)
         os.close(info_fd)
+    _entry_absent_at(git_fd, "logs", "candidate")
+    index_visible = os.stat("index", dir_fd=git_fd, follow_symlinks=False)
+    index_retained = os.fstat(index_fd)
+    if (
+        _identity(index_visible) != _identity(index_retained)
+        or not stat.S_ISREG(index_visible.st_mode)
+        or index_visible.st_nlink != 1
+    ):
+        raise ResealError("candidate_index_generation_changed")
     config_raw = _read_regular_at(git_fd, "config", "candidate_git_config")
     if config_raw.decode("utf-8", "strict") != CONFIG_TEXT:
         raise ResealError("git_config_not_exact_closed_form")
@@ -467,36 +501,38 @@ def verify_candidate_lease(
     candidate_identity: tuple[int, int, int, int, int],
     git_fd: int,
     objects_fd: int,
+    index_fd: int,
 ) -> None:
     _revalidate_candidate_lease(
         output, parent_fd, parent_identity, candidate_fd, candidate_identity
     )
-    _verify_candidate_metadata_fds(candidate_fd, git_fd, objects_fd)
-    if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "--is-shallow-repository") != "false":
+    _verify_candidate_metadata_fds(candidate_fd, git_fd, objects_fd, index_fd)
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "--is-shallow-repository", index_file_fd=index_fd) != "false":
         raise ResealError("candidate_repository_shallow")
-    if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "HEAD") != TARGET_HEAD:
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "HEAD", index_file_fd=index_fd) != TARGET_HEAD:
         raise ResealError("candidate_head_mismatch")
-    if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "HEAD^{tree}") != TARGET_TREE:
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "HEAD^{tree}", index_file_fd=index_fd) != TARGET_TREE:
         raise ResealError("candidate_tree_mismatch")
-    if _candidate_text(candidate_fd, git_fd, objects_fd, "symbolic-ref", "--quiet", "--short", "HEAD") != "main":
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "symbolic-ref", "--quiet", "--short", "HEAD", index_file_fd=index_fd) != "main":
         raise ResealError("candidate_branch_not_main")
     if _candidate_parents(candidate_fd, git_fd, objects_fd, TARGET_HEAD) != TARGET_PARENTS:
         raise ResealError("candidate_parent_set_mismatch")
     _candidate_complete_graph(candidate_fd, git_fd, objects_fd)
-    if _candidate_text(candidate_fd, git_fd, objects_fd, "status", "--porcelain=v1", "--untracked-files=all") != "":
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "status", "--porcelain=v1", "--untracked-files=all", index_file_fd=index_fd) != "":
         raise ResealError("candidate_worktree_not_clean")
-    if _candidate_text(candidate_fd, git_fd, objects_fd, "write-tree") != TARGET_TREE:
+    if _candidate_text(candidate_fd, git_fd, objects_fd, "write-tree", index_file_fd=index_fd) != TARGET_TREE:
         raise ResealError("candidate_index_tree_mismatch")
     fsck = _candidate_run(
         candidate_fd, git_fd, objects_fd,
         "fsck", "--full", "--strict", "--no-reflogs", TARGET_HEAD,
+        index_file_fd=index_fd,
     )
     if fsck:
         raise ResealError("candidate_fsck_output_nonempty")
     _revalidate_candidate_lease(
         output, parent_fd, parent_identity, candidate_fd, candidate_identity
     )
-    _verify_candidate_metadata_fds(candidate_fd, git_fd, objects_fd)
+    _verify_candidate_metadata_fds(candidate_fd, git_fd, objects_fd, index_fd)
 
 def _receipt_safe_path(path: Path, label: str) -> str:
     raw = os.fspath(path)
@@ -691,7 +727,7 @@ def build(output: Path) -> None:
     verify_source()
     output = _validate_output(output)
 
-    parent_fd = candidate_fd = git_fd = objects_fd = pack_fd = refs_fd = heads_fd = -1
+    parent_fd = candidate_fd = git_fd = objects_fd = pack_fd = refs_fd = heads_fd = index_tmp_fd = index_fd = -1
     parent_identity = candidate_identity = None
     try:
         parent_fd = os.open(
@@ -793,10 +829,44 @@ def build(output: Path) -> None:
             output, parent_fd, parent_identity, candidate_fd, candidate_identity
         )
 
+        # Populate the exact index/worktree without any ref update. In
+        # particular, do not use reset/checkout-ref operations: they can write
+        # reflogs through a concurrently inserted .git/logs alias.
+        _entry_absent_at(git_fd, "logs", "candidate")
+        os.mkdir("index-tmp", mode=0o700, dir_fd=git_fd)
+        index_tmp_fd = _open_directory_at(git_fd, "index-tmp", "candidate_index_tmp")
+        _reject_mountpoint_alias(output / ".git" / "index-tmp", "candidate_index_tmp")
         _candidate_run(
             candidate_fd, git_fd, objects_fd,
-            "reset", "--hard", TARGET_HEAD,
+            "read-tree", TARGET_HEAD,
+            index_dir_fd=index_tmp_fd,
         )
+        _candidate_run(
+            candidate_fd, git_fd, objects_fd,
+            "checkout-index", "-a", "-f",
+            index_dir_fd=index_tmp_fd,
+        )
+        index_bytes = _read_regular_at(
+            index_tmp_fd, "index", "candidate_temp_index", max_bytes=MAX_OUTPUT
+        )
+        _write_new_regular_at(
+            git_fd, "index", index_bytes, 0o644, "candidate_index"
+        )
+        index_fd = os.open(
+            "index", os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW, dir_fd=git_fd
+        )
+        index_stat = os.fstat(index_fd)
+        if (
+            not stat.S_ISREG(index_stat.st_mode)
+            or index_stat.st_nlink != 1
+            or index_stat.st_uid != os.getuid()
+        ):
+            raise ResealError("candidate_index_metadata_invalid")
+        os.unlink("index", dir_fd=index_tmp_fd)
+        os.close(index_tmp_fd)
+        index_tmp_fd = -1
+        os.rmdir("index-tmp", dir_fd=git_fd)
+        _entry_absent_at(git_fd, "logs", "candidate")
         _revalidate_candidate_lease(
             output, parent_fd, parent_identity, candidate_fd, candidate_identity
         )
@@ -808,6 +878,7 @@ def build(output: Path) -> None:
             candidate_identity,
             git_fd,
             objects_fd,
+            index_fd,
         )
     except BaseException:
         if parent_fd >= 0 and candidate_fd >= 0 and candidate_identity is not None:
@@ -828,7 +899,7 @@ def build(output: Path) -> None:
             _CLEANUP_REASON = "candidate_created_before_descriptor_lease"
         raise
     finally:
-        for fd in (heads_fd, refs_fd, pack_fd, objects_fd, git_fd, candidate_fd, parent_fd):
+        for fd in (index_fd, index_tmp_fd, heads_fd, refs_fd, pack_fd, objects_fd, git_fd, candidate_fd, parent_fd):
             if fd >= 0:
                 try:
                     os.close(fd)
@@ -843,6 +914,9 @@ def build(output: Path) -> None:
     print("reachable_commits=" + str(EXPECTED_REACHABLE_COMMITS))
     print("descriptor_bound_candidate_mutation=true")
     print("mountpoint_alias_rejection=true")
+    print("ref_update_checkout_forbidden=true")
+    print("reflog_write_path_absent=true")
+    print("retained_index_generation_bound=true")
     print("candidate_cleanup_attempted=false")
     print("candidate_retained_on_success=true")
     print("source_repository_mutation=false")
