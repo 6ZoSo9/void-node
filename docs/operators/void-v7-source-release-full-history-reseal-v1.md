@@ -22,7 +22,7 @@ accepted history. The accepted head has tree
 ## Candidate builder
 
 `ops/precision/void_v7_source_release_full_history_reseal_v1.py` builds only a
-disposable candidate beneath `/home/zoso/Downloads`.
+disposable candidate beneath ``$HOME/Downloads``.
 
 It:
 
