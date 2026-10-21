@@ -635,14 +635,13 @@ def plan(expected_head: str) -> None:
     print("public_presale_activation=false")
     print("wc_void_market_activation=false")
     print("funds_movement=false")
-    print(
-        "next_action="
-        + (
-            "SEPARATELY_QUALIFY_FULL_HISTORY_PROTECTED_REPLICA_V1"
-            if body["protected_state"] == "GREEN"
-            else "SEPARATELY_AUTHORIZE_FULL_HISTORY_PROTECTED_REPLICA_V1_CREATE_ONLY_APPLY"
-        )
-    )
+    if body["protected_state"] == "GREEN":
+        next_action = "SEPARATELY_QUALIFY_FULL_HISTORY_PROTECTED_REPLICA_V1"
+    elif body["protected_state"] == "READY":
+        next_action = "SEPARATELY_AUTHORIZE_FULL_HISTORY_PROTECTED_REPLICA_V1_CREATE_ONLY_APPLY"
+    else:
+        next_action = "HOLD_INSPECT_PROTECTED_REPLICA_STATE"
+    print("next_action=" + next_action)
 
 def _require_privileged_source_custody() -> None:
     if os.geteuid() != 0 or os.getuid() != 0:
@@ -841,7 +840,11 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
 
     if confirm != CONFIRM_TOKEN:
         raise InstallError("explicit_create_only_confirmation_required")
-    if not expected_plan_id.startswith(PLAN_PREFIX):
+    if (
+        not expected_plan_id.startswith(PLAN_PREFIX)
+        or len(expected_plan_id) != len(PLAN_PREFIX) + 64
+        or any(ch not in "0123456789abcdef" for ch in expected_plan_id[len(PLAN_PREFIX):])
+    ):
         raise InstallError("expected_plan_id_invalid")
     _require_privileged_source_custody()
     planned = collect_plan(expected_head)
@@ -896,6 +899,22 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
     print("wc_void_market_activation=false")
     print("funds_movement=false")
     print("next_action=SOURCE_REVIEW_V7_PROTECTED_SUBSTRATE_INSTALLER_FULL_HISTORY_REPLICA_BINDING")
+
+def _reconcile_publication_receipt() -> None:
+    global _PUBLICATION, _STAGE_RETAINED
+    if not _WRITE_BOUNDARY_ENTERED:
+        return
+    target_exists = TARGET.exists() and not TARGET.is_symlink()
+    stage_exists = STAGE.exists() and not STAGE.is_symlink()
+    if target_exists and not stage_exists:
+        _PUBLICATION = "true"
+        _STAGE_RETAINED = False
+    elif stage_exists and not target_exists:
+        _PUBLICATION = "false"
+        _STAGE_RETAINED = True
+    else:
+        _PUBLICATION = "unknown"
+        _STAGE_RETAINED = stage_exists
 
 def self_test() -> None:
     if len(SOURCE_PARENTS) != 2:
@@ -966,6 +985,10 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except (InstallError, OSError, subprocess.SubprocessError, KeyboardInterrupt) as exc:
+        try:
+            _reconcile_publication_receipt()
+        except BaseException:
+            globals()["_PUBLICATION"] = "unknown"
         print(MARKER)
         print("status=HOLD")
         print("reason=" + str(exc).replace("\n", "_")[:500])
