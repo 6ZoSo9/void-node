@@ -56,7 +56,7 @@ jobs:
             git diff --check "$BASE" "$EXPECTED_HEAD" --
           fi
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_static_python_runtime_generation_proof_v1.py)" = "18299de23193f0ab98dca0a2fe50e55376f3b1b1"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_static_python_runtime_generation_proof_v1.py)" = "0abb2004988bcddafe7cf776fc9ff55a5b07efbb"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_static_python_runtime_generation_proof_v1.py)" = "740771799fdd2a7648e4c3d92311a115c02f2080"
           test "$(git rev-parse HEAD:docs/operators/buy-void-v7-static-python-runtime-generation-proof-v1.md)" = "e9f364b96478d550cd34ded9deea7b5653669984"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 
