@@ -1,0 +1,71 @@
+name: Buy VOID verified-payment transport V2 (unmounted)
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_payment_transport_v2.ts"
+      - "scripts/prove_buy_void_verified_payment_transport_v2.ts"
+      - ".github/workflows/buy-void-verified-payment-transport-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: source-only transport / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Verify exact checkout and add-only scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          SOURCE_BASE: 1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$SOURCE_BASE" "$EXPECTED_HEAD"
+          git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
+          printf '%s\n' \
+            'A\t.github/workflows/buy-void-verified-payment-transport-v2.yml' \
+            'A\tscripts/prove_buy_void_verified_payment_transport_v2.ts' \
+            'A\tsrc/economic/buy_void_verified_payment_transport_v2.ts' \
+            | sort > "$RUNNER_TEMP/expected"
+          git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual"
+          diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/actual"
+      - name: Prove inert V2 private transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+          out="$RUNNER_TEMP/verified-payment-transport-v2.log"
+          timeout 90s npx tsx scripts/prove_buy_void_verified_payment_transport_v2.ts | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_VERIFIED_PAYMENT_TRANSPORT_V2_PROOF_GREEN' \
+            'old_payment_only_route_remains_503=true' \
+            'new_v2_route_transport_credential_bound=true' \
+            'source_only_unmounted=true' \
+            'operator_principal_authenticated_for_allocation=false' \
+            'mounted_verified_allocation_dispatch=false' \
+            'custody_service_composed=false' \
+            'payment_acceptance=false' \
+            'presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
