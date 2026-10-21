@@ -12,9 +12,9 @@ funds.
 
 - source base: `f1702672f2399355758e7a07fdd8f0ffb8dc1d33`
 - source base tree: `fa74ce8645ee2f452343d95fdc459ae479fe73ef`
-- plan ID: `voidbuyxuid1_af49f625a1b1db2e198125aea83379e715cd56ce60ee5967e176d2fe085bf384`
-- plan blob: `a4c3ef95869f817be8ec8af29957ff918c379efa`
-- proof blob: `107a050ac6eea86a632d9d8d594bb56251def353`
+- plan ID: `voidbuyxuid1_5b367f38ce3012c2e75d5a3485d64c93f2ef24e6c997b2a711ec17413a9c0dd3`
+- plan blob: `bd5c027baaf21c4c4084fbbbcbe25b1c9b335a07`
+- proof blob: `f45c298493908acc386adb5d7f47565af148244e`
 - source bindings: **11**
 
 ## Claim/incarnation binding
@@ -34,7 +34,10 @@ the previous envelope SHA-256. Only the closed transition graph in the plan is
 allowed. This prevents a writer from jumping directly from `claim_acquired`
 to `terminal_revalidated`.
 
-Recovery from `uncertain` additionally requires a protected phase witness.
+Recovery from `uncertain` additionally requires a protected phase witness. The specific `uncertain → pre_mutation_rejected` edge requires a **second, distinct pre-mutation zero-effect witness** before that classification is even eligible. A generic protected phase receipt is insufficient.
+
+That zero-effect witness must bind the original claim/session incarnation, request/payment lineage, web/custody artifact generations, request/operator-payment durable ledger identities and tips, allocation ledger/tip and high-water generation, sidecar/pending-intent state, previous envelope/phase sequence, and reviewed rollback/time domains. It must positively attest no payment append, allocation publication, sidecar, pending intent, or earlier target-capacity write effect. Verification precedes any future release-candidate classification.
+
 The two future release-candidate labels (`pre_mutation_rejected` and
 `terminal_revalidated`) still retain the claim in this plan and grant no
 release authority.
@@ -42,8 +45,7 @@ release authority.
 ## Current reconciliation mapping
 
 - `held` → retain;
-- `observed_no_target_capacity_effect` → retain until protected pre-mutation
-  witness;
+- `observed_no_target_capacity_effect` → retain until the distinct authenticated pre-mutation zero-effect witness;
 - `verified_allocation_missing` → retain and require exclusive recovery;
 - `allocation_present` → retain until terminal revalidation and protected
   witness.
@@ -53,11 +55,12 @@ release authority.
 1. cross-UID claim read FIFO nonblocking is not verified;
 2. custody service V2 reserve/recover is disabled;
 3. protected phase witness is missing;
-4. external high-water witness is missing;
-5. allocation-required operator route is unmounted;
-6. direct web private-root write authority is forbidden;
-7. trusted clock is unbound; and
-8. deployed artifact generation is unverified.
+4. pre-mutation zero-effect witness is missing;
+5. external high-water witness is missing;
+6. allocation-required operator route is unmounted;
+7. direct web private-root write authority is forbidden;
+8. trusted clock is unbound; and
+9. deployed artifact generation is unverified.
 
 Any repair of a HOLD requires a reviewed successor. It cannot silently promote
 this plan.
@@ -69,6 +72,7 @@ source_plan_only=true
 common_host_session_envelope_implemented=false
 capacity_lock_claim_read_nonblocking_verified=false
 protected_phase_witness_implemented=false
+pre_mutation_zero_effect_witness_implemented=false
 external_high_water_witness_verified=false
 operator_route_mounted=false
 web_private_root_write_authority=false

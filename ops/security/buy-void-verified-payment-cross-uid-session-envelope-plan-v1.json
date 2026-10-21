@@ -10,6 +10,7 @@
     "funds_movement": false,
     "operator_route_mounted": false,
     "payment_acceptance": false,
+    "pre_mutation_zero_effect_witness_implemented": false,
     "presale_activation": false,
     "protected_phase_witness_implemented": false,
     "public_http_handler_installed": false,
@@ -22,7 +23,7 @@
   "current_outcome_policy": {
     "allocation_present": "retain_until_terminal_revalidation_and_protected_witness",
     "held": "retain",
-    "observed_no_target_capacity_effect": "retain_until_pre_mutation_witness",
+    "observed_no_target_capacity_effect": "retain_until_pre_mutation_zero_effect_witness",
     "verified_allocation_missing": "retain_and_require_exclusive_recovery"
   },
   "future_release_requirements": [
@@ -37,7 +38,16 @@
     "coordinated_storage_rollback_excluded",
     "exact_allocation_handoff_receipt_when_allocation_effect_possible",
     "terminal_claim_owner_revalidation",
-    "release_parent_fsync"
+    "release_parent_fsync",
+    "pre_mutation_zero_effect_witness_sha256",
+    "zero_effect_witness_binds_original_claim_incarnation",
+    "zero_effect_witness_binds_request_payment_lineage",
+    "zero_effect_witness_binds_request_operator_payment_durable_roots_and_tips",
+    "zero_effect_witness_binds_allocation_ledger_and_high_water_generations",
+    "zero_effect_witness_proves_no_payment_append_allocation_publication_sidecar_or_pending_intent_effect",
+    "zero_effect_witness_binds_reviewed_rollback_exclusion_domain",
+    "zero_effect_witness_binds_reviewed_time_domain",
+    "zero_effect_witness_verification_precedes_release_candidate_classification"
   ],
   "known_holds": [
     "cross_uid_capacity_claim_fifo_nonblocking_not_verified",
@@ -47,7 +57,8 @@
     "operator_route_unmounted",
     "web_private_root_write_forbidden",
     "trusted_clock_unbound",
-    "deployed_artifact_generation_unverified"
+    "deployed_artifact_generation_unverified",
+    "pre_mutation_zero_effect_witness_missing"
   ],
   "phase_model": {
     "allocation_durable": {
@@ -78,7 +89,8 @@
     "pre_mutation_rejected": {
       "recovery_required": false,
       "release_candidate": true,
-      "retain_claim": true
+      "retain_claim": true,
+      "zero_effect_witness_required_when_recovered_from_uncertain": true
     },
     "terminal_revalidated": {
       "recovery_required": false,
@@ -129,12 +141,15 @@
         "allocation_durable"
       ]
     },
+    "generic_protected_witness_sufficient_for_zero_effect": false,
     "phase_seq_rule": "exact_increment_by_one",
     "previous_envelope_sha256_required_after_phase0": true,
     "recovery_from_uncertain_requires_protected_witness": true,
-    "terminal_phase": "terminal_revalidated"
+    "terminal_phase": "terminal_revalidated",
+    "uncertain_to_pre_mutation_rejected_requires_zero_effect_witness": true,
+    "zero_effect_witness_verification_precedes_pre_mutation_classification": true
   },
-  "plan_id": "voidbuyxuid1_af49f625a1b1db2e198125aea83379e715cd56ce60ee5967e176d2fe085bf384",
+  "plan_id": "voidbuyxuid1_5b367f38ce3012c2e75d5a3485d64c93f2ef24e6c997b2a711ec17413a9c0dd3",
   "repository": "6ZoSo9/void-node",
   "schema": "void.buy.verified_payment.cross_uid_session_envelope_plan.v1",
   "session_envelope_contract": {
@@ -166,8 +181,38 @@
       "phase",
       "phase_seq",
       "previous_envelope_sha256",
-      "protected_phase_witness_sha256"
+      "protected_phase_witness_sha256",
+      "pre_mutation_zero_effect_witness_sha256"
     ],
+    "pre_mutation_zero_effect_witness_contract": {
+      "generic_protected_phase_witness_sufficient": false,
+      "release_authority": false,
+      "required_bindings": [
+        "session_id",
+        "original_claim_incarnation",
+        "request_id",
+        "payment_verified_event_sha256",
+        "web_artifact_generation_sha256",
+        "custody_artifact_generation_sha256",
+        "request_ledger_identity_and_tip",
+        "operator_payment_ledger_identity_and_tip",
+        "allocation_ledger_identity_and_tip",
+        "allocation_high_water_generation",
+        "sidecar_and_pending_intent_state",
+        "previous_envelope_sha256",
+        "phase_seq",
+        "reviewed_rollback_exclusion_domain",
+        "reviewed_time_domain"
+      ],
+      "required_for_transition": "uncertain_to_pre_mutation_rejected",
+      "required_zero_effect_claims": [
+        "no_payment_append_effect",
+        "no_allocation_publication_effect",
+        "no_sidecar_effect",
+        "no_pending_intent_effect",
+        "no_earlier_target_capacity_write_effect"
+      ]
+    },
     "session_id_derivation": "sha256(canonical_json_of_claim_incarnation_lineage_phase0_and_artifact_generations)",
     "session_id_format": "voidbuysess1_<64_lowercase_hex_sha256>",
     "trusted_clock_release_authority": false
