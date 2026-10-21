@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "e02221c7478fac3c65f34410fd3e203ffb31bdd7"
+TARGET_BLOB = "a27a08d169337351bdf92c5e42b7069bfb4d273e"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -108,8 +108,12 @@ for required in (
     'private_stage_acl_xattr_roundtrip_required=true',
     'candidate_utf8_path_components_required=true',
     'candidate_receipt_safe_path_components_required=true',
+    'candidate_printable_path_components_required=true',
     'terminal_reason_line_sanitization_required=true',
+    'terminal_reason_printable_sanitization_required=true',
     'def _receipt_safe_text(',
+    'out.append(ch if ch.isprintable() else "_")',
+    'if not all(ch.isprintable() for ch in name)',
     'copy_entry_name_control_forbidden',
     'print("reason=" + _receipt_safe_text(str(exc)))',
     'opened_generation_copy_budget_required=true',
@@ -269,6 +273,8 @@ assert "UnicodeError," in text
 assert 'copy_entry_name_not_utf8' in text
 assert 'copy_entry_name_control_forbidden' in text
 assert 'def _receipt_safe_text(' in text
+assert 'out.append(ch if ch.isprintable() else "_")' in text
+assert 'if not all(ch.isprintable() for ch in name)' in text
 assert 'print("reason=" + _receipt_safe_text(str(exc)))' in text
 assert 'os.setxattr(acl_fd, POSIX_ACL_ACCESS_XATTR, acl_blob)' in text
 assert 'os.getxattr(acl_fd, POSIX_ACL_ACCESS_XATTR)' in text
@@ -316,7 +322,9 @@ for marker in (
     "candidate_copy_exact_planned_counts_required=true",
     "candidate_utf8_path_components_required=true",
     "candidate_receipt_safe_path_components_required=true",
+    "candidate_printable_path_components_required=true",
     "terminal_reason_line_sanitization_required=true",
+    "terminal_reason_printable_sanitization_required=true",
     "rename_noreplace_publication_required=true",
     "trusted_root_launcher_required=true",
     "service_mutation=false",
@@ -369,7 +377,9 @@ for marker in (
     "private_stage_acl_group_object_zero_required=true",
     "candidate_utf8_path_components_required=true",
     "candidate_receipt_safe_path_components_required=true",
+    "candidate_printable_path_components_required=true",
     "terminal_reason_line_sanitization_required=true",
+    "terminal_reason_printable_sanitization_required=true",
     "opened_generation_copy_budget_required=true",
     "write_boundary_precedes_first_stage_mutation=true",
     "service_mutation=false",
@@ -410,7 +420,9 @@ print("private_stage_acl_group_object_zero_bound=true")
 print("private_stage_acl_xattr_roundtrip_bound=true")
 print("candidate_utf8_path_components_bound=true")
 print("candidate_receipt_safe_path_components_bound=true")
+print("candidate_printable_path_components_bound=true")
 print("terminal_reason_line_sanitization_bound=true")
+print("terminal_reason_printable_sanitization_bound=true")
 print("opened_generation_copy_budget_bound=true")
 print("write_boundary_precedes_first_stage_mutation_bound=true")
 print("live_release_replacement_forbidden=true")
