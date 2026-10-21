@@ -27,9 +27,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "e02221c7478fac3c65f34410fd3e203ffb31bdd7"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "44ee13f7ea2730352e4ddeed7fa9158bd30e227e"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "ae19891d31c7cf4ac3640c52704a3dcb4225d667"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "a27a08d169337351bdf92c5e42b7069bfb4d273e"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "299302964e4dbeb4d5cc4b6b67736794c1c9f5d2"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "0d9879ab147c1703da9e50dc1249334e1e2bd4b0"
 
           test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
@@ -365,7 +365,9 @@ jobs:
           grep -Fx 'candidate_copy_operation_bound_byte_budget_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'candidate_copy_exact_planned_counts_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'candidate_receipt_safe_path_components_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'candidate_printable_path_components_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'terminal_reason_line_sanitization_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'terminal_reason_printable_sanitization_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'apply_root_dynamic_git_exec=false' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'termination_signal_reconciliation_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'install_parent_publication_lease_required=true' "$RUNNER_TEMP/source-plan.log"
