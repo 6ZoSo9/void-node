@@ -15,7 +15,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "fbb5236306e77628df92b8b038b6ff05dd81d15f"
+TARGET_BLOB = "4add7ac297a7f035715dc4f39da0732921f9fff4"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -67,7 +67,11 @@ for required in (
     '"6b7fc90219676a96f5a2c34619e4cfdf3f002244"',
     'REACHABLE_COMMITS = 17931',
     'MAX_COPY_DEPTH = 128',
+    'MAX_GIT_OBJECT_BYTES = 128 * 1024 * 1024',
     'def _PackReader',
+    'def _read_loose(',
+    '_loose_object_size_limit',
+    '_loose_zlib_incomplete',
     'def _ObjectStore',
     'def _apply_git_delta(',
     'def _parse_commit_object(',
@@ -252,6 +256,19 @@ with tempfile.TemporaryDirectory(prefix="void-v7-builtin-pack-proof-") as td:
         for line in fixture_git(repo, "rev-list", "--objects", head).splitlines()
         if line
     }
+
+    # First exercise loose-object decoding before repacking.
+    loose_store = module._ObjectStore(repo, "proof_loose", exact_pack_only=False)
+    try:
+        loose_type, loose_commit = loose_store.read_object(head)
+        assert loose_type == "commit"
+        loose_tree, loose_parents = module._parse_commit_object(
+            loose_commit, "proof_loose"
+        )
+        assert loose_tree == tree
+        assert loose_parents == parents
+    finally:
+        loose_store.close()
 
     fixture_git(repo, "-c", "pack.writeReverseIndex=false", "repack", "-a", "-d")
     fixture_git(repo, "prune-packed")
@@ -590,8 +607,10 @@ print("dynamic_git_provenance_authority_removed_bound=true")
 print("built_in_pack_index_verification_bound=true")
 print("built_in_full_history_object_closure_bound=true")
 print("trusted_expected_head_tree_pair_bound=true")
+print("loose_object_oracle_green=true")
 print("packed_repository_oracle_green=true")
 print("corrupt_pack_rejection_bound=true")
+print("bounded_git_object_decompression_bound=true")
 print("class_wide_bounded_directory_scans_bound=true")
 print("termination_signal_reconciliation_bound=true")
 print("install_parent_publication_lease_bound=true")
