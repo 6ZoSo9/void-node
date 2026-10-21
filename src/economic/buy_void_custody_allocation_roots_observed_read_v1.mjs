@@ -15,6 +15,7 @@ export const VOID_BUY_VOID_CUSTODY_ALLOCATION_OBSERVED_READ_AUTHORITY_V1 =
     fixed_allocation_ledger_and_high_water_names: true,
     caller_selected_leaf_names: false,
     symlinks_and_multiple_links_rejected: true,
+    fifo_leaf_substitution_nonblocking: true,
     file_growth_bounded: true,
     descriptor_and_visible_identity_revalidated: true,
     no_publication_intent_recovery: true,
@@ -36,7 +37,8 @@ const LEDGER_MAX = 64 * 1024 * 1024;
 const HIGH_WATER_MAX = 4096;
 const DIR_FLAGS = fs.constants.O_RDONLY |
   fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW;
-const FILE_FLAGS = fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW;
+const FILE_FLAGS = fs.constants.O_RDONLY |
+  fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK;
 
 function fail(code) {
   throw new Error("custody_allocation_observer_" + code);
@@ -213,7 +215,9 @@ export function observeBuyVoidCustodyAllocationRootsReadOnlyV1(rawOptions = {}) 
         typeof process.getuid !== "function" ||
         process.getuid() <= 0 || !fs.existsSync("/proc/self/fd") ||
         !Number.isInteger(fs.constants.O_NOFOLLOW) ||
-        !Number.isInteger(fs.constants.O_DIRECTORY)) {
+        !Number.isInteger(fs.constants.O_DIRECTORY) ||
+        !Number.isInteger(fs.constants.O_NONBLOCK) ||
+        fs.constants.O_NONBLOCK <= 0) {
       fail("unprivileged_linux_procfd_required");
     }
     owned = process.getuid();

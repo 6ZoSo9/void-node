@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
@@ -12,7 +13,7 @@ import {
 } from "../src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs";
 
 const SOURCE="src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs";
-const EXPECTED_SOURCE_BLOB="79eb8c39529583fffdb083173fb37b1f32075a14";
+const EXPECTED_SOURCE_BLOB="e6fbd5b54891ee25daaeb8ae4e6f26073ed71420";
 function gitBlob(bytes){
   return crypto.createHash("sha1")
     .update(Buffer.from("blob "+bytes.length+"\0","utf8"))
@@ -41,6 +42,7 @@ const policy=VOID_BUY_VOID_CUSTODY_PAYMENT_LEDGERS_OBSERVED_READ_POLICY_V1;
 for(const [key,value] of Object.entries(policy)){
   const expectedTrue=new Set([
     "source_only_descriptor_reader","linux_procfs_dirfd_required",
+    "fifo_leaf_substitution_nonblocking",
     "fixed_ledger_names","cross_file_read_window_unchanged_proven",
   ]);
   assert.equal(value,expectedTrue.has(key),key);
@@ -171,6 +173,36 @@ try{
     /operator_leaf_unqualified/u);
   fs.unlinkSync(operatorPath);
   fs.renameSync(operatorPath+".real",operatorPath);
+
+  const originalOpen=fs.openSync;
+  const fifoOriginal=operatorPath+".fifo-original";
+  let fifoSwapExercised=false;
+  try{
+    fs.openSync=function(target,flags,...args){
+      if(!fifoSwapExercised&&typeof target==="string"&&
+         target.startsWith("/proc/self/fd/")&&
+         target.endsWith("/"+path.basename(operatorPath))){
+        assert.ok((Number(flags)&fs.constants.O_NONBLOCK)!==0,
+          "operator leaf open lost O_NONBLOCK");
+        fifoSwapExercised=true;
+        fs.renameSync(operatorPath,fifoOriginal);
+        execFileSync("/usr/bin/mkfifo",[operatorPath],{
+          stdio:"ignore",
+          env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
+        });
+        fs.chmodSync(operatorPath,0o640);
+      }
+      return originalOpen.call(fs,target,flags,...args);
+    };
+    requireHeld(observeBuyVoidCustodyPaymentLedgersReadOnlyV1({request_dir:requestDir}),
+      /operator_leaf_fd_mismatch/u);
+    assert.equal(fifoSwapExercised,true,"operator FIFO swap adversary did not execute");
+  }finally{
+    fs.openSync=originalOpen;
+    if(fs.existsSync(operatorPath))fs.unlinkSync(operatorPath);
+    if(fs.existsSync(fifoOriginal))fs.renameSync(fifoOriginal,operatorPath);
+    writeFixture();
+  }
 
   const originalRead=fs.readSync;
   let readCalls=0;
@@ -326,6 +358,7 @@ try{
   console.log("operator_hardlink_rejected=true");
   console.log("operator_zero_to_one_growth_rejected=true");
   console.log("leaf_symlink_rejected=true");
+  console.log("leaf_fifo_substitution_nonblocking=true");
   console.log("request_mutation_during_operator_read_rejected=true");
   console.log("post_open_growth_bounded_and_rejected=true");
   console.log("ancestor_swap_during_read_rejected=true");

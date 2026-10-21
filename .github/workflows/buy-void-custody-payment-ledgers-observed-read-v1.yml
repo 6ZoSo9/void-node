@@ -69,6 +69,7 @@ jobs:
             'operator_hardlink_rejected=true' \
             'operator_zero_to_one_growth_rejected=true' \
             'leaf_symlink_rejected=true' \
+            'leaf_fifo_substitution_nonblocking=true' \
             'request_mutation_during_operator_read_rejected=true' \
             'post_open_growth_bounded_and_rejected=true' \
             'ancestor_swap_during_read_rejected=true' \
