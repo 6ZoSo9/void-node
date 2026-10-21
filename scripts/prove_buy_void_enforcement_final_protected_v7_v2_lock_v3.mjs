@@ -63,7 +63,7 @@ function readExactAt(root,relative,max=1024*1024,{beforeOpen=null}={}){
   if(beforeOpen!==null)beforeOpen(absolute,before);
   let fd=-1;
   try{
-    fd=fs.openSync(absolute,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+    fd=fs.openSync(absolute,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
     const opened=fs.fstatSync(fd);
     assert.ok(opened.isFile()&&opened.nlink===1&&opened.size>0&&opened.size<=max,"invalid_opened_file:"+relative);
     requireSameStat(opened,before,"file_open_generation_mismatch:"+relative);
@@ -120,6 +120,20 @@ function proveReadExactBoundary(){
       }}),
       err=>err&&err.code==="ELOOP"
     );
+
+    fs.rmSync(dep,{force:true});
+    fs.writeFileSync(dep,"good",{mode:0o600});
+    const beforeFifo=fs.lstatSync(dep);
+    fs.renameSync(dep,dep+".fifo-original");
+    run("/usr/bin/mkfifo",[dep],{timeout:5000});
+    fs.chmodSync(dep,0o600);
+    assert.throws(
+      ()=>readExactAt(temp,"dep",8,{beforeOpen:()=>{}}),
+      /invalid_opened_file:dep/
+    );
+    fs.rmSync(dep,{force:true});
+    fs.renameSync(dep+".fifo-original",dep);
+    assert.equal(fs.lstatSync(dep).ino,beforeFifo.ino,"fifo_swap_original_not_restored");
 
     fs.rmSync(dep,{force:true});
     fs.writeFileSync(dep,"123456789",{mode:0o600});
@@ -221,6 +235,7 @@ else if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   console.log("nofollow_dependency_open_required=true");
   console.log("replacement_generation_rejected=true");
   console.log("symlink_swap_race_rejected=true");
+  console.log("fifo_swap_nonblocking_rejected=true");
   console.log("candidate_enforcement_identity_accepted=true");
   console.log("deployed_artifact_generation_verified=false");
   console.log("runtime_mount_authority=false");
