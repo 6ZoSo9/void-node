@@ -18,7 +18,7 @@ def gblob(path:pathlib.Path)->str:
     h.update(b"blob "+str(len(raw)).encode("ascii")+b"\0"+raw)
     return h.hexdigest()
 
-assert gblob(INS)==assert gblob(INS)=="d79f256126f834870923b8f08a62b4e583fe7c20"
+assert gblob(INS)=="8cafed68676396a1d81c6cc94be9f110fb141415"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -442,24 +442,19 @@ print("git_includeif_horizontal_whitespace_rejected=true")
 print("git_core_attributesfile_rejected=true")
 print("git_filter_driver_rejected=true")
 print("git_local_config_exact_allowlist_required=true")
-print("git_raw_head_tree_manifest_required=true")
+print("reviewed_source_tree_manifest_required=true")
 print("git_ignored_untracked_rejected_by_manifest=true")
-print("git_exact_dir_common_toplevel_bound=true")
-print("git_metadata_provenance_all_privileged_roots_bound=true")
+print("direct_symbolic_main_ref_required=true")
+print("direct_repository_metadata_all_privileged_roots_bound=true")
 print("trusted_root_launcher_still_required=true")
 print("mode_only_nonwritable_is_insufficient_model=true")
 print("installer_acl_aware_runtime_uid_write_audit_bound=true")
 print("runtime_uid_cleared_groups_write_audit_bound=true")
 print("runtime_write_audit_external_helper_free_bound=true")
-print("runtime_observer_root_time_setpriv_exec_removed=true")
-print("runtime_observer_no_new_privs_before_uid_drop_bound=true")
-print("runtime_observer_direct_uid_gid_drop_before_tool_exec_bound=true")
-print("trusted_tool_root_descriptor_execution_bound=true")
-print("trusted_tool_ancestor_acl_custody_bound=true")
-print("trusted_tool_terminal_revalidation_bound=true")
+print("privileged_dynamic_git_authority=false")
+print("reviewed_source_manifest_sha256_bound=true")
 print("source_release_ancestor_acl_custody_bound=true")
 print("source_release_ancestor_generation_revalidation_bound=true")
-print("trusted_tool_descriptor_path_swap_adversary_bound=true")
 print("qualifier_acl_aware_runtime_uid_write_audit_bound=true")
 print("qualifier_runtime_uid_gid_1000_bound=true")
 print("qualifier_supplementary_groups_empty_bound=true")
