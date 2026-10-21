@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "0754e50cdc313bcb0155a900f5dc060a0b6a28d6"
+TARGET_BLOB = "cf0f5cd84eeb1995070ab0ea099c95424c1837e2"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -60,6 +60,12 @@ for required in (
     'def _collect_plan_for_apply(',
     'def _verify_stage_for_apply(',
     'root_required_for_runtime_uid_child',
+    'PR_SET_NO_NEW_PRIVS = 38',
+    'prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)',
+    'os.getresuid() != (RUNTIME_UID, RUNTIME_UID, RUNTIME_UID)',
+    'os.getresgid() != (RUNTIME_GID, RUNTIME_GID, RUNTIME_GID)',
+    'runtime_uid_child_identity_drop_incomplete',
+    'runtime_uid_child_no_new_privs_required=true',
     'apply_root_dynamic_git_exec=false',
     'termination_signal_reconciliation_required=true',
     'install_parent_publication_lease_required=true',
@@ -148,6 +154,14 @@ runtime_child_start = text.index("def _runtime_uid_child_call(")
 runtime_child_end = text.index("def _collect_plan_for_apply(", runtime_child_start)
 runtime_child_text = text[runtime_child_start:runtime_child_end]
 assert 'operation == "verify_stage_private"' in runtime_child_text
+assert runtime_child_text.index(
+    "prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)"
+) < runtime_child_text.index("os.setgroups([])")
+assert runtime_child_text.index("os.setgroups([])") < runtime_child_text.index(
+    "os.setgid(RUNTIME_GID)"
+) < runtime_child_text.index("os.setuid(RUNTIME_UID)")
+assert "os.getresuid() != (RUNTIME_UID, RUNTIME_UID, RUNTIME_UID)" in runtime_child_text
+assert "os.getresgid() != (RUNTIME_GID, RUNTIME_GID, RUNTIME_GID)" in runtime_child_text
 assert "_verify_full_history_root(" in runtime_child_text
 assert "STAGE, 0, RUNTIME_GID, 0o550" in runtime_child_text
 assert "runtime_uid_private_stage_writable" in runtime_child_text
@@ -220,6 +234,7 @@ for marker in (
     "live_release_mutation=false",
     "trusted_root_launcher_required=true",
     "apply_plan_runtime_uid_drop_required=true",
+    "runtime_uid_child_no_new_privs_required=true",
     "candidate_copy_descriptor_relative=true",
     "apply_root_dynamic_git_exec=false",
     "termination_signal_reconciliation_required=true",
@@ -246,6 +261,7 @@ print("create_only_rename_noreplace_bound=true")
 print("publication_reconciliation_bound=true")
 print("direct_mutable_checkout_privileged_apply_forbidden=true")
 print("apply_plan_runtime_uid_drop_bound=true")
+print("runtime_uid_child_no_new_privs_bound=true")
 print("candidate_copy_descriptor_relative_bound=true")
 print("install_parent_stage_transition_bound=true")
 print("root_dynamic_git_exec_forbidden_bound=true")
