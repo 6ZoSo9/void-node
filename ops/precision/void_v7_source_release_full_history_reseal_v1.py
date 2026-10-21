@@ -436,11 +436,14 @@ def _write_worktree_regular_at(
             offset += written
         os.fsync(fd)
         final = os.fstat(fd)
-        if _identity(final) != _identity(st)[:5] + (st.st_nlink,):
-            # Size/mutation times are intentionally not part of _identity().
-            # The file generation is rebound below by visible inode metadata
-            # and its exact Git blob digest.
-            pass
+        if (
+            not stat.S_ISREG(final.st_mode)
+            or final.st_nlink != 1
+            or final.st_uid != os.getuid()
+            or stat.S_IMODE(final.st_mode) != mode
+            or final.st_size != len(data)
+        ):
+            raise ResealError(label + "_final_file_metadata_invalid")
         return _identity(final)
     finally:
         os.close(fd)
@@ -789,8 +792,11 @@ def verify_candidate_lease(
     if _candidate_parents(candidate_fd, git_fd, objects_fd, TARGET_HEAD) != TARGET_PARENTS:
         raise ResealError("candidate_parent_set_mismatch")
     _candidate_complete_graph(candidate_fd, git_fd, objects_fd)
-    if _candidate_text(candidate_fd, git_fd, objects_fd, "write-tree", index_file_fd=index_fd) != TARGET_TREE:
-        raise ResealError("candidate_index_tree_mismatch")
+    _candidate_run(
+        candidate_fd, git_fd, objects_fd,
+        "diff-index", "--cached", "--quiet", TARGET_HEAD, "--",
+        index_file_fd=index_fd,
+    )
     fsck = _candidate_run(
         candidate_fd, git_fd, objects_fd,
         "fsck", "--full", "--strict", "--no-reflogs", TARGET_HEAD,
@@ -1221,6 +1227,7 @@ def build(output: Path) -> None:
     print("descriptor_relative_worktree_materialization=true")
     print("regular_files_only_tree_contract=true")
     print("terminal_worktree_manifest_revalidation=true")
+    print("terminal_index_comparison_read_only=true")
     print("candidate_cleanup_attempted=false")
     print("candidate_retained_on_success=true")
     print("source_repository_mutation=false")
