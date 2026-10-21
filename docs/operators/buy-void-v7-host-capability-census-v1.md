@@ -34,11 +34,11 @@ Reviewed static launcher ELF SHA-256 from the focused #3647 proof:
 
 Census source Git blob:
 
-\`2881a6d1d9c669aa367a2d265d652b197e9c8492\`
+\`f8b9c6cbf6b160568823101404eebb708043c185\`
 
 Focused proof Git blob:
 
-\`17f7c628ee012d925a67859eddba07f07bdb3915\`
+\`82a19669e328e5e58d82263ff5443fe41ffb2f93\`
 
 ## fs-verity capability observation
 
@@ -102,6 +102,10 @@ When `--stdlib-candidate <path>` is supplied, the census:
 - counts required `*.py` paths only when backed by regular file entries,
   never a directory placeholder such as `argparse.py/`; explicit nonregular
   file types are rejected;
+- normalizes malformed UTF-8 ZIP central-directory member names into
+  `stdlib_zip_invalid` (CensusError), preserving the machine-readable HOLD
+  path without traceback when a UTF-8-flagged ZIP filename is undecodable;
+  a synthetic memfd regression proves this error conversion;
 - inventories the visible direct pure-Python modules needed by the V4 installer:
   `argparse`, `ctypes`, `hashlib`, `json`, `pathlib`, `shutil`,
   `stat`, `subprocess`, `tempfile`, and `typing`;

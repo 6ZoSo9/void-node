@@ -5,6 +5,7 @@ import argparse
 import errno
 import fcntl
 import hashlib
+import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -210,11 +211,16 @@ def inspect_stdlib_zip_infos(infos: list[zipfile.ZipInfo]) -> dict[str, object]:
 
 def inspect_stdlib_zip(path: Path, fd: int, expected: os.stat_result) -> dict[str, object]:
     file_obj = os.fdopen(os.dup(fd), "rb", closefd=True)
-    try:
-        with zipfile.ZipFile(file_obj, "r") as zf:
-            result = inspect_stdlib_zip_infos(zf.infolist())
-    except zipfile.BadZipFile as exc:
-        raise CensusError("stdlib_zip_invalid") from exc
+    with file_obj:
+        try:
+            with zipfile.ZipFile(file_obj, "r") as zf:
+                result = inspect_stdlib_zip_infos(zf.infolist())
+        except (zipfile.BadZipFile, UnicodeError) as exc:
+            # ZIP central-directory names are untrusted. A UTF-8-flagged
+            # member with invalid bytes raises UnicodeDecodeError before
+            # in-tree member validation; normalize it to machine-readable
+            # HOLD instead of leaking a traceback.
+            raise CensusError("stdlib_zip_invalid") from exc
     revalidate(path, fd, expected)
     return result
 
@@ -416,10 +422,39 @@ def self_test() -> None:
     else:
         raise AssertionError("special_zip_member_accepted_as_regular")
 
+    # Construct a corrupt UTF-8-flagged central-directory filename entirely
+    # in memory. No candidate file, ZIP payload or code is executed.
+    utf8_archive = io.BytesIO()
+    with zipfile.ZipFile(utf8_archive, "w", compression=zipfile.ZIP_STORED) as zf:
+        zf.writestr("argparse.py", "synthetic")
+    invalid_utf8 = bytearray(utf8_archive.getvalue())
+    central = invalid_utf8.find(b"PK\x01\x02")
+    assert central >= 0
+    flags = struct.unpack_from("<H", invalid_utf8, central + 8)[0]
+    struct.pack_into("<H", invalid_utf8, central + 8, flags | 0x800)
+    assert invalid_utf8[central + 46] == ord("a")
+    invalid_utf8[central + 46] = 0xff
+    archive_fd = os.memfd_create("void-v7-bad-utf8-zip", os.MFD_CLOEXEC)
+    try:
+        os.write(archive_fd, invalid_utf8)
+        try:
+            inspect_stdlib_zip(
+                Path("/proc/self/fd/" + str(archive_fd)),
+                archive_fd,
+                os.fstat(archive_fd),
+            )
+        except CensusError as exc:
+            assert str(exc) == "stdlib_zip_invalid"
+        else:
+            raise AssertionError("malformed_utf8_zip_name_escaped_hold")
+    finally:
+        os.close(archive_fd)
+
     print(MARKER + "_SELF_TEST_GREEN")
     print("unsanitized_zip_member_name_required=true")
     print("stdlib_zip_canonical_raw_components_required=true")
     print("stdlib_zip_required_regular_files_only=true")
+    print("stdlib_zip_invalid_utf8_names_hold=true")
     print("runtime_import_closure_proof_required=true")
     print("filesystem_write=false")
     print("protected_filesystem_mutation=false")
