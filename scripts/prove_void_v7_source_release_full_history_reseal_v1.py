@@ -14,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "a7aaa04bdb38193656e3aa44721ba7c2afcb992b"
+TARGET_BLOB = "8735b9ce07bb717e1f2bf535e05e10fed47682bd"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -45,6 +45,14 @@ assert '"ls-tree", "-rz", "-t", "--full-tree", TARGET_TREE' in text
 assert 'os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW' in text
 assert '"candidate_tree_entry_mode_unsupported:" + mode' in text
 assert '"diff-index", "--cached", "--quiet", TARGET_HEAD, "--"' in text
+assert 'candidate_pack_dir_generation_changed' in text
+assert 'candidate_refs_dir_generation_changed' in text
+assert 'candidate_heads_dir_generation_changed' in text
+assert 'candidate_tags_dir_generation_changed' in text
+assert 'candidate_git_directory_layout_invalid' in text
+assert 'candidate_objects_directory_layout_invalid' in text
+assert 'candidate_pack_directory_layout_invalid' in text
+assert 'candidate_main_ref_content_invalid' in text
 assert 'candidate_index_generation_changed' in text
 assert '_entry_absent_at(git_fd, "logs", "candidate")' in text
 
@@ -93,6 +101,9 @@ for required in (
     'regular_files_only_tree_contract=true',
     'terminal_worktree_manifest_revalidation=true',
     'terminal_index_comparison_read_only=true',
+    'git_metadata_descriptor_revalidation=true',
+    'git_metadata_exact_layout=true',
+    'pack_and_ref_aliases_rejected=true',
     'protected_replace_authorized=false',
 ):
     assert required in text, required
@@ -228,6 +239,9 @@ print("descriptor_relative_worktree_materialization_bound=true")
 print("regular_files_only_tree_contract_bound=true")
 print("terminal_worktree_manifest_revalidation_bound=true")
 print("terminal_index_comparison_read_only_bound=true")
+print("git_metadata_descriptor_revalidation_bound=true")
+print("git_metadata_exact_layout_bound=true")
+print("pack_and_ref_alias_rejection_bound=true")
 print("protected_filesystem_mutation=false")
 print("network=false")
 print("protected_replace_authorized=false")
