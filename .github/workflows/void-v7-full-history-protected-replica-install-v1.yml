@@ -28,7 +28,7 @@ jobs:
           set -euo pipefail
 
           test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "5f1b153ac1078d5bd1ff75f983a4fe5fb8f48560"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "71dff2beaea577068ba80f1375c7e2a5695fb38b"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "f9eb76d5751043691278bb1999233884edf5a102"
           test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "9e933ad4c08e747e77d815c92770d419aec1650a"
 
           test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
