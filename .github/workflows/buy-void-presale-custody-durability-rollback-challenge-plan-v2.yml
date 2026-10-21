@@ -40,11 +40,11 @@ jobs:
 
           expected="$RUNNER_TEMP/expected.txt"
           actual="$RUNNER_TEMP/actual.txt"
-          printf '%s\n' \
-            'A\tops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json' \
-            'A\tscripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v2.py' \
-            'A\tdocs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v2.md' \
-            'A\t.github/workflows/buy-void-presale-custody-durability-rollback-challenge-plan-v2.yml' \
+          printf 'A\t%s\n' \
+            'ops/security/buy-void-presale-custody-durability-rollback-challenge-plan-v2.json' \
+            'scripts/prove_buy_void_presale_custody_durability_rollback_challenge_plan_v2.py' \
+            'docs/operators/buy-void-presale-custody-durability-rollback-challenge-plan-v2.md' \
+            '.github/workflows/buy-void-presale-custody-durability-rollback-challenge-plan-v2.yml' \
             | sort > "$expected"
           git diff --name-status '60a6fffc0fd8de576769f4bc090b3a12ca4ba526' HEAD -- | sort > "$actual"
           diff -u "$expected" "$actual"
