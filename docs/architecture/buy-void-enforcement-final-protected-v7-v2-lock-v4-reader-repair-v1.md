@@ -1,6 +1,6 @@
 # Buy VOID protected V7/V2 lock V4 reader-repair V1
 
-Status: **source/CI-only acceptance lock; independent review HOLD**.
+Status: **source/CI evidence lock; candidate acceptance and independent review HOLD**.
 
 This lock accepts only #3680 exact candidate `895c2bf320defbbca5fba6792e2a75126b2c4d76`, candidate blob
 `5893e300a78dc4ca7729ef47f95a8e3eea2043cf`, 17,788 bytes, SHA-256
@@ -19,8 +19,12 @@ the deployment-receipt reader row from `3de6e4bd...` to `e0a682ea...`, mode
 `100644`. The proof uses bounded `O_NOFOLLOW|O_NONBLOCK` descriptor reads with
 regular-replacement, symlink, FIFO and oversize adversaries.
 
-The source lock sets `candidate_enforcement_identity_accepted=true` for this exact
-candidate only, while deliberately retaining:
+The source lock binds and verifies this exact candidate with
+`candidate_identity_lock_evidence_verified=true`, but deliberately keeps
+`candidate_enforcement_identity_accepted=false` because existing VOID consumers
+treat that legacy field as authority and do not understand the newer review/lifecycle
+flags. A separately reviewed successor must perform any later acceptance promotion.
+It also retains:
 - `independent_review_complete=false`;
 - `candidate_acceptance_lifecycle_ready=false`;
 - `downstream_candidate_v5_derivation_ready=false`.

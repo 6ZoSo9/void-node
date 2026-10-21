@@ -65,7 +65,7 @@
   },
   "complete_executable_closure_verified": true,
   "current_enforcement_tracked_source_inventory_verified": true,
-  "candidate_enforcement_identity_accepted": true,
+  "candidate_enforcement_identity_accepted": false,
   "independent_review_complete": false,
   "candidate_acceptance_lifecycle_ready": false,
   "downstream_candidate_v5_derivation_ready": false,
@@ -73,5 +73,6 @@
   "runtime_mount_authority": false,
   "production_source_finality_authority_ready": false,
   "public_presale_activation": false,
-  "funds_movement": false
+  "funds_movement": false,
+  "candidate_identity_lock_evidence_verified": true
 }
