@@ -121,6 +121,36 @@ def _text(root: Path, *args: str) -> str:
 def _identity(st: os.stat_result) -> tuple[int, int, int, int, int, int]:
     return (st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink)
 
+def _file_generation_identity(
+    st: os.stat_result,
+) -> tuple[int, int, int, int, int, int, int, int, int]:
+    return (
+        st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink,
+        st.st_size, st.st_mtime_ns, st.st_ctime_ns,
+    )
+
+def _sha256_fd(fd: int, label: str, max_bytes: int = MAX_OUTPUT) -> tuple[str, int]:
+    st = os.fstat(fd)
+    if (
+        not stat.S_ISREG(st.st_mode)
+        or st.st_nlink != 1
+        or st.st_size < 0
+        or st.st_size > max_bytes
+    ):
+        raise ResealError(label + "_file_metadata_invalid")
+    h = hashlib.sha256()
+    offset = 0
+    while offset < st.st_size:
+        part = os.pread(fd, min(1024 * 1024, st.st_size - offset), offset)
+        if not part:
+            raise ResealError(label + "_short_read")
+        h.update(part)
+        offset += len(part)
+    after = os.fstat(fd)
+    if _file_generation_identity(after) != _file_generation_identity(st):
+        raise ResealError(label + "_generation_changed_during_hash")
+    return h.hexdigest(), st.st_size
+
 def _directory_lease_identity(st: os.stat_result) -> tuple[int, int, int, int, int]:
     # Directory link counts are expected to change while this builder creates
     # and removes child directories. The stable lease is device/inode/owner/mode.
@@ -740,9 +770,15 @@ def _verify_candidate_metadata_fds(
     refs_fd: int,
     heads_fd: int,
     tags_fd: int,
+    pack_file_fd: int,
+    pack_index_file_fd: int,
     index_fd: int,
     pack_name: str,
     pack_index_name: str,
+    pack_file_identity: tuple[int, int, int, int, int, int, int, int, int],
+    pack_index_identity: tuple[int, int, int, int, int, int, int, int, int],
+    pack_sha256: str,
+    pack_index_sha256: str,
 ) -> None:
     git_visible = os.stat(".git", dir_fd=candidate_fd, follow_symlinks=False)
     if _identity(git_visible) != _identity(os.fstat(git_fd)) or not stat.S_ISDIR(git_visible.st_mode):
@@ -801,15 +837,32 @@ def _verify_candidate_metadata_fds(
     finally:
         os.close(object_info_fd)
         os.close(info_fd)
-    for name in (pack_name, pack_index_name):
-        st = os.stat(name, dir_fd=pack_fd, follow_symlinks=False)
+    for (
+        name, retained_fd, expected_identity, expected_sha, label
+    ) in (
+        (
+            pack_name, pack_file_fd, pack_file_identity, pack_sha256,
+            "candidate_pack_file",
+        ),
+        (
+            pack_index_name, pack_index_file_fd, pack_index_identity,
+            pack_index_sha256, "candidate_pack_index_file",
+        ),
+    ):
+        visible = os.stat(name, dir_fd=pack_fd, follow_symlinks=False)
+        retained = os.fstat(retained_fd)
         if (
-            not stat.S_ISREG(st.st_mode)
-            or stat.S_ISLNK(st.st_mode)
-            or st.st_nlink != 1
-            or st.st_uid != os.getuid()
+            not stat.S_ISREG(visible.st_mode)
+            or stat.S_ISLNK(visible.st_mode)
+            or visible.st_nlink != 1
+            or visible.st_uid != os.getuid()
+            or _file_generation_identity(visible) != expected_identity
+            or _file_generation_identity(retained) != expected_identity
         ):
-            raise ResealError("candidate_pack_file_generation_invalid")
+            raise ResealError(label + "_generation_invalid")
+        observed_sha, _observed_size = _sha256_fd(retained_fd, label)
+        if observed_sha != expected_sha:
+            raise ResealError(label + "_digest_changed")
     head_raw = _read_regular_at(git_fd, "HEAD", "candidate_head", max_bytes=256)
     if head_raw != b"ref: refs/heads/main\n":
         raise ResealError("candidate_head_content_invalid")
@@ -841,16 +894,23 @@ def verify_candidate_lease(
     refs_fd: int,
     heads_fd: int,
     tags_fd: int,
+    pack_file_fd: int,
+    pack_index_file_fd: int,
     index_fd: int,
     pack_name: str,
     pack_index_name: str,
+    pack_file_identity: tuple[int, int, int, int, int, int, int, int, int],
+    pack_index_identity: tuple[int, int, int, int, int, int, int, int, int],
+    pack_sha256: str,
+    pack_index_sha256: str,
 ) -> None:
     _revalidate_candidate_lease(
         output, parent_fd, parent_identity, candidate_fd, candidate_identity
     )
     _verify_candidate_metadata_fds(
         candidate_fd, git_fd, objects_fd, pack_fd, refs_fd, heads_fd, tags_fd,
-        index_fd, pack_name, pack_index_name,
+        pack_file_fd, pack_index_file_fd, index_fd, pack_name, pack_index_name,
+        pack_file_identity, pack_index_identity, pack_sha256, pack_index_sha256,
     )
     if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "--is-shallow-repository", index_file_fd=index_fd) != "false":
         raise ResealError("candidate_repository_shallow")
@@ -880,7 +940,8 @@ def verify_candidate_lease(
     )
     _verify_candidate_metadata_fds(
         candidate_fd, git_fd, objects_fd, pack_fd, refs_fd, heads_fd, tags_fd,
-        index_fd, pack_name, pack_index_name,
+        pack_file_fd, pack_index_file_fd, index_fd, pack_name, pack_index_name,
+        pack_file_identity, pack_index_identity, pack_sha256, pack_index_sha256,
     )
 
 def _receipt_safe_path(path: Path, label: str) -> str:
@@ -1076,7 +1137,9 @@ def build(output: Path) -> None:
     verify_source()
     output = _validate_output(output)
 
-    parent_fd = candidate_fd = git_fd = objects_fd = pack_fd = refs_fd = heads_fd = tags_fd = index_tmp_fd = index_fd = -1
+    parent_fd = candidate_fd = git_fd = objects_fd = pack_fd = refs_fd = heads_fd = tags_fd = pack_file_fd = pack_index_file_fd = index_tmp_fd = index_fd = -1
+    pack_file_identity = pack_index_identity = None
+    pack_sha256 = pack_index_sha256 = ""
     worktree_directory_fds: dict[tuple[bytes, ...], int] = {}
     worktree_directory_ids: dict[
         tuple[bytes, ...], tuple[int, int, int, int, int]
@@ -1169,6 +1232,24 @@ def build(output: Path) -> None:
             or index_stat.st_nlink != 1
         ):
             raise ResealError("pack_file_metadata_invalid")
+        pack_file_fd = os.open(
+            pack_name,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=pack_fd,
+        )
+        pack_index_file_fd = os.open(
+            index_name,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=pack_fd,
+        )
+        pack_file_identity = _file_generation_identity(os.fstat(pack_file_fd))
+        pack_index_identity = _file_generation_identity(os.fstat(pack_index_file_fd))
+        pack_sha256, _pack_bytes = _sha256_fd(
+            pack_file_fd, "candidate_pack_file"
+        )
+        pack_index_sha256, _pack_index_bytes = _sha256_fd(
+            pack_index_file_fd, "candidate_pack_index_file"
+        )
         _run(
             ROOT,
             "verify-pack",
@@ -1176,6 +1257,26 @@ def build(output: Path) -> None:
             "/proc/self/fd/" + str(pack_fd) + "/" + index_name,
             pass_fds=(pack_fd,),
         )
+        if (
+            _file_generation_identity(
+                os.stat(pack_name, dir_fd=pack_fd, follow_symlinks=False)
+            ) != pack_file_identity
+            or _file_generation_identity(os.fstat(pack_file_fd))
+            != pack_file_identity
+            or _file_generation_identity(
+                os.stat(index_name, dir_fd=pack_fd, follow_symlinks=False)
+            ) != pack_index_identity
+            or _file_generation_identity(os.fstat(pack_index_file_fd))
+            != pack_index_identity
+        ):
+            raise ResealError("pack_generation_changed_during_verify")
+        if _sha256_fd(pack_file_fd, "candidate_pack_file")[0] != pack_sha256:
+            raise ResealError("pack_digest_changed_during_verify")
+        if (
+            _sha256_fd(pack_index_file_fd, "candidate_pack_index_file")[0]
+            != pack_index_sha256
+        ):
+            raise ResealError("pack_index_digest_changed_during_verify")
 
         _write_new_regular_at(
             heads_fd,
@@ -1249,9 +1350,15 @@ def build(output: Path) -> None:
             refs_fd,
             heads_fd,
             tags_fd,
+            pack_file_fd,
+            pack_index_file_fd,
             index_fd,
             pack_name,
             index_name,
+            pack_file_identity,
+            pack_index_identity,
+            pack_sha256,
+            pack_index_sha256,
         )
         _verify_materialized_candidate_worktree(
             candidate_fd,
@@ -1288,7 +1395,7 @@ def build(output: Path) -> None:
                     os.close(fd)
                 except OSError:
                     pass
-        for fd in (index_fd, index_tmp_fd, tags_fd, heads_fd, refs_fd, pack_fd, objects_fd, git_fd, candidate_fd, parent_fd):
+        for fd in (index_fd, index_tmp_fd, pack_index_file_fd, pack_file_fd, tags_fd, heads_fd, refs_fd, pack_fd, objects_fd, git_fd, candidate_fd, parent_fd):
             if fd >= 0:
                 try:
                     os.close(fd)
@@ -1314,6 +1421,8 @@ def build(output: Path) -> None:
     print("git_metadata_descriptor_revalidation=true")
     print("git_metadata_exact_layout=true")
     print("pack_and_ref_aliases_rejected=true")
+    print("pack_leaf_descriptors_retained=true")
+    print("pack_leaf_generation_and_digest_revalidation=true")
     print("candidate_cleanup_attempted=false")
     print("candidate_retained_on_success=true")
     print("current_uid_filesystem_write_boundary=true")
