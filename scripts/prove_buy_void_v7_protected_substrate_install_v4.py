@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="4b4af2b0170a77620123bbf4e25d6bcda4d2acfa"
+assert gblob(INS)=="4448acb51cbc15d845550a55cd11c38f4185a7b3"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -71,6 +71,8 @@ required=(
     'git_config_core_attributesfile_forbidden',
     'git_config_filter_forbidden',
     'git_local_config_exact_allowlist_required=true',
+    'def _write_git_metadata_fixture(',
+    'def _assert_git_metadata_fixture_rejected(mutator: Any) -> None:',
     'def _direct_main_ref(root: pathlib.Path, label: str) -> str:',
     'def _git_tree_oid_from_worktree(root: pathlib.Path, label: str) -> str:',
     'with os.scandir(directory) as scan:',
