@@ -167,12 +167,16 @@ def _set_runtime_uid_read_acl_fd(
     blob = _runtime_uid_read_acl_blob(owner_perm, runtime_perm)
     try:
         os.setxattr(fd, POSIX_ACL_ACCESS_XATTR, blob)
-    except OSError as exc:
-        raise InstallError(label + "_access_acl_set_failed:" + str(exc.errno)) from exc
+    except (OSError, TypeError) as exc:
+        raise InstallError(
+            label + "_access_acl_set_failed:" + str(getattr(exc, "errno", "type"))
+        ) from exc
     try:
         observed = os.getxattr(fd, POSIX_ACL_ACCESS_XATTR)
-    except OSError as exc:
-        raise InstallError(label + "_access_acl_readback_failed:" + str(exc.errno)) from exc
+    except (OSError, TypeError) as exc:
+        raise InstallError(
+            label + "_access_acl_readback_failed:" + str(getattr(exc, "errno", "type"))
+        ) from exc
     if observed != blob:
         raise InstallError(label + "_access_acl_readback_mismatch")
     after = os.fstat(fd)
@@ -206,8 +210,10 @@ def _verify_runtime_uid_read_acl_fd(
     expected = _runtime_uid_read_acl_blob(owner_perm, runtime_perm)
     try:
         observed = os.getxattr(fd, POSIX_ACL_ACCESS_XATTR)
-    except OSError as exc:
-        raise InstallError(label + "_access_acl_missing:" + str(exc.errno)) from exc
+    except (OSError, TypeError) as exc:
+        raise InstallError(
+            label + "_access_acl_missing:" + str(getattr(exc, "errno", "type"))
+        ) from exc
     if observed != expected:
         raise InstallError(label + "_access_acl_mismatch")
 
@@ -224,10 +230,14 @@ def _remove_runtime_uid_read_acl_fd(
     )
     try:
         os.removexattr(fd, POSIX_ACL_ACCESS_XATTR)
-    except OSError as exc:
-        raise InstallError(label + "_access_acl_remove_failed:" + str(exc.errno)) from exc
+    except (OSError, TypeError) as exc:
+        raise InstallError(
+            label + "_access_acl_remove_failed:" + str(getattr(exc, "errno", "type"))
+        ) from exc
     try:
         os.getxattr(fd, POSIX_ACL_ACCESS_XATTR)
+    except TypeError as exc:
+        raise InstallError(label + "_access_acl_postremove_probe_failed:type") from exc
     except OSError as exc:
         if exc.errno != errno.ENODATA:
             raise InstallError(label + "_access_acl_postremove_probe_failed:" + str(exc.errno)) from exc
@@ -1618,8 +1628,24 @@ def self_test() -> None:
             raise
     else:
         raise AssertionError("invalid_utf8_copy_component_not_rejected")
+    with tempfile.TemporaryDirectory(prefix="void-v7-acl-self-test-") as acl_td:
+        acl_path = pathlib.Path(acl_td) / "probe"
+        acl_path.write_bytes(b"x")
+        os.chmod(acl_path, 0o400)
+        acl_fd = os.open(acl_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            acl_blob = _runtime_uid_read_acl_blob(0o4, 0o4)
+            os.setxattr(acl_fd, POSIX_ACL_ACCESS_XATTR, acl_blob)
+            if os.getxattr(acl_fd, POSIX_ACL_ACCESS_XATTR) != acl_blob:
+                raise AssertionError("runtime_uid_acl_xattr_roundtrip_invalid")
+            if stat.S_IMODE(os.fstat(acl_fd).st_mode) != 0o440:
+                raise AssertionError("runtime_uid_acl_mode_projection_invalid")
+            os.removexattr(acl_fd, POSIX_ACL_ACCESS_XATTR)
+        finally:
+            os.close(acl_fd)
     print("root_owned_immutable_stage_required=true")
     print("private_stage_named_runtime_uid_acl_required=true")
+    print("private_stage_acl_xattr_roundtrip_required=true")
     print("private_stage_acl_group_object_zero_required=true")
     print("candidate_utf8_path_components_required=true")
     print("rename_noreplace_publication_required=true")
@@ -1661,7 +1687,13 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (InstallError, OSError, subprocess.SubprocessError, KeyboardInterrupt) as exc:
+    except (
+        InstallError,
+        OSError,
+        UnicodeError,
+        subprocess.SubprocessError,
+        KeyboardInterrupt,
+    ) as exc:
         try:
             _reconcile_publication_receipt()
         except BaseException:
