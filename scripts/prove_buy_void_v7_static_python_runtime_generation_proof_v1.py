@@ -65,6 +65,7 @@ assert 'snapshot_fd_not_sealed' in text
 assert 'sealed_snapshot_fd_admission_required=true' in text
 assert '_check_probe(probe_out, root)' not in text
 assert 'cwd=root' not in text
+assert 'os.fspath(python_target), "-I", "-B", "-S", "-c", PROBE' not in text
 
 required = (
     'MARKER = "VOID_BUY_VOID_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF_V1"',
@@ -84,7 +85,7 @@ required = (
     'candidate_ctypes_not_from_exact_zip',
     'candidate_native_ctypes_not_builtin',
     'candidate_renameat2_unavailable',
-    'os.fspath(python_target), "-I", "-B", "-S", "-c", PROBE',
+    '["/bin/python3.12-static", "-I", "-B", "-S", "-c", PROBE, "/"]',
     'V5_BOOTSTRAP = r',
     'synthetic_v5 = root / "synthetic-repo" / V5_REL',
     '"-I", "-B", "-S", "-c", V5_BOOTSTRAP',
