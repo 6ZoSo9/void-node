@@ -68,7 +68,7 @@ for required in (
     'REACHABLE_COMMITS = 17931',
     'MAX_COPY_DEPTH = 128',
     'MAX_GIT_OBJECT_BYTES = 128 * 1024 * 1024',
-    'def _PackReader',
+    'class _PackReader:',
     'def _read_loose(',
     '_loose_object_size_limit',
     '_loose_zlib_incomplete',
