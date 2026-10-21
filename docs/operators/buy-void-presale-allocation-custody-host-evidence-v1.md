@@ -109,14 +109,23 @@ A future separately authorized root run:
 7. invokes the canonical live rollback-policy observer over the fixed replay
    roots and current root-owned policy;
 8. requires current live policy observation and storage rebinding GREEN;
-9. invokes the installation/storage observer again and requires the same
-   qualification ID and high-water generation;
+9. invokes the installation/storage observer again and requires the exact
+   same qualification ID and high-water generation as both the initial
+   observation and the intervening live policy observation; if the policy
+   observed a transient A->B->A storage generation, the triplet comparison
+   HOLDs even though the two outer installation IDs match;
 10. invokes the reviewed second-control composition over the exact five
    artifacts;
 11. requires reviewed external custody, transport/storage provenance, same
    Precision storage identity, same replay high-water, and post-cycle policy
    binding;
 12. submits the prerequisite booleans to #3513's challenge contract.
+
+The collector also independently compares the live-policy
+`installation_qualification_id` and installation high-water digest with
+both outer installation observations. The proof exercises an ABA case where
+the before/after installation receipts match but the policy's installation
+identity differs; it must HOLD. This does not establish rollback resistance.
 
 The collector itself contains no direct child-process API, but the canonical
 installation/storage observer transitively executes root-custodied
@@ -255,3 +264,16 @@ file-type and descriptor-generation validation. The test intercepts the
 actual `openSync` flags before opening the FIFO and fails immediately if
 `O_NONBLOCK` regresses. It uses only disposable test files and does not
 invoke a live host observer, root collection, payment or custody challenge.
+
+## Transitive observer dependency HOLD
+
+The collector's own `stableReadAbsolute` opens with
+`O_RDONLY|O_NOFOLLOW|O_NONBLOCK`, but the separately pinned installation
+observer (blob `c0c86bc1687fc9a3cb9313b5a68029c35c6a9a63`) still
+opens the fixed journal and high-water leaves with `O_RDONLY|O_NOFOLLOW`
+without `O_NONBLOCK`. A concurrent regular-to-FIFO substitution could
+therefore block the transitive observer before its post-open checks run.
+**Do not execute the live root `--run` collector or infer readiness** until
+a separately reviewed nonblocking successor to that observer is accepted
+and this exact source/proof/doc/workflow generation is rebound to it. The
+current source-only three-way storage identity repair does not close that P1.

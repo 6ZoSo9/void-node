@@ -14,6 +14,7 @@ import {
   testOnlyAssertSecondControlV1,
   testOnlyAssertCrossReceiptBindingV1,
   testOnlyAssertInstallationEvidenceV1,
+  testOnlyAssertStorageGenerationTripleV1,
   testOnlyAssertObservedFileMatchesV1,
   testOnlyAssertDurabilityContractV1,
   testOnlySafeHoldReasonV1,
@@ -24,7 +25,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const COLLECTOR_REL =
   "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts";
-const COLLECTOR_BLOB = "6ce48af079407b774ddb38f8c2d01b38ae83c441";
+const COLLECTOR_BLOB = "30b8674e27816d74997844fa55269fc72e0bea6b";
 
 const PARENT_PLAN_REL =
   "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
@@ -201,6 +202,9 @@ for (const required of [
   "process_execution_read_only_contract: true",
   "transitive_storage_identity_helper_execution_required: true",
   "installation_storage_generation_bound: true",
+  "assertStorageGenerationTripleV1(",
+  "livePolicy.installation_qualification_id",
+  "livePolicy.installation_high_water_sha256",
   "network_contact_performed: false",
   "public_presale_activation: false",
   "funds_movement: false",
@@ -373,6 +377,49 @@ const goodPolicy: Record<string, unknown> = {
   production_gate_ready: false, funds_movement: false, normalized: goodPolicyNormalized,
 };
 testOnlyAssertLivePolicyV1(goodPolicy);
+
+// Three-way binding proves the inner live-policy storage generation belongs
+// to the same outer installation/high-water generation. Outer A->A alone
+// would accept an ABA transition A->B->A during the policy observation.
+testOnlyAssertStorageGenerationTripleV1(
+  goodInstallation, goodPolicy, goodInstallation,
+);
+const installationOther = {
+  ...goodInstallation,
+  qualification_id: "voidwlrie1_" + "9".repeat(64),
+};
+const storageTriadBadCases: Array<[string, unknown, unknown, unknown]> = [
+  ["policy_installation_aba", goodInstallation, {
+    ...goodPolicy,
+    normalized: {
+      ...goodPolicyNormalized,
+      installation_qualification_id: installationOther.qualification_id,
+    },
+  }, goodInstallation],
+  ["outer_after_changed", goodInstallation, goodPolicy, installationOther],
+  ["outer_before_changed", installationOther, goodPolicy, goodInstallation],
+  ["policy_high_water_mismatch", goodInstallation, {
+    ...goodPolicy,
+    normalized: {
+      ...goodPolicyNormalized,
+      installation_high_water_sha256: "sha256:" + "8".repeat(64),
+    },
+  }, goodInstallation],
+  ["outer_high_water_mismatch", goodInstallation, goodPolicy, {
+    ...goodInstallation,
+    normalized: {
+      ...(goodInstallation.normalized as Record<string, unknown>),
+      high_water_sha256: "sha256:" + "8".repeat(64),
+    },
+  }],
+];
+for (const [label, before, policy, after] of storageTriadBadCases) {
+  assert.throws(
+    () => testOnlyAssertStorageGenerationTripleV1(before, policy, after),
+    /allocation_custody_storage_generation_changed_during_observation/u,
+    "storage_three_way_binding_not_rejected:" + label,
+  );
+}
 for (const [key, value] of [
   ["root_owned_policy_file_observed", false], ["rollback_independence_policy_qualified", false],
   ["policy_file_installation_proven", false], ["live_policy_observation_proven", false],
@@ -671,6 +718,7 @@ console.log("live_policy_observer_required=true");
 console.log("canonical_installation_observer_bound=true");
 console.log("installation_observer_read_only_helper_contract_proven=true");
 console.log("installation_storage_generation_bound=true");
+console.log("storage_observation_three_way_installation_identity_bound=true");
 console.log("reviewed_second_control_composition_required=true");
 console.log("fixed_precision_replay_roots_bound=true");
 console.log("descriptor_nofollow_reads_required=true");
