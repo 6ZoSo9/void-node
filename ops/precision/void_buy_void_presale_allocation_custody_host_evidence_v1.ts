@@ -166,7 +166,9 @@ function stableReadAbsolute(
     fail(code + "_metadata_invalid");
   }
 
-  const fd = fs.openSync(inputPath, fs.constants.O_RDONLY | O_NOFOLLOW);
+  const fd = fs.openSync(
+    inputPath, fs.constants.O_RDONLY | O_NOFOLLOW | fs.constants.O_NONBLOCK,
+  );
   try {
     const opened = fs.fstatSync(fd);
     if (!sameStat(before, opened)) fail(code + "_open_identity_mismatch");
@@ -208,6 +210,16 @@ function stableReadAbsolute(
   } finally {
     fs.closeSync(fd);
   }
+}
+
+// The test-only export permits deterministic non-root filesystem-race
+// regression; it does not perform any host collection or policy observation.
+export function testOnlyStableReadAbsoluteV1(
+  inputPath: string,
+  maximumBytes: number,
+  code: string,
+): void {
+  stableReadAbsolute(inputPath, maximumBytes, code);
 }
 
 const SHA256_ID = /^sha256:[0-9a-f]{64}$/u;

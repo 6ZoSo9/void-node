@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,13 +17,14 @@ import {
   testOnlyAssertObservedFileMatchesV1,
   testOnlyAssertDurabilityContractV1,
   testOnlySafeHoldReasonV1,
+  testOnlyStableReadAbsoluteV1,
 } from "../ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const COLLECTOR_REL =
   "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v1.ts";
-const COLLECTOR_BLOB = "a36e26ce122cb4c50e5e918cb31a67edfb8a3fb7";
+const COLLECTOR_BLOB = "6ce48af079407b774ddb38f8c2d01b38ae83c441";
 
 const PARENT_PLAN_REL =
   "ops/security/buy-void-presale-host-evidence-collection-plan-v1.json";
@@ -172,7 +174,7 @@ for (const required of [
   "live-read-replay-v1.jsonl",
   "live-read-replay-high-water-v1.json",
   "stableReadAbsolute(",
-  "fs.constants.O_RDONLY | O_NOFOLLOW",
+  "fs.constants.O_RDONLY | O_NOFOLLOW | fs.constants.O_NONBLOCK",
   "sameStat(opened, after)",
   "sameStat(after, visible)",
   "const livePolicyNormalized = assertLivePolicy(livePolicy)",
@@ -558,6 +560,42 @@ for (const forged of [
 }
 assert.equal(testOnlySafeHoldReasonV1(new Error("a".repeat(256))), "allocation_custody_diagnostic_redacted");
 
+// Exercise the actual collector's descriptor open under a deterministic
+// lstat-to-open FIFO swap. Intercepting open enforces O_NONBLOCK *before*
+// calling the kernel, so a future regression fails CI promptly, not by hang.
+const fifoTemp = fs.mkdtempSync(path.join(os.tmpdir(), "void-custody-fifo-"));
+const fifoLeaf = path.join(fifoTemp, "reviewed-receipt");
+const originalOpen = (fs as any).openSync;
+let fifoSwapExercised = false;
+try {
+  fs.writeFileSync(fifoLeaf, "synthetic-regular-receipt\n", {mode:0o600});
+  (fs as any).openSync = function(...args:any[]) {
+    if (String(args[0]) === fifoLeaf && !fifoSwapExercised) {
+      const flags = Number(args[1]);
+      assert.ok((flags & fs.constants.O_NOFOLLOW) !== 0,
+        "collector_fifo_open_nofollow_required");
+      assert.ok((flags & fs.constants.O_NONBLOCK) !== 0,
+        "collector_fifo_open_nonblocking_required");
+      fs.renameSync(fifoLeaf, fifoLeaf + ".original");
+      execFileSync("/usr/bin/mkfifo", [fifoLeaf], {
+        stdio: "ignore",
+        env: {PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
+      });
+      fifoSwapExercised = true;
+    }
+    return originalOpen.apply(fs, args);
+  };
+  assert.throws(
+    () => testOnlyStableReadAbsoluteV1(fifoLeaf, 1024, "fixture_fifo"),
+    /fixture_fifo_open_identity_mismatch/u,
+  );
+  assert.equal(fifoSwapExercised, true, "collector_fifo_swap_not_exercised");
+} finally {
+  (fs as any).openSync = originalOpen;
+  fs.rmSync(fifoTemp, {recursive:true,force:true});
+}
+
+
 // Exercise the actual CLI's catch/diagnostic path, not only its formatter.
 // A test-only ESM preload fakes the JS geteuid() answer in the child; the
 // underlying process remains the ordinary CI user, with no kernel privilege.
@@ -623,6 +661,7 @@ for (const boundedFalse of [
 console.log(MARKER + "_PROOF_GREEN");
 console.log("hold_diagnostic_single_line_and_positive_marker_injection_rejected=true");
 console.log("hold_cli_entrypoint_multiline_status_injection_rejected=true");
+console.log("collector_fifo_swap_nonblocking_open_rejected=true");
 console.log("parent_host_evidence_plan_bound=true");
 console.log("three_reviewed_custody_primitives_bound=true");
 console.log("durability_rollback_contract_bound=true");

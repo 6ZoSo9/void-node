@@ -244,3 +244,14 @@ Linux privileges are unchanged; the nonexistent path fails before any fixed
 journal, high-water, witness or policy observer is reached. This hardens log
 parsing only and grants no host collector, storage challenge, presale, payment
 or funds authority.
+
+## Nonblocking retained-file observation
+
+The unprivileged source proof now exercises the production read-only artifact
+observer with a deterministic regular-file-to-FIFO replacement between
+`lstat` and `open`. The collector opens with
+`O_RDONLY|O_NOFOLLOW|O_NONBLOCK` so FIFO substitution never blocks before
+file-type and descriptor-generation validation. The test intercepts the
+actual `openSync` flags before opening the FIFO and fails immediately if
+`O_NONBLOCK` regresses. It uses only disposable test files and does not
+invoke a live host observer, root collection, payment or custody challenge.
