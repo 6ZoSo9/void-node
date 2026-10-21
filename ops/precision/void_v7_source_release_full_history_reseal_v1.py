@@ -44,6 +44,7 @@ _CANDIDATE_CREATED = False
 _CLEANUP_ATTEMPTED = False
 _CLEANUP_COMPLETED = False
 _CLEANUP_RESIDUAL_UNKNOWN = False
+_CANDIDATE_RESIDUAL_STATE = "none"
 _CLEANUP_REASON = "none"
 
 class ResealError(RuntimeError):
@@ -625,63 +626,67 @@ def _validate_output(output: Path) -> Path:
         raise ResealError("output_path_not_canonical")
     return output
 
-def _cleanup_fd_tree(directory_fd: int, expected_mount_id: int) -> None:
-    if _fd_mount_id(directory_fd, "cleanup_directory") != expected_mount_id:
-        raise ResealError("cleanup_mount_boundary_changed")
-    entries = list(os.scandir(directory_fd))
-    for entry in entries:
-        st = os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=False)
-        if stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode):
-            child_fd = os.open(
-                entry.name,
-                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-                dir_fd=directory_fd,
-            )
-            try:
-                if _fd_mount_id(child_fd, "cleanup_child") != expected_mount_id:
-                    raise ResealError("cleanup_descendant_mount_boundary_forbidden")
-                _cleanup_fd_tree(child_fd, expected_mount_id)
-            finally:
-                os.close(child_fd)
-            os.rmdir(entry.name, dir_fd=directory_fd)
-        else:
-            os.unlink(entry.name, dir_fd=directory_fd)
-
 def _cleanup_candidate(
     parent_fd: int,
     candidate_fd: int,
     candidate_name: str,
     candidate_identity: tuple[int, int, int, int, int],
-) -> tuple[bool, bool, bool, str]:
+) -> tuple[bool, bool, bool, str, str]:
+    # Cleanup is intentionally non-recursive. A same-UID concurrent process
+    # can move arbitrary same-mount content into this candidate; recursively
+    # deleting it would exceed the generation this builder can prove it owns.
     try:
+        parent_mount_id = _fd_mount_id(parent_fd, "cleanup_parent")
         candidate_mount_id = _fd_mount_id(candidate_fd, "cleanup_candidate")
-        _cleanup_fd_tree(candidate_fd, candidate_mount_id)
+        if candidate_mount_id != parent_mount_id:
+            return (
+                False, False, True, "unknown",
+                "candidate_mount_boundary_changed",
+            )
+        entries = list(os.scandir(candidate_fd))
     except (OSError, ResealError) as exc:
         return (
-            True,
-            False,
-            True,
-            "candidate_tree_cleanup_failed:" + exc.__class__.__name__ + ":" + str(exc),
+            False, False, True, "unknown",
+            "candidate_observation_failed:" + exc.__class__.__name__ + ":" + str(exc),
         )
+
     try:
         visible = os.stat(candidate_name, dir_fd=parent_fd, follow_symlinks=False)
     except FileNotFoundError:
         if os.fstat(candidate_fd).st_nlink == 0:
-            return (True, True, False, "candidate_already_unlinked")
-        return (True, False, True, "candidate_root_name_missing")
+            return (False, True, False, "absent", "candidate_already_unlinked")
+        return (False, False, True, "unknown", "candidate_root_name_missing")
     except OSError as exc:
-        return (True, False, True, "candidate_root_observation_failed:" + exc.__class__.__name__)
+        return (
+            False, False, True, "unknown",
+            "candidate_root_observation_failed:" + exc.__class__.__name__,
+        )
+
     if _directory_lease_identity(visible) != candidate_identity:
-        return (True, False, True, "candidate_root_generation_mismatch")
+        return (
+            False, False, True, "unknown",
+            "candidate_root_generation_mismatch",
+        )
+
+    if entries:
+        return (
+            False, False, False, "retained_needs_inspection",
+            "candidate_nonempty_retained_for_inspection",
+        )
+
     try:
         os.rmdir(candidate_name, dir_fd=parent_fd)
     except OSError as exc:
-        return (True, False, True, "candidate_root_remove_failed:" + exc.__class__.__name__)
-    return (True, True, False, "candidate_removed")
+        return (
+            True, False, True, "unknown",
+            "candidate_empty_remove_failed:" + exc.__class__.__name__,
+        )
+    return (True, True, False, "absent", "candidate_empty_removed")
 
 def build(output: Path) -> None:
     global _CANDIDATE_CREATED
-    global _CLEANUP_ATTEMPTED, _CLEANUP_COMPLETED, _CLEANUP_RESIDUAL_UNKNOWN, _CLEANUP_REASON
+    global _CLEANUP_ATTEMPTED, _CLEANUP_COMPLETED, _CLEANUP_RESIDUAL_UNKNOWN
+    global _CANDIDATE_RESIDUAL_STATE, _CLEANUP_REASON
 
     verify_source()
     output = _validate_output(output)
@@ -810,6 +815,7 @@ def build(output: Path) -> None:
                 _CLEANUP_ATTEMPTED,
                 _CLEANUP_COMPLETED,
                 _CLEANUP_RESIDUAL_UNKNOWN,
+                _CANDIDATE_RESIDUAL_STATE,
                 _CLEANUP_REASON,
             ) = _cleanup_candidate(
                 parent_fd, candidate_fd, output.name, candidate_identity
@@ -818,6 +824,7 @@ def build(output: Path) -> None:
             _CLEANUP_ATTEMPTED = False
             _CLEANUP_COMPLETED = False
             _CLEANUP_RESIDUAL_UNKNOWN = True
+            _CANDIDATE_RESIDUAL_STATE = "unknown"
             _CLEANUP_REASON = "candidate_created_before_descriptor_lease"
         raise
     finally:
@@ -908,22 +915,46 @@ def self_test() -> None:
         parent = Path(td)
         parent_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
         try:
-            os.mkdir("candidate", mode=0o700, dir_fd=parent_fd)
-            candidate_fd = os.open(
-                "candidate",
+            os.mkdir("nonempty", mode=0o700, dir_fd=parent_fd)
+            nonempty_fd = os.open(
+                "nonempty",
                 os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
                 dir_fd=parent_fd,
             )
             try:
-                candidate_identity = _directory_lease_identity(os.fstat(candidate_fd))
-                _write_new_regular_at(candidate_fd, "probe", b"x", 0o600, "self_test_cleanup")
-                attempted, completed, residual, reason = _cleanup_candidate(
-                    parent_fd, candidate_fd, "candidate", candidate_identity
+                nonempty_identity = _directory_lease_identity(os.fstat(nonempty_fd))
+                _write_new_regular_at(nonempty_fd, "probe", b"x", 0o600, "self_test_cleanup")
+                attempted, completed, unknown, residual, reason = _cleanup_candidate(
+                    parent_fd, nonempty_fd, "nonempty", nonempty_identity
                 )
-                if not attempted or not completed or residual or reason != "candidate_removed":
-                    raise AssertionError("cleanup_success_fixture_failed")
+                if attempted or completed or unknown:
+                    raise AssertionError("nonempty_cleanup_authority_overclaim")
+                if residual != "retained_needs_inspection":
+                    raise AssertionError("nonempty_cleanup_residual_state_invalid")
+                if reason != "candidate_nonempty_retained_for_inspection":
+                    raise AssertionError("nonempty_cleanup_reason_invalid")
+                if not (parent / "nonempty" / "probe").is_file():
+                    raise AssertionError("nonempty_cleanup_deleted_content")
             finally:
-                os.close(candidate_fd)
+                os.close(nonempty_fd)
+
+            os.mkdir("empty", mode=0o700, dir_fd=parent_fd)
+            empty_fd = os.open(
+                "empty",
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                dir_fd=parent_fd,
+            )
+            try:
+                empty_identity = _directory_lease_identity(os.fstat(empty_fd))
+                attempted, completed, unknown, residual, reason = _cleanup_candidate(
+                    parent_fd, empty_fd, "empty", empty_identity
+                )
+                if not attempted or not completed or unknown:
+                    raise AssertionError("empty_cleanup_fixture_failed")
+                if residual != "absent" or reason != "candidate_empty_removed":
+                    raise AssertionError("empty_cleanup_receipt_invalid")
+            finally:
+                os.close(empty_fd)
         finally:
             os.close(parent_fd)
     print(MARKER + "_SELF_TEST_GREEN")
@@ -938,6 +969,7 @@ def self_test() -> None:
     print("descriptor_bound_candidate_mutation=true")
     print("directory_lease_link_count_independent=true")
     print("cleanup_failure_receipt_bound=true")
+    print("cleanup_nonrecursive_retention_policy=true")
     print("cleanup_mount_boundary_rejection_bound=true")
     print("exact_target_commit_tree_parents_bound=true")
     print("complete_reachable_object_graph_required=true")
@@ -989,6 +1021,7 @@ if __name__ == "__main__":
         print("candidate_cleanup_attempted=" + str(_CLEANUP_ATTEMPTED).lower())
         print("candidate_cleanup_completed=" + str(_CLEANUP_COMPLETED).lower())
         print("candidate_cleanup_residual_unknown=" + str(_CLEANUP_RESIDUAL_UNKNOWN).lower())
+        print("candidate_residual_state=" + _CANDIDATE_RESIDUAL_STATE)
         print("candidate_cleanup_reason=" + re.sub(r"[^A-Za-z0-9_:.-]", "_", _CLEANUP_REASON[:300]))
         print("source_repository_mutation=false"); print("protected_filesystem_mutation=false"); print("network=false")
         print("protected_replace_authorized=false"); raise SystemExit(2)
