@@ -57,7 +57,7 @@ V4_INSTALLER_BLOB = "4448acb51cbc15d845550a55cd11c38f4185a7b3"
 FULL_HISTORY_INSTALLER_REL = "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
 FULL_HISTORY_INSTALLER_BLOB = "a4d5762fe0e1c41b0919b8abb827123e556552ca"
 QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py"
-QUALIFIER_BLOB = "46cacce75bb0af27de88212aee44c74cd084e595"
+QUALIFIER_BLOB = "69b1ff028487a139470671cf0afb8937a299897d"
 
 SOURCE_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 SOURCE_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
@@ -674,6 +674,8 @@ def full_history_content_digest(
             elif stat.S_ISREG(st.st_mode):
                 if stat.S_IMODE(st.st_mode) & 0o022:
                     raise InstallError("full_history_tree_file_group_or_world_writable:" + rel)
+                if st.st_nlink != 1:
+                    raise InstallError("full_history_tree_file_link_count_invalid:" + rel)
                 identity = _metadata_identity(st)
                 digest = _read_regular_sha256_exact(
                     child, identity, "full_history_tree_file"
@@ -1423,6 +1425,7 @@ def source_plan() -> None:
     print("live_shallow_release_cross_binding_required=true")
     print("live_release_acl_aware_tree_custody_required=true")
     print("protected_full_history_replica_source_required=true")
+    print("full_history_regular_single_link_required=true")
     print("v4_installer_dependency_bound=true")
     print("full_history_replica_installer_dependency_bound=true")
     print("trusted_full_history_content_sha256_required=true")
