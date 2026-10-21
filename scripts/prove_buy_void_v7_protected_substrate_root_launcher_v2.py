@@ -12,7 +12,7 @@ INSTALLER = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_install_v
 WORKFLOW = ROOT / ".github/workflows/buy-void-v7-protected-substrate-root-launcher-v2.yml"
 
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V2_PROOF"
-SOURCE_BLOB = "6f42ac327bfcbdd8eed3c13f8499be4165458659"
+SOURCE_BLOB = "0aa8d3a990de662b8c3c9928d4c31452d8299ca7"
 INSTALLER_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 INSTALLER_BYTES = 89416
 INSTALLER_SHA256 = "6a2c7de4fd55b2778cd7eb6c625d3b16cea068f9fbf9beb74adf2a04f433c14b"
