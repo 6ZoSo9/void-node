@@ -9,7 +9,7 @@ const repositoryRoot = path.resolve(__dirname, "..");
 const target = path.join(repositoryRoot, "src/diag/datanet_receipts_persist_v1.cjs");
 const source = fs.readFileSync(target, "utf8");
 
-function makeMountHarness(app) {
+function makeMountHarness(app, options = {}) {
   let tick;
   let clearCalls = 0;
   const intervalId = 91;
@@ -17,8 +17,15 @@ function makeMountHarness(app) {
     __void_http_app: app,
     Buffer,
     Date,
-    console: { error() {} },
-    process: { env: {} },
+    console: {
+      error: options.consoleError || (() => {}),
+    },
+    process: {
+      env: {},
+      stderr: {
+        write: options.stderrWrite || (() => true),
+      },
+    },
     require(name) {
       if (name === "fs") return fs;
       if (name === "path") return path;
@@ -63,6 +70,14 @@ function makeMountHarness(app) {
       });
     },
   };
+  let legacyRouterReads = 0;
+  Object.defineProperty(app, "router", {
+    configurable: true,
+    get() {
+      legacyRouterReads += 1;
+      throw new Error("express deprecated app.router getter");
+    },
+  });
   const harness = makeMountHarness(app);
 
   assert.doesNotThrow(harness.tick, "registration exceptions must not escape the retry timer");
@@ -76,6 +91,7 @@ function makeMountHarness(app) {
   assert.equal(app.__void_datanet_receipts_persist_v1_mounted, true);
   assert.equal(app._router.stack.length, 1, "successful retry retains exactly one route");
   assert.equal(harness.clearCalls(), 1);
+  assert.ok(legacyRouterReads >= 2, "Express 4 router getter shape exercised");
 })();
 
 (function proveRetainedThrowIsNotDuplicated() {
@@ -102,6 +118,32 @@ function makeMountHarness(app) {
   assert.equal(app.__void_datanet_receipts_persist_v1_mounted, true);
   assert.equal(app._router.stack.length, 1);
   assert.equal(harness.clearCalls(), 1, "retained registration stops retries");
+})();
+
+(function proveMountErrorFallbackVisible() {
+  const fallback = [];
+  const app = {
+    _router: { stack: [] },
+    get() {
+      throw new Error("synthetic_visible_mount_failure");
+    },
+  };
+  const harness = makeMountHarness(app, {
+    consoleError() {
+      throw new Error("synthetic_console_failure");
+    },
+    stderrWrite(message) {
+      fallback.push(String(message));
+      return true;
+    },
+  });
+
+  assert.doesNotThrow(harness.tick);
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "idle");
+  assert.equal(harness.clearCalls(), 0);
+  assert.equal(fallback.length, 1);
+  assert.match(fallback[0], /synthetic_visible_mount_failure/u);
+  assert.match(fallback[0], /console_error=synthetic_console_failure/u);
 })();
 
 (function proveUnknownRetentionFailsClosed() {
@@ -477,6 +519,8 @@ function metric(body, name) {
 
   console.log("VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN");
   console.log("registration_throw_retry=true");
+  console.log("express4_router_getter_retry=true");
+  console.log("mount_error_fallback_visible=true");
   console.log("retained_throw_single_mount=true");
   console.log("unknown_retention_fail_closed=true");
   console.log("failed_read_rollback=true");
