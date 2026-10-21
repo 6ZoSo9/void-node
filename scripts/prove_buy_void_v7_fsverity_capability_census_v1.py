@@ -8,7 +8,7 @@ import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py"
-TARGET_BLOB = "76eff2ed214f26c9b4fca270992a175646de0d2e"
+TARGET_BLOB = "6347f3109f566c72d92e1e566e5be173586b3008"
 MARKER = "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_PROOF"
 
 
@@ -45,11 +45,16 @@ for required in (
     'def _parse_mountinfo(',
     'def _mount_for_target(',
     'def _kernel_config_value(',
+    'def _parse_major_minor(',
+    'mount_source_device_number_mismatch',
+    'ext4_opened_device_number_mismatch',
     'def _read_ext4_superblock(',
     'os.pread(fd, EXT4_SUPERBLOCK_BYTES, EXT4_SUPERBLOCK_OFFSET)',
     'os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK',
     'root_execution_forbidden_for_untrusted_checkout_census',
     'host_fsverity_capability_green',
+    'mount_generation_stable',
+    'target_mount_generation_changed',
     'ext4_verity_feature_enabled',
     'ext4_extents_feature_enabled',
     'permission_denied_read',
@@ -96,6 +101,13 @@ selected = module._mount_for_target(rows, pathlib.Path("/opt/void-test"))
 assert selected["mount_point"] == "/opt"
 assert selected["fstype"] == "ext4"
 assert selected["source"] == "/dev/sda3"
+assert module._parse_major_minor(selected["major_minor"]) == (8, 3)
+try:
+    module._parse_major_minor("8")
+except module.CensusError:
+    pass
+else:
+    raise AssertionError("invalid_major_minor_not_rejected")
 
 escaped = module._parse_mountinfo(
     "1 0 8:1 / / rw - ext4 /dev/root rw\n"
@@ -156,6 +168,8 @@ for required in (
     "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_SELF_TEST_GREEN",
     "mountinfo_longest_prefix_selection_proven=true",
     "mountinfo_escape_decoding_proven=true",
+    "mountinfo_device_number_binding_required=true",
+    "terminal_mountinfo_revalidation_required=true",
     "ext4_superblock_magic_bound=true",
     "ext4_verity_ro_compat_bit_bound=true",
     "ext4_extents_incompat_bit_bound=true",
