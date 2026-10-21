@@ -52,6 +52,10 @@ assert "sorted(os.scandir" not in text
 assert "list(os.scandir" not in text
 assert "def _bounded_directory_names(" in text
 assert "def _require_exact_directory_names(" in text
+assert "MAX_PACK_ENTRY_BYTES = MAX_GIT_OBJECT_BYTES + 2 * 1024 * 1024" in text
+assert "MAX_PACK_CACHE_BYTES = 64 * 1024 * 1024" in text
+assert "def _entry_span(" in text
+assert "self.cache_bytes > MAX_PACK_CACHE_BYTES" in text
 assert "self.pack_fd = -1" in text
 assert "self.idx_fd = -1" in text
 assert "except BaseException:\n            self.close()\n            raise" in text
@@ -359,6 +363,36 @@ with tempfile.TemporaryDirectory(prefix="void-v7-builtin-pack-proof-") as td:
         pass
     else:
         raise AssertionError("corrupt_pack_not_rejected")
+
+# P2 memory-bound adversaries. These validate the guard itself without
+# allocating a forbidden-size pack entry.
+try:
+    module._PackReader._entry_span(
+        0,
+        module.MAX_PACK_ENTRY_BYTES + 1,
+        "proof_oversized_entry",
+    )
+except module.InstallError as exc:
+    assert str(exc) == "proof_oversized_entry_pack_entry_size_limit"
+else:
+    raise AssertionError("oversized_pack_entry_span_not_rejected")
+
+cache_reader = object.__new__(module._PackReader)
+cache_reader.cache = __import__("collections").OrderedDict()
+cache_reader.cache_bytes = 0
+old_cache_budget = module.MAX_PACK_CACHE_BYTES
+module.MAX_PACK_CACHE_BYTES = 10
+try:
+    cache_reader._cache_put("1" * 40, ("blob", b"123456"))
+    cache_reader._cache_put("2" * 40, ("blob", b"abcdef"))
+    assert cache_reader.cache_bytes <= module.MAX_PACK_CACHE_BYTES
+    assert (
+        sum(len(value[1]) for value in cache_reader.cache.values())
+        == cache_reader.cache_bytes
+    )
+    assert list(cache_reader.cache) == ["2" * 40]
+finally:
+    module.MAX_PACK_CACHE_BYTES = old_cache_budget
 
 # Privileged source apply must not become a supported mutable-checkout pattern.
 assert 'root_required_for_privileged_apply' in text
