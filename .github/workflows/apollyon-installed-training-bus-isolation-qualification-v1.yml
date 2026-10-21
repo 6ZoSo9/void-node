@@ -1,0 +1,42 @@
+name: Apollyon installed training bus isolation qualification v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py"
+      - "scripts/prove_apollyon_installed_training_bus_isolation_qualification_v1.py"
+      - "docs/security/apollyon-installed-training-bus-isolation-qualification-v1.md"
+      - ".github/workflows/apollyon-installed-training-bus-isolation-qualification-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Syntax and inert proof
+        run: |
+          set -euo pipefail
+          python3 -m py_compile             ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py             scripts/prove_apollyon_installed_training_bus_isolation_qualification_v1.py
+          python3 -I -B scripts/prove_apollyon_installed_training_bus_isolation_qualification_v1.py
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"

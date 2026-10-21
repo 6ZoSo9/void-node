@@ -93,6 +93,15 @@ parent preservation, new-parent grandparent fsync, post-create failures at
 chown/write/fsync/chmod, foreign temporary-inode substitution and cleanup
 failure observability.
 
+
+The accepted enforcement lock and candidate reader is also descriptor-bound: the
+path is pre-observed, opened once with `O_NOFOLLOW`, checked against that
+generation, read through the retained descriptor with a hard `max + 1` ceiling,
+and revalidated by post-read descriptor and visible-path identity before its Git
+blob is accepted. The proof exercises the exported production reader plus
+regular-file replacement, symlink-swap and growth adversaries.
+
+
 This PR only creates the tool/proof. It does not run `--apply` on Precision,
 change systemd, configure source RPCs, contact a provider, access credentials,
 wallets or signers, create/sign/broadcast a transaction, open the presale or

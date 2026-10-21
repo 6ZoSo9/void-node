@@ -9,8 +9,8 @@ Use this order:
 1. Read bootstrap info: `/__void/public-bootstrap.json`
 2. Fetch bootstrap peers: `/bootstrap/peers.json`
 3. Open connect pack: `/public-node/connect`
-4. Dial a peer manually: `/public-node/connect/public-node-connect-pack-v1.json`
-5. Verify local health and peers: `/health and /peers on the operator node`
+4. Open the manual peer-dial instructions: `/public-node/connect/public-node-connect-pack-v1.json`
+5. Verify local health and peers: `/health` and `/p2p/peers` on the operator node
 6. Fill public-safe receipt template: `/public-node/connect/receipt-template-v1`
 7. Share only public-safe receipt evidence: `/public-node/connect/public-node-connect-receipt-template-v1.json`
 

@@ -179,6 +179,40 @@ function installLiveRelayFallback(
   return { peer, socket };
 }
 
+function installAuthenticatedControlRoute(
+  node: Node,
+  sessionId: string,
+  remote: TestKeypair,
+  relay: TestKeypair,
+  streamId: string,
+): Readonly<{ requestId: string; ticketId: string; expiresAtMs: number }> {
+  const requestId = crypto.randomBytes(16).toString("hex");
+  const ticketId = crypto.randomBytes(16).toString("hex");
+  const expiresAtMs = Date.now() + 60_000;
+  const core = internals(node);
+  core.udpSwarmControl.sweep(Date.now());
+  const clockGeneration = core.udpSwarmControl.clientClock.generation;
+  core.udpSwarmControl.activeRoutes.set(sessionId, {
+    request_id: requestId,
+    session_id: sessionId,
+    relay_node_id: relay.nodeId,
+    peer_node_id: remote.nodeId,
+    stream_id: streamId,
+    ticket_id: ticketId,
+    expires_at_ms: expiresAtMs,
+    offer_received: true,
+    clock_generation: clockGeneration,
+  });
+  core.udpSwarmControl.ticketSessions.set(ticketId, sessionId);
+  const route = core.udpSwarmControl.snapshot().active_routes.find(
+    (entry: { session_id: string }) => entry.session_id === sessionId,
+  );
+  assert(route);
+  assert.equal(route.request_id, requestId);
+  assert.equal(route.ticket_id, ticketId);
+  return Object.freeze({ requestId, ticketId, expiresAtMs });
+}
+
 async function main(): Promise<void> {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "void-udp-node-candidate-v1-"));
   const nodeCoreSource = fs.readFileSync(
@@ -215,6 +249,13 @@ async function main(): Promise<void> {
 
     pair = establishSecurePair(kpA, kpB, "127.0.0.1:53001", "127.0.0.1:53002");
     assert(pair.a.socket && pair.b.socket);
+    installAuthenticatedControlRoute(
+      nodeA,
+      sessionId,
+      kpB,
+      relayKp,
+      streamId,
+    );
     assert.equal(
       nodeA.stageUdpSwarmAuthenticatedDirectCandidateV1({
         sessionId,
@@ -308,6 +349,13 @@ async function main(): Promise<void> {
     );
     assert(relayLossPair.a.socket && relayLossPair.b.socket);
     const relayLossSessionId = crypto.randomBytes(16).toString("hex");
+    installAuthenticatedControlRoute(
+      nodeA,
+      relayLossSessionId,
+      kpB,
+      relayKp,
+      streamId,
+    );
     assert.equal(
       nodeA.stageUdpSwarmAuthenticatedDirectCandidateV1({
         sessionId: relayLossSessionId,

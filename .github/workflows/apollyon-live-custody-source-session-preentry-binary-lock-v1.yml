@@ -1,0 +1,107 @@
+name: Apollyon live custody source session preentry binary lock v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
+      - "scripts/prove_apollyon_live_custody_source_session_preentry_binary_candidate_v1.py"
+      - ".github/workflows/apollyon-live-custody-source-session-preentry-binary-candidate-v1.yml"
+      - "ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json"
+      - "scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py"
+      - ".github/workflows/apollyon-live-custody-source-session-preentry-binary-lock-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
+      - "scripts/prove_apollyon_live_custody_source_session_preentry_binary_candidate_v1.py"
+      - ".github/workflows/apollyon-live-custody-source-session-preentry-binary-candidate-v1.yml"
+      - "ops/security/apollyon-live-custody-source-session-preentry-binary-lock-v1.json"
+      - "scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py"
+      - ".github/workflows/apollyon-live-custody-source-session-preentry-binary-lock-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify lock / ${{ matrix.lane }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [a, b, c]
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify reproducible binary lock
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/lock-proof-${{ matrix.lane }}.txt"
+          receipt="$RUNNER_TEMP/lock-verification-${{ matrix.lane }}.json"
+          python3 -I -B scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py             --self-test | tee "$proof"
+          grep -Fx 'VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_PREENTRY_BINARY_LOCK_V1_SELF_TEST_GREEN' "$proof"
+          grep -Fx 'candidate_rederived_before_lock_acceptance=true' "$proof"
+          grep -Fx 'historical_candidate_parent_blobs_verified=true' "$proof"
+          grep -Fx 'rehashed_forged_binary_lock_rejected=true' "$proof"
+          grep -Fx 'rehashed_forged_source_lock_rejected=true' "$proof"
+          grep -Fx 'candidate_binary_identity_accepted=true' "$proof"
+          grep -Fx 'static_link_required=true' "$proof"
+          grep -Fx 'pt_interp_absent=true' "$proof"
+          grep -Fx 'hostile_ld_preload_positive_control=true' "$proof"
+          grep -Fx 'hostile_ld_preload_preentry_blocked=true' "$proof"
+          grep -Fx 'installed_preentry_identity_proven=false' "$proof"
+          grep -Fx 'training_execution=false' "$proof"
+          python3 -I -B scripts/prove_apollyon_live_custody_source_session_preentry_binary_lock_v1.py             --verify "$receipt"
+          test -s "$receipt"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Upload verification receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: apollyon-live-session-preentry-lock-${{ github.event.pull_request.head.sha || github.sha }}-${{ matrix.lane }}
+          path: ${{ runner.temp }}/lock-verification-${{ matrix.lane }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: apollyon-live-session-preentry-lock-${{ github.event.pull_request.head.sha || github.sha }}-*
+          merge-multiple: true
+          path: receipts
+      - name: Require three byte-identical verifications
+        run: |
+          set -euo pipefail
+          for lane in a b c; do test -s "receipts/lock-verification-$lane.json"; done
+          cmp receipts/lock-verification-a.json receipts/lock-verification-b.json
+          cmp receipts/lock-verification-a.json receipts/lock-verification-c.json
+          python3 -I -B - <<'PY'
+          import json
+          from pathlib import Path
+          v=json.loads(Path("receipts/lock-verification-a.json").read_text())
+          assert v["marker"]=="VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_PREENTRY_BINARY_LOCK_V1_VERIFIED"
+          assert type(v["version"]) is int and v["version"]==1
+          assert v["lock_id"]=="apollyon_live_custody_source_session_preentry_binary_lock_v1:7009aab71636ae4a06d880160e60b7131887f0ab7199b8da19ef65f399534439"
+          assert v["candidate_id"]=="apollyon_live_custody_source_session_preentry_binary_candidate_v1:5007ad5368afd86679cd18811822b648bb4abc4c13169d55d2b27822609de5ab"
+          assert v["binary_bytes"]==798736
+          assert v["binary_sha256"]=="2d705515d825051111b5fd9f99356466bf341056a0bf67d34b80a869a337d21d"
+          assert v["comparison_rederived_elf"] is True
+          assert v["static_link_required"] is True
+          assert v["pt_interp_absent"] is True
+          assert v["hostile_ld_preload_positive_control"] is True
+          assert v["hostile_ld_preload_preentry_blocked"] is True
+          assert v["candidate_binary_identity_accepted"] is True
+          assert v["installed_preentry_identity_proven"] is False
+          assert v["training_execution"] is False
+          assert v["funds_movement"] is False
+          print("VOID_APOLLYON_LIVE_CUSTODY_SOURCE_SESSION_PREENTRY_BINARY_LOCK_V1_THREE_RUN_GREEN")
+          PY

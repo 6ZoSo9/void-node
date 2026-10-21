@@ -326,7 +326,61 @@ const gitBlobSha1=(bytes:Buffer)=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+String(bytes.length)+"\0","utf8"))
   .update(bytes).digest("hex");
 
-function readTrackedFileV1(repositoryRoot:string,relative:string,maxBytes=1024*1024){
+function sameTrackedFileIdentityV1(a:fs.Stats,b:fs.Stats):boolean{
+  return a.dev===b.dev&&a.ino===b.ino&&a.uid===b.uid&&a.gid===b.gid&&
+    a.mode===b.mode&&a.nlink===b.nlink&&a.size===b.size&&
+    a.mtimeMs===b.mtimeMs&&a.ctimeMs===b.ctimeMs;
+}
+
+export function readObservedRegularFileV1(
+  absolute:string,
+  before:fs.Stats,
+  maxBytes:number,
+  label:string,
+):Buffer{
+  assert.ok(Number.isSafeInteger(maxBytes)&&maxBytes>0,label+"_max_invalid");
+  let fd=-1;
+  try{
+    fd=fs.openSync(absolute,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+    const opened=fs.fstatSync(fd);
+    assert.ok(
+      opened.isFile()&&opened.nlink===1&&opened.size>0&&opened.size<=maxBytes,
+      label+"_opened_shape_invalid",
+    );
+    assert.ok(sameTrackedFileIdentityV1(opened,before),
+      label+"_open_generation_mismatch");
+
+    const chunks:Buffer[]=[];
+    const scratch=Buffer.alloc(Math.min(64*1024,maxBytes+1));
+    let total=0;
+    while(total<=maxBytes){
+      const want=Math.min(scratch.length,maxBytes+1-total);
+      if(want===0)break;
+      const count=fs.readSync(fd,scratch,0,want,null);
+      if(count===0)break;
+      chunks.push(Buffer.from(scratch.subarray(0,count)));
+      total+=count;
+    }
+    assert.ok(total<=maxBytes,label+"_size_limit");
+    assert.equal(total,opened.size,label+"_short_or_grown_read");
+
+    const after=fs.fstatSync(fd);
+    assert.ok(sameTrackedFileIdentityV1(after,opened),
+      label+"_descriptor_generation_changed");
+    const visible=fs.lstatSync(absolute);
+    assert.ok(sameTrackedFileIdentityV1(visible,opened),
+      label+"_visible_generation_changed");
+    return Buffer.concat(chunks,total);
+  }finally{
+    if(fd>=0)fs.closeSync(fd);
+  }
+}
+
+export function readTrackedFileV1(
+  repositoryRoot:string,
+  relative:string,
+  maxBytes=1024*1024,
+){
   assert.match(relative,SAFE_LOCK_PATH,"accepted_enforcement_lock_path_invalid");
   assert.equal(path.posix.normalize(relative),relative,
     "accepted_enforcement_lock_path_not_normalized");
@@ -337,13 +391,9 @@ function readTrackedFileV1(repositoryRoot:string,relative:string,maxBytes=1024*1
   assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&
     before.size>0&&before.size<=maxBytes,
     "accepted_enforcement_file_shape_invalid:"+relative);
-  const bytes=fs.readFileSync(absolute);
-  const after=fs.lstatSync(absolute);
-  assert.equal(after.dev,before.dev,"accepted_enforcement_file_device_drift");
-  assert.equal(after.ino,before.ino,"accepted_enforcement_file_inode_drift");
-  assert.equal(after.size,before.size,"accepted_enforcement_file_size_drift");
-  assert.equal(after.mtimeMs,before.mtimeMs,"accepted_enforcement_file_mtime_drift");
-  assert.equal(after.ctimeMs,before.ctimeMs,"accepted_enforcement_file_ctime_drift");
+  const bytes=readObservedRegularFileV1(
+    absolute,before,maxBytes,"accepted_enforcement_file:"+relative,
+  );
   const blob=gitBlobSha1(bytes);
   assert.equal(git(repositoryRoot,["rev-parse","HEAD:"+relative]),blob,
     "accepted_enforcement_file_not_exact_head");

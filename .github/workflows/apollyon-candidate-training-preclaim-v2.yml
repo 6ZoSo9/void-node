@@ -1,0 +1,46 @@
+name: Apollyon candidate training preclaim v2
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-candidate-training-preclaim-v2.mjs"
+      - "scripts/prove_apollyon_candidate_training_preclaim_v2.mjs"
+      - "docs/security/apollyon-candidate-training-preclaim-v2.md"
+      - ".github/workflows/apollyon-candidate-training-preclaim-v2.yml"
+      - "tools/apollyon-custody-host-policy-qualification-v2.mjs"
+      - "tools/apollyon-designated-host-custody-live-qualification-v2.mjs"
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Prove current-V2 same-process composition
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-candidate-training-preclaim-v2.mjs
+          node --check scripts/prove_apollyon_candidate_training_preclaim_v2.mjs
+          node scripts/prove_apollyon_candidate_training_preclaim_v2.mjs
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Diff hygiene
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"

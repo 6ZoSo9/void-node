@@ -14,6 +14,8 @@ import {
   assertBuyVoidCandidateCurrentEnforcementTrackedSourceInventoryV1,
   inspectRepositoryIdentityV1,
   installRootCustodiedReceiptV1,
+  readObservedRegularFileV1,
+  readTrackedFileV1,
 } from "../ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.js";
 import {
   buyVoidSourceFinalityEnforcementLockIdV7,
@@ -153,6 +155,63 @@ function proveRepositoryLocalFsmonitorIgnoredV1(){
 }
 
 proveRepositoryLocalFsmonitorIgnoredV1();
+
+
+function proveTrackedFileReaderV1(){
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-v7-tracked-reader-"));
+  const repoRoot=path.join(temp,"repo");
+  const relative="ops/security/fixture-lock.json";
+  const absolute=path.join(repoRoot,...relative.split("/"));
+  try{
+    fs.mkdirSync(path.dirname(absolute),{recursive:true,mode:0o700});
+    execFileSync("/usr/bin/git",["init","-b","main",repoRoot],{
+      stdio:"ignore",env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
+    });
+    fs.writeFileSync(absolute,"{\"fixture\":true}\n",{mode:0o600});
+    execFileSync("/usr/bin/git",["-C",repoRoot,"add",relative],{stdio:"ignore"});
+    execFileSync("/usr/bin/git",[
+      "-C",repoRoot,"-c","user.name=VOID Proof",
+      "-c","user.email=void-proof.invalid@example.invalid",
+      "commit","-m","fixture",
+    ],{stdio:"ignore"});
+
+    const direct=readTrackedFileV1(repoRoot,relative,1024);
+    assert.equal(direct.bytes.toString("utf8"),"{\"fixture\":true}\n");
+
+    const before=fs.lstatSync(absolute);
+    fs.renameSync(absolute,absolute+".old");
+    fs.writeFileSync(absolute,"{\"fixture\":evil}\n",{mode:0o600});
+    assert.throws(
+      ()=>readObservedRegularFileV1(absolute,before,1024,"fixture_replace"),
+      /fixture_replace_open_generation_mismatch/u,
+    );
+
+    fs.rmSync(absolute,{force:true});
+    fs.renameSync(absolute+".old",absolute);
+    const beforeSymlink=fs.lstatSync(absolute);
+    const target=absolute+".target";
+    fs.writeFileSync(target,"{\"fixture\":true}\n",{mode:0o600});
+    fs.renameSync(absolute,absolute+".symlink-original");
+    fs.symlinkSync(path.basename(target),absolute);
+    assert.throws(
+      ()=>readObservedRegularFileV1(absolute,beforeSymlink,1024,"fixture_symlink"),
+      (error:any)=>error?.code==="ELOOP",
+    );
+
+    fs.rmSync(absolute,{force:true});
+    fs.renameSync(absolute+".symlink-original",absolute);
+    const beforeGrowth=fs.lstatSync(absolute);
+    fs.appendFileSync(absolute,"x".repeat(2048));
+    assert.throws(
+      ()=>readObservedRegularFileV1(absolute,beforeGrowth,1024,"fixture_growth"),
+      /fixture_growth_opened_shape_invalid/u,
+    );
+  }finally{
+    fs.rmSync(temp,{recursive:true,force:true});
+  }
+}
+
+proveTrackedFileReaderV1();
 
 const rootCapable=
   typeof process.getuid==="function" && process.getuid()===0;
@@ -467,6 +526,10 @@ console.log("current_enforcement_tracked_source_inventory_blob_and_mode_bound=tr
 console.log("deployment_receipt_enforcement_set_not_source_hardcoded=true");
 console.log("v7_reviewed_source_digest_uses_module_inspector=true");
 console.log("repository_local_fsmonitor_ignored=true");
+console.log("tracked_file_descriptor_bounded_read=true");
+console.log("tracked_file_nofollow_required=true");
+console.log("tracked_file_replacement_race_rejected=true");
+console.log("tracked_file_symlink_race_rejected=true");
 console.log("root_custody_positive_exercised="+String(rootCapable));
 console.log("descriptor_relative_parent_publication="+String(rootCapable));
 console.log("symlink_parent_no_collateral_mutation="+String(rootCapable));

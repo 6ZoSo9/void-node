@@ -12,6 +12,7 @@
     pre { white-space:pre-wrap; background:#020617; padding:12px; border-radius:12px; border:1px solid #1e293b; }
     .warn { color:#fbbf24; }
     a { color:#93c5fd; }
+    a:focus-visible { outline:3px solid #f8fafc; outline-offset:4px; }
   </style>
 </head>
 <body>
@@ -37,7 +38,7 @@
   <div class="card">
     <h2>Verify</h2>
     <pre>curl -fsS http://127.0.0.1:4100/health | jq .
-curl -fsS http://127.0.0.1:4100/peers | jq .</pre>
+curl -fsS http://127.0.0.1:4100/p2p/peers | jq .</pre>
   </div>
 
   <div class="card">
