@@ -170,7 +170,7 @@ content_read=tree_body.index('digest = _read_regular_sha256_exact(')
 root_pre_descent=tree_body.index('_require_runtime_uid_nonwritable([root], "tree_root_pre_descent")')
 first_scandir=tree_body.index('os.scandir(directory)')
 child_pre_descent=tree_body.index('_require_runtime_uid_nonwritable([child], "tree_directory_pre_descent")')
-child_queue=tree_body.index('pending.append((child, rel / entry.name))')
+child_queue=tree_body.index('pending.append((child, rel / entry_name))')
 assert root_pre_descent < first_scandir
 assert first_scandir < child_pre_descent < child_queue
 assert dir_audit < reg_audit < content_read
