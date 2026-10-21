@@ -14,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "b49bf5e6d0954c9d6c9af76f5ad3e0cb5c47c6d0"
+TARGET_BLOB = "bbe7787f30c79cac2a3960d0e7b841711af1225e"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -58,6 +58,14 @@ for required in (
     '_directory_alias_forbidden',
     'output_parent_alias_forbidden',
     'output_under_source_checkout',
+    'MOUNTINFO_PATH = Path("/proc/self/mountinfo")',
+    'def _candidate_run(',
+    'GIT_OBJECT_DIRECTORY',
+    'pass_fds=',
+    'def _cleanup_candidate(',
+    'candidate_cleanup_residual_unknown',
+    'descriptor_bound_candidate_mutation=true',
+    'mountpoint_alias_rejection=true',
     'protected_replace_authorized=false',
 ):
     assert required in text, required
@@ -84,6 +92,9 @@ assert "protected_account_home_rejected=true" in selftest.stdout.splitlines()
 assert "physical_downloads_root_required=true" in selftest.stdout.splitlines()
 assert "output_parent_aliases_rejected=true" in selftest.stdout.splitlines()
 assert "source_checkout_output_rejected=true" in selftest.stdout.splitlines()
+assert "mountpoint_aliases_rejected=true" in selftest.stdout.splitlines()
+assert "descriptor_bound_candidate_mutation=true" in selftest.stdout.splitlines()
+assert "cleanup_failure_receipt_bound=true" in selftest.stdout.splitlines()
 
 account_home = Path(pwd.getpwuid(os.getuid()).pw_dir)
 spoofed_env = dict(os.environ)
@@ -173,6 +184,9 @@ print("protected_account_home_rejection_bound=true")
 print("physical_downloads_root_binding_bound=true")
 print("output_parent_alias_rejection_bound=true")
 print("source_checkout_output_rejection_bound=true")
+print("mountpoint_alias_rejection_bound=true")
+print("descriptor_bound_candidate_mutation_bound=true")
+print("truthful_candidate_cleanup_receipt_bound=true")
 print("protected_filesystem_mutation=false")
 print("network=false")
 print("protected_replace_authorized=false")
