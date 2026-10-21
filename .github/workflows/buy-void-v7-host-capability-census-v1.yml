@@ -54,9 +54,9 @@ jobs:
             git diff --check "$STACK_BASE" "$EXPECTED_HEAD" --
           fi
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v1.c)" = "3b6402a1df523842720a24b719c2b3e86c18ed42"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_host_capability_census_v1.py)" = "074c1906092b9564c81690df982b011af61c9e2f"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_host_capability_census_v1.py)" = "079a637c3beca6308d9e7283fb7f4bedb483a334"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-host-capability-census-v1.md)" = "4037c81a65282c80b493de21df6fd07962182d06"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_host_capability_census_v1.py)" = "9322374e36b5be9b2b10780ae4413c45d0d648d8"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_host_capability_census_v1.py)" = "1a8c3984c98fad4a3f12d0f2ad590f87b671b97b"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-host-capability-census-v1.md)" = "7ecc855417a3b9d205537c31d1c19c33b2efd883"
 
       - name: Python syntax
         run: |
