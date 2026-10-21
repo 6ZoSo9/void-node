@@ -401,3 +401,39 @@ This source-only change does not perform protected `/opt` installation,
 qualify the installed runtime, activate presale/WC, sign, broadcast transactions,
 or authorize treasury/funds movements. **KEEP DRAFT/HOLD for exact-head CI and
 independent review**; a separate post-landing operator gate is still required.
+
+
+## Root-time observer privilege-drop closure — October 20, 2026
+
+The trusted V7 root-launcher review identified one remaining privileged execution
+closure in landed installer V4: when V4 runs as root,
+`_run_runtime_observer_tool()` executed host-dynamic `/usr/bin/setpriv` before
+the runtime UID/GID drop. Authenticating only the setpriv inode/path does not
+authenticate its PT_INTERP/shared-library closure, so writable loader/DSO bytes
+could execute as root before the drop.
+
+This source generation removes `/usr/bin/setpriv` from V4 entirely. The
+already-authenticated isolated Python process now forks the observer subprocess
+and performs the privilege transition in its pre-exec boundary:
+
+1. set `PR_SET_NO_NEW_PRIVS=1`;
+2. clear supplementary groups;
+3. set runtime GID 1000;
+4. set runtime UID 1000;
+5. verify real/effective UID/GID and empty supplementary groups;
+6. only then execute the retained observer-tool descriptor.
+
+The root parent still authenticates and terminally revalidates the observer tool
+descriptor. Any pre-exec, timeout, or execution failure becomes
+`runtime_observer_execution_failed` HOLD. The already-runtime-identity path
+also requires real/effective UID/GID 1000 and empty supplementary groups.
+
+Focused CI includes an ephemeral root fixture that executes `/usr/bin/cat`
+through this boundary and verifies from `/proc/self/status` that all UID/GID
+slots are 1000, supplementary groups are empty, and `NoNewPrivs: 1` before the
+dynamic observer tool runs.
+
+This is source/CI proof only. It does not install or execute V4 on Precision,
+enable fs-verity, install the trusted launcher, perform protected /opt apply,
+mutate services, access credentials/signers, accept payments, activate
+presale/WC, or move treasury/liquidity/funds.
