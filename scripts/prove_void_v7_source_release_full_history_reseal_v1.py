@@ -51,7 +51,8 @@ for required in (
     'candidate_fsck_output_nonempty',
     '_path_line_or_control_character',
     'pwd.getpwuid(os.getuid())',
-    'output_root_directory_alias_forbidden',
+    'def _physical_output_root()',
+    '_directory_alias_forbidden',
     'output_parent_alias_forbidden',
     'protected_replace_authorized=false',
 ):

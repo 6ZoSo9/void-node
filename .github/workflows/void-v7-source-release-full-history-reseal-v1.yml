@@ -29,7 +29,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "cf6832b6cb4233fb03d9b6e74ae00396183831c0"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v1.py)" = "b46a10cefaee8c0c30176bb3472f2a6cd68663d1"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v1.py)" = "c1d348d40445f3372c7b3faca5faac15ddb05263"
           test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v1.md)" = "3084972f6e385f5d8fea64419c3533bc7821f91b"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git merge-base --is-ancestor "${{ github.event.pull_request.base.sha }}" HEAD
