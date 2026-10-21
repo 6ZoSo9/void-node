@@ -126,9 +126,35 @@ borrow external objects or refs while still reporting GREEN.
 
 ## Authority boundary
 
-This lane does not mutate `/opt`, the active release, services/systemd,
-credentials, keys, signers, transactions, payment state, presale/WC activation,
-treasury/liquidity state or funds.
+`--self-test` and `--plan` are read-only and retain explicit
+`source_repository_mutation=false` and
+`protected_filesystem_mutation=false` receipts.
+
+`--build` is different: it deliberately creates a candidate beneath the
+current account's Downloads tree. POSIX permissions do not isolate one hostile
+process from another process with the **same UID**. A same-UID process can
+relocate an inode that this builder already owns to another location that the
+same UID can write. Retained descriptors still prevent symlink/pathname
+redirection and terminally expose visible-generation drift, but they cannot make
+an unconditional namespace non-mutation claim.
+
+Therefore build-mode receipts state:
+
+- `current_uid_filesystem_write_boundary=true`;
+- `same_uid_namespace_relocation_isolation=false`;
+- intended source/protected mutation remains false;
+- observed source/protected mutation authority is reported as `unknown`, not
+  `false`, once the build write boundary is entered.
+
+This is not a privilege escalation: the builder gains no authority beyond the
+current UID. It also means a GREEN user-space candidate is **untrusted input**,
+not evidence that source/protected namespaces were untouched. A future
+root-custodied reseal gate must independently revalidate the canonical source,
+candidate bytes, object graph and protected target before any protected action.
+
+This lane does not intentionally mutate `/opt`, the active release,
+services/systemd, credentials, keys, signers, transactions, payment state,
+presale/WC activation, treasury/liquidity state or funds.
 
 A GREEN candidate is only input to a future separately reviewed and separately
 authorized protected release repair. The active release must not be edited
