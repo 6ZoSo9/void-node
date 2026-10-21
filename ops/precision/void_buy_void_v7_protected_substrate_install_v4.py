@@ -671,27 +671,30 @@ def _git_tree_oid_from_worktree(root: pathlib.Path, label: str) -> str:
             raise InstallError(label + "_worktree_directory_invalid:" + os.fspath(directory))
         directory_identity = _metadata_identity(before)
         rows: list[tuple[bytes, bytes]] = []
+        names: list[str] = []
         try:
-            entries = list(os.scandir(directory))
+            with os.scandir(directory) as scan:
+                for entry in scan:
+                    nodes += 1
+                    if nodes > MAX_NODES:
+                        raise InstallError(label + "_worktree_node_limit")
+                    names.append(name)
         except OSError as exc:
             raise InstallError(label + "_worktree_scandir_failed:" + os.fspath(directory)) from exc
-        nodes += len(entries)
-        if nodes > MAX_NODES:
-            raise InstallError(label + "_worktree_node_limit")
-        for entry in entries:
-            if directory == root and entry.name == ".git":
-                gst = os.lstat(directory / entry.name)
+        for name in names:
+            if directory == root and name == ".git":
+                gst = os.lstat(directory / name)
                 if not stat.S_ISDIR(gst.st_mode) or stat.S_ISLNK(gst.st_mode):
                     raise InstallError(label + "_git_dir_generation_invalid")
                 continue
             try:
-                raw_name = os.fsencode(entry.name)
+                raw_name = os.fsencode(name)
                 raw_name.decode("utf-8")
             except (UnicodeEncodeError, UnicodeDecodeError) as exc:
                 raise InstallError(label + "_worktree_name_not_utf8") from exc
             if not raw_name or b"/" in raw_name or b"\0" in raw_name:
                 raise InstallError(label + "_worktree_name_invalid")
-            child = directory / entry.name
+            child = directory / name
             st = os.lstat(child)
             identity = _metadata_identity(st)
             if stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode):
@@ -700,7 +703,7 @@ def _git_tree_oid_from_worktree(root: pathlib.Path, label: str) -> str:
                 sort_key = raw_name + b"/"
             elif stat.S_ISREG(st.st_mode) and not stat.S_ISLNK(st.st_mode):
                 if st.st_size > MAX_FILE_BYTES:
-                    raise InstallError(label + "_worktree_file_size_limit:" + entry.name)
+                    raise InstallError(label + "_worktree_file_size_limit:" + name)
                 total += st.st_size
                 if total > MAX_TOTAL_BYTES:
                     raise InstallError(label + "_worktree_total_bytes_limit")
@@ -710,14 +713,14 @@ def _git_tree_oid_from_worktree(root: pathlib.Path, label: str) -> str:
             elif stat.S_ISLNK(st.st_mode):
                 target_raw = os.fsencode(os.readlink(child))
                 if len(target_raw) > MAX_FILE_BYTES:
-                    raise InstallError(label + "_worktree_symlink_size_limit:" + entry.name)
+                    raise InstallError(label + "_worktree_symlink_size_limit:" + name)
                 if _metadata_identity(child.lstat()) != identity:
-                    raise InstallError(label + "_worktree_symlink_generation_changed:" + entry.name)
+                    raise InstallError(label + "_worktree_symlink_generation_changed:" + name)
                 oid = git_blob_sha1(target_raw)
                 mode = b"120000"
                 sort_key = raw_name + b"\0"
             else:
-                raise InstallError(label + "_worktree_kind_invalid:" + entry.name)
+                raise InstallError(label + "_worktree_kind_invalid:" + name)
             rows.append((sort_key, mode + b" " + raw_name + b"\0" + bytes.fromhex(oid)))
         if _metadata_identity(directory.lstat()) != directory_identity:
             raise InstallError(label + "_worktree_directory_generation_changed:" + os.fspath(directory))
@@ -808,7 +811,7 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
             nodes += 1
             if nodes > MAX_NODES:
                 raise InstallError("tree_node_limit")
-            child, relative = directory / entry.name, (rel / entry.name).as_posix()
+            child, relative = directory / name, (rel / name).as_posix()
             st = os.lstat(child)
             mode = stat.S_IMODE(st.st_mode)
             if st.st_uid != 0 or st.st_gid != 0:
@@ -822,7 +825,7 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
                     raise InstallError("tree_directory_generation_changed_before_descent:" + relative)
                 runtime_directories.append(child)
                 records.append((child, relative, "D", mode, identity, None))
-                pending.append((child, rel / entry.name))
+                pending.append((child, rel / name))
             elif stat.S_ISREG(st.st_mode):
                 if st.st_size > MAX_FILE_BYTES:
                     raise InstallError("tree_file_size_limit:" + relative)
@@ -1053,7 +1056,7 @@ def _copy_tree(src_root: pathlib.Path, dst_root: pathlib.Path) -> None:
         for entry in sorted(os.scandir(src_dir), key=lambda e: e.name):
             count += 1
             if count > MAX_NODES: raise InstallError("copy_node_limit")
-            src, dst, st = src_dir / entry.name, dst_dir / entry.name, os.lstat(src_dir / entry.name)
+            src, dst, st = src_dir / name, dst_dir / name, os.lstat(src_dir / name)
             mode = stat.S_IMODE(st.st_mode)
             if st.st_uid != 0 or st.st_gid != 0: raise InstallError("source_node_not_root_owned:" + os.fspath(src))
             if stat.S_ISDIR(st.st_mode):
