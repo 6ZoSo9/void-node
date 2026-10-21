@@ -7,8 +7,8 @@ const ROOT=process.cwd();
 const BASE_HEAD="0d93be0a7ae1395449a386d4fbe14bb680f51c3f";
 const BASE_TREE="199f3949a8955077124822269560b1a4e1ed5e30";
 const PLAN_PATH="ops/security/buy-void-canonical-erc20-delivery-canary-plan-v1.json";
-const PLAN_BLOB="491002161430e1cde8640abe025efa0a202af2e1";
-const PLAN_ID="voidbverc20canary1_7d4a65bf7471c039c26c137262df54dfb85dec5f2ae622c94302a72e8c263b2b";
+const PLAN_BLOB="f598abf5a947d4dc09b75dc7ab007a2d80c13c73";
+const PLAN_ID="voidbverc20canary1_326bd5a4380e20304cf5c9c689240ee3aa5a1271d6693b275b68715e1eb28505";
 const OWNED=Object.freeze([
   ".github/workflows/buy-void-canonical-erc20-delivery-canary-plan-v1.yml",
   "docs/architecture/buy-void-canonical-erc20-delivery-canary-plan-v1.md",
@@ -107,11 +107,14 @@ const OBS=Object.freeze({
   "canonical_asset":"void_token_erc20",
   "canonical_chain_id":"2050",
   "canonical_delivery_execution_ready":false,
+  "canonical_erc20_mutation_critical_import_closure_bound":true,
   "canonical_delivery_runtime_activation_ready":false,
   "canonical_delivery_runtime_parent_mounted":true,
   "disabled_delivery_canary_max_may_be_lower":true,
   "legacy_native_canary_retired_for_canonical_erc20_transition":true,
   "legacy_native_canary_runtime_action_reachable":false,
+  "historical_native_canary_proof_exact_blob_only":true,
+  "historical_native_canary_proof_transitive_import_closure_claimed":false,
   "live_canary_preflight_authorizes_execution":false,
   "live_canary_preflight_broadcast_authorized":false,
   "live_canary_preflight_signing_authorized":false,
@@ -181,6 +184,9 @@ console.log("future_requirement_count="+REQUIRED.length);
 console.log("canonical_asset=void_token_erc20");
 console.log("canonical_chain_id=2050");
 console.log("legacy_native_canary_retired=true");
+console.log("canonical_erc20_mutation_critical_import_closure_bound=true");
+console.log("historical_native_canary_proof_exact_blob_only=true");
+console.log("historical_native_canary_proof_transitive_import_closure_claimed=false");
 console.log("canonical_delivery_runtime_parent_mounted=true");
 console.log("canonical_delivery_execution_ready=false");
 console.log("presale_inventory_funding_ready=false");

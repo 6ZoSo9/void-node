@@ -35,7 +35,10 @@
     "participant_control_token_movement": false,
     "presale_inventory_funding_ready": false,
     "production_broad_delivery_configuration_verified": false,
-    "public_delivery_activation_requires_presale_capacity_max": true
+    "public_delivery_activation_requires_presale_capacity_max": true,
+    "canonical_erc20_mutation_critical_import_closure_bound": true,
+    "historical_native_canary_proof_exact_blob_only": true,
+    "historical_native_canary_proof_transitive_import_closure_claimed": false
   },
   "future_requirements": [
     "allocation_reserved_before_canary_required",
@@ -69,7 +72,7 @@
     "transfer_amount_equals_bound_allocation_required",
     "write_ahead_broadcast_intent_before_rpc_required"
   ],
-  "plan_id": "voidbverc20canary1_7d4a65bf7471c039c26c137262df54dfb85dec5f2ae622c94302a72e8c263b2b",
+  "plan_id": "voidbverc20canary1_326bd5a4380e20304cf5c9c689240ee3aa5a1271d6693b275b68715e1eb28505",
   "repository": "6ZoSo9/void-node",
   "schema": "void_buy_void_canonical_erc20_delivery_canary_plan_v1",
   "source_bindings": {

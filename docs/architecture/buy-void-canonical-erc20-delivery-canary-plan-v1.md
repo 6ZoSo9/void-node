@@ -7,9 +7,9 @@ Base generation:
 - repository: `6ZoSo9/void-node`
 - head: `0d93be0a7ae1395449a386d4fbe14bb680f51c3f`
 - tree: `199f3949a8955077124822269560b1a4e1ed5e30`
-- plan ID: `voidbverc20canary1_7d4a65bf7471c039c26c137262df54dfb85dec5f2ae622c94302a72e8c263b2b`
-- plan Git blob: `491002161430e1cde8640abe025efa0a202af2e1`
-- proof Git blob: `27784efafa064ab3216c237a08a3d581a1df9eee`
+- plan ID: `voidbverc20canary1_326bd5a4380e20304cf5c9c689240ee3aa5a1271d6693b275b68715e1eb28505`
+- plan Git blob: `f598abf5a947d4dc09b75dc7ab007a2d80c13c73`
+- proof Git blob: `7a37025688f1b37e00de75c0e48af5bfa78c4fe7`
 
 ## Purpose
 
@@ -23,16 +23,11 @@ not construct, sign, broadcast, fund, or activate anything.
 
 ## Bound current truth
 
-The plan content-binds 53 exact current-main
-sources covering canonical delivery runtime/configuration/composition,
-transaction preparation, signer/broadcaster adapter, submission guard, execution
-attempt journal, fulfillment and inventory journals, pipeline coordinator, saga
-server policy, filesystem bakery lock, credential-binding evidence, source-finality
-execution preflight, ERC-20 receipt reconciliation, verified-payment/allocation
-lineage, retired native canary source/proof, non-authorizing live-canary
-preflight, and participant postpurchase control.
+The plan content-binds 53 exact current-main artifacts covering canonical delivery runtime/configuration/composition, transaction preparation, signer/broadcaster adapter, submission guard, execution attempt journal, fulfillment and inventory journals, pipeline coordinator, saga server policy, filesystem bakery lock, credential-binding evidence, source-finality execution preflight, ERC-20 receipt reconciliation, verified-payment/allocation lineage, retired native-canary historical contrast, non-authorizing live-canary preflight, and participant postpurchase control.
 
-Source-finality execution closure additionally binds production-configuration verification, source-finality authority, Chain-finality RPC adapter, V7 provenance, live-process V1/V2 binding, payment RPC observer, authenticated composition and provider-pair binding. Their local imports resolve entirely to the 53-bound set.
+The local-import closure claim is intentionally narrower than the complete 53-row provenance list: it applies to the **canonical ERC-20 mutation-critical execution/configuration graph**. The bound retired native-canary proof is opaque historical contrast by exact Git blob only; its own six local runtime/type imports are outside this closure and are not execution authority for the future ERC-20 canary.
+
+Source-finality execution closure additionally binds production-configuration verification, source-finality authority, Chain-finality RPC adapter, V7 provenance, live-process V1/V2 binding, payment RPC observer, authenticated composition and provider-pair binding. Within the canonical ERC-20 mutation-critical closure, their local imports resolve to the bound set.
 
 The mutation-critical local import graph is closed through allocation publication/high-water, verified-payment replay/duplicate/custody policy, auto-fulfillment, fulfillment/confirmed/broadcast journals, and the participant broadcaster/native sign-broadcast adapter. The final added layer imports only already-bound modules.
 
