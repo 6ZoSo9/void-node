@@ -15,7 +15,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "4add7ac297a7f035715dc4f39da0732921f9fff4"
+TARGET_BLOB = "0d8d3c32ba41a3f451cdde10e21df31fcc41fa93"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -83,6 +83,7 @@ for required in (
     'history_reachable_commit_count_mismatch',
     '_pack_checksum_mismatch',
     '_idx_checksum_mismatch',
+    '_pack_filename_digest_mismatch',
     '_pack_entry_crc_mismatch',
     '_object_oid_mismatch:',
     '_delta_cycle_or_depth',
@@ -314,7 +315,28 @@ with tempfile.TemporaryDirectory(prefix="void-v7-builtin-pack-proof-") as td:
             module.REACHABLE_COMMITS,
         ) = old_constants
 
-    pack = next((repo / ".git" / "objects" / "pack").glob("*.pack"))
+    pack_dir = repo / ".git" / "objects" / "pack"
+    pack = next(pack_dir.glob("*.pack"))
+    idx = next(pack_dir.glob("*.idx"))
+    original_pack = pack.name
+    original_idx = idx.name
+    fake_stem = "pack-" + ("0" * 40)
+    fake_pack = pack_dir / (fake_stem + ".pack")
+    fake_idx = pack_dir / (fake_stem + ".idx")
+    if fake_pack == pack or fake_idx == idx:
+        raise AssertionError("fixture_fake_pack_name_collision")
+    pack.rename(fake_pack)
+    idx.rename(fake_idx)
+    try:
+        module._ObjectStore(repo, "proof_fake_pack_name", exact_pack_only=True)
+    except module.InstallError:
+        pass
+    else:
+        raise AssertionError("fake_pack_name_not_rejected")
+    fake_pack.rename(pack_dir / original_pack)
+    fake_idx.rename(pack_dir / original_idx)
+    pack = pack_dir / original_pack
+
     with pack.open("r+b") as fh:
         fh.seek(16)
         original = fh.read(1)
@@ -609,6 +631,7 @@ print("built_in_full_history_object_closure_bound=true")
 print("trusted_expected_head_tree_pair_bound=true")
 print("loose_object_oracle_green=true")
 print("packed_repository_oracle_green=true")
+print("pack_filename_digest_binding_bound=true")
 print("corrupt_pack_rejection_bound=true")
 print("bounded_git_object_decompression_bound=true")
 print("class_wide_bounded_directory_scans_bound=true")
