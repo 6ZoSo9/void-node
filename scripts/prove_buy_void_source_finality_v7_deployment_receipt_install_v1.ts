@@ -274,6 +274,30 @@ if(rootCapable){
     }
     assert.equal(injected,true);
     assert.equal(fs.existsSync(receipt),false);
+    assert.equal(fs.existsSync(path.dirname(receipt)),true);
+
+    let retryGrandFd=-1;
+    let retryGrandFsyncs=0;
+    try{
+      (fs as any).openSync=function(...args:any[]){
+        const fd=originalOpen.apply(fs,args);
+        if(String(args[0])===grandparent)retryGrandFd=fd;
+        return fd;
+      };
+      (fs as any).fsyncSync=function(fd:number){
+        if(retryGrandFd>=0&&fd===retryGrandFd)retryGrandFsyncs+=1;
+        return originalFsync.call(fs,fd);
+      };
+      const retry=installRootCustodiedReceiptV1({
+        absolute_path:receipt,bytes:built.bytes,
+      });
+      assert.equal(retry.created,true);
+      assert.equal(retry.already_matching,false);
+    }finally{
+      (fs as any).openSync=originalOpen;
+      (fs as any).fsyncSync=originalFsync;
+    }
+    assert.ok(retryGrandFsyncs>=1,"existing_parent_grandparent_fsync_missing");
   }
 
   const proveDirectFailureResidue=(
@@ -543,6 +567,7 @@ console.log("idempotent_parent_fsync_recovery="+String(rootCapable));
 console.log("symlink_parent_no_collateral_mutation="+String(rootCapable));
 console.log("restrictive_parent_mode_preserved="+String(rootCapable));
 console.log("new_parent_grandparent_fsync_required="+String(rootCapable));
+console.log("existing_parent_grandparent_fsync_recovery="+String(rootCapable));
 console.log("root_custodied_create_once_positive="+String(rootCapable));
 console.log("matching_reapply_idempotent="+String(rootCapable));
 console.log("mismatched_existing_receipt_rejected="+String(rootCapable));

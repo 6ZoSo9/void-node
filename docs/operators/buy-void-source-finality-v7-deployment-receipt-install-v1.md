@@ -68,11 +68,13 @@ restricted to:
 
 The receipt parent is retained through a trusted grandparent descriptor. If the
 parent is absent it is created descriptor-relative as root:root mode 0755 and
-both the new parent and retained grandparent are fsynced before the new directory
-entry is treated as durable. If the parent already exists, it must already be a
-direct root-owned non-group/world-writable directory; its ownership and mode are
-preserved, including a safe restrictive mode such as 0700. The installer never
-chowns or chmods a pre-existing parent.
+the new parent itself is fsynced. The retained grandparent is fsynced on every
+validated bind, including when the parent already exists, so a retry can recover
+a prior create whose grandparent fsync failed after the parent became visible.
+Any pre-existing parent must already be a direct root-owned non-group/world-
+writable directory; its ownership and mode are preserved, including a safe
+restrictive mode such as 0700. The installer never chowns or chmods a
+pre-existing parent.
 
 The final receipt is root-owned, single-link, mode 0444. Publication no longer
 uses a pathname temp that later has to be unlinked. Instead, the final leaf is

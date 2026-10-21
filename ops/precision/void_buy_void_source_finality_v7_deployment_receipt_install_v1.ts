@@ -610,9 +610,10 @@ function bindReceiptParentV1(absolute:string):ReceiptParentBindingV1{
       fs.fchownSync(parentFd,0,0);
       fs.fchmodSync(parentFd,0o755);
       fs.fsyncSync(parentFd);
-      // Persist the new parent directory entry in the retained grandparent.
-      fs.fsyncSync(grandFd);
     }
+    // Persist or recover the retained parent directory entry on every bind.
+    // A prior attempt may have made the parent visible but failed its fsync.
+    fs.fsyncSync(grandFd);
     const opened=fs.fstatSync(parentFd);
     assertRootDirectoryV1(opened,"receipt_parent");
     const visibleAfter=fs.lstatSync(parentViaFd);
