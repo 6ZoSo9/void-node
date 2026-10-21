@@ -237,7 +237,7 @@ static char *read_file_path(const char *path,size_t max,size_t *out_size,char ou
 
 static manifest_v1 parse_manifest(const char *path){
     manifest_v1 m={0};m.raw=read_file_path(path,MAX_MANIFEST_BYTES,&m.raw_size,m.sha256);
-    if(!m.raw_size||m.raw[m.raw_size-1]!='\n'||memchr(m.raw,'\r',m.raw_size)||memchr(m.raw,'\0',m.raw_size))hold("manifest_noncanonical");
+    if(!m.raw_size||m.raw[0]=='\n'||m.raw[m.raw_size-1]!='\n'||memchr(m.raw,'\r',m.raw_size)||memchr(m.raw,'\0',m.raw_size)||memmem(m.raw,m.raw_size,"\n\n",2))hold("manifest_noncanonical");
     m.entries=calloc(MAX_ENTRIES,sizeof(entry_v1));if(!m.entries)hold("manifest_entries_alloc_failed");
     char *save=NULL;char *line=strtok_r(m.raw,"\n",&save);if(!line||strcmp(line,"schema=" MANIFEST_SCHEMA))hold("manifest_schema_invalid");
     line=strtok_r(NULL,"\n",&save);if(!line||strncmp(line,"generation=",11)||!hexn(line+11,64))hold("manifest_generation_invalid");strcpy(m.generation,line+11);
