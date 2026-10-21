@@ -511,17 +511,6 @@ def _apply_seccomp() -> None:
         err = ctypes.get_errno()
         raise RuntimeProofError("seccomp_install_failed:errno_" + str(err))
 
-def _apply_candidate_sandbox(runtime_root: Path) -> None:
-    _child_limits()
-    os.umask(0o077)
-    _apply_landlock(runtime_root)
-    _apply_seccomp()
-
-def _candidate_preexec(runtime_root: Path):
-    def apply() -> None:
-        _apply_candidate_sandbox(runtime_root)
-    return apply
-
 def _child_limits() -> None:
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     resource.setrlimit(resource.RLIMIT_CPU, (15, 15))
@@ -531,16 +520,209 @@ def _child_limits() -> None:
     if hasattr(resource, "RLIMIT_NPROC"):
         resource.setrlimit(resource.RLIMIT_NPROC, (0, 0))
 
-def _run_child(argv: list[str], *, cwd: Path, pass_fds: tuple[int, ...] = ()) -> tuple[int, bytes, bytes]:
+def _write_all(path: str, raw: bytes, label: str) -> None:
+    fd = os.open(path, os.O_WRONLY | os.O_CLOEXEC)
+    try:
+        view = memoryview(raw)
+        while view:
+            wrote = os.write(fd, view)
+            if wrote <= 0:
+                raise RuntimeProofError(label + "_short_write")
+            view = view[wrote:]
+    finally:
+        os.close(fd)
+
+def _mount(
+    source: str | None,
+    target: Path,
+    fstype: str | None,
+    flags: int,
+    data: str | None,
+    label: str,
+) -> None:
+    libc = _libc()
+    libc.mount.argtypes = [
+        ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p,
+        ctypes.c_ulong, ctypes.c_void_p,
+    ]
+    libc.mount.restype = ctypes.c_int
+    source_b = None if source is None else os.fsencode(source)
+    fstype_b = None if fstype is None else os.fsencode(fstype)
+    data_b = None if data is None else os.fsencode(data)
+    if libc.mount(
+        source_b,
+        os.fsencode(target),
+        fstype_b,
+        flags,
+        None if data_b is None else ctypes.c_char_p(data_b),
+    ) != 0:
+        err = ctypes.get_errno()
+        raise RuntimeProofError(label + "_mount_failed:errno_" + str(err))
+
+def _drop_namespace_capabilities() -> None:
+    header = _CapHeader(version=LINUX_CAPABILITY_VERSION_3, pid=0)
+    data_type = _CapData * 2
+    data = data_type()
+    try:
+        _syscall(SYS_CAPSET, ctypes.byref(header), ctypes.byref(data))
+    except OSError as exc:
+        raise RuntimeProofError("namespace_capability_drop_failed:errno_" + str(exc.errno)) from exc
+
+def _bind_sealed_fd(fd: int, target: Path, *, mode: int, label: str) -> None:
+    created = os.open(
+        target,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC,
+        mode,
+    )
+    os.close(created)
+    source = "/proc/self/fd/" + str(fd)
+    _mount(source, target, None, MS_BIND, None, label + "_bind")
+    _mount(
+        None,
+        target,
+        None,
+        MS_BIND | MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV,
+        None,
+        label + "_readonly",
+    )
+
+def _prepare_private_runtime_snapshot(
+    mount_root: Path,
+    python_snapshot_fd: int,
+    stdlib_snapshot_fd: int,
+) -> None:
+    outer_uid = os.getuid()
+    outer_gid = os.getgid()
+
+    libc = _libc()
+    libc.prctl.argtypes = [
+        ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong,
+        ctypes.c_ulong, ctypes.c_ulong,
+    ]
+    libc.prctl.restype = ctypes.c_int
+    if libc.prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0:
+        err = ctypes.get_errno()
+        raise RuntimeProofError("snapshot_dumpable_disable_failed:errno_" + str(err))
+
+    libc.unshare.argtypes = [ctypes.c_int]
+    libc.unshare.restype = ctypes.c_int
+    if libc.unshare(CLONE_NEWUSER | CLONE_NEWNS) != 0:
+        err = ctypes.get_errno()
+        raise RuntimeProofError("user_mount_namespace_unavailable:errno_" + str(err))
+
+    _write_all("/proc/self/setgroups", b"deny\n", "setgroups_deny")
+    _write_all(
+        "/proc/self/uid_map",
+        ("1000 " + str(outer_uid) + " 1\n").encode("ascii"),
+        "uid_map",
+    )
+    _write_all(
+        "/proc/self/gid_map",
+        ("1000 " + str(outer_gid) + " 1\n").encode("ascii"),
+        "gid_map",
+    )
+    if os.getuid() != 1000 or os.geteuid() != 1000 or os.getgid() != 1000 or os.getegid() != 1000:
+        raise RuntimeProofError("namespace_runtime_identity_mapping_failed")
+
+    _mount(None, Path("/"), None, MS_REC | MS_PRIVATE, None, "mount_propagation_private")
+    _mount(
+        "tmpfs",
+        mount_root,
+        "tmpfs",
+        MS_NOSUID | MS_NODEV,
+        "mode=0700,size=16m",
+        "runtime_root_tmpfs",
+    )
+    (mount_root / "bin").mkdir(mode=0o700)
+    (mount_root / "lib").mkdir(mode=0o700)
+    (mount_root / "tmp").mkdir(mode=0o700)
+    (mount_root / "synthetic-repo" / "ops" / "precision").mkdir(parents=True, mode=0o700)
+
+    _mount(
+        "tmpfs",
+        mount_root / "tmp",
+        "tmpfs",
+        MS_NOSUID | MS_NODEV | MS_NOEXEC,
+        "mode=0700,size=" + str(SNAPSHOT_TMP_BYTES),
+        "runtime_tmp_tmpfs",
+    )
+    _bind_sealed_fd(
+        python_snapshot_fd,
+        mount_root / "bin" / "python3.12-static",
+        mode=0o555,
+        label="python_snapshot",
+    )
+    _bind_sealed_fd(
+        stdlib_snapshot_fd,
+        mount_root / "lib" / "python312.zip",
+        mode=0o444,
+        label="stdlib_snapshot",
+    )
+
+    _mount(
+        None,
+        mount_root,
+        None,
+        MS_REMOUNT | MS_RDONLY | MS_NOSUID | MS_NODEV,
+        None,
+        "runtime_root_readonly",
+    )
+
+    root_fd = os.open(
+        mount_root,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+    )
+    try:
+        os.fchdir(root_fd)
+        os.chroot(".")
+        os.chdir("/")
+    finally:
+        os.close(root_fd)
+
+    os.close(python_snapshot_fd)
+    os.close(stdlib_snapshot_fd)
+    _drop_namespace_capabilities()
+
+def _apply_candidate_sandbox(runtime_root: Path) -> None:
+    _child_limits()
+    os.umask(0o077)
+    _apply_landlock(runtime_root)
+    _apply_seccomp()
+
+def _candidate_preexec(
+    mount_root: Path,
+    python_snapshot_fd: int,
+    stdlib_snapshot_fd: int,
+):
+    def apply() -> None:
+        _prepare_private_runtime_snapshot(
+            mount_root,
+            python_snapshot_fd,
+            stdlib_snapshot_fd,
+        )
+        _apply_candidate_sandbox(Path("/"))
+    return apply
+
+def _run_child(
+    argv: list[str],
+    *,
+    mount_root: Path,
+    python_snapshot_fd: int,
+    stdlib_snapshot_fd: int,
+    pass_fds: tuple[int, ...] = (),
+) -> tuple[int, bytes, bytes]:
     env = {
-        "PATH": "/usr/bin:/bin",
+        "PATH": "/bin",
         "HOME": "/nonexistent",
         "LANG": "C",
         "LC_ALL": "C",
         "TZ": "UTC",
         "OPENSSL_CONF": "/dev/null",
-        "TMPDIR": os.fspath(cwd / "tmp"),
+        "TMPDIR": "/tmp",
     }
+    inherited = tuple(dict.fromkeys(
+        (python_snapshot_fd, stdlib_snapshot_fd, *pass_fds)
+    ))
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         try:
             child = subprocess.Popen(
@@ -548,11 +730,15 @@ def _run_child(argv: list[str], *, cwd: Path, pass_fds: tuple[int, ...] = ()) ->
                 stdin=subprocess.DEVNULL,
                 stdout=out,
                 stderr=err,
-                cwd=os.fspath(cwd),
+                cwd=os.fspath(mount_root),
                 env=env,
                 close_fds=True,
-                pass_fds=pass_fds,
-                preexec_fn=_candidate_preexec(cwd),
+                pass_fds=inherited,
+                preexec_fn=_candidate_preexec(
+                    mount_root,
+                    python_snapshot_fd,
+                    stdlib_snapshot_fd,
+                ),
             )
             rc = child.wait(timeout=30)
         except subprocess.TimeoutExpired as exc:
