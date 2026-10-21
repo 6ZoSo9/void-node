@@ -125,7 +125,7 @@ try {
   fs.unlinkSync(highWater);
   fs.renameSync(highWater+".normal",highWater);
 
-  attacked=false;
+  let attacked=false;
   const fifoOriginal=highWater+".fifo-original";
   try{
     fs.openSync=function(p,flags,...args){
@@ -156,7 +156,7 @@ try {
   const away=path.join(root,"outside");
   fs.mkdirSync(away,{mode:0o700});
   fs.writeFileSync(path.join(away,path.basename(journal)),"ALIEN\n",{mode:0o600});
-  let attacked=false;
+  attacked=false;
   try{
     fs.openSync=function(p,...args){
       if(!attacked&&typeof p==="string"&&
