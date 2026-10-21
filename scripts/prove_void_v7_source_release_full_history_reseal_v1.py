@@ -14,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "04e60b0104d862553ddbb243de5c28fa922c2987"
+TARGET_BLOB = "a7aaa04bdb38193656e3aa44721ba7c2afcb992b"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -37,7 +37,14 @@ text = raw.decode("utf-8")
 assert '"reset", "--hard"' not in text
 assert '"checkout", TARGET_HEAD' not in text
 assert '"read-tree", TARGET_HEAD' in text
-assert '"checkout-index", "-a", "-f"' in text
+assert '"checkout-index"' not in text
+assert '"write-tree"' not in text
+assert 'def _materialize_candidate_worktree(' in text
+assert 'def _verify_materialized_candidate_worktree(' in text
+assert '"ls-tree", "-rz", "-t", "--full-tree", TARGET_TREE' in text
+assert 'os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW' in text
+assert '"candidate_tree_entry_mode_unsupported:" + mode' in text
+assert '"diff-index", "--cached", "--quiet", TARGET_HEAD, "--"' in text
 assert 'candidate_index_generation_changed' in text
 assert '_entry_absent_at(git_fd, "logs", "candidate")' in text
 
@@ -81,6 +88,11 @@ for required in (
     'ref_update_checkout_forbidden=true',
     'reflog_write_path_absent=true',
     'retained_index_generation_bound=true',
+    'checkout_index_forbidden=true',
+    'descriptor_relative_worktree_materialization=true',
+    'regular_files_only_tree_contract=true',
+    'terminal_worktree_manifest_revalidation=true',
+    'terminal_index_comparison_read_only=true',
     'protected_replace_authorized=false',
 ):
     assert required in text, required
@@ -211,6 +223,11 @@ print("cleanup_mount_boundary_rejection_bound=true")
 print("ref_update_checkout_forbidden_bound=true")
 print("reflog_write_path_absent_bound=true")
 print("retained_index_generation_bound=true")
+print("checkout_index_forbidden_bound=true")
+print("descriptor_relative_worktree_materialization_bound=true")
+print("regular_files_only_tree_contract_bound=true")
+print("terminal_worktree_manifest_revalidation_bound=true")
+print("terminal_index_comparison_read_only_bound=true")
 print("protected_filesystem_mutation=false")
 print("network=false")
 print("protected_replace_authorized=false")
