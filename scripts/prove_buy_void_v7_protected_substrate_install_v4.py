@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="6ecbf3aa65d40071a466236ca7fb27376615e198"
+assert gblob(INS)=="654a7b85644864d27f422f0a8a0179fa1bb8c4a8"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -73,6 +73,10 @@ required=(
     'git_local_config_exact_allowlist_required=true',
     'def _direct_main_ref(root: pathlib.Path, label: str) -> str:',
     'def _git_tree_oid_from_worktree(root: pathlib.Path, label: str) -> str:',
+    'with os.scandir(directory) as scan:',
+    'for entry in scan:',
+    'if nodes > MAX_NODES:',
+    'names.append(entry.name)',
     'def require_worktree_matches_tree(root: pathlib.Path, expected_tree: str, label: str) -> None:',
     'git_config_promisor_forbidden',
     'require_git_metadata_provenance(ROOT, "checkout")',
@@ -281,6 +285,22 @@ assert spec is not None and spec.loader is not None
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
+with tempfile.TemporaryDirectory(prefix="void-v7-direct-tree-node-ceiling-") as td:
+    wide = pathlib.Path(td)
+    for index in range(4):
+        (wide / ("entry-" + str(index))).write_bytes(b"x")
+    original_max_nodes = module.MAX_NODES
+    module.MAX_NODES = 3
+    try:
+        try:
+            module._git_tree_oid_from_worktree(wide, "proof_node_ceiling")
+        except module.InstallError as exc:
+            assert str(exc) == "proof_node_ceiling_worktree_node_limit"
+        else:
+            raise AssertionError("direct_tree_node_ceiling_not_enforced")
+    finally:
+        module.MAX_NODES = original_max_nodes
+
 with tempfile.TemporaryDirectory(prefix="void-v7-direct-tree-git-oracle-") as td:
     repo = pathlib.Path(td) / "repo"
     repo.mkdir()
@@ -482,6 +502,7 @@ print("v4_direct_tree_oracle_fixture_green=true")
 print("source_release_ancestor_acl_custody_bound=true")
 print("source_release_ancestor_generation_revalidation_bound=true")
 print("direct_tree_untracked_adversary_bound=true")
+print("direct_tree_node_ceiling_streamed_bound=true")
 print("qualifier_acl_aware_runtime_uid_write_audit_bound=true")
 print("qualifier_runtime_uid_gid_1000_bound=true")
 print("qualifier_supplementary_groups_empty_bound=true")
