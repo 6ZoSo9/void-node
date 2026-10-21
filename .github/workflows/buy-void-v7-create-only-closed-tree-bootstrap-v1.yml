@@ -36,9 +36,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$SOURCE_BASE" "$EXPECTED_HEAD"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json)" = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_create_only_closed_tree_bootstrap_v1.c)" = "96cd93b4111d3be03d23e383101b69ad26da544e"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_create_only_closed_tree_bootstrap_v1.py)" = "1fd3ed7b1c93da63e2a50d760c40538a820f8ea4"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-create-only-closed-tree-bootstrap-v1.md)" = "9edc195b9f504b6c697917a4427f89fe8771a292"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_create_only_closed_tree_bootstrap_v1.c)" = "a49639a005d5b9dbcdfe585f34c184a1701fb500"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_create_only_closed_tree_bootstrap_v1.py)" = "0f771aa12b21185a1746b4404d98677ad0910cfb"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-create-only-closed-tree-bootstrap-v1.md)" = "dd3002355f50cf92f432de767d035e55b265f594"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git merge-base --is-ancestor "${{ github.event.pull_request.base.sha }}" HEAD
             cat > "$RUNNER_TEMP/expected" <<'EOF'
