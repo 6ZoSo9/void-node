@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "511dec7990b3e59fe24a9f6d302014f7e55478da"
+TARGET_BLOB = "4cb80757a5606ffdfb37925e696a9851f411ea1b"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -61,7 +61,16 @@ for required in (
     'def _verify_stage_for_apply(',
     'root_required_for_runtime_uid_child',
     'PR_SET_NO_NEW_PRIVS = 38',
+    'PR_CAP_AMBIENT = 47',
+    'PR_CAP_AMBIENT_CLEAR_ALL = 4',
+    'LINUX_CAPABILITY_VERSION_3 = 0x20080522',
+    'SYS_CAPSET_X86_64 = 126',
+    'def _clear_runtime_child_capabilities(',
+    'def _drop_runtime_child_privileges()',
+    'def _proc_self_status_security_fields()',
     'prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)',
+    'runtime_uid_child_capability_clear_required=true',
+    'runtime_uid_child_capability_status_zero_required=true',
     'os.getresuid() != (RUNTIME_UID, RUNTIME_UID, RUNTIME_UID)',
     'os.getresgid() != (RUNTIME_GID, RUNTIME_GID, RUNTIME_GID)',
     'runtime_uid_child_identity_drop_incomplete',
@@ -168,18 +177,37 @@ assert "_metadata_identity(before) != expected_source" in copy_regular_text
 assert "_metadata_identity(opened) != expected_source" in copy_regular_text
 assert "return opened.st_size" in copy_regular_text
 
+drop_start = text.index("def _drop_runtime_child_privileges()")
+drop_end = text.index("def _runtime_uid_child_call(", drop_start)
+drop_text = text[drop_start:drop_end]
+assert drop_text.index(
+    "prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)"
+) < drop_text.index("os.setgroups([])")
+assert drop_text.index("os.setgroups([])") < drop_text.index(
+    "os.setgid(RUNTIME_GID)"
+) < drop_text.index("os.setuid(RUNTIME_UID)")
+assert drop_text.index("os.setuid(RUNTIME_UID)") < drop_text.index(
+    "_clear_runtime_child_capabilities(libc, prctl)"
+)
+assert "os.getresuid() != (RUNTIME_UID, RUNTIME_UID, RUNTIME_UID)" in drop_text
+assert "os.getresgid() != (RUNTIME_GID, RUNTIME_GID, RUNTIME_GID)" in drop_text
+
+cap_start = text.index("def _clear_runtime_child_capabilities(")
+cap_end = text.index("def _drop_runtime_child_privileges()", cap_start)
+cap_text = text[cap_start:cap_end]
+assert "PR_CAP_AMBIENT_CLEAR_ALL" in cap_text
+assert "SYS_CAPSET_X86_64" in cap_text
+assert 'for key in ("CapInh", "CapPrm", "CapEff", "CapAmb")' in cap_text
+assert 'runtime_uid_child_capability_not_zero:' in cap_text
+assert 'runtime_uid_child_no_new_privs_status_invalid' in cap_text
+
 runtime_child_start = text.index("def _runtime_uid_child_call(")
 runtime_child_end = text.index("def _collect_plan_for_apply(", runtime_child_start)
 runtime_child_text = text[runtime_child_start:runtime_child_end]
 assert 'operation == "verify_stage_private"' in runtime_child_text
-assert runtime_child_text.index(
-    "prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)"
-) < runtime_child_text.index("os.setgroups([])")
-assert runtime_child_text.index("os.setgroups([])") < runtime_child_text.index(
-    "os.setgid(RUNTIME_GID)"
-) < runtime_child_text.index("os.setuid(RUNTIME_UID)")
-assert "os.getresuid() != (RUNTIME_UID, RUNTIME_UID, RUNTIME_UID)" in runtime_child_text
-assert "os.getresgid() != (RUNTIME_GID, RUNTIME_GID, RUNTIME_GID)" in runtime_child_text
+assert runtime_child_text.index("_drop_runtime_child_privileges()") < runtime_child_text.index(
+    'if operation == "collect_plan":'
+)
 assert "_verify_full_history_root(" in runtime_child_text
 assert "STAGE, 0, 0, 0o750" in runtime_child_text
 assert "runtime_uid_private_stage_writable" in runtime_child_text
@@ -230,6 +258,8 @@ for marker in (
     "private_stage_named_runtime_uid_acl_required=true",
     "private_stage_acl_group_object_zero_required=true",
     "private_stage_acl_xattr_roundtrip_required=true",
+    "runtime_uid_child_capability_clear_required=true",
+    "runtime_uid_child_capability_status_zero_required=true",
     "candidate_utf8_path_components_required=true",
     "rename_noreplace_publication_required=true",
     "trusted_root_launcher_required=true",
@@ -264,6 +294,8 @@ for marker in (
     "trusted_root_launcher_required=true",
     "apply_plan_runtime_uid_drop_required=true",
     "runtime_uid_child_no_new_privs_required=true",
+    "runtime_uid_child_capability_clear_required=true",
+    "runtime_uid_child_capability_status_zero_required=true",
     "candidate_copy_descriptor_relative=true",
     "apply_root_dynamic_git_exec=false",
     "termination_signal_reconciliation_required=true",
@@ -294,6 +326,8 @@ print("publication_reconciliation_bound=true")
 print("direct_mutable_checkout_privileged_apply_forbidden=true")
 print("apply_plan_runtime_uid_drop_bound=true")
 print("runtime_uid_child_no_new_privs_bound=true")
+print("runtime_uid_child_capability_clear_bound=true")
+print("runtime_uid_child_capability_status_zero_bound=true")
 print("candidate_copy_descriptor_relative_bound=true")
 print("install_parent_stage_transition_bound=true")
 print("root_dynamic_git_exec_forbidden_bound=true")
