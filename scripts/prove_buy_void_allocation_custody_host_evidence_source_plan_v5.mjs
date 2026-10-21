@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import {execFileSync} from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -80,6 +81,23 @@ function exactKeys(obj,keys,label){
   assert.ok(obj&&typeof obj==="object"&&!Array.isArray(obj),label+"_object_required");
   assert.deepEqual(Object.keys(obj).sort(),[...keys].sort(),label+"_keys");
 }
+function git(args){
+  const env={
+    PATH:"/usr/bin:/bin",
+    HOME:"/nonexistent",
+    LANG:"C",
+    LC_ALL:"C",
+    GIT_CONFIG_NOSYSTEM:"1",
+    GIT_CONFIG_GLOBAL:"/dev/null",
+    GIT_OPTIONAL_LOCKS:"0",
+  };
+  return execFileSync("/usr/bin/git",args,{
+    cwd:process.cwd(),
+    encoding:"utf8",
+    env,
+    maxBuffer:1024*1024,
+  }).trimEnd();
+}
 
 const raw=readBoundedRegular(PLAN_PATH,512*1024);
 const text=new TextDecoder("utf-8",{fatal:true}).decode(raw);
@@ -95,6 +113,35 @@ assert.equal(parsed.version,5);
 assert.equal(parsed.base_pr,3666);
 assert.equal(parsed.base_head,"ea20cb6bf7420692315df71623ffb38ed1810fcf");
 assert.equal(parsed.base_tree,"7291e5d11162742cff4de925800160ce598f98af");
+
+const checkoutHead=git(["rev-parse","HEAD"]);
+assert.match(checkoutHead,SHA40,"checkout_head_invalid");
+assert.equal(
+  git(["rev-parse",parsed.base_head+"^{tree}"]),
+  parsed.base_tree,
+  "declared_base_tree_mismatch",
+);
+assert.equal(
+  git(["merge-base",parsed.base_head,checkoutHead]),
+  parsed.base_head,
+  "declared_base_not_ancestor",
+);
+const diffText=git([
+  "diff","--name-status","--no-renames",parsed.base_head,checkoutHead,"--",
+]);
+const diffRows=diffText?diffText.split("\n").map(line=>line.split("\t")):[];
+assert.equal(diffRows.length,SELF_PATHS.length,"committed_scope_count_mismatch");
+assert.deepEqual(
+  diffRows.map(parts=>parts[0]),
+  Array(SELF_PATHS.length).fill("A"),
+  "committed_scope_not_add_only",
+);
+assert.deepEqual(
+  diffRows.map(parts=>parts[1]).sort(),
+  [...SELF_PATHS].sort(),
+  "committed_scope_paths_mismatch",
+);
+
 assert.equal(parsed.next_gate,
   "separately_authorized_read_only_complete_host_evidence_collector_v5");
 
@@ -141,6 +188,9 @@ for(const relative of [...seen,...SELF_PATHS]){
 
 console.log("VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_SOURCE_PLAN_V5_PROOF_GREEN");
 console.log("source_binding_count=21");
+console.log("declared_base_tree_verified=true");
+console.log("declared_base_ancestor_verified=true");
+console.log("exact_four_add_only_scope_verified=true");
 console.log("authenticated_user_manager_v4_source_bound=true");
 console.log("custody_service_v2_source_bound=true");
 console.log("stable_request_root_policy_source_bound=true");

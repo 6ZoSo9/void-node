@@ -24,6 +24,11 @@ This V5 plan instead binds the modern source contracts already reviewed on the
 
 The plan content-binds 21 source/proof/workflow artifacts.
 
+The executable proof also binds the source generation itself: the declared #3666
+base commit must have the declared tree, must be an ancestor of the exact
+checkout HEAD, and the complete committed base→HEAD diff must be exactly these
+four V5 files as additions only. Extra, deleted, renamed, or modified paths HOLD.
+
 ## Source composition
 
 The exact bound source generation covers:
