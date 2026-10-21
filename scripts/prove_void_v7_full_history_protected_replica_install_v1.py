@@ -15,7 +15,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "0d8d3c32ba41a3f451cdde10e21df31fcc41fa93"
+TARGET_BLOB = "09eeb8596a19025a46709cfeb081d76313b678c0"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -52,6 +52,9 @@ assert "sorted(os.scandir" not in text
 assert "list(os.scandir" not in text
 assert "def _bounded_directory_names(" in text
 assert "def _require_exact_directory_names(" in text
+assert "self.pack_fd = -1" in text
+assert "self.idx_fd = -1" in text
+assert "except BaseException:\n            self.close()\n            raise" in text
 assert "mode_value == 0o100644" in text
 assert "mode_value == 0o100755" in text
 assert "mode_value == 0o120000" in text
