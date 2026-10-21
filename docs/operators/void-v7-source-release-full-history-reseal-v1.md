@@ -39,11 +39,16 @@ It:
 8. checks the exact tree/index/worktree, full-history status, parent set,
    object closure and strict fsck;
 9. rejects shallow, graft, alternate, HTTP-alternate, commondir and
-   config.worktree metadata.
+   config.worktree metadata;
+10. rejects C0 and DEL control characters in operator-supplied output paths
+    before any candidate directory is created or any line-oriented receipt can
+    contain that path.
 
 The pack bytes themselves are not authority; the reconstructed Git object IDs,
 connectivity, generated pack index, and exact worktree are. The single bounded
 pack process is reaped by `subprocess.run` before cleanup or continuation.
+Receipt path fields are emitted only after the control-character guard, so one
+filesystem path cannot inject a second line or forge an authority/status field.
 
 ## Authority boundary
 

@@ -191,7 +191,14 @@ def verify_candidate(root: Path) -> None:
     if fsck:
         raise ResealError("candidate_fsck_output_nonempty")
 
+def _receipt_safe_path(path: Path, label: str) -> str:
+    raw = os.fspath(path)
+    if any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in raw):
+        raise ResealError(label + "_path_control_character")
+    return raw
+
 def _validate_output(output: Path) -> Path:
+    _receipt_safe_path(output, "output")
     if not output.is_absolute():
         raise ResealError("output_must_be_absolute")
     parent = output.parent.resolve(strict=True)
@@ -245,7 +252,7 @@ def build(output: Path) -> None:
         raise
     print(MARKER)
     print("status=FULL_HISTORY_RESEAL_CANDIDATE_GREEN")
-    print("output=" + os.fspath(output))
+    print("output=" + _receipt_safe_path(output, "output"))
     print("target_head=" + TARGET_HEAD)
     print("target_tree=" + TARGET_TREE)
     print("reachable_commits=" + str(EXPECTED_REACHABLE_COMMITS))
@@ -269,7 +276,15 @@ def self_test() -> None:
         (p / ".git" / "shallow").write_text(TARGET_HEAD + "\n", "ascii")
         if not any(x.name == "shallow" and x.exists() for x in _forbidden_metadata(p)):
             raise AssertionError("shallow_fixture_not_detected")
+    try:
+        _receipt_safe_path(Path("/tmp/bad\nstatus=FORGED"), "self_test")
+    except ResealError as exc:
+        if str(exc) != "self_test_path_control_character":
+            raise
+    else:
+        raise AssertionError("receipt_control_character_fixture_not_rejected")
     print(MARKER + "_SELF_TEST_GREEN")
+    print("receipt_control_characters_rejected=true")
     print("exact_target_commit_tree_parents_bound=true")
     print("complete_reachable_object_graph_required=true")
     print("single_process_pack_and_index_generation=true")
@@ -289,7 +304,7 @@ def plan() -> None:
             print(key + "=" + ",".join(value))
         else:
             print(key + "=" + str(value))
-    print("candidate_build_write_scope=" + os.fspath(ALLOWED_OUTPUT_ROOT.resolve(strict=False)))
+    print("candidate_build_write_scope=" + _receipt_safe_path(ALLOWED_OUTPUT_ROOT.resolve(strict=False), "candidate_build_write_scope"))
     print("protected_filesystem_mutation=false")
     print("network=false")
     print("protected_replace_authorized=false")

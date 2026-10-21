@@ -12,7 +12,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "d257208096fe51a179ddad91862115512bb6bb27"
+TARGET_BLOB = "fc67176ea417c19c05920f8c2672763ba870763f"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -47,6 +47,7 @@ for required in (
     'pack.writeReverseIndex=false',
     'source_forbidden_git_metadata',
     'candidate_fsck_output_nonempty',
+    '_path_control_character',
     'protected_replace_authorized=false',
 ):
     assert required in text, required
@@ -66,6 +67,7 @@ selftest = subprocess.run(
 )
 assert selftest.returncode == 0 and selftest.stderr == ""
 assert "VOID_V7_SOURCE_RELEASE_FULL_HISTORY_RESEAL_V1_SELF_TEST_GREEN" in selftest.stdout.splitlines()
+assert "receipt_control_characters_rejected=true" in selftest.stdout.splitlines()
 
 plan = subprocess.run(
     [sys.executable, "-I", "-B", str(TARGET), "--plan"],
@@ -101,6 +103,16 @@ with tempfile.TemporaryDirectory(prefix="void-v7-reseal-proof-") as td:
     assert built.returncode == 2
     assert "reason=output_outside_downloads" in built.stdout.splitlines()
 
+bad_receipt_output = Path.home() / "Downloads" / "candidate\nstatus=FORGED"
+bad_receipt = subprocess.run(
+    [sys.executable, "-I", "-B", str(TARGET), "--build", "--output", str(bad_receipt_output)],
+    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    text=True, timeout=120, check=False,
+)
+assert bad_receipt.returncode == 2
+assert "reason=output_path_control_character" in bad_receipt.stdout.splitlines()
+assert not bad_receipt_output.exists()
+
 print(MARKER + "_GREEN")
 print("target_blob=" + TARGET_BLOB)
 print("exact_target_commit_tree_parents_bound=true")
@@ -110,6 +122,7 @@ print("single_process_pack_and_index_generation_bound=true")
 print("closed_git_config_required=true")
 print("shallow_graft_alternate_commondir_rejected=true")
 print("output_scope_guard_bound=true")
+print("receipt_control_character_guard_bound=true")
 print("protected_filesystem_mutation=false")
 print("network=false")
 print("protected_replace_authorized=false")
