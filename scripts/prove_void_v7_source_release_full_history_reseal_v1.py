@@ -14,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "8735b9ce07bb717e1f2bf535e05e10fed47682bd"
+TARGET_BLOB = "15100270386f48ee6fb8e3efa6f85d79ec2dbaf3"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -53,6 +53,10 @@ assert 'candidate_git_directory_layout_invalid' in text
 assert 'candidate_objects_directory_layout_invalid' in text
 assert 'candidate_pack_directory_layout_invalid' in text
 assert 'candidate_main_ref_content_invalid' in text
+assert '_BUILD_WRITE_BOUNDARY_ENTERED = False' in text
+assert 'source_repository_mutation=unknown' in text
+assert 'protected_filesystem_mutation=unknown' in text
+assert 'same_uid_namespace_relocation_isolation=false' in text
 assert 'candidate_index_generation_changed' in text
 assert '_entry_absent_at(git_fd, "logs", "candidate")' in text
 
@@ -104,6 +108,10 @@ for required in (
     'git_metadata_descriptor_revalidation=true',
     'git_metadata_exact_layout=true',
     'pack_and_ref_aliases_rejected=true',
+    'current_uid_filesystem_write_boundary=true',
+    'same_uid_namespace_relocation_isolation=false',
+    'source_repository_mutation=unknown',
+    'protected_filesystem_mutation=unknown',
     'protected_replace_authorized=false',
 ):
     assert required in text, required
@@ -151,7 +159,12 @@ for marker in (
     "target_head=4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb",
     "target_tree=de12c9d2d5e475d435d21da3b047d7b63b69e2b7",
     "reachable_commits=17931",
+    "build_mode_current_uid_write_boundary=true",
+    "build_mode_same_uid_namespace_relocation_isolation=false",
+    "build_mode_source_repository_mutation_claim=unknown",
+    "build_mode_protected_filesystem_mutation_claim=unknown",
     "protected_filesystem_mutation=false",
+    "source_repository_mutation=false",
     "network=false",
     "protected_replace_authorized=false",
 ):
@@ -242,6 +255,8 @@ print("terminal_index_comparison_read_only_bound=true")
 print("git_metadata_descriptor_revalidation_bound=true")
 print("git_metadata_exact_layout_bound=true")
 print("pack_and_ref_alias_rejection_bound=true")
+print("build_write_boundary_truthful_receipt_bound=true")
+print("same_uid_namespace_isolation_nonclaim_bound=true")
 print("protected_filesystem_mutation=false")
 print("network=false")
 print("protected_replace_authorized=false")
