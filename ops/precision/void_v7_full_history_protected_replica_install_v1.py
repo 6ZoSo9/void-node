@@ -591,6 +591,76 @@ def collect_plan(expected_head: str) -> dict[str, Any]:
         "plan_id": PLAN_PREFIX + hashlib.sha256(canonical(body)).hexdigest(),
     }
 
+def _collect_plan_for_apply(expected_head: str) -> dict[str, Any]:
+    if os.geteuid() != 0 or os.getuid() != 0:
+        raise InstallError("root_required_for_apply_plan_drop")
+    read_fd, write_fd = os.pipe()
+    pid = os.fork()
+    if pid == 0:
+        try:
+            os.close(read_fd)
+            os.setgroups([])
+            os.setgid(RUNTIME_GID)
+            os.setuid(RUNTIME_UID)
+            try:
+                result = collect_plan(expected_head)
+                payload = json.dumps(
+                    {"ok": True, "result": result},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            except BaseException as exc:
+                payload = json.dumps(
+                    {
+                        "ok": False,
+                        "error": type(exc).__name__ + ":" + str(exc),
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            if len(payload) > 8 * 1024 * 1024:
+                os._exit(7)
+            view = memoryview(payload)
+            while view:
+                wrote = os.write(write_fd, view)
+                if wrote <= 0:
+                    os._exit(8)
+                view = view[wrote:]
+            os.close(write_fd)
+            os._exit(0)
+        except BaseException:
+            os._exit(9)
+
+    os.close(write_fd)
+    chunks: list[bytes] = []
+    total = 0
+    try:
+        while True:
+            part = os.read(read_fd, 64 * 1024)
+            if not part:
+                break
+            total += len(part)
+            if total > 8 * 1024 * 1024:
+                raise InstallError("apply_plan_child_output_too_large")
+            chunks.append(part)
+    finally:
+        os.close(read_fd)
+    waited, status = os.waitpid(pid, 0)
+    if waited != pid or not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0:
+        raise InstallError("apply_plan_child_failed")
+    try:
+        envelope = json.loads(b"".join(chunks))
+    except json.JSONDecodeError as exc:
+        raise InstallError("apply_plan_child_json_invalid") from exc
+    if not isinstance(envelope, dict) or envelope.get("ok") is not True:
+        raise InstallError(
+            "apply_plan_child_hold:" + str(envelope.get("error", "unknown"))
+        )
+    result = envelope.get("result")
+    if not isinstance(result, dict):
+        raise InstallError("apply_plan_child_result_invalid")
+    return result
+
 def source_plan() -> None:
     print(MARKER)
     print("mode=source-plan")
@@ -603,6 +673,8 @@ def source_plan() -> None:
     print("create_only=true")
     print("live_release_mutation=false")
     print("trusted_root_launcher_required=true")
+    print("apply_plan_runtime_uid_drop_required=true")
+    print("candidate_copy_descriptor_relative=true")
     print("service_mutation=false")
     print("credential_access=false")
     print("transaction=false")
@@ -708,42 +780,58 @@ def _require_privileged_source_custody() -> None:
         if _metadata_identity(path.lstat()) != expected:
             raise InstallError("privileged_source_ancestor_generation_changed_terminal:" + os.fspath(path))
 
-def _copy_regular(src: pathlib.Path, dst: pathlib.Path, executable: bool) -> None:
-    before = src.lstat()
-    if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or before.st_nlink != 1:
-        raise InstallError("copy_source_regular_invalid:" + os.fspath(src))
-    sfd = os.open(src, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+def _copy_regular_at(
+    src_dir_fd: int,
+    dst_dir_fd: int,
+    name: str,
+    executable: bool,
+) -> None:
+    before = os.stat(name, dir_fd=src_dir_fd, follow_symlinks=False)
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_nlink != 1
+        or before.st_size < 0
+        or before.st_size > MAX_FILE_BYTES
+    ):
+        raise InstallError("copy_source_regular_invalid:" + name)
+    sfd = os.open(
+        name,
+        os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        dir_fd=src_dir_fd,
+    )
     dfd = None
     try:
         opened = os.fstat(sfd)
         if _metadata_identity(opened) != _metadata_identity(before):
-            raise InstallError("copy_source_rebound:" + os.fspath(src))
+            raise InstallError("copy_source_rebound:" + name)
         dfd = os.open(
-            dst,
+            name,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW,
             0o600,
+            dir_fd=dst_dir_fd,
         )
         remaining = opened.st_size
         while remaining:
             part = os.read(sfd, min(COPY_CHUNK, remaining))
             if not part:
-                raise InstallError("copy_source_short_read:" + os.fspath(src))
+                raise InstallError("copy_source_short_read:" + name)
             view = memoryview(part)
             while view:
                 wrote = os.write(dfd, view)
                 if wrote <= 0:
-                    raise InstallError("copy_destination_short_write:" + os.fspath(dst))
+                    raise InstallError("copy_destination_short_write:" + name)
                 view = view[wrote:]
             remaining -= len(part)
         if os.read(sfd, 1):
-            raise InstallError("copy_source_grew:" + os.fspath(src))
+            raise InstallError("copy_source_grew:" + name)
         after = os.fstat(sfd)
-        visible = src.lstat()
+        visible = os.stat(name, dir_fd=src_dir_fd, follow_symlinks=False)
         if (
             _metadata_identity(after) != _metadata_identity(opened)
             or _metadata_identity(visible) != _metadata_identity(opened)
         ):
-            raise InstallError("copy_source_changed:" + os.fspath(src))
+            raise InstallError("copy_source_changed:" + name)
         os.fchown(dfd, 0, 0)
         os.fchmod(dfd, 0o555 if executable else 0o444)
         os.fsync(dfd)
@@ -754,64 +842,136 @@ def _copy_regular(src: pathlib.Path, dst: pathlib.Path, executable: bool) -> Non
 
 def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
     global _WRITE_BOUNDARY_ENTERED, _STAGE_RETAINED
+
     if STAGE.exists() or STAGE.is_symlink():
         raise InstallError("stage_preexisting")
+
     ancestors = _ancestor_custody(INSTALL_PARENT)
-    STAGE.mkdir(mode=0o755)
-    _WRITE_BOUNDARY_ENTERED = True
-    _STAGE_RETAINED = True
-    os.chown(STAGE, 0, 0)
-    created_dirs: list[pathlib.Path] = [STAGE]
-    nodes = 0
-    total = 0
+    candidate_before = CANDIDATE.lstat()
+    if (
+        not stat.S_ISDIR(candidate_before.st_mode)
+        or stat.S_ISLNK(candidate_before.st_mode)
+        or candidate_before.st_uid != RUNTIME_UID
+        or candidate_before.st_gid != RUNTIME_GID
+        or stat.S_IMODE(candidate_before.st_mode) != 0o700
+    ):
+        raise InstallError("copy_candidate_root_metadata_invalid")
 
-    def recurse(src_dir: pathlib.Path, dst_dir: pathlib.Path) -> None:
-        nonlocal nodes, total
-        before_dir = src_dir.lstat()
-        for entry in sorted(os.scandir(src_dir), key=lambda e: e.name):
-            nodes += 1
-            if nodes > MAX_NODES:
-                raise InstallError("copy_node_limit")
-            src = src_dir / entry.name
-            dst = dst_dir / entry.name
-            st = src.lstat()
-            if stat.S_ISLNK(st.st_mode):
-                raise InstallError("copy_symlink_forbidden:" + os.fspath(src))
-            if stat.S_ISDIR(st.st_mode):
-                dst.mkdir(mode=0o755)
-                os.chown(dst, 0, 0)
-                created_dirs.append(dst)
-                recurse(src, dst)
-            elif stat.S_ISREG(st.st_mode):
-                total += st.st_size
-                if total > MAX_TOTAL_BYTES:
-                    raise InstallError("copy_total_bytes_limit")
-                _copy_regular(
-                    src,
-                    dst,
-                    bool(stat.S_IMODE(st.st_mode) & stat.S_IXUSR),
-                )
-            else:
-                raise InstallError("copy_kind_invalid:" + os.fspath(src))
-        if _metadata_identity(src_dir.lstat()) != _metadata_identity(before_dir):
-            raise InstallError("copy_source_directory_changed:" + os.fspath(src_dir))
-
-    recurse(CANDIDATE, STAGE)
-    for directory in sorted(created_dirs, key=lambda p: len(p.parts), reverse=True):
-        os.chown(directory, 0, 0)
-        os.chmod(directory, 0o555)
-        fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-    parent_fd = os.open(INSTALL_PARENT, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    candidate_fd = os.open(
+        CANDIDATE,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+    )
+    parent_fd = os.open(
+        INSTALL_PARENT,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+    )
+    stage_fd = -1
     try:
+        if _metadata_identity(os.fstat(candidate_fd)) != _metadata_identity(candidate_before):
+            raise InstallError("copy_candidate_root_rebound")
+        parent_before = os.fstat(parent_fd)
+        os.mkdir(STAGE_NAME, 0o755, dir_fd=parent_fd)
+        _WRITE_BOUNDARY_ENTERED = True
+        _STAGE_RETAINED = True
+        stage_fd = os.open(
+            STAGE_NAME,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            dir_fd=parent_fd,
+        )
+        os.fchown(stage_fd, 0, 0)
+        os.fchmod(stage_fd, 0o755)
+
+        nodes = 0
+        total = 0
+
+        def recurse(src_fd: int, dst_fd: int, label: str) -> None:
+            nonlocal nodes, total
+            source_before = _metadata_identity(os.fstat(src_fd))
+            names = sorted(os.listdir(src_fd))
+            for name in names:
+                if name in ("", ".", "..") or "/" in name:
+                    raise InstallError("copy_entry_name_invalid:" + label)
+                nodes += 1
+                if nodes > MAX_NODES:
+                    raise InstallError("copy_node_limit")
+                st = os.stat(name, dir_fd=src_fd, follow_symlinks=False)
+                if stat.S_ISLNK(st.st_mode):
+                    raise InstallError("copy_symlink_forbidden:" + label + "/" + name)
+                if stat.S_ISDIR(st.st_mode):
+                    child_src = os.open(
+                        name,
+                        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                        dir_fd=src_fd,
+                    )
+                    child_dst = -1
+                    try:
+                        if _metadata_identity(os.fstat(child_src)) != _metadata_identity(st):
+                            raise InstallError("copy_source_directory_rebound:" + label + "/" + name)
+                        os.mkdir(name, 0o755, dir_fd=dst_fd)
+                        child_dst = os.open(
+                            name,
+                            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+                            dir_fd=dst_fd,
+                        )
+                        os.fchown(child_dst, 0, 0)
+                        os.fchmod(child_dst, 0o755)
+                        recurse(child_src, child_dst, label + "/" + name)
+                        os.fchown(child_dst, 0, 0)
+                        os.fchmod(child_dst, 0o555)
+                        os.fsync(child_dst)
+                    finally:
+                        if child_dst >= 0:
+                            os.close(child_dst)
+                        os.close(child_src)
+                elif stat.S_ISREG(st.st_mode):
+                    total += st.st_size
+                    if total > MAX_TOTAL_BYTES:
+                        raise InstallError("copy_total_bytes_limit")
+                    _copy_regular_at(
+                        src_fd,
+                        dst_fd,
+                        name,
+                        bool(stat.S_IMODE(st.st_mode) & stat.S_IXUSR),
+                    )
+                else:
+                    raise InstallError("copy_kind_invalid:" + label + "/" + name)
+            if _metadata_identity(os.fstat(src_fd)) != source_before:
+                raise InstallError("copy_source_directory_changed:" + label)
+
+        recurse(candidate_fd, stage_fd, ".")
+        candidate_after = CANDIDATE.lstat()
+        if (
+            _metadata_identity(os.fstat(candidate_fd)) != _metadata_identity(candidate_before)
+            or _metadata_identity(candidate_after) != _metadata_identity(candidate_before)
+        ):
+            raise InstallError("copy_candidate_root_generation_changed")
+
+        os.fchown(stage_fd, 0, 0)
+        os.fchmod(stage_fd, 0o555)
+        os.fsync(stage_fd)
         os.fsync(parent_fd)
+
+        if _metadata_identity(os.fstat(parent_fd)) != _metadata_identity(parent_before):
+            # Creating the stage legitimately changes parent timestamps/link count,
+            # so only stable custody fields are compared below.
+            after = os.fstat(parent_fd)
+            if (
+                after.st_dev != parent_before.st_dev
+                or after.st_ino != parent_before.st_ino
+                or after.st_uid != parent_before.st_uid
+                or after.st_gid != parent_before.st_gid
+                or stat.S_IMODE(after.st_mode) != stat.S_IMODE(parent_before.st_mode)
+            ):
+                raise InstallError("install_parent_identity_changed_during_stage")
     finally:
+        if stage_fd >= 0:
+            os.close(stage_fd)
         os.close(parent_fd)
+        os.close(candidate_fd)
+
     if _ancestor_custody(INSTALL_PARENT) != ancestors:
         raise InstallError("install_parent_generation_changed_during_stage")
+
     stage = _verify_full_history_root(STAGE, 0, 0, 0o555)
     if stage["content_sha256"] != expected_candidate["content_sha256"]:
         raise InstallError("stage_content_digest_mismatch")
@@ -873,7 +1033,7 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
     ):
         raise InstallError("expected_plan_id_invalid")
     _require_privileged_source_custody()
-    planned = collect_plan(expected_head)
+    planned = _collect_plan_for_apply(expected_head)
     if planned["plan_id"] != expected_plan_id:
         raise InstallError("expected_plan_id_mismatch")
     state = planned["body"]["protected_state"]
@@ -889,7 +1049,7 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
 
     _copy_candidate_to_stage(planned["body"]["candidate"])
 
-    rebound = collect_plan(expected_head)
+    rebound = _collect_plan_for_apply(expected_head)
     if rebound["body"]["protected_state"] != "HOLD_STAGE_PRESENT":
         raise InstallError("stage_state_not_visible_before_publication")
     if not _same_binding(rebound["body"], planned["body"]):
@@ -900,7 +1060,7 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
 
     _rename_noreplace()
 
-    final = collect_plan(expected_head)
+    final = _collect_plan_for_apply(expected_head)
     if final["body"]["protected_state"] != "GREEN":
         raise InstallError("final_protected_replica_not_green")
     if not _same_binding(final["body"], planned["body"]):
