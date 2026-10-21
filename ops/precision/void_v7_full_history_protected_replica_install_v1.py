@@ -1186,13 +1186,11 @@ def _read_index_manifest(path: pathlib.Path, label: str) -> dict[str, tuple[str,
             if previous is not None and previous >= raw_name:
                 raise InstallError(label + "_path_order_invalid")
             previous = raw_name
-            kind = mode_value & 0o170000
-            perms = mode_value & 0o777
-            if kind == 0o100000:
-                mode = "100755" if perms & 0o100 else "100644"
-                if perms & ~0o755:
-                    raise InstallError(label + "_file_mode_invalid")
-            elif kind == 0o120000:
+            if mode_value == 0o100644:
+                mode = "100644"
+            elif mode_value == 0o100755:
+                mode = "100755"
+            elif mode_value == 0o120000:
                 mode = "120000"
             else:
                 raise InstallError(label + "_entry_mode_invalid")
