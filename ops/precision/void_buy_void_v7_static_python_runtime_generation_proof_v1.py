@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import errno
 import fcntl
 import hashlib
@@ -10,6 +11,7 @@ import os
 from pathlib import Path
 import resource
 import shutil
+import socket
 import stat
 import struct
 import subprocess
@@ -39,6 +41,89 @@ F_SEAL_WRITE = getattr(fcntl, "F_SEAL_WRITE", 0x0008)
 REQUIRED_SEALS = F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE
 MFD_ALLOW_SEALING = getattr(os, "MFD_ALLOW_SEALING", 0x0002)
 MFD_CLOEXEC = getattr(os, "MFD_CLOEXEC", 0x0001)
+
+# x86-64 Linux ABI. The candidate itself is required to be x86-64 ET_EXEC.
+SYS_LANDLOCK_CREATE_RULESET = 444
+SYS_LANDLOCK_ADD_RULE = 445
+SYS_LANDLOCK_RESTRICT_SELF = 446
+LANDLOCK_CREATE_RULESET_VERSION = 1
+LANDLOCK_RULE_PATH_BENEATH = 1
+
+LANDLOCK_ACCESS_FS_EXECUTE = 1 << 0
+LANDLOCK_ACCESS_FS_WRITE_FILE = 1 << 1
+LANDLOCK_ACCESS_FS_READ_FILE = 1 << 2
+LANDLOCK_ACCESS_FS_READ_DIR = 1 << 3
+LANDLOCK_ACCESS_FS_REMOVE_DIR = 1 << 4
+LANDLOCK_ACCESS_FS_REMOVE_FILE = 1 << 5
+LANDLOCK_ACCESS_FS_MAKE_CHAR = 1 << 6
+LANDLOCK_ACCESS_FS_MAKE_DIR = 1 << 7
+LANDLOCK_ACCESS_FS_MAKE_REG = 1 << 8
+LANDLOCK_ACCESS_FS_MAKE_SOCK = 1 << 9
+LANDLOCK_ACCESS_FS_MAKE_FIFO = 1 << 10
+LANDLOCK_ACCESS_FS_MAKE_BLOCK = 1 << 11
+LANDLOCK_ACCESS_FS_MAKE_SYM = 1 << 12
+LANDLOCK_ACCESS_FS_REFER = 1 << 13
+LANDLOCK_ACCESS_FS_TRUNCATE = 1 << 14
+LANDLOCK_HANDLED_FS_V3 = (1 << 15) - 1
+
+PR_SET_DUMPABLE = 4
+PR_SET_NO_NEW_PRIVS = 38
+PR_SET_SECCOMP = 22
+SECCOMP_MODE_FILTER = 2
+SECCOMP_RET_KILL_PROCESS = 0x80000000
+SECCOMP_RET_ERRNO = 0x00050000
+SECCOMP_RET_ALLOW = 0x7FFF0000
+AUDIT_ARCH_X86_64 = 0xC000003E
+X32_SYSCALL_BIT = 0x40000000
+
+BPF_LD = 0x00
+BPF_W = 0x00
+BPF_ABS = 0x20
+BPF_JMP = 0x05
+BPF_JEQ = 0x10
+BPF_JGE = 0x30
+BPF_K = 0x00
+BPF_RET = 0x06
+
+# No network, process spawning/control, namespaces/mounts, io_uring, kernel
+# key/BPF/perf/module surfaces, or handle-based filesystem escape.
+SECCOMP_DENIED_SYSCALLS = (
+    29, 30, 31,                    # SysV shared memory
+    41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55,
+    56, 57, 58, 62,                # clone/fork/vfork/kill
+    64, 65, 66, 67, 68, 69, 70, 71,  # SysV IPC
+    101, 135, 141, 142, 144,       # ptrace/personality/scheduler mutation
+    155, 157, 163, 165, 166, 167, 168, 169, 170, 171, 172, 173,
+    175, 176, 200, 203, 234, 246, 248, 249, 250, 272,
+    298, 300, 302, 303, 304, 308, 310, 311, 312, 313, 317,
+    320, 321, 323,
+    424, 425, 426, 427, 428, 429, 430, 431, 432, 433, 434, 435,
+    438, 440, 442,
+)
+
+class _LandlockRulesetAttr(ctypes.Structure):
+    _fields_ = [("handled_access_fs", ctypes.c_uint64)]
+
+class _LandlockPathBeneathAttr(ctypes.Structure):
+    _fields_ = [
+        ("allowed_access", ctypes.c_uint64),
+        ("parent_fd", ctypes.c_int32),
+        ("reserved", ctypes.c_uint32),
+    ]
+
+class _SockFilter(ctypes.Structure):
+    _fields_ = [
+        ("code", ctypes.c_ushort),
+        ("jt", ctypes.c_ubyte),
+        ("jf", ctypes.c_ubyte),
+        ("k", ctypes.c_uint32),
+    ]
+
+class _SockFprog(ctypes.Structure):
+    _fields_ = [
+        ("len", ctypes.c_ushort),
+        ("filter", ctypes.POINTER(_SockFilter)),
+    ]
 
 class RuntimeProofError(RuntimeError):
     pass
@@ -192,12 +277,189 @@ def _sealed_memfd(raw: bytes, label: str) -> int:
         os.close(fd)
         raise
 
+def _libc() -> ctypes.CDLL:
+    return ctypes.CDLL(None, use_errno=True)
+
+def _syscall(number: int, *args: object) -> int:
+    libc = _libc()
+    libc.syscall.restype = ctypes.c_long
+    result = libc.syscall(number, *args)
+    if result < 0:
+        err = ctypes.get_errno()
+        raise OSError(err, os.strerror(err))
+    return int(result)
+
+def _landlock_abi() -> int:
+    if os.uname().machine != "x86_64":
+        raise RuntimeProofError("sandbox_x86_64_host_required")
+    try:
+        return _syscall(
+            SYS_LANDLOCK_CREATE_RULESET,
+            ctypes.c_void_p(),
+            ctypes.c_size_t(0),
+            ctypes.c_uint(LANDLOCK_CREATE_RULESET_VERSION),
+        )
+    except OSError as exc:
+        raise RuntimeProofError("landlock_unavailable:errno_" + str(exc.errno)) from exc
+
+def _landlock_add_path_rule(ruleset_fd: int, path: Path, allowed: int) -> None:
+    flags = getattr(os, "O_PATH", 0)
+    if not flags:
+        raise RuntimeProofError("o_path_unavailable")
+    parent_fd = os.open(path, flags | os.O_CLOEXEC | os.O_NOFOLLOW)
+    try:
+        attr = _LandlockPathBeneathAttr(
+            allowed_access=allowed,
+            parent_fd=parent_fd,
+            reserved=0,
+        )
+        _syscall(
+            SYS_LANDLOCK_ADD_RULE,
+            ctypes.c_int(ruleset_fd),
+            ctypes.c_int(LANDLOCK_RULE_PATH_BENEATH),
+            ctypes.byref(attr),
+            ctypes.c_uint(0),
+        )
+    finally:
+        os.close(parent_fd)
+
+def _apply_landlock(runtime_root: Path) -> None:
+    abi = _landlock_abi()
+    if abi < 3:
+        raise RuntimeProofError("landlock_abi_v3_required")
+
+    attr = _LandlockRulesetAttr(handled_access_fs=LANDLOCK_HANDLED_FS_V3)
+    try:
+        ruleset_fd = _syscall(
+            SYS_LANDLOCK_CREATE_RULESET,
+            ctypes.byref(attr),
+            ctypes.c_size_t(ctypes.sizeof(attr)),
+            ctypes.c_uint(0),
+        )
+    except OSError as exc:
+        raise RuntimeProofError("landlock_ruleset_create_failed:errno_" + str(exc.errno)) from exc
+
+    try:
+        # Root traversal only. Read/execute authority is delegated narrowly.
+        _landlock_add_path_rule(
+            ruleset_fd,
+            runtime_root,
+            LANDLOCK_ACCESS_FS_READ_DIR,
+        )
+        _landlock_add_path_rule(
+            ruleset_fd,
+            runtime_root / "bin",
+            LANDLOCK_ACCESS_FS_READ_DIR
+            | LANDLOCK_ACCESS_FS_READ_FILE
+            | LANDLOCK_ACCESS_FS_EXECUTE,
+        )
+        _landlock_add_path_rule(
+            ruleset_fd,
+            runtime_root / "lib",
+            LANDLOCK_ACCESS_FS_READ_DIR | LANDLOCK_ACCESS_FS_READ_FILE,
+        )
+        # V5 self-test needs temporary regular files, dirs, FIFO and symlinks,
+        # but it never needs to execute from scratch.
+        _landlock_add_path_rule(
+            ruleset_fd,
+            runtime_root / "tmp",
+            LANDLOCK_ACCESS_FS_WRITE_FILE
+            | LANDLOCK_ACCESS_FS_READ_FILE
+            | LANDLOCK_ACCESS_FS_READ_DIR
+            | LANDLOCK_ACCESS_FS_REMOVE_DIR
+            | LANDLOCK_ACCESS_FS_REMOVE_FILE
+            | LANDLOCK_ACCESS_FS_MAKE_DIR
+            | LANDLOCK_ACCESS_FS_MAKE_REG
+            | LANDLOCK_ACCESS_FS_MAKE_FIFO
+            | LANDLOCK_ACCESS_FS_MAKE_SYM
+            | LANDLOCK_ACCESS_FS_REFER
+            | LANDLOCK_ACCESS_FS_TRUNCATE,
+        )
+
+        libc = _libc()
+        libc.prctl.argtypes = [
+            ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong,
+            ctypes.c_ulong, ctypes.c_ulong,
+        ]
+        libc.prctl.restype = ctypes.c_int
+        if libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0:
+            err = ctypes.get_errno()
+            raise RuntimeProofError("no_new_privs_failed:errno_" + str(err))
+        if libc.prctl(PR_SET_DUMPABLE, 0, 0, 0, 0) != 0:
+            err = ctypes.get_errno()
+            raise RuntimeProofError("dumpable_disable_failed:errno_" + str(err))
+        try:
+            _syscall(
+                SYS_LANDLOCK_RESTRICT_SELF,
+                ctypes.c_int(ruleset_fd),
+                ctypes.c_uint(0),
+            )
+        except OSError as exc:
+            raise RuntimeProofError("landlock_restrict_failed:errno_" + str(exc.errno)) from exc
+    finally:
+        os.close(ruleset_fd)
+
+def _stmt(code: int, k: int) -> _SockFilter:
+    return _SockFilter(code=code, jt=0, jf=0, k=k)
+
+def _jump(code: int, k: int, jt: int, jf: int) -> _SockFilter:
+    return _SockFilter(code=code, jt=jt, jf=jf, k=k)
+
+def _apply_seccomp() -> None:
+    filters: list[_SockFilter] = [
+        _stmt(BPF_LD | BPF_W | BPF_ABS, 4),
+        _jump(BPF_JMP | BPF_JEQ | BPF_K, AUDIT_ARCH_X86_64, 1, 0),
+        _stmt(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+        _stmt(BPF_LD | BPF_W | BPF_ABS, 0),
+        _jump(BPF_JMP | BPF_JGE | BPF_K, X32_SYSCALL_BIT, 0, 1),
+        _stmt(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | errno.EPERM),
+    ]
+    for syscall_number in SECCOMP_DENIED_SYSCALLS:
+        filters.append(_jump(BPF_JMP | BPF_JEQ | BPF_K, syscall_number, 0, 1))
+        filters.append(_stmt(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | errno.EPERM))
+    filters.append(_stmt(BPF_RET | BPF_K, SECCOMP_RET_ALLOW))
+
+    array_type = _SockFilter * len(filters)
+    array = array_type(*filters)
+    program = _SockFprog(
+        len=len(filters),
+        filter=ctypes.cast(array, ctypes.POINTER(_SockFilter)),
+    )
+    libc = _libc()
+    libc.prctl.argtypes = [
+        ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong,
+        ctypes.c_ulong, ctypes.c_ulong,
+    ]
+    libc.prctl.restype = ctypes.c_int
+    if libc.prctl(
+        PR_SET_SECCOMP,
+        SECCOMP_MODE_FILTER,
+        ctypes.cast(ctypes.byref(program), ctypes.c_void_p).value,
+        0,
+        0,
+    ) != 0:
+        err = ctypes.get_errno()
+        raise RuntimeProofError("seccomp_install_failed:errno_" + str(err))
+
+def _apply_candidate_sandbox(runtime_root: Path) -> None:
+    _child_limits()
+    os.umask(0o077)
+    _apply_landlock(runtime_root)
+    _apply_seccomp()
+
+def _candidate_preexec(runtime_root: Path):
+    def apply() -> None:
+        _apply_candidate_sandbox(runtime_root)
+    return apply
+
 def _child_limits() -> None:
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     resource.setrlimit(resource.RLIMIT_CPU, (15, 15))
     resource.setrlimit(resource.RLIMIT_AS, (2 * 1024 * 1024 * 1024, 2 * 1024 * 1024 * 1024))
     resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_CHILD_OUTPUT, MAX_CHILD_OUTPUT))
     resource.setrlimit(resource.RLIMIT_NOFILE, (64, 64))
+    if hasattr(resource, "RLIMIT_NPROC"):
+        resource.setrlimit(resource.RLIMIT_NPROC, (0, 0))
 
 def _run_child(argv: list[str], *, cwd: Path, pass_fds: tuple[int, ...] = ()) -> tuple[int, bytes, bytes]:
     env = {
@@ -207,6 +469,7 @@ def _run_child(argv: list[str], *, cwd: Path, pass_fds: tuple[int, ...] = ()) ->
         "LC_ALL": "C",
         "TZ": "UTC",
         "OPENSSL_CONF": "/dev/null",
+        "TMPDIR": os.fspath(cwd / "tmp"),
     }
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
         try:
@@ -219,7 +482,7 @@ def _run_child(argv: list[str], *, cwd: Path, pass_fds: tuple[int, ...] = ()) ->
                 env=env,
                 close_fds=True,
                 pass_fds=pass_fds,
-                preexec_fn=_child_limits,
+                preexec_fn=_candidate_preexec(cwd),
             )
             rc = child.wait(timeout=30)
         except subprocess.TimeoutExpired as exc:
@@ -377,6 +640,50 @@ def self_test() -> None:
         finally:
             os.close(opened)
 
+    with tempfile.TemporaryDirectory(prefix="void-v7-runtime-sandbox-self-test-") as td:
+        sandbox_root = Path(td)
+        (sandbox_root / "bin").mkdir()
+        (sandbox_root / "lib").mkdir()
+        (sandbox_root / "tmp").mkdir()
+        allowed = sandbox_root / "lib" / "allowed.txt"
+        allowed.write_text("allowed", "utf-8")
+        pid = os.fork()
+        if pid == 0:
+            try:
+                _apply_candidate_sandbox(sandbox_root)
+                if allowed.read_text("utf-8") != "allowed":
+                    os._exit(11)
+                (sandbox_root / "tmp" / "write.txt").write_text("ok", "utf-8")
+                try:
+                    Path("/etc/passwd").read_bytes()
+                except PermissionError:
+                    pass
+                else:
+                    os._exit(12)
+                try:
+                    socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                except OSError as exc:
+                    if exc.errno != errno.EPERM:
+                        os._exit(13)
+                else:
+                    os._exit(14)
+                try:
+                    os.fork()
+                except OSError as exc:
+                    if exc.errno != errno.EPERM:
+                        os._exit(15)
+                else:
+                    os._exit(16)
+                os._exit(0)
+            except BaseException:
+                os._exit(17)
+        waited, status = os.waitpid(pid, 0)
+        if waited != pid or not os.WIFEXITED(status) or os.WEXITSTATUS(status) != 0:
+            raise RuntimeProofError(
+                "candidate_sandbox_self_test_failed:"
+                + str(os.WEXITSTATUS(status) if os.WIFEXITED(status) else -1)
+            )
+
     print(MARKER + "_SELF_TEST_GREEN")
     print("candidate_execution=false")
     print("root_execution=false")
@@ -385,18 +692,14 @@ def self_test() -> None:
     print("static_elf_pt_dynamic_forbidden=true")
     print("runtime_import_closure_proof_required=true")
     print("candidate_execution_sandbox_required=true")
+    print("landlock_v3_filesystem_confinement_required=true")
+    print("seccomp_network_process_escape_denial_required=true")
     print("fsverity_host_readiness_established=false")
     print("protected_host_install=false")
     print("protected_v5_apply=false")
     print("funds_movement=false")
 
 def run(args: argparse.Namespace) -> int:
-    # Candidate bytes are externally supplied and therefore untrusted until a
-    # reviewed execution sandbox exists. Non-root identity alone is not a
-    # sufficient boundary against user-file reads/writes, network access,
-    # process creation, or same-UID process interference.
-    raise RuntimeProofError("candidate_execution_sandbox_not_implemented")
-
     if os.geteuid() == 0 or os.getuid() == 0:
         raise RuntimeProofError("root_execution_forbidden")
     if os.geteuid() != os.getuid() or os.getegid() != os.getgid():
@@ -416,6 +719,7 @@ def run(args: argparse.Namespace) -> int:
             os.chmod(root, 0o700)
             (root / "bin").mkdir(mode=0o700)
             (root / "lib").mkdir(mode=0o700)
+            (root / "tmp").mkdir(mode=0o700)
             python_target = root / "bin" / "python3.12-static"
             zip_target = root / "lib" / "python312.zip"
             _copy_fd_exact(python_fd, python_target, size=python_size, mode=0o500, label="python_candidate")
