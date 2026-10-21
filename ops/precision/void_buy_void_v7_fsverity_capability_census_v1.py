@@ -237,8 +237,8 @@ def _parse_ext4_superblock_bytes(raw: bytes) -> dict[str, Any]:
 def collect() -> dict[str, Any]:
     if socket.gethostname() != EXPECTED_HOSTNAME:
         raise CensusError("wrong_host")
-    if os.getuid() != 0 or os.geteuid() != 0:
-        raise CensusError("root_required_for_read_only_block_feature_census")
+    if os.getuid() == 0 or os.geteuid() == 0:
+        raise CensusError("root_execution_forbidden_for_untrusted_checkout_census")
 
     mountinfo = _read_fd_bounded(pathlib.Path("/proc/self/mountinfo"), MAX_PROC_BYTES)
     rows = _parse_mountinfo(mountinfo.decode("utf-8", "strict"))
@@ -308,7 +308,7 @@ def collect() -> dict[str, Any]:
         reasons.append("mounted_filesystem_driver_not_listed")
     if fstype == "ext4":
         if ext4["source_device_status"] != "ok":
-            reasons.append("ext4_source_block_device_not_readable")
+            reasons.append("ext4_source_block_device_not_readable_unprivileged")
         if ext4["magic_valid"] is not True:
             reasons.append("ext4_superblock_magic_not_proven")
         if ext4["extents_enabled"] is not True:
@@ -376,11 +376,12 @@ def plan() -> int:
     _emit_false_authority()
     print("designated_host=" + EXPECTED_HOSTNAME)
     print("target=/opt")
-    print("sudo_required=true")
+    print("sudo_required=false")
+    print("root_execution_forbidden=true")
     print("external_subprocess=false")
     print("ioctl_invocation=false")
     print("ext4_superblock_read_only_feature_probe=true")
-    print("next_action=RUN_READ_ONLY_FSVERITY_CAPABILITY_CENSUS_ON_PRECISION")
+    print("next_action=RUN_UNPRIVILEGED_READ_ONLY_FSVERITY_CAPABILITY_CENSUS_ON_PRECISION")
     return 0
 
 
@@ -423,7 +424,12 @@ def run() -> int:
         + (
             "REVIEW_CENSUS_THEN_PREPARE_SEPARATE_FSVERITY_HOST_INSTALLER"
             if result["host_fsverity_capability_green"]
-            else "HOLD_REVIEW_FSVERITY_CAPABILITY"
+            else (
+                "HOLD_PRIVILEGED_FEATURE_PROBE_REQUIRES_TRUSTED_FIRST_INSTRUCTION"
+                if result["target"]["fstype"] == "ext4"
+                and result["ext4"]["source_device_status"] != "ok"
+                else "HOLD_REVIEW_FSVERITY_CAPABILITY"
+            )
         )
     )
     return 0 if result["host_fsverity_capability_green"] else 2
