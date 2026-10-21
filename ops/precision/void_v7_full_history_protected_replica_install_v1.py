@@ -83,6 +83,7 @@ MAX_INDEX_PATH_BYTES = 4096
 PACK_IDX_MAGIC = b"\xfftOc"
 MAX_COPY_DEPTH = 128
 MAX_FILE_BYTES = 512 * 1024 * 1024
+MAX_GIT_OBJECT_BYTES = 128 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
 COPY_CHUNK = 1024 * 1024
 RENAME_NOREPLACE = 1
@@ -572,7 +573,7 @@ def _apply_git_delta(base: bytes, delta: bytes, label: str) -> bytes:
 
     base_size, pos = varint(0)
     result_size, pos = varint(pos)
-    if base_size != len(base) or result_size > MAX_FILE_BYTES:
+    if base_size != len(base) or result_size > MAX_GIT_OBJECT_BYTES:
         raise InstallError(label + "_delta_size_invalid")
     out = bytearray()
     while pos < len(delta):
@@ -793,13 +794,13 @@ class _PackReader:
             pos += 20
             if base_oid not in self.offset_by_oid:
                 raise InstallError(self.label + "_thin_pack_forbidden")
-        if declared > MAX_FILE_BYTES:
+        if declared > MAX_GIT_OBJECT_BYTES:
             raise InstallError(self.label + "_pack_object_size_limit")
         comp = entry[pos:]
         dec = zlib.decompressobj()
-        raw = dec.decompress(comp, MAX_FILE_BYTES + 1)
+        raw = dec.decompress(comp, MAX_GIT_OBJECT_BYTES + 1)
         if (
-            len(raw) > MAX_FILE_BYTES
+            len(raw) > MAX_GIT_OBJECT_BYTES
             or dec.unconsumed_tail
             or not dec.eof
             or dec.unused_data
@@ -925,24 +926,56 @@ class _ObjectStore:
         return oid in self.loose or any(pack.contains(oid) for pack in self.packs)
 
     def _read_loose(self, oid: str, path: pathlib.Path) -> tuple[str, bytes]:
-        raw, _identity = _read_regular_stable(path, self.label + "_loose", MAX_FILE_BYTES)
-        try:
-            dec = zlib.decompressobj()
-            decoded = dec.decompress(raw, MAX_FILE_BYTES + 1)
-        except zlib.error as exc:
-            raise InstallError(self.label + "_loose_zlib_invalid") from exc
+        before = path.lstat()
         if (
-            len(decoded) > MAX_FILE_BYTES
-            or dec.unconsumed_tail
-            or not dec.eof
-            or dec.unused_data
+            not stat.S_ISREG(before.st_mode)
+            or stat.S_ISLNK(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_size < 0
+            or before.st_size > MAX_FILE_BYTES
         ):
-            raise InstallError(self.label + "_loose_object_size_limit")
-        sep = decoded.find(b"\0")
+            raise InstallError(self.label + "_loose_metadata_invalid")
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        try:
+            opened = os.fstat(fd)
+            identity = _metadata_identity(opened)
+            if identity != _metadata_identity(before):
+                raise InstallError(self.label + "_loose_rebound")
+            dec = zlib.decompressobj()
+            decoded = bytearray()
+            remaining = opened.st_size
+            while remaining:
+                part = os.read(fd, min(COPY_CHUNK, remaining))
+                if not part:
+                    raise InstallError(self.label + "_loose_short_read")
+                remaining -= len(part)
+                try:
+                    piece = dec.decompress(
+                        part,
+                        MAX_GIT_OBJECT_BYTES + 1 - len(decoded),
+                    )
+                except zlib.error as exc:
+                    raise InstallError(self.label + "_loose_zlib_invalid") from exc
+                decoded.extend(piece)
+                if len(decoded) > MAX_GIT_OBJECT_BYTES or dec.unconsumed_tail:
+                    raise InstallError(self.label + "_loose_object_size_limit")
+            if os.read(fd, 1):
+                raise InstallError(self.label + "_loose_grew")
+            if not dec.eof or dec.unused_data or dec.unconsumed_tail:
+                raise InstallError(self.label + "_loose_zlib_incomplete")
+            if (
+                _metadata_identity(os.fstat(fd)) != identity
+                or _metadata_identity(path.lstat()) != identity
+            ):
+                raise InstallError(self.label + "_loose_generation_changed")
+        finally:
+            os.close(fd)
+        raw = bytes(decoded)
+        sep = raw.find(b"\0")
         if sep <= 0:
             raise InstallError(self.label + "_loose_header_invalid")
-        header = decoded[:sep]
-        data = decoded[sep + 1:]
+        header = raw[:sep]
+        data = raw[sep + 1:]
         try:
             type_raw, size_raw = header.split(b" ", 1)
             type_name = type_raw.decode("ascii")
