@@ -114,6 +114,16 @@ descriptor, and compared read-only with the accepted target using
 candidate Git command updates a ref or delegates descendant worktree writes to
 Git pathname traversal.
 
+The Git metadata closure is terminally rebound as well. Retained descriptors for
+`.git/objects/pack`, `.git/refs`, `.git/refs/heads`, and
+`.git/refs/tags` must still match their visible directory generations.
+`.git`, `objects`, `pack`, `refs`, `heads`, and `tags` have exact
+entry sets; `HEAD` must be the exact symbolic-main file; `refs/heads/main`
+must contain the accepted commit; tags and info namespaces must remain empty;
+and the exact pack/index leaves must remain local regular single-link files.
+Late symlink or directory substitution therefore cannot make the candidate
+borrow external objects or refs while still reporting GREEN.
+
 ## Authority boundary
 
 This lane does not mutate `/opt`, the active release, services/systemd,
