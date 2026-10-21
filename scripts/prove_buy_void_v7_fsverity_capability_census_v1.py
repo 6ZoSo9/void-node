@@ -1,0 +1,228 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+import pathlib
+import subprocess
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+TARGET = ROOT / "ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py"
+TARGET_BLOB = "09f30bc74e91c5771e276918c61b43606f293181"
+MARKER = "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_PROOF"
+
+
+def git_blob_sha1(raw: bytes) -> str:
+    return hashlib.sha1(
+        b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw
+    ).hexdigest()
+
+
+raw = TARGET.read_bytes()
+assert git_blob_sha1(raw) == TARGET_BLOB
+
+spec = importlib.util.spec_from_file_location("void_v7_fsverity_capability_census_v1", TARGET)
+assert spec is not None and spec.loader is not None
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+assert module.MARKER == "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1"
+assert module.EXPECTED_HOSTNAME == "zoso-Precision-Tower-7810"
+assert str(module.TARGET) == "/opt"
+assert module.EXT4_FEATURE_RO_COMPAT_VERITY == 0x8000
+assert module.EXT4_FEATURE_INCOMPAT_EXTENTS == 0x0040
+assert module.EXT4_SUPER_MAGIC == 0xEF53
+assert module.SUPPORTED_FS_TYPES == frozenset({"ext4", "f2fs", "btrfs"})
+
+source = raw.decode("utf-8")
+for required in (
+    'MARKER = "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1"',
+    'EXPECTED_HOSTNAME = "zoso-Precision-Tower-7810"',
+    'TARGET = pathlib.Path("/opt")',
+    'EXT4_FEATURE_RO_COMPAT_VERITY = 0x8000',
+    'EXT4_FEATURE_INCOMPAT_EXTENTS = 0x0040',
+    'EXT4_SUPER_MAGIC = 0xEF53',
+    'def _parse_mountinfo(',
+    'def _mount_for_target(',
+    'def _kernel_config_value(',
+    'def _read_ext4_superblock(',
+    'os.pread(fd, EXT4_SUPERBLOCK_BYTES, EXT4_SUPERBLOCK_OFFSET)',
+    'os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK',
+    'root_required_for_read_only_block_feature_census',
+    'host_fsverity_capability_green',
+    'ext4_verity_feature_enabled',
+    'ext4_extents_feature_enabled',
+    'block_device_write=false',
+    'fsverity_enablement=false',
+    'protected_host_install=false',
+    'protected_v4_apply=false',
+    'next_action=RUN_READ_ONLY_FSVERITY_CAPABILITY_CENSUS_ON_PRECISION',
+):
+    assert required in source, required
+
+for forbidden in (
+    "import subprocess",
+    "from subprocess",
+    "subprocess.",
+    "os.O_WRONLY",
+    "os.O_RDWR",
+    "os.O_CREAT",
+    "os.write(",
+    "mkdir(",
+    "makedirs(",
+    "chmod(",
+    "chown(",
+    "unlink(",
+    "rename(",
+    "replace(",
+    "mount(",
+    "umount(",
+    "fcntl.ioctl",
+    "FS_IOC_ENABLE_VERITY",
+    "tune2fs",
+    "fsverity enable",
+):
+    assert forbidden not in source, forbidden
+
+mountinfo = (
+    "36 25 8:2 / / rw,relatime shared:1 - ext4 /dev/sda2 rw,errors=remount-ro\n"
+    "40 36 8:3 / /opt rw,nosuid,nodev - ext4 /dev/sda3 rw\n"
+)
+rows = module._parse_mountinfo(mountinfo)
+selected = module._mount_for_target(rows, pathlib.Path("/opt/void-test"))
+assert selected["mount_point"] == "/opt"
+assert selected["fstype"] == "ext4"
+assert selected["source"] == "/dev/sda3"
+
+escaped = module._parse_mountinfo(
+    "1 0 8:1 / / rw - ext4 /dev/root rw\n"
+    "2 1 8:2 / /opt\\040space rw - ext4 /dev/sdb rw\n"
+)
+assert escaped[1]["mount_point"] == "/opt space"
+
+good = module._parse_ext4_superblock_bytes(
+    module._synthetic_ext4_superblock(verity=True, extents=True)
+)
+assert good == {
+    "magic_valid": True,
+    "block_size": 4096,
+    "extents_enabled": True,
+    "verity_feature_enabled": True,
+}
+
+no_verity = module._parse_ext4_superblock_bytes(
+    module._synthetic_ext4_superblock(verity=False, extents=True)
+)
+assert no_verity["magic_valid"] is True
+assert no_verity["extents_enabled"] is True
+assert no_verity["verity_feature_enabled"] is False
+
+no_extents = module._parse_ext4_superblock_bytes(
+    module._synthetic_ext4_superblock(verity=True, extents=False)
+)
+assert no_extents["magic_valid"] is True
+assert no_extents["verity_feature_enabled"] is True
+assert no_extents["extents_enabled"] is False
+
+assert module._kernel_config_value("CONFIG_FS_VERITY=y\n", "CONFIG_FS_VERITY") == "y"
+assert module._kernel_config_value("CONFIG_FS_VERITY=m\n", "CONFIG_FS_VERITY") == "m"
+assert module._kernel_config_value("# CONFIG_FS_VERITY is not set\n", "CONFIG_FS_VERITY") == "n"
+assert module._kernel_config_value(None, "CONFIG_FS_VERITY") == "unknown"
+
+self_test = subprocess.run(
+    ["/usr/bin/python3", "-I", "-B", str(TARGET), "--self-test"],
+    cwd=ROOT,
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    timeout=30,
+    check=False,
+    env={
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/nonexistent",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+    },
+)
+assert self_test.returncode == 0, self_test.stderr
+assert self_test.stderr == "", self_test.stderr
+self_lines = set(self_test.stdout.splitlines())
+for required in (
+    "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_SELF_TEST_GREEN",
+    "mountinfo_longest_prefix_selection_proven=true",
+    "mountinfo_escape_decoding_proven=true",
+    "ext4_superblock_magic_bound=true",
+    "ext4_verity_ro_compat_bit_bound=true",
+    "ext4_extents_incompat_bit_bound=true",
+    "kernel_config_fsverity_parser_bound=true",
+    "external_subprocess=false",
+    "ioctl_invocation=false",
+    "read_only=true",
+    "filesystem_write=false",
+    "block_device_write=false",
+    "fsverity_enablement=false",
+    "protected_host_install=false",
+    "protected_v4_apply=false",
+    "funds_movement=false",
+):
+    assert required in self_lines, required
+
+plan = subprocess.run(
+    ["/usr/bin/python3", "-I", "-B", str(TARGET), "--plan"],
+    cwd=ROOT,
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    timeout=30,
+    check=False,
+    env={
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/nonexistent",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+    },
+)
+assert plan.returncode == 0, plan.stderr
+assert plan.stderr == "", plan.stderr
+plan_lines = set(plan.stdout.splitlines())
+for required in (
+    "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1",
+    "mode=--plan",
+    "read_only=true",
+    "filesystem_write=false",
+    "sudo_required=true",
+    "external_subprocess=false",
+    "ioctl_invocation=false",
+    "ext4_superblock_read_only_feature_probe=true",
+    "fsverity_enablement=false",
+    "protected_host_install=false",
+    "protected_v4_apply=false",
+    "next_action=RUN_READ_ONLY_FSVERITY_CAPABILITY_CENSUS_ON_PRECISION",
+):
+    assert required in plan_lines, required
+
+print(MARKER + "_GREEN")
+print("target_blob=" + TARGET_BLOB)
+print("designated_precision_host_bound=true")
+print("root_read_only_block_feature_probe_bound=true")
+print("mountinfo_descriptor_read_only_bound=true")
+print("kernel_config_fsverity_observation_bound=true")
+print("ext4_superblock_magic_bound=true")
+print("ext4_verity_ro_compat_bit_bound=true")
+print("ext4_extents_incompat_bit_bound=true")
+print("no_external_subprocess=true")
+print("no_ioctl_invocation=true")
+print("no_fsverity_enablement=true")
+print("no_filesystem_write=true")
+print("no_mount_mutation=true")
+print("no_protected_host_install=true")
+print("no_protected_v4_apply=true")
+print("no_service_mutation=true")
+print("no_credential_access=true")
+print("no_signing=true")
+print("no_payment_activation=true")
+print("no_funds_movement=true")
