@@ -7,7 +7,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/precision/void_buy_void_v7_static_python_runtime_generation_proof_v1.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "54ca3a6d8cb2abe2941514f8025430c201d5e272"
+TARGET_BLOB = "9ae90861d4d88c9d647c239135501a58eec15c22"
 V5_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v5.py"
 V5_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 MARKER = "VOID_BUY_VOID_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF_V1_PROOF"
@@ -46,6 +46,15 @@ assert git("rev-parse", "HEAD:" + V5_REL) == V5_BLOB
 raw = TARGET.read_bytes()
 compile(raw, str(TARGET), "exec", dont_inherit=True, optimize=0)
 text = raw.decode("utf-8")
+assert 'raise RuntimeProofError("candidate_execution_snapshot_not_same_uid_immutable")' in text
+assert 'mount_root=root,' in text
+assert 'python_snapshot_fd=python_fd,' in text
+assert 'stdlib_snapshot_fd=stdlib_fd,' in text
+assert '["/bin/python3.12-static", "-I", "-B", "-S", "-c", PROBE, "/"]' in text
+assert '"/synthetic-repo/" + V5_REL' in text
+assert 'probe = _check_probe(probe_out)' in text
+assert '_check_probe(probe_out, root)' not in text
+assert 'cwd=root' not in text
 
 required = (
     'MARKER = "VOID_BUY_VOID_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF_V1"',
