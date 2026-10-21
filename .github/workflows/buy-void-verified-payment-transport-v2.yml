@@ -39,7 +39,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$SOURCE_BASE" "$EXPECTED_HEAD"
           git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
-          printf '%s\n' \
+          printf '%b\n' \
             'A\t.github/workflows/buy-void-verified-payment-transport-v2.yml' \
             'A\tscripts/prove_buy_void_verified_payment_transport_v2.ts' \
             'A\tsrc/economic/buy_void_verified_payment_transport_v2.ts' \
