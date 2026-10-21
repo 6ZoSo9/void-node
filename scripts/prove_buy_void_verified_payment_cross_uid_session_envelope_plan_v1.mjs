@@ -6,9 +6,9 @@ import { execFileSync } from "node:child_process";
 const BASE_HEAD="f1702672f2399355758e7a07fdd8f0ffb8dc1d33";
 const BASE_TREE="fa74ce8645ee2f452343d95fdc459ae479fe73ef";
 const PLAN_PATH="ops/security/buy-void-verified-payment-cross-uid-session-envelope-plan-v1.json";
-const EXPECTED_PLAN_BLOB="bd5c027baaf21c4c4084fbbbcbe25b1c9b335a07";
+const EXPECTED_PLAN_BLOB="5cb224654ea59a60493dc2b95ea179a62622d3fd";
 const OWNED=[".github/workflows/buy-void-verified-payment-cross-uid-session-envelope-plan-v1.yml","docs/architecture/buy-void-verified-payment-cross-uid-session-envelope-plan-v1.md","ops/security/buy-void-verified-payment-cross-uid-session-envelope-plan-v1.json","scripts/prove_buy_void_verified_payment_cross_uid_session_envelope_plan_v1.mjs"];
-const EXPECTED_PLAN_ID="voidbuyxuid1_5b367f38ce3012c2e75d5a3485d64c93f2ef24e6c997b2a711ec17413a9c0dd3";
+const EXPECTED_PLAN_ID="voidbuyxuid1_136e676157b78e25fd4c0f298ddd552b88c5aa11fb8cac6e29151cae3cc507c3";
 
 function git(args){
   return execFileSync("/usr/bin/git",args,{encoding:"utf8",env:{
@@ -54,6 +54,7 @@ assert.equal(plan.phase_transition_policy.recovery_from_uncertain_requires_prote
 assert.equal(plan.phase_transition_policy.uncertain_to_pre_mutation_rejected_requires_zero_effect_witness,true);
 assert.equal(plan.phase_transition_policy.generic_protected_witness_sufficient_for_zero_effect,false);
 assert.equal(plan.phase_transition_policy.zero_effect_witness_verification_precedes_pre_mutation_classification,true);
+assert.equal(plan.phase_transition_policy.pre_mutation_zero_effect_witness_contract_verification_required,true);
 assert.equal(plan.phase_transition_policy.terminal_phase,"terminal_revalidated");
 for(const [from,tos] of Object.entries(plan.phase_transition_policy.allowed)){
   for(const to of tos)assert.ok(phases.includes(to),"unknown_phase_transition:"+from+":"+to);
@@ -73,6 +74,7 @@ const zeroEffect=plan.session_envelope_contract.pre_mutation_zero_effect_witness
 assert.equal(zeroEffect.generic_protected_phase_witness_sufficient,false);
 assert.equal(zeroEffect.release_authority,false);
 assert.equal(zeroEffect.required_for_transition,"uncertain_to_pre_mutation_rejected");
+assert.equal(zeroEffect.verification_result_must_be,true);
 assert.deepEqual(zeroEffect.required_zero_effect_claims,[
   "no_payment_append_effect",
   "no_allocation_publication_effect",
@@ -100,6 +102,8 @@ function uncertainToPreMutationRejectedClassifiable(envelope){
   if(plan.phase_transition_policy.uncertain_to_pre_mutation_rejected_requires_zero_effect_witness){
     if(!envelope?.pre_mutation_zero_effect_witness_sha256)return false;
     if(plan.phase_transition_policy.generic_protected_witness_sufficient_for_zero_effect)return false;
+    if(plan.phase_transition_policy.pre_mutation_zero_effect_witness_contract_verification_required &&
+       envelope?.pre_mutation_zero_effect_witness_verified!==true)return false;
   }
   return true;
 }
@@ -109,7 +113,12 @@ assert.equal(uncertainToPreMutationRejectedClassifiable({
 assert.equal(uncertainToPreMutationRejectedClassifiable({
   protected_phase_witness_sha256:"sha256:"+"1".repeat(64),
   pre_mutation_zero_effect_witness_sha256:"sha256:"+"2".repeat(64),
-}),true,"zero_effect_witness_shape_must_be_separately_present");
+}),false,"zero_effect_witness_hash_without_contract_verification_must_hold");
+assert.equal(uncertainToPreMutationRejectedClassifiable({
+  protected_phase_witness_sha256:"sha256:"+"1".repeat(64),
+  pre_mutation_zero_effect_witness_sha256:"sha256:"+"2".repeat(64),
+  pre_mutation_zero_effect_witness_verified:true,
+}),true,"verified_zero_effect_witness_must_be_separately_present");
 
 assert.deepEqual(Object.keys(plan.current_outcome_policy).sort(),["allocation_present","held","observed_no_target_capacity_effect","verified_allocation_missing"]);
 assert.equal(plan.current_outcome_policy.held,"retain");
@@ -151,6 +160,7 @@ console.log("pre_mutation_zero_effect_witness_implemented=false");
 console.log("uncertain_to_pre_mutation_rejected_requires_zero_effect_witness=true");
 console.log("generic_protected_witness_sufficient_for_zero_effect=false");
 console.log("generic_witness_cannot_classify_uncertain_as_pre_mutation_rejected=true");
+console.log("zero_effect_witness_hash_without_contract_verification_holds=true");
 console.log("cross_uid_lock_release_authorized=false");
 console.log("custody_recovery_authorized=false");
 console.log("payment_acceptance=false");

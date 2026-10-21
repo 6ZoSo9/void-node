@@ -12,9 +12,9 @@ funds.
 
 - source base: `f1702672f2399355758e7a07fdd8f0ffb8dc1d33`
 - source base tree: `fa74ce8645ee2f452343d95fdc459ae479fe73ef`
-- plan ID: `voidbuyxuid1_5b367f38ce3012c2e75d5a3485d64c93f2ef24e6c997b2a711ec17413a9c0dd3`
-- plan blob: `bd5c027baaf21c4c4084fbbbcbe25b1c9b335a07`
-- proof blob: `f45c298493908acc386adb5d7f47565af148244e`
+- plan ID: `voidbuyxuid1_136e676157b78e25fd4c0f298ddd552b88c5aa11fb8cac6e29151cae3cc507c3`
+- plan blob: `5cb224654ea59a60493dc2b95ea179a62622d3fd`
+- proof blob: `d801c7f7445dc3cbf78d47a3c3bd567d028d7a39`
 - source bindings: **11**
 
 ## Claim/incarnation binding
@@ -36,7 +36,7 @@ to `terminal_revalidated`.
 
 Recovery from `uncertain` additionally requires a protected phase witness. The specific `uncertain → pre_mutation_rejected` edge requires a **second, distinct pre-mutation zero-effect witness** before that classification is even eligible. A generic protected phase receipt is insufficient.
 
-That zero-effect witness must bind the original claim/session incarnation, request/payment lineage, web/custody artifact generations, request/operator-payment durable ledger identities and tips, allocation ledger/tip and high-water generation, sidecar/pending-intent state, previous envelope/phase sequence, and reviewed rollback/time domains. It must positively attest no payment append, allocation publication, sidecar, pending intent, or earlier target-capacity write effect. Verification precedes any future release-candidate classification.
+That zero-effect witness must bind the original claim/session incarnation, request/payment lineage, web/custody artifact generations, request/operator-payment durable ledger identities and tips, allocation ledger/tip and high-water generation, sidecar/pending-intent state, previous envelope/phase sequence, and reviewed rollback/time domains. It must positively attest no payment append, allocation publication, sidecar, pending intent, or earlier target-capacity write effect. Verification of the complete zero-effect witness contract must return true before any future release-candidate classification. Presence of the witness SHA-256 alone is not sufficient.
 
 The two future release-candidate labels (`pre_mutation_rejected` and
 `terminal_revalidated`) still retain the claim in this plan and grant no

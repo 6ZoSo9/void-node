@@ -143,13 +143,14 @@
     },
     "generic_protected_witness_sufficient_for_zero_effect": false,
     "phase_seq_rule": "exact_increment_by_one",
+    "pre_mutation_zero_effect_witness_contract_verification_required": true,
     "previous_envelope_sha256_required_after_phase0": true,
     "recovery_from_uncertain_requires_protected_witness": true,
     "terminal_phase": "terminal_revalidated",
     "uncertain_to_pre_mutation_rejected_requires_zero_effect_witness": true,
     "zero_effect_witness_verification_precedes_pre_mutation_classification": true
   },
-  "plan_id": "voidbuyxuid1_5b367f38ce3012c2e75d5a3485d64c93f2ef24e6c997b2a711ec17413a9c0dd3",
+  "plan_id": "voidbuyxuid1_136e676157b78e25fd4c0f298ddd552b88c5aa11fb8cac6e29151cae3cc507c3",
   "repository": "6ZoSo9/void-node",
   "schema": "void.buy.verified_payment.cross_uid_session_envelope_plan.v1",
   "session_envelope_contract": {
@@ -211,7 +212,8 @@
         "no_sidecar_effect",
         "no_pending_intent_effect",
         "no_earlier_target_capacity_write_effect"
-      ]
+      ],
+      "verification_result_must_be": true
     },
     "session_id_derivation": "sha256(canonical_json_of_claim_incarnation_lineage_phase0_and_artifact_generations)",
     "session_id_format": "voidbuysess1_<64_lowercase_hex_sha256>",
