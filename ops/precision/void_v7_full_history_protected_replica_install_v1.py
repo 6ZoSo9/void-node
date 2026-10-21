@@ -75,6 +75,7 @@ CONFIRM_TOKEN = "INSTALL_VOID_V7_FULL_HISTORY_PROTECTED_REPLICA_V1_CREATE_ONLY"
 
 FIXED_GIT = "/usr/bin/git"
 MAX_NODES = 250000
+MAX_COPY_DEPTH = 128
 MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
 COPY_CHUNK = 1024 * 1024
@@ -1023,6 +1024,8 @@ def source_plan() -> None:
     print("runtime_uid_child_capability_clear_required=true")
     print("runtime_uid_child_capability_status_zero_required=true")
     print("candidate_copy_descriptor_relative=true")
+    print("candidate_copy_incremental_enumeration_required=true")
+    print("candidate_copy_iterative_depth_bound_required=true")
     print("apply_root_dynamic_git_exec=false")
     print("termination_signal_reconciliation_required=true")
     print("install_parent_publication_lease_required=true")
@@ -1034,6 +1037,8 @@ def source_plan() -> None:
     print("private_stage_acl_group_object_zero_required=true")
     print("runtime_uid_child_capability_clear_required=true")
     print("runtime_uid_child_capability_status_zero_required=true")
+    print("candidate_copy_incremental_enumeration_required=true")
+    print("candidate_copy_iterative_depth_bound_required=true")
     print("candidate_utf8_path_components_required=true")
     print("opened_generation_copy_budget_required=true")
     print("write_boundary_precedes_first_stage_mutation=true")
@@ -1340,6 +1345,168 @@ def _require_utf8_copy_component(name: str) -> None:
     if roundtrip != name or name in ("", ".", "..") or "/" in name:
         raise InstallError("copy_entry_name_invalid")
 
+def _copy_candidate_tree_iterative(
+    src_root_fd: int,
+    dst_root_fd: int,
+    *,
+    node_limit: int = MAX_NODES,
+    depth_limit: int = MAX_COPY_DEPTH,
+    total_limit: int = MAX_TOTAL_BYTES,
+) -> tuple[int, int]:
+    if node_limit < 1:
+        raise InstallError("copy_node_limit_invalid")
+    if depth_limit < 0:
+        raise InstallError("copy_depth_limit_invalid")
+    if total_limit < 0:
+        raise InstallError("copy_total_bytes_limit_invalid")
+
+    nodes = 0
+    total = 0
+    stack: list[dict[str, Any]] = []
+    root_iter = os.scandir(src_root_fd)
+    stack.append({
+        "src_fd": src_root_fd,
+        "dst_fd": dst_root_fd,
+        "label": ".",
+        "depth": 0,
+        "source_before": _metadata_identity(os.fstat(src_root_fd)),
+        "iterator": root_iter,
+        "owned": False,
+    })
+
+    try:
+        while stack:
+            frame = stack[-1]
+            iterator = frame["iterator"]
+            try:
+                entry = next(iterator)
+            except StopIteration:
+                iterator.close()
+                frame["iterator"] = None
+                if (
+                    _metadata_identity(os.fstat(frame["src_fd"]))
+                    != frame["source_before"]
+                ):
+                    raise InstallError(
+                        "copy_source_directory_changed:" + frame["label"]
+                    )
+                if frame["owned"]:
+                    os.fchown(frame["dst_fd"], 0, 0)
+                    os.fchmod(frame["dst_fd"], 0o700)
+                    os.fsync(frame["dst_fd"])
+                    os.close(frame["dst_fd"])
+                    frame["dst_fd"] = -1
+                    os.close(frame["src_fd"])
+                    frame["src_fd"] = -1
+                stack.pop()
+                continue
+
+            # os.scandir(fd) yields one entry at a time. Charge the global
+            # budget immediately; no directory-wide name list is retained.
+            nodes += 1
+            if nodes > node_limit:
+                raise InstallError("copy_node_limit")
+            name = entry.name
+            _require_utf8_copy_component(name)
+
+            st = os.stat(name, dir_fd=frame["src_fd"], follow_symlinks=False)
+            child_label = frame["label"] + "/" + name
+            if stat.S_ISLNK(st.st_mode):
+                raise InstallError("copy_symlink_forbidden:" + child_label)
+
+            if stat.S_ISDIR(st.st_mode):
+                child_depth = frame["depth"] + 1
+                if child_depth > depth_limit:
+                    raise InstallError("copy_depth_limit")
+
+                child_src = -1
+                child_dst = -1
+                child_iter: Any = None
+                transferred = False
+                try:
+                    child_src = os.open(
+                        name,
+                        os.O_RDONLY
+                        | os.O_DIRECTORY
+                        | os.O_CLOEXEC
+                        | os.O_NOFOLLOW,
+                        dir_fd=frame["src_fd"],
+                    )
+                    opened = os.fstat(child_src)
+                    if _metadata_identity(opened) != _metadata_identity(st):
+                        raise InstallError(
+                            "copy_source_directory_rebound:" + child_label
+                        )
+                    os.mkdir(name, 0o700, dir_fd=frame["dst_fd"])
+                    child_dst = os.open(
+                        name,
+                        os.O_RDONLY
+                        | os.O_DIRECTORY
+                        | os.O_CLOEXEC
+                        | os.O_NOFOLLOW,
+                        dir_fd=frame["dst_fd"],
+                    )
+                    os.fchown(child_dst, 0, 0)
+                    os.fchmod(child_dst, 0o700)
+                    child_iter = os.scandir(child_src)
+                    stack.append({
+                        "src_fd": child_src,
+                        "dst_fd": child_dst,
+                        "label": child_label,
+                        "depth": child_depth,
+                        "source_before": _metadata_identity(opened),
+                        "iterator": child_iter,
+                        "owned": True,
+                    })
+                    transferred = True
+                finally:
+                    if not transferred:
+                        if child_iter is not None:
+                            child_iter.close()
+                        if child_dst >= 0:
+                            os.close(child_dst)
+                        if child_src >= 0:
+                            os.close(child_src)
+                continue
+
+            if stat.S_ISREG(st.st_mode):
+                copied = _copy_regular_at(
+                    frame["src_fd"],
+                    frame["dst_fd"],
+                    name,
+                    _metadata_identity(st),
+                    total_limit - total,
+                )
+                total += copied
+                if total > total_limit:
+                    raise InstallError("copy_total_bytes_limit")
+                continue
+
+            raise InstallError("copy_kind_invalid:" + child_label)
+    finally:
+        for frame in reversed(stack):
+            iterator = frame.get("iterator")
+            if iterator is not None:
+                try:
+                    iterator.close()
+                except OSError:
+                    pass
+            if frame.get("owned"):
+                dst_fd = frame.get("dst_fd", -1)
+                src_fd = frame.get("src_fd", -1)
+                if isinstance(dst_fd, int) and dst_fd >= 0:
+                    try:
+                        os.close(dst_fd)
+                    except OSError:
+                        pass
+                if isinstance(src_fd, int) and src_fd >= 0:
+                    try:
+                        os.close(src_fd)
+                    except OSError:
+                        pass
+
+    return nodes, total
+
 def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
     global _WRITE_BOUNDARY_ENTERED, _STAGE_RETAINED
 
@@ -1384,64 +1551,13 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
         os.fchown(stage_fd, 0, 0)
         os.fchmod(stage_fd, 0o700)
 
-        nodes = 0
-        total = 0
-
-        def recurse(src_fd: int, dst_fd: int, label: str) -> None:
-            nonlocal nodes, total
-            source_before = _metadata_identity(os.fstat(src_fd))
-            names = sorted(os.listdir(src_fd))
-            for name in names:
-                _require_utf8_copy_component(name)
-                nodes += 1
-                if nodes > MAX_NODES:
-                    raise InstallError("copy_node_limit")
-                st = os.stat(name, dir_fd=src_fd, follow_symlinks=False)
-                if stat.S_ISLNK(st.st_mode):
-                    raise InstallError("copy_symlink_forbidden:" + label + "/" + name)
-                if stat.S_ISDIR(st.st_mode):
-                    child_src = os.open(
-                        name,
-                        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-                        dir_fd=src_fd,
-                    )
-                    child_dst = -1
-                    try:
-                        if _metadata_identity(os.fstat(child_src)) != _metadata_identity(st):
-                            raise InstallError("copy_source_directory_rebound:" + label + "/" + name)
-                        os.mkdir(name, 0o700, dir_fd=dst_fd)
-                        child_dst = os.open(
-                            name,
-                            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
-                            dir_fd=dst_fd,
-                        )
-                        os.fchown(child_dst, 0, 0)
-                        os.fchmod(child_dst, 0o700)
-                        recurse(child_src, child_dst, label + "/" + name)
-                        os.fchown(child_dst, 0, 0)
-                        os.fchmod(child_dst, 0o700)
-                        os.fsync(child_dst)
-                    finally:
-                        if child_dst >= 0:
-                            os.close(child_dst)
-                        os.close(child_src)
-                elif stat.S_ISREG(st.st_mode):
-                    copied = _copy_regular_at(
-                        src_fd,
-                        dst_fd,
-                        name,
-                        _metadata_identity(st),
-                        MAX_TOTAL_BYTES - total,
-                    )
-                    total += copied
-                    if total > MAX_TOTAL_BYTES:
-                        raise InstallError("copy_total_bytes_limit")
-                else:
-                    raise InstallError("copy_kind_invalid:" + label + "/" + name)
-            if _metadata_identity(os.fstat(src_fd)) != source_before:
-                raise InstallError("copy_source_directory_changed:" + label)
-
-        recurse(candidate_fd, stage_fd, ".")
+        nodes, total = _copy_candidate_tree_iterative(
+            candidate_fd,
+            stage_fd,
+            node_limit=MAX_NODES,
+            depth_limit=MAX_COPY_DEPTH,
+            total_limit=MAX_TOTAL_BYTES,
+        )
         candidate_after = CANDIDATE.lstat()
         if (
             _metadata_identity(os.fstat(candidate_fd)) != _metadata_identity(candidate_before)
