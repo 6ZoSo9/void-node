@@ -12,7 +12,7 @@ if sys.flags.isolated != 1 or sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
-TARGET_BLOB = "243dc1cd4da7287ea36db5db7e4db4ab1816c729"
+TARGET_BLOB = "9d74b92f93f08d1ac873f9ca69a52015451e497b"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -44,6 +44,12 @@ for required in (
     '"5752b69a7253a44fd3fabe2964476174b3a80c40"',
     '"6b7fc90219676a96f5a2c34619e4cfdf3f002244"',
     'REACHABLE_COMMITS = 17931',
+    'MAX_COPY_DEPTH = 128',
+    'def _copy_candidate_tree_iterative(',
+    'copy_node_limit',
+    'copy_depth_limit',
+    'candidate_copy_incremental_enumeration_required=true',
+    'candidate_copy_iterative_depth_bound_required=true',
     'CANDIDATE = pathlib.Path("/home/zoso/Downloads/void-v7-full-history-candidate-6011fc")',
     'LIVE_RELEASE = pathlib.Path("/opt/void-node-live/releases/" + SOURCE_HEAD)',
     'TARGET_NAME = "void-v7-source-release-full-history-v1"',
@@ -155,11 +161,24 @@ assert copy_text.index("_prepare_private_stage_for_runtime_verification()") < co
 assert copy_text.index("_verify_private_stage_for_apply(") < copy_text.index(
     "_seal_verified_stage_for_publication()"
 )
-assert "MAX_TOTAL_BYTES - total" in copy_text
-assert "total += copied" in copy_text
+assert "_copy_candidate_tree_iterative(" in copy_text
+assert "def recurse(" not in copy_text
+assert "sorted(os.listdir" not in copy_text
 assert "total += st.st_size" not in copy_text
-assert "_require_utf8_copy_component(name)" in copy_text
 assert "copy_entry_name_not_utf8" in text
+
+walker_start = text.index("def _copy_candidate_tree_iterative(")
+walker_end = text.index("def _copy_candidate_to_stage(", walker_start)
+walker_text = text[walker_start:walker_end]
+assert "os.scandir(src_root_fd)" in walker_text
+assert "entry = next(iterator)" in walker_text
+assert walker_text.index("nodes += 1") < walker_text.index("name = entry.name")
+assert "if nodes > node_limit:" in walker_text
+assert "if child_depth > depth_limit:" in walker_text
+assert "_require_utf8_copy_component(name)" in walker_text
+assert "sorted(os.listdir" not in walker_text
+assert "def recurse(" not in walker_text
+assert "_copy_candidate_tree_iterative(" not in walker_text[walker_text.index("while stack:"):]
 assert "os.fchown(fd, 0, RUNTIME_GID)" not in text
 assert "stage_prepare_named_runtime_uid_acl" not in text
 assert "private_stage_named_runtime_uid_acl_required=true" in text
@@ -260,6 +279,8 @@ for marker in (
     "private_stage_acl_xattr_roundtrip_required=true",
     "runtime_uid_child_capability_clear_required=true",
     "runtime_uid_child_capability_status_zero_required=true",
+    "candidate_copy_incremental_enumeration_required=true",
+    "candidate_copy_iterative_depth_bound_required=true",
     "candidate_utf8_path_components_required=true",
     "rename_noreplace_publication_required=true",
     "trusted_root_launcher_required=true",
@@ -297,6 +318,8 @@ for marker in (
     "runtime_uid_child_capability_clear_required=true",
     "runtime_uid_child_capability_status_zero_required=true",
     "candidate_copy_descriptor_relative=true",
+    "candidate_copy_incremental_enumeration_required=true",
+    "candidate_copy_iterative_depth_bound_required=true",
     "apply_root_dynamic_git_exec=false",
     "termination_signal_reconciliation_required=true",
     "install_parent_publication_lease_required=true",
@@ -329,6 +352,8 @@ print("runtime_uid_child_no_new_privs_bound=true")
 print("runtime_uid_child_capability_clear_bound=true")
 print("runtime_uid_child_capability_status_zero_bound=true")
 print("candidate_copy_descriptor_relative_bound=true")
+print("candidate_copy_incremental_enumeration_bound=true")
+print("candidate_copy_iterative_depth_bound=true")
 print("install_parent_stage_transition_bound=true")
 print("root_dynamic_git_exec_forbidden_bound=true")
 print("termination_signal_reconciliation_bound=true")
