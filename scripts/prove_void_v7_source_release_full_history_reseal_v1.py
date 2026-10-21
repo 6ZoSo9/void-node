@@ -14,7 +14,7 @@ if sys.flags.optimize != 0 or not __debug__:
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_v7_source_release_full_history_reseal_v1.py"
-TARGET_BLOB = "60ef11390ec18fcaef44f9161a980badd922b190"
+TARGET_BLOB = "0de5db2ed414465a3c2e9b5c64b3f9b5922d6f1d"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -64,6 +64,7 @@ for required in (
     'pass_fds=',
     'def _cleanup_candidate(',
     'def _fd_mount_id(',
+    'def _directory_lease_identity(',
     'cleanup_descendant_mount_boundary_forbidden',
     'candidate_cleanup_residual_unknown',
     'descriptor_bound_candidate_mutation=true',
@@ -96,6 +97,7 @@ assert "output_parent_aliases_rejected=true" in selftest.stdout.splitlines()
 assert "source_checkout_output_rejected=true" in selftest.stdout.splitlines()
 assert "mountpoint_aliases_rejected=true" in selftest.stdout.splitlines()
 assert "descriptor_bound_candidate_mutation=true" in selftest.stdout.splitlines()
+assert "directory_lease_link_count_independent=true" in selftest.stdout.splitlines()
 assert "cleanup_failure_receipt_bound=true" in selftest.stdout.splitlines()
 assert "cleanup_mount_boundary_rejection_bound=true" in selftest.stdout.splitlines()
 
@@ -189,6 +191,7 @@ print("output_parent_alias_rejection_bound=true")
 print("source_checkout_output_rejection_bound=true")
 print("mountpoint_alias_rejection_bound=true")
 print("descriptor_bound_candidate_mutation_bound=true")
+print("directory_lease_link_count_independent_bound=true")
 print("truthful_candidate_cleanup_receipt_bound=true")
 print("cleanup_mount_boundary_rejection_bound=true")
 print("protected_filesystem_mutation=false")
