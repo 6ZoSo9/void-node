@@ -78,6 +78,9 @@ for required in (
     'candidate_cleanup_residual_unknown',
     'descriptor_bound_candidate_mutation=true',
     'mountpoint_alias_rejection=true',
+    'ref_update_checkout_forbidden=true',
+    'reflog_write_path_absent=true',
+    'retained_index_generation_bound=true',
     'protected_replace_authorized=false',
 ):
     assert required in text, required
@@ -127,9 +130,6 @@ for marker in (
     "reachable_commits=17931",
     "protected_filesystem_mutation=false",
     "network=false",
-    "ref_update_checkout_forbidden=true",
-    "reflog_write_path_absent=true",
-    "retained_index_generation_bound=true",
     "protected_replace_authorized=false",
 ):
     assert marker in plan.stdout.splitlines(), marker
@@ -208,6 +208,9 @@ print("directory_lease_link_count_independent_bound=true")
 print("truthful_candidate_cleanup_receipt_bound=true")
 print("cleanup_nonrecursive_retention_policy_bound=true")
 print("cleanup_mount_boundary_rejection_bound=true")
+print("ref_update_checkout_forbidden_bound=true")
+print("reflog_write_path_absent_bound=true")
+print("retained_index_generation_bound=true")
 print("protected_filesystem_mutation=false")
 print("network=false")
 print("protected_replace_authorized=false")
