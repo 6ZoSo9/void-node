@@ -1024,21 +1024,26 @@ def _flatten_tree_manifest(
     store: _ObjectStore,
     tree_oid: str,
 ) -> tuple[dict[str, tuple[str, str]], set[str]]:
+    # Path expansion must not deduplicate by tree OID: the same tree may be
+    # referenced at more than one path. Object-closure verification is handled
+    # separately by _collect_tree_object_closure.
     manifest: dict[str, tuple[str, str]] = {}
-    objects: set[str] = set()
+    observed_objects: set[str] = set()
     stack: list[tuple[str, str, int]] = [(tree_oid, "", 0)]
+    expanded = 0
     while stack:
         oid, prefix, depth = stack.pop()
         if depth > MAX_COPY_DEPTH:
             raise InstallError("tree_graph_depth_limit")
-        if oid in objects:
-            continue
         obj_type, data = store.read_object(oid)
         if obj_type != "tree":
             raise InstallError("tree_graph_object_type_invalid")
-        objects.add(oid)
+        observed_objects.add(oid)
         entries = _parse_tree_object(data, "tree_graph")
         for mode, name, child_oid in reversed(entries):
+            expanded += 1
+            if expanded > MAX_NODES:
+                raise InstallError("tree_graph_path_limit")
             rel = name if not prefix else prefix + "/" + name
             if mode == "40000":
                 stack.append((child_oid, rel, depth + 1))
@@ -1046,13 +1051,11 @@ def _flatten_tree_manifest(
                 child_type, _child_data = store.read_object(child_oid)
                 if child_type != "blob":
                     raise InstallError("tree_graph_blob_type_invalid")
-                objects.add(child_oid)
+                observed_objects.add(child_oid)
                 if rel in manifest:
                     raise InstallError("tree_graph_duplicate_path")
                 manifest[rel] = (mode, child_oid)
-                if len(manifest) > MAX_NODES:
-                    raise InstallError("tree_graph_path_limit")
-    return manifest, objects
+    return manifest, observed_objects
 
 def _collect_tree_object_closure(
     store: _ObjectStore,
