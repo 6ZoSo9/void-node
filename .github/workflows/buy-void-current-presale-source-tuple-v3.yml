@@ -60,7 +60,29 @@ jobs:
           trigger_block = text.split("  workflow_dispatch:", 1)[0]
           jobs_block = text.split("\njobs:\n", 1)[1]
 
-          trigger_paths = set(re.findall(r'^\s{6}- "([^"]+)"        with:
+          trigger_paths = set()
+          for line in trigger_block.splitlines():
+              stripped = line.strip()
+              if stripped.startswith('- "') and stripped.endswith('"'):
+                  trigger_paths.add(stripped[3:-1])
+
+          direct_refs = set(re.findall(
+              r'\b((?:src|scripts)/[A-Za-z0-9_./-]+[.](?:ts|mjs))\b',
+              jobs_block,
+          ))
+          missing = sorted(direct_refs - trigger_paths)
+          if missing:
+              raise SystemExit("trigger_dependency_missing=" + ",".join(missing))
+          if str(workflow_path) not in trigger_paths:
+              raise SystemExit("workflow_self_trigger_missing")
+
+          print("current_presale_direct_dependency_trigger_closure=true")
+          print("current_presale_direct_dependency_count=" + str(len(direct_refs)))
+          for relative in sorted(direct_refs):
+              print("trigger_bound=" + relative)
+          PY
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
           node-version: ${{ matrix.node }}
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build and authenticate exact tuple
