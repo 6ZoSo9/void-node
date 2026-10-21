@@ -539,6 +539,21 @@ def _ancestor_custody(path: pathlib.Path) -> tuple[tuple[str, int, int, int, int
         current = current.parent
     return tuple(rows)
 
+def _revalidate_install_parent_after_stage(
+    expected: tuple[tuple[str, int, int, int, int, int, int], ...]
+) -> None:
+    observed = _ancestor_custody(INSTALL_PARENT)
+    if len(observed) != len(expected) or not expected:
+        raise InstallError("install_parent_ancestor_shape_changed")
+    for index, (before, after) in enumerate(zip(expected, observed)):
+        if before[:6] != after[:6]:
+            raise InstallError("install_parent_ancestor_identity_changed:" + before[0])
+        if index == 0:
+            if after[6] != before[6] + 1:
+                raise InstallError("install_parent_stage_link_count_transition_invalid")
+        elif after[6] != before[6]:
+            raise InstallError("install_parent_ancestor_link_count_changed:" + before[0])
+
 def _target_state(candidate: dict[str, Any]) -> str:
     stage_present = STAGE.exists() or STAGE.is_symlink()
     target_present = TARGET.exists() or TARGET.is_symlink()
@@ -969,8 +984,7 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
         os.close(parent_fd)
         os.close(candidate_fd)
 
-    if _ancestor_custody(INSTALL_PARENT) != ancestors:
-        raise InstallError("install_parent_generation_changed_during_stage")
+    _revalidate_install_parent_after_stage(ancestors)
 
     stage = _verify_full_history_root(STAGE, 0, 0, 0o555)
     if stage["content_sha256"] != expected_candidate["content_sha256"]:
