@@ -16,7 +16,7 @@ It accepts exactly:
 - candidate enforcement-set SHA-256 `95a11602e5f2639d33b378293b92863ea7f9f37020ad18dec49d3d4ac6289fd4`;
 - derivation proof Git blob `8ea7786299422f7fc3fbfd7474b5e92d869e92c2`.
 
-The candidate parent remains unchanged. This lock successor does **not** modify or rerun the candidate proof against a widened HEAD; instead it content-binds the reviewed parent generation and independently validates its exact bytes and contract.
+The candidate parent remains unchanged. This lock successor does **not** modify or rerun the candidate proof against a widened HEAD; instead it content-binds the reviewed parent generation and independently validates its exact bytes, reviewed source transition, audited package-runtime identity, dependency-provider closure, V7 executable-delta generation, and negative-authority contract.
 
 ## Real hosted evidence
 
@@ -46,7 +46,7 @@ The reviewed current 49-row inventory SHA-256 is
 ## Current lock identities
 
 - lock Git blob: `245ce93ebfb53478211fab765489e88d8fa23c4a`;
-- lock proof Git blob: `8c2ed4a354301bd4b63b843e37329ba6a46ee660`.
+- lock proof Git blob: `12d94e2d89fea2a383d2279ec2b8e9b7802c7351`.
 
 ## Authority
 
