@@ -18,6 +18,9 @@ two candidate launches now:
   temporary pathname;
 - pass the retained Python/stdlib snapshot descriptors through
   `python_snapshot_fd` and `stdlib_snapshot_fd`;
+- derive those descriptors from exact candidate bytes with sealed memfd snapshots
+  before either child launch; ordinary pathname-backed candidate FDs are never
+  presented as immutable runtime snapshots;
 - bind the private `mount_root` explicitly;
 - pass the synthetic V5 path as
   `/synthetic-repo/ops/precision/void_buy_void_v7_protected_substrate_install_v5.py`;
