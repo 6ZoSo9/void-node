@@ -46,9 +46,9 @@ jobs:
           LC_ALL=C sort -o "$expected" "$expected"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "9fbc7e4a7203c3b9a77ee5bc0aa4b8fb3ed0a4f0"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py)" = "09039f7e33ca0e252c31cb6fa49f783254e05fb2"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v5.py)" = "717bfb9a3e7161baece49e14976934e0538532b4"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "f000add1536bf7e1d1c679604e78a7ad42f5a8c5"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py)" = "46cacce75bb0af27de88212aee44c74cd084e595"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v5.py)" = "b7f7ec615b5cc828f00503e1179c4ec35e16c244"
           test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v5.md)" = "be3bdb31cc948d1774dc634d4be34e865dd7cd2d"
 
           git diff --check "$BASE" HEAD
@@ -96,6 +96,7 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V4_SELF_TEST_GREEN' "$RUNNER_TEMP/q4-self.log"
           grep -Fx 'content_digest_matches_replica_v1_contract=true' "$RUNNER_TEMP/q4-self.log"
           grep -Fx 'acl_aware_whole_tree_nonwritability_required=true' "$RUNNER_TEMP/q4-self.log"
+          grep -Fx 'digest_self_test_does_not_weaken_production_acl_gate=true' "$RUNNER_TEMP/q4-self.log"
           grep -Fx 'external_repository_observer=false' "$RUNNER_TEMP/q4-self.log"
 
           python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py --source-plan             | tee "$RUNNER_TEMP/q4-source-plan.log"
