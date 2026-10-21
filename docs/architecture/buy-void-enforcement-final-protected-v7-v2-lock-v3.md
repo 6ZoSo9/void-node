@@ -46,7 +46,13 @@ The reviewed current 49-row inventory SHA-256 is
 ## Current lock identities
 
 - lock Git blob: `245ce93ebfb53478211fab765489e88d8fa23c4a`;
-- lock proof Git blob: `12d94e2d89fea2a383d2279ec2b8e9b7802c7351`.
+- lock proof Git blob: `0a2293c624b698062fb2fe3ba07b95d632eaa9ab`.
+
+## Defensive proof-input boundary — October 21, 2026
+
+The acceptance proof reads candidate, lock, workflow and dependency bytes through one no-follow, nonblocking descriptor. Each read is bounded to `max + 1`, requires the opened descriptor to match the pre-open pathname generation, compares pre/post `fstat` on that same descriptor, and revalidates the visible pathname generation. Inert temporary-directory regressions reject regular-file replacement, pre-existing symlinks, lstat-to-open symlink swaps, regular-to-FIFO swaps without blocking, and oversized input.
+
+This hardens source-proof integrity only. It does not alter the accepted lock JSON/candidate bytes or grant deployment/runtime/economic authority.
 
 ## Authority
 
