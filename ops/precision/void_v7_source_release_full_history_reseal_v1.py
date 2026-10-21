@@ -25,6 +25,7 @@ TARGET_PARENTS = (
     "6b7fc90219676a96f5a2c34619e4cfdf3f002244",
 )
 EXPECTED_REACHABLE_COMMITS = 17931
+ACCOUNT_HOME_ROOT = Path("/home")
 EXTRA_RECEIPT_LINE_SEPARATORS = frozenset(("\u0085", "\u2028", "\u2029"))
 CONFIG_TEXT = (
     "[core]\n"
@@ -223,12 +224,41 @@ def _require_physical_user_directory(path: Path, label: str) -> Path:
         raise ResealError(label + "_directory_alias_forbidden")
     return path
 
+def _require_physical_account_home_root() -> Path:
+    root = ACCOUNT_HOME_ROOT
+    _receipt_safe_path(root, "account_home_root")
+    try:
+        st = root.lstat()
+        resolved = root.resolve(strict=True)
+    except OSError as exc:
+        raise ResealError("account_home_root_unavailable") from exc
+    if (
+        stat.S_ISLNK(st.st_mode)
+        or not stat.S_ISDIR(st.st_mode)
+        or st.st_uid != 0
+        or st.st_gid != 0
+        or stat.S_IMODE(st.st_mode) & 0o022
+        or resolved != root
+    ):
+        raise ResealError("account_home_root_not_physical_root_custodied")
+    return root
+
+def _validate_account_home_location(home: Path, account_name: str) -> None:
+    _receipt_safe_path(home, "account_home")
+    if os.getuid() == 0:
+        raise ResealError("root_account_forbidden")
+    if home.parent != ACCOUNT_HOME_ROOT or home.name != account_name:
+        raise ResealError("account_home_outside_allowed_user_root")
+
 def _account_home() -> Path:
     try:
         entry = pwd.getpwuid(os.getuid())
     except KeyError as exc:
         raise ResealError("account_passwd_entry_unavailable") from exc
-    return _require_physical_user_directory(Path(entry.pw_dir), "account_home")
+    home = Path(entry.pw_dir)
+    _validate_account_home_location(home, entry.pw_name)
+    _require_physical_account_home_root()
+    return _require_physical_user_directory(home, "account_home")
 
 def _configured_output_root() -> Path:
     root = _account_home() / "Downloads"
@@ -241,10 +271,17 @@ def _physical_output_root() -> Path:
         "output_root",
     )
 
+def _reject_source_checkout_overlap(path: Path) -> None:
+    source_root = ROOT.resolve(strict=True)
+    candidate = path.resolve(strict=False)
+    if candidate == source_root or source_root in candidate.parents:
+        raise ResealError("output_under_source_checkout")
+
 def _validate_output(output: Path) -> Path:
     _receipt_safe_path(output, "output")
     if not output.is_absolute():
         raise ResealError("output_must_be_absolute")
+    _reject_source_checkout_overlap(output)
 
     configured = _configured_output_root()
     lexical_parent = Path(os.path.abspath(os.fspath(output.parent)))
@@ -367,11 +404,28 @@ def self_test() -> None:
                 raise
         else:
             raise AssertionError("physical_directory_alias_fixture_not_rejected")
+    try:
+        _validate_account_home_location(Path("/opt/void-service"), "void-service")
+    except ResealError as exc:
+        if str(exc) != "account_home_outside_allowed_user_root":
+            raise
+    else:
+        raise AssertionError("protected_account_home_fixture_not_rejected")
+    try:
+        _reject_source_checkout_overlap(ROOT / ".git" / "reseal")
+    except ResealError as exc:
+        if str(exc) != "output_under_source_checkout":
+            raise
+    else:
+        raise AssertionError("source_checkout_output_fixture_not_rejected")
     print(MARKER + "_SELF_TEST_GREEN")
     print("receipt_line_separators_rejected=true")
     print("passwd_account_home_required=true")
+    print("account_home_directly_under_physical_home_root_required=true")
+    print("protected_account_home_rejected=true")
     print("physical_downloads_root_required=true")
     print("output_parent_aliases_rejected=true")
+    print("source_checkout_output_rejected=true")
     print("exact_target_commit_tree_parents_bound=true")
     print("complete_reachable_object_graph_required=true")
     print("single_process_pack_and_index_generation=true")
