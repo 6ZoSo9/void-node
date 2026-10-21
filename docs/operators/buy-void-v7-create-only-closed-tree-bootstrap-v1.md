@@ -15,7 +15,7 @@ or accept a production launcher/runtime/source payload manifest.
   `9dde5523dca6ab240626430ce1c2b82f1cfe7f20`
 - future requirements: **70**
 - bootstrap source Git blob:
-  `3036fa8c72fe5699433a60ed2c597f8cd96204ff`
+  `2a8397c85d698d168f2257ec801557281b73c04d`
 
 The existing launcher V2 remains unchanged and fs-verity-only. This bootstrap
 candidate does not create or authorize launcher V3.
@@ -119,8 +119,13 @@ writable destination FDs are rejected, directories are fsynced, and publication
 uses same-filesystem `renameat2(..., RENAME_NOREPLACE)`.
 
 After publication the parent is fsynced and the complete visible generation is
-reverified. A rerun may accept an existing final only when its receipt and every
-payload identity/content are exact; mismatches HOLD without repair in place.
+reverified. Directory enumeration is exact: every visible leaf must be either a
+manifest entry or the single root receipt. Missing, changed, or additional
+unreceipted entries all HOLD.
+
+A rerun may accept an existing final only when its receipt, exact directory
+layout, and every payload identity/content are exact; mismatches HOLD without
+repair in place.
 
 ## Source proof
 
@@ -134,6 +139,7 @@ The focused proof:
 - exercises the seccomp barrier against fork, io_uring and shared-writable mmap;
 - publishes a disposable exact fixture and proves exact idempotence;
 - corrupts an existing final and requires HOLD without repair;
+- adds an unreceipted extra leaf and requires exact-layout HOLD;
 - mutates source bytes after their pre-copy hash pin and requires pre-publication
   HOLD;
 - simulates process death immediately after atomic rename and requires exact
