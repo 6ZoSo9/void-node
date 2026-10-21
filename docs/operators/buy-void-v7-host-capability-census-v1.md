@@ -34,11 +34,11 @@ Reviewed static launcher ELF SHA-256 from the focused #3647 proof:
 
 Census source Git blob:
 
-\`074c1906092b9564c81690df982b011af61c9e2f\`
+\`9322374e36b5be9b2b10780ae4413c45d0d648d8\`
 
 Focused proof Git blob:
 
-\`8616200bce8c20459f1ce31621e575d7dfa56d09\`
+\`1a8c3984c98fad4a3f12d0f2ad590f87b671b97b\`
 
 ## fs-verity capability observation
 
@@ -88,46 +88,63 @@ accepted runtime generation.
 
 ## stdlib zip candidate observation
 
-When \`--stdlib-candidate <path>\` is supplied, the census:
+When `--stdlib-candidate <path>` is supplied, the census:
 
 - opens and hashes the exact retained file;
 - parses the ZIP central directory without extracting files;
+- checks `ZipInfo.orig_filename` before trusting Python's sanitized
+  `ZipInfo.filename`, and rejects any truncation/sanitization mismatch;
 - rejects duplicate canonical names, symlinks, path traversal and
-  \`lib-dynload\`;
-- requires the visible pure-Python modules needed by the V4 installer:
-  \`argparse\`, \`ctypes\`, \`hashlib\`, \`json\`, \`pathlib\`, \`shutil\`,
-  \`stat\`, \`subprocess\`, \`tempfile\`, and \`typing\`;
+  `lib-dynload`;
+- inventories the visible direct pure-Python modules needed by the V4 installer:
+  `argparse`, `ctypes`, `hashlib`, `json`, `pathlib`, `shutil`,
+  `stat`, `subprocess`, `tempfile`, and `typing`;
 - does not import or execute the candidate.
 
-A later candidate-generation proof must still establish that the static Python
-binary contains any required native modules/builtins such as \`_ctypes\` or
-\`_posixsubprocess\`. This census intentionally does not infer that from ZIP
-contents.
+That direct-module inventory is **shape evidence only**. It does not establish
+the transitive pure-Python import closure (for example `gettext`, `re`, or
+`warnings`) and cannot establish built-in/native modules such as `_ctypes`
+or `_posixsubprocess`. The census therefore never treats ZIP inventory as
+runtime importability.
 
 ## Result contract
 
-Without candidate paths, the expected useful first result is normally HOLD with
-filesystem facts still reported:
+The census is intentionally **not an acceptance gate** and does not emit GREEN.
 
-\`python_candidate_required\`
+Without candidate paths, the expected useful first result is HOLD with filesystem
+facts still reported:
 
-\`stdlib_candidate_required\`
+`python_candidate_required`
 
-A fully GREEN census requires all of:
+`stdlib_candidate_required`
+
+If all three observable capability/shape checks succeed:
 
 - target fs-verity capability is present;
 - static Python candidate passes the exact ELF/hash observation;
-- stdlib zip candidate passes the exact ZIP/hash observation.
+- stdlib ZIP candidate passes the exact ZIP/hash/direct-module observation;
 
-GREEN advances only to:
+the census still emits:
 
-\`DERIVE_REVIEWED_V7_HOST_INSTALL_PLAN\`
+`status=HOLD`
 
-HOLD advances only to:
+with the sole remaining reason:
 
-\`SATISFY_V7_HOST_CAPABILITY_HOLDS\`
+`static_python_runtime_generation_proof_required`
 
-Neither outcome is install authority.
+and advances only to:
+
+`DERIVE_V7_STATIC_PYTHON_RUNTIME_GENERATION_PROOF`
+
+That later source/proof lane must establish the complete Python runtime
+generation, including the transitive pure-Python import closure and required
+built-in/native modules, before a reviewed host-install plan can exist.
+
+Any missing/invalid capability or candidate remains HOLD and advances only to:
+
+`SATISFY_V7_HOST_CAPABILITY_HOLDS`
+
+No census outcome is install authority.
 
 ## Precision invocation
 
