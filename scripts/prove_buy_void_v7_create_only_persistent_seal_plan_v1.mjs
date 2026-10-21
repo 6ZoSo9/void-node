@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 
 const PLAN_PATH="ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json";
-const PLAN_ID="voidv7createonlysealplan1_31d2c4116b8296d5b41b7ed6f7faf4101691a1d34f06158c11ab8f91463dc2db";
+const PLAN_ID="voidv7createonlysealplan1_80486c8e43751493d1480ebdf8be63a26195e465e96f3e1d29b1d7b4765773cc";
 const SOURCE_BASE="0d93be0a7ae1395449a386d4fbe14bb680f51c3f";
 const LAUNCHER="ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c";
 const LAUNCHER_PROOF="scripts/prove_buy_void_v7_protected_substrate_root_launcher_v2.py";
@@ -41,6 +41,11 @@ const REQUIRED=[
   "destination_file_must_be_fsynced_after_final_metadata",
   "all_destination_writable_descriptors_must_be_closed_before_publication",
   "bootstrap_write_phase_must_remain_single_process_while_any_destination_writable_descriptor_is_live",
+  "bootstrap_write_phase_must_begin_and_remain_single_threaded_while_any_destination_write_authority_exists",
+  "preexisting_secondary_threads_must_be_absent_before_first_destination_writable_descriptor_or_mapping",
+  "thread_pthread_clone3_and_equivalent_thread_creation_forbidden_while_any_destination_write_authority_exists",
+  "io_uring_posix_aio_linux_aio_and_equivalent_asynchronous_destination_writes_forbidden",
+  "publication_requires_no_inflight_kernel_retained_destination_write_request",
   "fork_clone_vfork_posix_spawn_and_helper_process_creation_forbidden_while_any_destination_writable_descriptor_is_live",
   "destination_writable_descriptor_inheritance_or_duplication_into_another_process_forbidden",
   "scm_rights_or_other_fd_passing_of_destination_writable_descriptors_forbidden",
@@ -182,9 +187,14 @@ assert.equal(plan.launcher_v2.fsverity_required,true);
 assert.equal(plan.launcher_v2.alternative_seal_accepted,false);
 assert.equal(plan.observed_host_hold.fs_ioc_measure_verity_result,"ENOTSUP");
 assert.equal(plan.observed_host_hold.fsverity_host_readiness_established,false);
+assert.equal(plan.threat_model.preexisting_secondary_thread_race,true);
+assert.equal(plan.threat_model.kernel_retained_async_destination_write,true);
 assert.equal(plan.candidate_alternative.name,"CREATE_ONLY_CLOSED_TREE_V1");
 assert.equal(plan.candidate_alternative.kernel_cryptographic_verified_reads,false);
 assert.equal(plan.candidate_alternative.single_process_write_phase_required,true);
+assert.equal(plan.candidate_alternative.single_threaded_write_phase_required,true);
+assert.equal(plan.candidate_alternative.asynchronous_destination_io_forbidden,true);
+assert.equal(plan.candidate_alternative.destination_io_quiescence_before_publication_required,true);
 assert.equal(plan.candidate_alternative.destination_write_fd_inheritance_or_transfer_forbidden,true);
 assert.equal(plan.candidate_alternative.writable_shared_destination_mapping_forbidden,true);
 assert.equal(plan.candidate_alternative.installer_own_fd_table_census_sufficient,false);
@@ -204,6 +214,11 @@ for(const required of [
   "read_only_bind_mount_must_not_be_accepted_as_retained_handle_seal",
   "new_launcher_generation_required_for_alternative_seal_mode",
   "distinct_static_bootstrap_installer_required",
+  "bootstrap_write_phase_must_begin_and_remain_single_threaded_while_any_destination_write_authority_exists",
+  "preexisting_secondary_threads_must_be_absent_before_first_destination_writable_descriptor_or_mapping",
+  "thread_pthread_clone3_and_equivalent_thread_creation_forbidden_while_any_destination_write_authority_exists",
+  "io_uring_posix_aio_linux_aio_and_equivalent_asynchronous_destination_writes_forbidden",
+  "publication_requires_no_inflight_kernel_retained_destination_write_request",
 ]) assert.ok(REQUIRED.includes(required),required);
 
 for(const key of [
@@ -240,6 +255,10 @@ console.log("kernel_atomic_noreplace_required=true");
 console.log("receipt_self_hash_cycle_forbidden=true");
 console.log("published_payload_and_receipt_nlink_one_required=true");
 console.log("single_process_destination_write_phase_required=true");
+console.log("single_threaded_destination_write_phase_required=true");
+console.log("preexisting_secondary_threads_forbidden=true");
+console.log("async_destination_io_forbidden=true");
+console.log("destination_io_quiescence_before_publication_required=true");
 console.log("destination_write_fd_inheritance_or_transfer_forbidden=true");
 console.log("scm_rights_destination_fd_passing_forbidden=true");
 console.log("uid_drop_with_destination_write_fd_forbidden=true");
