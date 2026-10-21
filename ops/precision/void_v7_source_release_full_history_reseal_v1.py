@@ -118,6 +118,11 @@ def _text(root: Path, *args: str) -> str:
 def _identity(st: os.stat_result) -> tuple[int, int, int, int, int, int]:
     return (st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink)
 
+def _directory_lease_identity(st: os.stat_result) -> tuple[int, int, int, int, int]:
+    # Directory link counts are expected to change while this builder creates
+    # and removes child directories. The stable lease is device/inode/owner/mode.
+    return (st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode)
+
 def _decode_mountinfo_path(raw: bytes) -> Path:
     out = bytearray()
     index = 0
@@ -389,21 +394,24 @@ def _candidate_complete_graph(work_fd: int, git_fd: int, objects_fd: int) -> Non
     if count != EXPECTED_REACHABLE_COMMITS:
         raise ResealError("candidate_reachable_commit_count_mismatch")
 
-def _revalidate_parent_lease(output: Path, parent_fd: int, expected: tuple[int, int, int, int, int, int]) -> None:
+def _revalidate_parent_lease(output: Path, parent_fd: int, expected: tuple[int, int, int, int, int]) -> None:
     try:
         visible = output.parent.lstat()
     except OSError as exc:
         raise ResealError("output_parent_generation_unavailable") from exc
-    if _identity(os.fstat(parent_fd)) != expected or _identity(visible) != expected:
+    if (
+        _directory_lease_identity(os.fstat(parent_fd)) != expected
+        or _directory_lease_identity(visible) != expected
+    ):
         raise ResealError("output_parent_generation_changed")
     _revalidate_output_parent_chain(output)
 
 def _revalidate_candidate_lease(
     output: Path,
     parent_fd: int,
-    parent_identity: tuple[int, int, int, int, int, int],
+    parent_identity: tuple[int, int, int, int, int],
     candidate_fd: int,
-    candidate_identity: tuple[int, int, int, int, int, int],
+    candidate_identity: tuple[int, int, int, int, int],
 ) -> None:
     _revalidate_parent_lease(output, parent_fd, parent_identity)
     try:
@@ -411,11 +419,11 @@ def _revalidate_candidate_lease(
         visible_path = output.lstat()
     except OSError as exc:
         raise ResealError("candidate_visible_generation_unavailable") from exc
-    current = _identity(os.fstat(candidate_fd))
+    current = _directory_lease_identity(os.fstat(candidate_fd))
     if (
         current != candidate_identity
-        or _identity(visible_at_parent) != candidate_identity
-        or _identity(visible_path) != candidate_identity
+        or _directory_lease_identity(visible_at_parent) != candidate_identity
+        or _directory_lease_identity(visible_path) != candidate_identity
         or not stat.S_ISDIR(visible_at_parent.st_mode)
         or stat.S_ISLNK(visible_at_parent.st_mode)
     ):
@@ -453,9 +461,9 @@ def _verify_candidate_metadata_fds(
 def verify_candidate_lease(
     output: Path,
     parent_fd: int,
-    parent_identity: tuple[int, int, int, int, int, int],
+    parent_identity: tuple[int, int, int, int, int],
     candidate_fd: int,
-    candidate_identity: tuple[int, int, int, int, int, int],
+    candidate_identity: tuple[int, int, int, int, int],
     git_fd: int,
     objects_fd: int,
 ) -> None:
@@ -643,7 +651,7 @@ def _cleanup_candidate(
     parent_fd: int,
     candidate_fd: int,
     candidate_name: str,
-    candidate_identity: tuple[int, int, int, int, int, int],
+    candidate_identity: tuple[int, int, int, int, int],
 ) -> tuple[bool, bool, bool, str]:
     try:
         candidate_mount_id = _fd_mount_id(candidate_fd, "cleanup_candidate")
@@ -663,7 +671,7 @@ def _cleanup_candidate(
         return (True, False, True, "candidate_root_name_missing")
     except OSError as exc:
         return (True, False, True, "candidate_root_observation_failed:" + exc.__class__.__name__)
-    if _identity(visible) != candidate_identity:
+    if _directory_lease_identity(visible) != candidate_identity:
         return (True, False, True, "candidate_root_generation_mismatch")
     try:
         os.rmdir(candidate_name, dir_fd=parent_fd)
@@ -685,23 +693,21 @@ def build(output: Path) -> None:
             output.parent,
             os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
         )
-        parent_identity = _identity(os.fstat(parent_fd))
+        parent_identity = _directory_lease_identity(os.fstat(parent_fd))
         _revalidate_parent_lease(output, parent_fd, parent_identity)
 
         os.mkdir(output.name, mode=0o700, dir_fd=parent_fd)
         _CANDIDATE_CREATED = True
-        # Creating a child directory intentionally increments the parent's
-        # link count. Rebind the retained parent lease to that known mutation,
-        # then require the visible pathname to name the same generation before
-        # any subsequent candidate write.
-        parent_identity = _identity(os.fstat(parent_fd))
+        # Child creation may change directory link counts; the stable retained
+        # lease intentionally excludes link count and is revalidated here before
+        # the candidate descriptor is admitted.
         _revalidate_parent_lease(output, parent_fd, parent_identity)
         candidate_fd = os.open(
             output.name,
             os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
             dir_fd=parent_fd,
         )
-        candidate_identity = _identity(os.fstat(candidate_fd))
+        candidate_identity = _directory_lease_identity(os.fstat(candidate_fd))
         _revalidate_candidate_lease(
             output, parent_fd, parent_identity, candidate_fd, candidate_identity
         )
@@ -909,7 +915,7 @@ def self_test() -> None:
                 dir_fd=parent_fd,
             )
             try:
-                candidate_identity = _identity(os.fstat(candidate_fd))
+                candidate_identity = _directory_lease_identity(os.fstat(candidate_fd))
                 _write_new_regular_at(candidate_fd, "probe", b"x", 0o600, "self_test_cleanup")
                 attempted, completed, residual, reason = _cleanup_candidate(
                     parent_fd, candidate_fd, "candidate", candidate_identity
@@ -930,6 +936,7 @@ def self_test() -> None:
     print("source_checkout_output_rejected=true")
     print("mountpoint_aliases_rejected=true")
     print("descriptor_bound_candidate_mutation=true")
+    print("directory_lease_link_count_independent=true")
     print("cleanup_failure_receipt_bound=true")
     print("cleanup_mount_boundary_rejection_bound=true")
     print("exact_target_commit_tree_parents_bound=true")
