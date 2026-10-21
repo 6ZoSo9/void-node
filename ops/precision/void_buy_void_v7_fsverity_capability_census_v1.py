@@ -166,7 +166,11 @@ def _canonical_target(
     return raw, identity
 
 
-def _mount_for_target(rows: list[dict[str, Any]], target: pathlib.Path) -> dict[str, Any]:
+def _mount_for_target(
+    rows: list[dict[str, Any]],
+    target: pathlib.Path,
+    expected_dev: int | None = None,
+) -> dict[str, Any]:
     target_s = os.path.abspath(os.fspath(target))
     matches: list[dict[str, Any]] = []
     for row in rows:
@@ -178,7 +182,26 @@ def _mount_for_target(rows: list[dict[str, Any]], target: pathlib.Path) -> dict[
             matches.append(row)
     if not matches:
         raise CensusError("target_mount_not_found")
-    return max(matches, key=lambda row: len(os.path.normpath(str(row["mount_point"]))))
+
+    longest = max(len(os.path.normpath(str(row["mount_point"]))) for row in matches)
+    finalists = [
+        row
+        for row in matches
+        if len(os.path.normpath(str(row["mount_point"]))) == longest
+    ]
+    if expected_dev is not None:
+        expected_major_minor = (os.major(expected_dev), os.minor(expected_dev))
+        device_matches = [
+            row
+            for row in finalists
+            if _parse_major_minor(str(row["major_minor"])) == expected_major_minor
+        ]
+        if not device_matches:
+            raise CensusError("target_mount_device_mismatch")
+        finalists = device_matches
+    if len(finalists) != 1:
+        raise CensusError("target_mount_selection_ambiguous")
+    return finalists[0]
 
 
 def _proc_filesystems() -> set[str]:
@@ -303,7 +326,7 @@ def collect() -> dict[str, Any]:
     target_path, target_identity = _canonical_target(TARGET)
     mountinfo = _read_fd_bounded(pathlib.Path("/proc/self/mountinfo"), MAX_PROC_BYTES)
     rows = _parse_mountinfo(mountinfo.decode("utf-8", "strict"))
-    mount = _mount_for_target(rows, target_path)
+    mount = _mount_for_target(rows, target_path, target_identity[0])
     fstype = str(mount["fstype"])
     source = str(mount["source"])
     expected_major_minor = _parse_major_minor(str(mount["major_minor"]))
@@ -357,7 +380,9 @@ def collect() -> dict[str, Any]:
         pathlib.Path("/proc/self/mountinfo"), MAX_PROC_BYTES
     )
     closing_rows = _parse_mountinfo(closing_mountinfo.decode("utf-8", "strict"))
-    closing_mount = _mount_for_target(closing_rows, closing_target_path)
+    closing_mount = _mount_for_target(
+        closing_rows, closing_target_path, closing_target_identity[0]
+    )
     mount_generation_stable = target_generation_stable and mount == closing_mount
 
     authoritative_ext4_ready = (
@@ -538,10 +563,37 @@ def self_test() -> int:
         "40 36 8:3 / /opt rw,nosuid,nodev - ext4 /dev/sda3 rw\n"
     )
     rows = _parse_mountinfo(mountinfo)
-    row = _mount_for_target(rows, pathlib.Path("/opt/example"))
+    row = _mount_for_target(
+        rows, pathlib.Path("/opt/example"), os.makedev(8, 3)
+    )
     assert row["mount_point"] == "/opt"
     assert row["fstype"] == "ext4"
     assert row["source"] == "/dev/sda3"
+
+    stacked = _parse_mountinfo(
+        "36 25 8:2 / / rw,relatime shared:1 - ext4 /dev/sda2 rw,errors=remount-ro\n"
+        "40 36 8:3 / /opt rw,nosuid,nodev - ext4 /dev/sda3 rw\n"
+        "41 36 0:42 / /opt rw,nosuid,nodev - tmpfs tmpfs rw\n"
+    )
+    visible = _mount_for_target(
+        stacked, pathlib.Path("/opt/example"), os.makedev(0, 42)
+    )
+    assert visible["mount_id"] == "41"
+    assert visible["fstype"] == "tmpfs"
+
+    ambiguous = _parse_mountinfo(
+        "36 25 8:2 / / rw - ext4 /dev/sda2 rw\n"
+        "40 36 8:3 / /opt rw - ext4 /dev/sda3 rw\n"
+        "41 36 8:3 / /opt rw - ext4 /dev/sda3 rw\n"
+    )
+    try:
+        _mount_for_target(
+            ambiguous, pathlib.Path("/opt/example"), os.makedev(8, 3)
+        )
+    except CensusError as exc:
+        assert str(exc) == "target_mount_selection_ambiguous"
+    else:
+        raise AssertionError("stacked_mount_ambiguity_not_rejected")
     assert _parse_major_minor(row["major_minor"]) == (8, 3)
     try:
         _parse_major_minor("bad")
@@ -571,6 +623,8 @@ def self_test() -> int:
     print(MARKER + "_SELF_TEST_GREEN")
     print("target_canonical_path_required=true")
     print("terminal_target_generation_revalidation_required=true")
+    print("target_mount_st_dev_binding_required=true")
+    print("stacked_mount_ambiguity_rejected=true")
     print("mountinfo_longest_prefix_selection_proven=true")
     print("mountinfo_escape_decoding_proven=true")
     print("mountinfo_device_number_binding_required=true")
