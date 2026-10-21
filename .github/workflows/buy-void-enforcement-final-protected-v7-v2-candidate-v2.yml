@@ -402,4 +402,3 @@ jobs:
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs --derive > "$RUNNER_TEMP/v3-lock.json"
           cmp "$RUNNER_TEMP/v3-lock.json" ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-
