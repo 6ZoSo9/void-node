@@ -23,7 +23,7 @@ TARGET_PARENTS = (
     "6b7fc90219676a96f5a2c34619e4cfdf3f002244",
 )
 EXPECTED_REACHABLE_COMMITS = 17931
-ALLOWED_OUTPUT_ROOT = Path("/home/zoso/Downloads")
+ALLOWED_OUTPUT_ROOT = Path.home() / "Downloads"
 CONFIG_TEXT = (
     "[core]\n"
     "\trepositoryformatversion = 0\n"
