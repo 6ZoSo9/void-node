@@ -1,0 +1,172 @@
+name: Buy VOID V7 deployment receipt V3 lock plan v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.yml"
+      - "docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: plan / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V3-lock deployment-plan generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE=87b423bb910a6356cde6c0b269b10d2ce4bb8434
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" "$EXPECTED_HEAD")" = "$BASE"
+          cat > "$RUNNER_TEMP/expected-delta" <<'EOF'
+          A	.github/workflows/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.yml
+          A	docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md
+          A	scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs
+          EOF
+          git diff --name-status "$BASE" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual-delta"
+          sort "$RUNNER_TEMP/expected-delta" > "$RUNNER_TEMP/expected-delta.sorted"
+          diff -u "$RUNNER_TEMP/expected-delta.sorted" "$RUNNER_TEMP/actual-delta"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs)" = "97c0900184471ea8df4f59b71a717b944c5b4330"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md)" = "80dbbc16bbe992ae117828d1fab748e87ee0c749"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "c755e5f4e0484486b49193a8381fa09a9e6cb9f1"
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_generation_provenance_v7.ts)" = "390ff1a2ff0437cd8c8693e7807c12275df42573"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "245ce93ebfb53478211fab765489e88d8fa23c4a"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs)" = "12d94e2d89fea2a383d2279ec2b8e9b7802c7351"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = "589845615654da8b688764377b34296267ac0063"
+          git diff --check "$BASE" "$EXPECTED_HEAD" --
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Typecheck and build
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+      - name: Prove static V3-lock deployment-plan contract
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs
+
+      - name: Require V3 lock PLAN_GREEN and frozen V2 HOLD
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          git switch -C main "$head"
+
+          v3="$RUNNER_TEMP/v3-plan-${{ matrix.node }}.log"
+          npx tsx ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            --plan \
+            --expected-commit "$head" \
+            --expected-tree "$tree" \
+            --accepted-enforcement-lock-path ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json \
+            >"$v3" 2>&1
+          cat "$v3"
+          grep -Fx 'marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1' "$v3"
+          grep -Fx 'mode=--plan' "$v3"
+          grep -Fx 'source_mutation=false' "$v3"
+          grep -Fx 'service_mutation=false' "$v3"
+          grep -Fx 'credential_access=false' "$v3"
+          grep -Fx 'wallet_access=false' "$v3"
+          grep -Fx 'signing=false' "$v3"
+          grep -Fx 'transaction_broadcast=false' "$v3"
+          grep -Fx 'presale_activation=false' "$v3"
+          grep -Fx 'funds_movement=false' "$v3"
+          grep -Fx 'filesystem_mutation=false' "$v3"
+          grep -Fx 'accepted_enforcement_lock_path=ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json' "$v3"
+          grep -Fx 'accepted_enforcement_lock_git_blob_sha1=245ce93ebfb53478211fab765489e88d8fa23c4a' "$v3"
+          lock_sha="$(sha256sum ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json | awk '{print $1}')"
+          grep -Fx "accepted_enforcement_lock_sha256=$lock_sha" "$v3"
+          grep -Fx 'accepted_enforcement_set_sha256=95a11602e5f2639d33b378293b92863ea7f9f37020ad18dec49d3d4ac6289fd4' "$v3"
+          grep -Eq '^accepted_enforcement_lock_id=voidbenfl1_[0-9a-f]{64}$' "$v3"
+          grep -Eq '^receipt_id=voidbsfdep1_[0-9a-f]{64}$' "$v3"
+          grep -Fx 'status=PLAN_GREEN' "$v3"
+
+          v2="$RUNNER_TEMP/v2-hold-${{ matrix.node }}.log"
+          set +e
+          npx tsx ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            --plan \
+            --expected-commit "$head" \
+            --expected-tree "$tree" \
+            --accepted-enforcement-lock-path ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json \
+            >"$v2" 2>&1
+          status=$?
+          set -e
+          cat "$v2"
+          test "$status" -eq 2
+          grep -Fx 'marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1_HOLD' "$v2"
+          grep -Fx 'reason=accepted_enforcement_candidate_current_source_inventory_mismatch:src/index.ts' "$v2"
+          test "$(grep -Fxc 'status=PLAN_GREEN' "$v2" || true)" -eq 0
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-v3-lock-deployment-plan-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: |
+            ${{ runner.temp }}/v3-plan-${{ matrix.node }}.log
+            ${{ runner.temp }}/v2-hold-${{ matrix.node }}.log
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [plan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-v3-lock-deployment-plan-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: plan
+      - name: Require exact Node 22 24 26 plan equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "plan/v3-plan-$node.log"
+            test -s "plan/v2-hold-$node.log"
+          done
+          cmp plan/v3-plan-22.log plan/v3-plan-24.log
+          cmp plan/v3-plan-22.log plan/v3-plan-26.log
+          cmp plan/v2-hold-22.log plan/v2-hold-24.log
+          cmp plan/v2-hold-22.log plan/v2-hold-26.log
+          grep -Fx 'status=PLAN_GREEN' plan/v3-plan-22.log
+          grep -Fx 'reason=accepted_enforcement_candidate_current_source_inventory_mismatch:src/index.ts' plan/v2-hold-22.log
+          echo 'VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_V3_LOCK_PLAN_V1_CROSS_NODE_GREEN'
+          echo 'v3_lock_plan_green=true'
+          echo 'historical_v2_lock_hold=true'
+          echo 'deployment_apply_performed=false'
+          echo 'public_presale_activation=false'
+          echo 'funds_movement=false'
