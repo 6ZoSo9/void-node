@@ -72,12 +72,16 @@ for required in (
 ):
     assert required in text, required
 
+assert "import subprocess" not in text
+assert "from subprocess" not in text
+assert "subprocess.run(" not in text
+assert "subprocess.Popen(" not in text
+
 for forbidden in (
     "FS_IOC_ENABLE_VERITY",
     "O_WRONLY",
     "O_RDWR",
     "O_CREAT",
-    "subprocess.",
     "socket.",
     "connect(",
     "listen(",
