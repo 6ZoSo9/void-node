@@ -97,7 +97,7 @@ The exact landed V5 source bytes are copied to a Linux memfd, sealed with:
 - \`F_SEAL_SHRINK\`
 - \`F_SEAL_SEAL\`
 
-and passed by retained descriptor to the candidate.
+and passed by retained descriptor to the candidate. A tiny `-c` bootstrap reads only that sealed descriptor, compiles the exact bytes with a synthetic repository filename ending in `ops/precision/void_buy_void_v7_protected_substrate_install_v5.py`, sets `sys.argv` to `--self-test`, and executes the compiled code. The synthetic path exists only to preserve V5's reviewed `__file__`-derived repository-root semantics; the V5 source bytes themselves are never written to disk.
 
 The candidate must run the exact V5 \`--self-test\` under \`-I -B -S\` and emit:
 
