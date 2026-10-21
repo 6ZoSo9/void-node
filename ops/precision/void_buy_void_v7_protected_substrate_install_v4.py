@@ -436,6 +436,26 @@ def _direct_main_ref(root: pathlib.Path, label: str) -> str:
 def require_git_metadata_provenance(root: pathlib.Path, label: str) -> str:
     return _direct_main_ref(root, label)
 
+def _write_git_metadata_fixture(
+    root: pathlib.Path,
+    config: str = "[core]\nrepositoryformatversion = 0\nbare = false\n",
+) -> None:
+    (root / ".git" / "objects" / "info").mkdir(parents=True)
+    (root / ".git" / "info").mkdir(parents=True)
+    (root / ".git" / "config").write_text(config, "utf-8")
+
+def _assert_git_metadata_fixture_rejected(mutator: Any) -> None:
+    with tempfile.TemporaryDirectory(prefix="void-v7-git-metadata-self-test-") as td:
+        root = pathlib.Path(td) / "repo"
+        root.mkdir()
+        _write_git_metadata_fixture(root)
+        mutator(root)
+        try:
+            _direct_git_metadata_snapshot(root, "self_test")
+        except InstallError:
+            return
+        raise AssertionError("git_metadata_adversary_not_rejected")
+
 def install_parent_custody() -> tuple[tuple[str, int, int, int, int, int, int], ...]:
     current = INSTALL_PARENT
     first = True
