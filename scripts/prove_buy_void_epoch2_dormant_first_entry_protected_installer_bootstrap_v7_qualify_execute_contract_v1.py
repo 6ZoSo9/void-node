@@ -19,7 +19,7 @@ TARGET_REL = (
     "void_buy_void_epoch2_dormant_first_entry_"
     "protected_installer_bootstrap_v7_qualify_execute_contract_v1.py"
 )
-TARGET_BLOB = "f01d98ff485db5fd6893ef678277cb19c9ae6475"
+TARGET_BLOB = "7dce4d08b66e4ab82696aeea780d883b9dbc363a"
 
 PLANNER_REL = (
     "ops/precision/"
@@ -193,6 +193,9 @@ key_helper_source = (
     ast.get_source_segment(source, functions["_require_exact_keys"]) or ""
 )
 assert 'label + "_keys_invalid"' in key_helper_source
+duplicate_helper_source = ast.get_source_segment(source, functions["_reject_duplicate_object_pairs"]) or ""
+assert 'raise ContractError("planner_structured_output_duplicate_key")' in duplicate_helper_source
+assert 'duplicate_key:" + key' not in duplicate_helper_source
 normalized_source = ast.get_source_segment(source, functions["_normalized_absolute"]) or ""
 assert '"\\0" not in value' in normalized_source
 assert 'not value.startswith("//")' in normalized_source
@@ -258,6 +261,8 @@ for expected in (
     "executable_artifact_path_components_consumer_compatible=true",
     "planner_output_race_oserror_holds=true",
     "planner_json_parser_failures_hold=true",
+    "planner_hold_reason_line_injection_rejected=true",
+    "planner_json_parser_version_independent_hold=true",
     "unconsumed_tool_metadata_not_execution_authority=true",
     "qualification_nonroot_required=true",
     "qualification_descriptor_bound_git_object_required=true",
@@ -348,6 +353,8 @@ print("executable_artifact_paths_canonical_utf8_bounded=true")
 print("executable_artifact_path_components_consumer_compatible=true")
 print("planner_output_race_oserror_holds=true")
 print("planner_json_parser_failures_hold=true")
+print("planner_hold_reason_line_injection_rejected=true")
+print("planner_json_parser_version_independent_hold=true")
 print("unconsumed_tool_metadata_not_execution_authority=true")
 print("nonroot_qualification_phase_required=true")
 print("descriptor_bound_qualification_source_required=true")

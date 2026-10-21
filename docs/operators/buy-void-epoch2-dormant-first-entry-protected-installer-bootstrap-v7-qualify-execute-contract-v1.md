@@ -403,3 +403,22 @@ These checks only tighten the authenticated planner-to-contract handoff. They ad
 no qualification/root-plan execution, host/service mutation, credential/signing,
 transaction/payment, activation, validator/WC, treasury/liquidity, or funds
 authority.
+
+
+## October 20 HOLD-reason framing and cross-version parser repair
+
+Exact-head rereview identified one output-framing P1 and one proof portability P2.
+
+The duplicate-key hook now emits the fixed reason
+`planner_structured_output_duplicate_key` without including the attacker-
+controlled JSON key. An adversarial duplicated key named
+`\nstatus=GREEN` therefore cannot inject a second status line into the
+machine-readable HOLD envelope.
+
+The pathological nested-array self-test also accepts both valid fail-closed
+classifications produced across supported Python JSON implementations:
+`planner_body_invalid` when parsing itself rejects the depth, or
+`planner_body_not_object` when parsing succeeds but the top-level value is not
+an object. Either outcome remains HOLD; no malformed planner input is accepted.
+
+No execution or economic authority changes.

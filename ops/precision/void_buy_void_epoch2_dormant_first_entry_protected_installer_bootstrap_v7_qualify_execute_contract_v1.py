@@ -247,7 +247,7 @@ def _reject_duplicate_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, An
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
-            raise ContractError("planner_structured_output_duplicate_key:" + key)
+            raise ContractError("planner_structured_output_duplicate_key")
         result[key] = value
     return result
 
@@ -1332,7 +1332,7 @@ def self_test() -> None:
                 raise AssertionError("qualification_contract_json_not_object")
             duplicate_lines[index] = (
                 duplicate_prefix
-                + '{"root_execution_required":true,'
+                + '{"\\nstatus=GREEN":false,"\\nstatus=GREEN":true,'
                 + original_json[1:]
             )
             duplicate_fixture = ("\n".join(duplicate_lines) + "\n").encode("ascii")
@@ -1342,8 +1342,10 @@ def self_test() -> None:
     try:
         validate_planner_output(duplicate_fixture)
     except ContractError as exc:
-        if not str(exc).startswith("planner_structured_output_duplicate_key:"):
+        if str(exc) != "planner_structured_output_duplicate_key":
             raise
+        if "\n" in str(exc) or "\r" in str(exc):
+            raise AssertionError("duplicate_key_reason_line_injection")
     else:
         raise AssertionError("duplicate_qualification_json_key_accepted")
 
@@ -1449,7 +1451,7 @@ def self_test() -> None:
         try:
             validate_planner_output(_raw_line_fixture("plan_body_json", raw_json))
         except ContractError as exc:
-            if str(exc) != "planner_body_invalid":
+            if str(exc) not in {"planner_body_invalid", "planner_body_not_object"}:
                 raise
         else:
             raise AssertionError("planner_body_parser_failure_not_held")
@@ -1489,6 +1491,8 @@ def self_test() -> None:
     print("executable_artifact_path_components_consumer_compatible=true")
     print("planner_output_race_oserror_holds=true")
     print("planner_json_parser_failures_hold=true")
+    print("planner_hold_reason_line_injection_rejected=true")
+    print("planner_json_parser_version_independent_hold=true")
     print("unconsumed_tool_metadata_not_execution_authority=true")
     print("qualification_nonroot_required=true")
     print("qualification_descriptor_bound_git_object_required=true")
