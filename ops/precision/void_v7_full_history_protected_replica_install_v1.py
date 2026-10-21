@@ -331,7 +331,15 @@ def verify_repository(expected_head: str) -> None:
         if git_text(ROOT, "rev-parse", "HEAD:" + rel) != blob:
             raise InstallError("dependency_blob_mismatch:" + rel)
 
-def _read_regular_stable(path: pathlib.Path, label: str, maximum: int = MAX_FILE_BYTES) -> tuple[bytes, tuple[int, int, int, int, int, int, int, int, int]]:
+def _read_regular_stable(
+    path: pathlib.Path,
+    label: str,
+    maximum: int,
+) -> tuple[bytes, tuple[int, int, int, int, int, int, int, int, int]]:
+    # Byte-returning reads are intentionally restricted to tightly capped
+    # metadata leaves. Large regular files must use _stream_regular_hashes_stable.
+    if maximum < 0 or maximum > 64 * 1024:
+        raise InstallError(label + "_byte_read_limit_too_large")
     before = path.lstat()
     if (
         not stat.S_ISREG(before.st_mode)
@@ -346,13 +354,13 @@ def _read_regular_stable(path: pathlib.Path, label: str, maximum: int = MAX_FILE
         opened = os.fstat(fd)
         if _metadata_identity(opened) != _metadata_identity(before):
             raise InstallError(label + "_rebound:" + os.fspath(path))
-        chunks: list[bytes] = []
+        raw = bytearray()
         remaining = opened.st_size
         while remaining:
             part = os.read(fd, min(COPY_CHUNK, remaining))
             if not part:
                 raise InstallError(label + "_short_read:" + os.fspath(path))
-            chunks.append(part)
+            raw.extend(part)
             remaining -= len(part)
         if os.read(fd, 1):
             raise InstallError(label + "_grew:" + os.fspath(path))
@@ -363,7 +371,67 @@ def _read_regular_stable(path: pathlib.Path, label: str, maximum: int = MAX_FILE
             or _metadata_identity(visible) != _metadata_identity(opened)
         ):
             raise InstallError(label + "_generation_changed:" + os.fspath(path))
-        return b"".join(chunks), _metadata_identity(opened)
+        return bytes(raw), _metadata_identity(opened)
+    finally:
+        os.close(fd)
+
+def _stream_regular_hashes_stable(
+    path: pathlib.Path,
+    label: str,
+    maximum: int = MAX_FILE_BYTES,
+    *,
+    git_blob: bool,
+) -> tuple[
+    int,
+    str,
+    str | None,
+    tuple[int, int, int, int, int, int, int, int, int],
+]:
+    before = path.lstat()
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_nlink != 1
+        or before.st_size < 0
+        or before.st_size > maximum
+    ):
+        raise InstallError(label + "_metadata_invalid:" + os.fspath(path))
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    try:
+        opened = os.fstat(fd)
+        opened_identity = _metadata_identity(opened)
+        if opened_identity != _metadata_identity(before):
+            raise InstallError(label + "_rebound:" + os.fspath(path))
+        sha256 = hashlib.sha256()
+        blob_sha1 = hashlib.sha1() if git_blob else None
+        if blob_sha1 is not None:
+            blob_sha1.update(
+                b"blob " + str(opened.st_size).encode("ascii") + b"\0"
+            )
+        remaining = opened.st_size
+        while remaining:
+            part = os.read(fd, min(COPY_CHUNK, remaining))
+            if not part:
+                raise InstallError(label + "_short_read:" + os.fspath(path))
+            sha256.update(part)
+            if blob_sha1 is not None:
+                blob_sha1.update(part)
+            remaining -= len(part)
+        if os.read(fd, 1):
+            raise InstallError(label + "_grew:" + os.fspath(path))
+        after = os.fstat(fd)
+        visible = path.lstat()
+        if (
+            _metadata_identity(after) != opened_identity
+            or _metadata_identity(visible) != opened_identity
+        ):
+            raise InstallError(label + "_generation_changed:" + os.fspath(path))
+        return (
+            opened.st_size,
+            sha256.hexdigest(),
+            blob_sha1.hexdigest() if blob_sha1 is not None else None,
+            opened_identity,
+        )
     finally:
         os.close(fd)
 
@@ -439,18 +507,31 @@ def _exact_candidate_git_layout(root: pathlib.Path, owner_uid: int, owner_gid: i
         raise InstallError("git_config_content_invalid")
     if main_ref != (SOURCE_HEAD + "\n").encode("ascii"):
         raise InstallError("git_main_ref_content_invalid")
-    index, _ = _read_regular_stable(git_dir / "index", "git_index", MAX_FILE_BYTES)
+    index_size, index_sha256, _index_git_blob, _ = _stream_regular_hashes_stable(
+        git_dir / "index", "git_index", git_blob=False
+    )
     pack_name = next(n for n in packs if n.endswith(".pack"))
     idx_name = next(n for n in packs if n.endswith(".idx"))
-    pack, _ = _read_regular_stable(git_dir / "objects" / "pack" / pack_name, "git_pack")
-    idx, _ = _read_regular_stable(git_dir / "objects" / "pack" / idx_name, "git_pack_index")
+    pack_size, pack_sha256, _pack_git_blob, _ = _stream_regular_hashes_stable(
+        git_dir / "objects" / "pack" / pack_name,
+        "git_pack",
+        git_blob=False,
+    )
+    idx_size, idx_sha256, _idx_git_blob, _ = _stream_regular_hashes_stable(
+        git_dir / "objects" / "pack" / idx_name,
+        "git_pack_index",
+        git_blob=False,
+    )
     return {
         "config_sha256": sha256_bytes(config),
-        "index_sha256": sha256_bytes(index),
+        "index_bytes": index_size,
+        "index_sha256": index_sha256,
         "pack_name": pack_name,
-        "pack_sha256": sha256_bytes(pack),
+        "pack_bytes": pack_size,
+        "pack_sha256": pack_sha256,
         "pack_index_name": idx_name,
-        "pack_index_sha256": sha256_bytes(idx),
+        "pack_index_bytes": idx_size,
+        "pack_index_sha256": idx_sha256,
     }
 
 def _parse_tree_manifest(raw: bytes) -> dict[str, tuple[str, str]]:
@@ -520,8 +601,10 @@ def _verify_worktree(root: pathlib.Path) -> None:
             actual_mode = "100755" if stat.S_IMODE(st.st_mode) & stat.S_IXUSR else "100644"
             if actual_mode != mode:
                 raise InstallError("worktree_mode_mismatch:" + rel)
-            raw, _ = _read_regular_stable(child, "worktree_file")
-            if git_blob_sha1(raw) != oid:
+            _size, _sha256, observed_blob_oid, _ = _stream_regular_hashes_stable(
+                child, "worktree_file", git_blob=True
+            )
+            if observed_blob_oid != oid:
                 raise InstallError("worktree_blob_mismatch:" + rel)
             seen.add(rel)
     if seen != set(manifest):
@@ -571,14 +654,16 @@ def _content_digest(root: pathlib.Path, expected_uid: int, expected_gid: int, ex
             elif stat.S_ISREG(st.st_mode):
                 if stat.S_IMODE(st.st_mode) & 0o022:
                     raise InstallError("tree_file_group_or_world_writable:" + rel)
-                raw, _ = _read_regular_stable(child, "tree_file")
-                total += len(raw)
+                file_size, file_sha256, _git_blob_oid, _ = _stream_regular_hashes_stable(
+                    child, "tree_file", git_blob=False
+                )
+                total += file_size
                 if total > MAX_TOTAL_BYTES:
                     raise InstallError("tree_total_bytes_limit")
                 h.update(
                     b"F\0" + rel.encode("utf-8") + b"\0"
-                    + str(len(raw)).encode("ascii") + b"\0"
-                    + hashlib.sha256(raw).digest()
+                    + str(file_size).encode("ascii") + b"\0"
+                    + bytes.fromhex(file_sha256)
                 )
             else:
                 raise InstallError("tree_kind_invalid:" + rel)
