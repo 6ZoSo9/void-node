@@ -104,7 +104,7 @@ def _stream_regular(
     if (
         not stat.S_ISREG(before.st_mode)
         or stat.S_ISLNK(before.st_mode)
-        or before.st_nlink < 1
+        or before.st_nlink != 1
         or before.st_size < 0
         or before.st_size > MAX_FILE_BYTES
     ):
