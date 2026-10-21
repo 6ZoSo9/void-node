@@ -27,9 +27,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "4892ea4ed17884ae3b9c0ff01fa4a00618375a0c"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "bd9d176d455b548e2070c433e6a107212489ef10"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "17cc70c3a9af3b32f1e35edeb75af99e0a30108c"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "f3c17c0b6ff9635f8978a50daf92f3261bfb3b59"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_install_v1.py)" = "b8896eff83c77e1d26414a4caaa6788e7ce5891d"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-install-v1.md)" = "bd4dfa44947f2fb0367f2a9eee7001bf28a98d81"
 
           test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "6e187a9a6e782df13ecd423fc80c82b759a8f6db"
@@ -81,6 +81,8 @@ jobs:
           grep -Fx 'apply_root_dynamic_git_exec=false' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'termination_signal_reconciliation_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'install_parent_publication_lease_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'git_index_head_equality_required=true' "$RUNNER_TEMP/source-plan.log"
+          grep -Fx 'git_metadata_leaves_nonexecutable_required=true' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'service_mutation=false' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'transaction=false' "$RUNNER_TEMP/source-plan.log"
           grep -Fx 'funds_movement=false' "$RUNNER_TEMP/source-plan.log"
