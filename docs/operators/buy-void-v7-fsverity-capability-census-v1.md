@@ -31,10 +31,10 @@ Before mount selection, V1 requires `/opt` itself to be a real directory at its 
 The census uses:
 
 - bounded direct reads of `/proc/self/mountinfo`, `/proc/filesystems`, and readable kernel-config sources;
-- bounded streaming decompression for `/proc/config.gz`: at most `MAX_CONFIG_BYTES + 1` output is materialized, expansion past the 4 MiB limit is rejected, and decompression memory exhaustion is normalized to HOLD;
+- bounded streaming decompression for `/proc/config.gz`: at most `MAX_CONFIG_BYTES + 1` output is materialized, expansion past the 4 MiB limit is rejected, malformed DEFLATE is normalized to HOLD, and decompression memory exhaustion is normalized to HOLD;
 - no subprocesses;
 - no shell;
-- no unbounded gzip decompression;
+- no unbounded gzip decompression or traceback-only malformed-DEFLATE path;
 - no ioctl calls;
 - no file creation;
 - no write-capable file descriptors;
