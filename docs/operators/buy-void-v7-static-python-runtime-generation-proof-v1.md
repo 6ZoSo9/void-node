@@ -35,13 +35,23 @@ Focused source proof:
 
 ## Current implementation HOLD
 
-The source currently refuses every `--run` before candidate bytes are opened or executed with:
+The source now contains a feature-detecting Linux candidate-process sandbox:
 
-`reason=candidate_execution_sandbox_not_implemented`.
+- Landlock ABI v3 or later is mandatory;
+- `PR_SET_NO_NEW_PRIVS` and non-dumpable execution are mandatory;
+- candidate filesystem access is restricted to read/execute `bin`, read-only `lib`, and non-executable scratch `tmp` beneath the private runtime;
+- a seccomp BPF filter denies sockets/network syscalls, process creation and signalling, ptrace/process-VM/pidfd control, namespaces/mounts, handle-based filesystem escape, io_uring, kernel-key/BPF/perf/module/reboot/swap surfaces, and x32 syscall escape;
+- child CPU/address-space/output/fd/process limits remain mandatory.
 
-This is intentional. An externally supplied executable is untrusted; running it merely as the ordinary VOID/user identity would still expose user-readable/writable files, network access, same-UID processes and process-spawn capability. Those powers are outside this proof's authority.
+The source self-test applies these restrictions in a disposable child and requires: an allowed runtime read succeeds, scratch write succeeds, `/etc/passwd` content read is denied, socket creation is denied, and fork is denied.
 
-A later source generation must add and independently review an execution sandbox that confines candidate filesystem access to the private runtime/scratch tree, provides no network capability, forbids process spawning and same-UID process inspection/control, sets `NoNewPrivileges`, and preserves the resource/output limits below. Until then, no candidate execution receipt can exist.
+**Candidate `--run` is still intentionally disabled.** Pathname-backed copies of the externally supplied Python executable and stdlib ZIP are owned by the same ordinary UID as other user processes. Another same-UID process could chmod or replace those scratch bytes after parent authentication but before candidate exec. Landlock confines the candidate process; it does not retroactively confine sibling processes.
+
+Current `--run` therefore HOLDS before candidate bytes are opened or executed with:
+
+`reason=candidate_execution_snapshot_not_same_uid_immutable`.
+
+A later reviewed generation must present the exact Python+ZIP bytes through a same-UID-resistant immutable execution snapshot while preserving the sandbox above. No candidate runtime receipt can exist until that boundary is closed.
 
 ## Candidate inputs
 
@@ -121,7 +131,7 @@ Candidate processes receive bounded CPU, address space, output-file size and des
 
 ## Result semantics
 
-**Current source cannot emit candidate GREEN because `--run` is sandbox-HOLD.** After a separately reviewed sandbox implementation closes that boundary, a successful candidate run is intended to emit:
+**Current source cannot emit candidate GREEN because `--run` remains immutable-snapshot HOLD.** After a separately reviewed same-UID-resistant runtime snapshot closes that final execution-byte race, a successful candidate run is intended to emit:
 
 \`status=RUNTIME_CLOSURE_GREEN\`
 
