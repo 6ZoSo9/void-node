@@ -779,6 +779,8 @@ def _verify_candidate_metadata_fds(
     pack_index_identity: tuple[int, int, int, int, int, int, int, int, int],
     pack_sha256: str,
     pack_index_sha256: str,
+    index_identity: tuple[int, int, int, int, int, int, int, int, int],
+    index_sha256: str,
 ) -> None:
     git_visible = os.stat(".git", dir_fd=candidate_fd, follow_symlinks=False)
     if _identity(git_visible) != _identity(os.fstat(git_fd)) or not stat.S_ISDIR(git_visible.st_mode):
@@ -873,11 +875,19 @@ def _verify_candidate_metadata_fds(
     index_visible = os.stat("index", dir_fd=git_fd, follow_symlinks=False)
     index_retained = os.fstat(index_fd)
     if (
-        _identity(index_visible) != _identity(index_retained)
-        or not stat.S_ISREG(index_visible.st_mode)
+        not stat.S_ISREG(index_visible.st_mode)
+        or stat.S_ISLNK(index_visible.st_mode)
         or index_visible.st_nlink != 1
+        or index_visible.st_uid != os.getuid()
+        or _file_generation_identity(index_visible) != index_identity
+        or _file_generation_identity(index_retained) != index_identity
     ):
         raise ResealError("candidate_index_generation_changed")
+    observed_index_sha, _observed_index_size = _sha256_fd(
+        index_fd, "candidate_index"
+    )
+    if observed_index_sha != index_sha256:
+        raise ResealError("candidate_index_digest_changed")
     config_raw = _read_regular_at(git_fd, "config", "candidate_git_config")
     if config_raw.decode("utf-8", "strict") != CONFIG_TEXT:
         raise ResealError("git_config_not_exact_closed_form")
@@ -903,6 +913,8 @@ def verify_candidate_lease(
     pack_index_identity: tuple[int, int, int, int, int, int, int, int, int],
     pack_sha256: str,
     pack_index_sha256: str,
+    index_identity: tuple[int, int, int, int, int, int, int, int, int],
+    index_sha256: str,
 ) -> None:
     _revalidate_candidate_lease(
         output, parent_fd, parent_identity, candidate_fd, candidate_identity
@@ -911,6 +923,7 @@ def verify_candidate_lease(
         candidate_fd, git_fd, objects_fd, pack_fd, refs_fd, heads_fd, tags_fd,
         pack_file_fd, pack_index_file_fd, index_fd, pack_name, pack_index_name,
         pack_file_identity, pack_index_identity, pack_sha256, pack_index_sha256,
+        index_identity, index_sha256,
     )
     if _candidate_text(candidate_fd, git_fd, objects_fd, "rev-parse", "--is-shallow-repository", index_file_fd=index_fd) != "false":
         raise ResealError("candidate_repository_shallow")
@@ -942,6 +955,7 @@ def verify_candidate_lease(
         candidate_fd, git_fd, objects_fd, pack_fd, refs_fd, heads_fd, tags_fd,
         pack_file_fd, pack_index_file_fd, index_fd, pack_name, pack_index_name,
         pack_file_identity, pack_index_identity, pack_sha256, pack_index_sha256,
+        index_identity, index_sha256,
     )
 
 def _receipt_safe_path(path: Path, label: str) -> str:
@@ -1138,8 +1152,8 @@ def build(output: Path) -> None:
     output = _validate_output(output)
 
     parent_fd = candidate_fd = git_fd = objects_fd = pack_fd = refs_fd = heads_fd = tags_fd = pack_file_fd = pack_index_file_fd = index_tmp_fd = index_fd = -1
-    pack_file_identity = pack_index_identity = None
-    pack_sha256 = pack_index_sha256 = ""
+    pack_file_identity = pack_index_identity = index_identity = None
+    pack_sha256 = pack_index_sha256 = index_sha256 = ""
     worktree_directory_fds: dict[tuple[bytes, ...], int] = {}
     worktree_directory_ids: dict[
         tuple[bytes, ...], tuple[int, int, int, int, int]
@@ -1330,6 +1344,17 @@ def build(output: Path) -> None:
             or index_stat.st_uid != os.getuid()
         ):
             raise ResealError("candidate_index_metadata_invalid")
+        index_identity = _file_generation_identity(index_stat)
+        index_sha256, _index_bytes = _sha256_fd(
+            index_fd, "candidate_index"
+        )
+        visible_index = os.stat(
+            "index", dir_fd=git_fd, follow_symlinks=False
+        )
+        if _file_generation_identity(visible_index) != index_identity:
+            raise ResealError("candidate_index_generation_changed_after_open")
+        if _sha256_fd(index_fd, "candidate_index")[0] != index_sha256:
+            raise ResealError("candidate_index_digest_changed_after_open")
         os.unlink("index", dir_fd=index_tmp_fd)
         os.close(index_tmp_fd)
         index_tmp_fd = -1
@@ -1359,6 +1384,8 @@ def build(output: Path) -> None:
             pack_index_identity,
             pack_sha256,
             pack_index_sha256,
+            index_identity,
+            index_sha256,
         )
         _verify_materialized_candidate_worktree(
             candidate_fd,
@@ -1423,6 +1450,7 @@ def build(output: Path) -> None:
     print("pack_and_ref_aliases_rejected=true")
     print("pack_leaf_descriptors_retained=true")
     print("pack_leaf_generation_and_digest_revalidation=true")
+    print("index_leaf_generation_and_digest_revalidation=true")
     print("candidate_cleanup_attempted=false")
     print("candidate_retained_on_success=true")
     print("current_uid_filesystem_write_boundary=true")
