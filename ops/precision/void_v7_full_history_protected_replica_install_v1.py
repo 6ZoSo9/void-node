@@ -1047,7 +1047,9 @@ def source_plan() -> None:
     print("candidate_copy_exact_planned_counts_required=true")
     print("candidate_utf8_path_components_required=true")
     print("candidate_receipt_safe_path_components_required=true")
+    print("candidate_printable_path_components_required=true")
     print("terminal_reason_line_sanitization_required=true")
+    print("terminal_reason_printable_sanitization_required=true")
     print("opened_generation_copy_budget_required=true")
     print("write_boundary_precedes_first_stage_mutation=true")
     print("service_mutation=false")
@@ -1349,11 +1351,7 @@ _RECEIPT_LINE_SEPARATORS = frozenset(("\u0085", "\u2028", "\u2029"))
 def _receipt_safe_text(value: str, limit: int = 500) -> str:
     out: list[str] = []
     for ch in value[:limit]:
-        code = ord(ch)
-        if code < 0x20 or code == 0x7F or ch in _RECEIPT_LINE_SEPARATORS:
-            out.append("_")
-        else:
-            out.append(ch)
+        out.append(ch if ch.isprintable() else "_")
     return "".join(out)
 
 def _require_utf8_copy_component(name: str) -> None:
@@ -1364,12 +1362,7 @@ def _require_utf8_copy_component(name: str) -> None:
         raise InstallError("copy_entry_name_not_utf8") from exc
     if roundtrip != name or name in ("", ".", "..") or "/" in name:
         raise InstallError("copy_entry_name_invalid")
-    if any(
-        ord(ch) < 0x20
-        or ord(ch) == 0x7F
-        or ch in _RECEIPT_LINE_SEPARATORS
-        for ch in name
-    ):
+    if not all(ch.isprintable() for ch in name):
         raise InstallError("copy_entry_name_control_forbidden")
 
 def _copy_candidate_tree_iterative(
@@ -1900,6 +1893,9 @@ def self_test() -> None:
         "unit\x1fseparator",
         "delete\x7fchar",
         "nel\u0085separator",
+        "c1\u009bcontrol",
+        "zwj\u200dformat",
+        "bidi\u202eoverride",
         "unicode\u2028line",
         "unicode\u2029paragraph",
     ):
@@ -1910,14 +1906,12 @@ def self_test() -> None:
                 raise
         else:
             raise AssertionError("receipt_unsafe_copy_component_not_rejected")
-    unsafe_reason = "prefix\rforged=true\u0085next\u2028third\u2029fourth\nlast"
+    unsafe_reason = (
+        "prefix\rforged=true\u0085next\u009bcontrol\u200dformat"
+        "\u202eoverride\u2028third\u2029fourth\nlast"
+    )
     safe_reason = _receipt_safe_text(unsafe_reason)
-    if any(
-        ord(ch) < 0x20
-        or ord(ch) == 0x7F
-        or ch in _RECEIPT_LINE_SEPARATORS
-        for ch in safe_reason
-    ):
+    if any(not ch.isprintable() for ch in safe_reason):
         raise AssertionError("receipt_reason_sanitizer_failed")
     with tempfile.TemporaryDirectory(prefix="void-v7-acl-self-test-") as acl_td:
         acl_path = pathlib.Path(acl_td) / "probe"
@@ -1944,7 +1938,9 @@ def self_test() -> None:
     print("candidate_copy_iterative_depth_bound_required=true")
     print("candidate_utf8_path_components_required=true")
     print("candidate_receipt_safe_path_components_required=true")
+    print("candidate_printable_path_components_required=true")
     print("terminal_reason_line_sanitization_required=true")
+    print("terminal_reason_printable_sanitization_required=true")
     print("rename_noreplace_publication_required=true")
     print("trusted_root_launcher_required=true")
     print("service_mutation=false")
