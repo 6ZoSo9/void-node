@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="6ecbf3aa65d40071a466236ca7fb27376615e198"
+assert gblob(INS)=="2b93bd17a2121a447a011cbf414444ac3c71c395"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -310,6 +310,9 @@ with tempfile.TemporaryDirectory(prefix="void-v7-direct-tree-git-oracle-") as td
     executable = repo / "sub" / "run.sh"
     executable.write_bytes(b"#!/bin/sh\nexit 0\n")
     os.chmod(executable, 0o755)
+    group_exec = repo / "group-exec.sh"
+    group_exec.write_bytes(b"#!/bin/sh\nexit 0\n")
+    os.chmod(group_exec, 0o650)
     (repo / "link").symlink_to("plain.txt")
     # Prefix-order adversary: Git sorts a directory as if its name ended in '/'.
     (repo / "aa.dir").write_bytes(b"prefix-file\n")
