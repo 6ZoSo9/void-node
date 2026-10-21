@@ -70,7 +70,7 @@ jobs:
           log="$RUNNER_TEMP/canonical-erc20-delivery-canary-plan-v1.log"
           node scripts/prove_buy_void_canonical_erc20_delivery_canary_plan_v1.mjs | tee "$log"
           grep -Fx 'VOID_BUY_VOID_CANONICAL_ERC20_DELIVERY_CANARY_PLAN_V1_GREEN' "$log"
-          grep -Fx 'plan_id=voidbverc20canary1_ca4048a864c8e442b3cdab3ec661af9ae5c592443fd386935f3017ec04694b4b' "$log"
+          grep -Fx 'plan_id=voidbverc20canary1_4be198f8ca6f6850d7d328684107feef01c97810e4a07a5411213ad55d0ee63f' "$log"
           grep -Fx 'source_binding_count=21' "$log"
           grep -Fx 'future_requirement_count=30' "$log"
           grep -Fx 'canonical_asset=void_token_erc20' "$log"
@@ -90,4 +90,4 @@ jobs:
 
       - name: Diff hygiene
         shell: bash
-        run: git diff --check 47acc1485ab264a1a33d6a8c70072c2c18ce56e4 HEAD
+        run: git diff --check 0d93be0a7ae1395449a386d4fbe14bb680f51c3f HEAD

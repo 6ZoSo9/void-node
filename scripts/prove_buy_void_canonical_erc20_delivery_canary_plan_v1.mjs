@@ -2,14 +2,13 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
-
 const MARKER="VOID_BUY_VOID_CANONICAL_ERC20_DELIVERY_CANARY_PLAN_V1";
 const ROOT=process.cwd();
-const BASE_HEAD="47acc1485ab264a1a33d6a8c70072c2c18ce56e4";
-const BASE_TREE="6f5ff9b2bd081a355186084fab74eeb10322ce6e";
+const BASE_HEAD="0d93be0a7ae1395449a386d4fbe14bb680f51c3f";
+const BASE_TREE="199f3949a8955077124822269560b1a4e1ed5e30";
 const PLAN_PATH="ops/security/buy-void-canonical-erc20-delivery-canary-plan-v1.json";
-const PLAN_BLOB="d10b1eb9fe9493762b5d6338ddfbfdab49152f0a";
-const PLAN_ID="voidbverc20canary1_ca4048a864c8e442b3cdab3ec661af9ae5c592443fd386935f3017ec04694b4b";
+const PLAN_BLOB="d4107402cd1a03a14e735adf8d89b2fc25eabce9";
+const PLAN_ID="voidbverc20canary1_4be198f8ca6f6850d7d328684107feef01c97810e4a07a5411213ad55d0ee63f";
 const OWNED=Object.freeze([
   ".github/workflows/buy-void-canonical-erc20-delivery-canary-plan-v1.yml",
   "docs/architecture/buy-void-canonical-erc20-delivery-canary-plan-v1.md",
@@ -107,44 +106,15 @@ const AUTH=Object.freeze({
   "transaction_broadcast":false,
   "wallet_or_signer_access":false,
 });
-
-function git(args){
-  return execFileSync("/usr/bin/git",args,{
-    cwd:ROOT,encoding:"utf8",
-    env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",
-      GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null"},
-  }).trim();
-}
-function gitBlob(bytes){
-  return crypto.createHash("sha1")
-    .update(Buffer.from("blob "+String(bytes.length)+"\0","utf8"))
-    .update(bytes).digest("hex");
-}
-function stable(value){
-  if(Array.isArray(value)) return value.map(stable);
-  if(value&&typeof value==="object"){
-    const out={};
-    for(const key of Object.keys(value).sort()) out[key]=stable(value[key]);
-    return out;
-  }
-  return value;
-}
-function sha256Text(value){
-  return crypto.createHash("sha256").update(value,"utf8").digest("hex");
-}
+function git(args){return execFileSync("/usr/bin/git",args,{cwd:ROOT,encoding:"utf8",env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null"}}).trim();}
+function gitBlob(bytes){return crypto.createHash("sha1").update(Buffer.from("blob "+String(bytes.length)+"\0","utf8")).update(bytes).digest("hex");}
+function stable(value){if(Array.isArray(value))return value.map(stable);if(value&&typeof value==="object"){const out={};for(const key of Object.keys(value).sort())out[key]=stable(value[key]);return out;}return value;}
+function sha256Text(value){return crypto.createHash("sha256").update(value,"utf8").digest("hex");}
 function source(path){return fs.readFileSync(path,"utf8");}
-
 assert.equal(git(["rev-parse",BASE_HEAD+"^{tree}"]),BASE_TREE,"base_tree_drift");
 assert.equal(git(["merge-base",BASE_HEAD,"HEAD"]),BASE_HEAD,"base_not_ancestor");
-const scope=git(["diff","--name-status",BASE_HEAD,"HEAD"]).split("\n")
-  .filter(Boolean).map(line=>{
-    const parts=line.split("\t");
-    assert.equal(parts.length,2,"scope_shape");
-    assert.equal(parts[0],"A","scope_not_add:"+line);
-    return parts[1];
-  }).sort();
+const scope=git(["diff","--name-status",BASE_HEAD,"HEAD"]).split("\n").filter(Boolean).map(line=>{const parts=line.split("\t");assert.equal(parts.length,2,"scope_shape");assert.equal(parts[0],"A","scope_not_add:"+line);return parts[1];}).sort();
 assert.deepEqual(scope,OWNED,"exact_four_add_scope_required");
-
 const planBytes=fs.readFileSync(PLAN_PATH);
 assert.equal(gitBlob(planBytes),PLAN_BLOB,"plan_blob_drift");
 const plan=JSON.parse(planBytes.toString("utf8"));
@@ -154,81 +124,24 @@ assert.equal(plan.base_head,BASE_HEAD);
 assert.equal(plan.base_tree,BASE_TREE);
 assert.equal(plan.status,"HOLD");
 assert.equal(plan.plan_id,PLAN_ID);
-const core={...plan}; delete core.plan_id;
-assert.equal("voidbverc20canary1_"+sha256Text(JSON.stringify(stable(core))),
-  PLAN_ID,"plan_id_recompute_mismatch");
+const core={...plan};delete core.plan_id;
+assert.equal("voidbverc20canary1_"+sha256Text(JSON.stringify(stable(core))),PLAN_ID,"plan_id_recompute_mismatch");
 assert.deepEqual(plan.source_bindings,SOURCE_BINDINGS,"source_bindings_drift");
-assert.deepEqual([...plan.future_requirements].sort(),[...REQUIRED].sort(),
-  "future_requirements_drift");
+assert.deepEqual([...plan.future_requirements].sort(),[...REQUIRED].sort(),"future_requirements_drift");
 assert.deepEqual(plan.current_observations,OBS,"current_observations_drift");
 assert.deepEqual(plan.authority,AUTH,"authority_drift");
-
-for(const [path,expected] of Object.entries(SOURCE_BINDINGS)){
-  assert.equal(gitBlob(fs.readFileSync(path)),expected,"source_blob_drift:"+path);
-}
-
+for(const [path,expected] of Object.entries(SOURCE_BINDINGS))assert.equal(gitBlob(fs.readFileSync(path)),expected,"source_blob_drift:"+path);
 const config=source("src/economic/buy_void_erc20_delivery_runtime_activation_configuration_contract_v1.ts");
-for(const text of [
-  'canonical_chain_id: "2050"',
-  'canonical_asset: "void_token_erc20"',
-  'canonical_delivery_runtime_activation_ready: false',
-  'canonical_delivery_runtime_parent_mounted: true',
-  'canonical_delivery_execution_ready: false',
-  'presale_inventory_funding_ready: false',
-  'disabled_delivery_canary_max_may_be_lower: true',
-  'public_delivery_activation_requires_presale_capacity_max: true',
-  'production_broad_delivery_configuration_verified: false',
-  'canonical_delivery_action: "sign_and_broadcast"',
-  'durable_wallet_nonce_reservation_required: true',
-  'signed_hash_custody_required: true',
-  'write_ahead_broadcast_intent_required: true',
-  'receipt_reconciliation_required: true',
-]) assert.ok(config.includes(text),"configuration_contract_missing:"+text);
-
+for(const text of ['canonical_chain_id: "2050"','canonical_asset: "void_token_erc20"','canonical_delivery_runtime_activation_ready: false','canonical_delivery_runtime_parent_mounted: true','canonical_delivery_execution_ready: false','presale_inventory_funding_ready: false','disabled_delivery_canary_max_may_be_lower: true','public_delivery_activation_requires_presale_capacity_max: true','production_broad_delivery_configuration_verified: false','canonical_delivery_action: "sign_and_broadcast"','durable_wallet_nonce_reservation_required: true','signed_hash_custody_required: true','write_ahead_broadcast_intent_required: true','receipt_reconciliation_required: true'])assert.ok(config.includes(text),"configuration_contract_missing:"+text);
 const retired=source("scripts/buy_void_production_canary_candidate_reservation_v1.ts");
-for(const text of [
-  'retired_for_canonical_erc20_transition: true',
-  'canonical_delivery_asset: "void_token_erc20"',
-  'legacy_parent_runtime_action_reachable: false',
-  'signing: false',
-  'transaction_broadcast: false',
-  'money_movement: false',
-]) assert.ok(retired.includes(text),"retired_canary_contract_missing:"+text);
-
+for(const text of ['retired_for_canonical_erc20_transition: true','canonical_delivery_asset: "void_token_erc20"','legacy_parent_runtime_action_reachable: false','signing: false','transaction_broadcast: false','money_movement: false'])assert.ok(retired.includes(text),"retired_canary_contract_missing:"+text);
 const preflight=source("src/economic/buy_void_production_live_canary_preflight_v1.ts");
-for(const text of [
-  'native_execution_apply: false',
-  'signing_authorized: false',
-  'transaction_broadcast_authorized: false',
-  'money_movement_authorized: false',
-  'live_canary_authorized_by_preflight: false',
-]) assert.ok(preflight.includes(text),"legacy_preflight_authority_missing:"+text);
-
+for(const text of ['native_execution_apply: false','signing_authorized: false','transaction_broadcast_authorized: false','money_movement_authorized: false','live_canary_authorized_by_preflight: false'])assert.ok(preflight.includes(text),"legacy_preflight_authority_missing:"+text);
 const participant=source("tools/void-participant-postpurchase-voidtoken-control-v1.mjs");
-for(const text of [
-  'chain_id: "2050"',
-  'native_value_wei_required: "0"',
-  'transfer_selector: "0xa9059cbb"',
-  'delivery_recipient_signer_binding_required: true',
-  'source_only: true',
-  'transaction_broadcast: false',
-  'public_submission_open: false',
-  'token_movement: false',
-  'public_presale_activation: false',
-]) assert.ok(participant.includes(text),"participant_control_contract_missing:"+text);
-
-const allocation=source("src/economic/buy_void_verified_payment_capacity_admission_v1.ts");
-assert.ok(allocation.includes("production_gate_ready: false"),
-  "allocation_handoff_production_gate_must_remain_false");
-
+for(const text of ['chain_id: "2050"','native_value_wei_required: "0"','transfer_selector: "0xa9059cbb"','delivery_recipient_signer_binding_required: true','source_only: true','transaction_broadcast: false','public_submission_open: false','token_movement: false','public_presale_activation: false'])assert.ok(participant.includes(text),"participant_control_contract_missing:"+text);
+assert.ok(source("src/economic/buy_void_verified_payment_capacity_admission_v1.ts").includes("production_gate_ready: false"),"allocation_handoff_production_gate_must_remain_false");
 assert.equal(AUTH.source_plan_only,true);
-for(const key of [
-  "canary_execution","credential_read","funds_movement","inventory_funding",
-  "mounted_operator_route_verified","payment_acceptance","presale_activation",
-  "public_delivery_activation","rpc_call","runtime_mutation","signing",
-  "transaction_broadcast","wallet_or_signer_access",
-]) assert.equal(AUTH[key],false,key);
-
+for(const key of ["canary_execution","credential_read","funds_movement","inventory_funding","mounted_operator_route_verified","payment_acceptance","presale_activation","public_delivery_activation","rpc_call","runtime_mutation","signing","transaction_broadcast","wallet_or_signer_access"])assert.equal(AUTH[key],false,key);
 console.log(MARKER+"_GREEN");
 console.log("plan_id="+PLAN_ID);
 console.log("source_binding_count="+Object.keys(SOURCE_BINDINGS).length);

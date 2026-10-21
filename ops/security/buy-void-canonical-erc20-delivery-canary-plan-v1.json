@@ -15,8 +15,8 @@
     "transaction_broadcast": false,
     "wallet_or_signer_access": false
   },
-  "base_head": "47acc1485ab264a1a33d6a8c70072c2c18ce56e4",
-  "base_tree": "6f5ff9b2bd081a355186084fab74eeb10322ce6e",
+  "base_head": "0d93be0a7ae1395449a386d4fbe14bb680f51c3f",
+  "base_tree": "199f3949a8955077124822269560b1a4e1ed5e30",
   "current_observations": {
     "allocation_handoff_production_gate_ready": false,
     "canonical_asset": "void_token_erc20",
@@ -69,7 +69,7 @@
     "transfer_amount_equals_bound_allocation_required",
     "write_ahead_broadcast_intent_before_rpc_required"
   ],
-  "plan_id": "voidbverc20canary1_ca4048a864c8e442b3cdab3ec661af9ae5c592443fd386935f3017ec04694b4b",
+  "plan_id": "voidbverc20canary1_4be198f8ca6f6850d7d328684107feef01c97810e4a07a5411213ad55d0ee63f",
   "repository": "6ZoSo9/void-node",
   "schema": "void_buy_void_canonical_erc20_delivery_canary_plan_v1",
   "source_bindings": {
