@@ -1,0 +1,97 @@
+name: VOID protected V4 canonical V5 composition v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"
+      - ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"
+      - ".github/workflows/buy-void-protected-v4-canonical-v5-composition-v1.yml"
+      - ".github/workflows/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.yml"
+      - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v4.md"
+      - "docs/architecture/buy-void-protected-v4-canonical-v5-composition-v1.md"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v4.md"
+      - "docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs"
+      - "scripts/prove_buy_void_protected_v4_canonical_v5_composition_v1.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact composition head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact checkout and two-parent ancestry
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          read -r head p1 p2 extra <<<"$(git rev-list --parents -n 1 HEAD)"
+          test "$head" = "$EXPECTED_HEAD"
+          test "$p1" = "e7ad76967282b342118839cb507414de47051c69"
+          test "$p2" = "895c2bf320defbbca5fba6792e2a75126b2c4d76"
+          test -z "${extra:-}"
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Bind exact composition sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_protected_v4_canonical_v5_composition_v1.mjs)" = "20bcb325b244fc332beb924139fd20b91ac17d64"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-protected-v4-canonical-v5-composition-v1.md)" = "5e2808ef5597b59791a2310c2377030b7c8497d6"
+          mapfile -t actual < <(git diff --name-only "e7ad76967282b342118839cb507414de47051c69" HEAD | sort)
+          expected=(
+            ".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml"
+            ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"
+            ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"
+            ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"
+            ".github/workflows/buy-void-protected-v4-canonical-v5-composition-v1.yml"
+            ".github/workflows/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.yml"
+            ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+            "docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v4.md"
+            "docs/architecture/buy-void-protected-v4-canonical-v5-composition-v1.md"
+            "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md"
+            "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v4.md"
+            "docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md"
+            "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+            "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json"
+            "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs"
+            "scripts/prove_buy_void_protected_v4_canonical_v5_composition_v1.mjs"
+            "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+            "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs"
+            "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+            "scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs"
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "e7ad76967282b342118839cb507414de47051c69" HEAD
+      - name: Syntax
+        run: node --check scripts/prove_buy_void_protected_v4_canonical_v5_composition_v1.mjs
+      - name: Prove composition
+        run: node scripts/prove_buy_void_protected_v4_canonical_v5_composition_v1.mjs

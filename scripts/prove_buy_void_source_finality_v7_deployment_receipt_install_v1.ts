@@ -13,6 +13,7 @@ import {
   inspectBuyVoidCurrentEnforcementTrackedSourceInventoryV1,
   assertBuyVoidCandidateCurrentEnforcementTrackedSourceInventoryV1,
   inspectRepositoryIdentityV1,
+  readTrackedFileV1,
   installRootCustodiedReceiptV1,
 } from "../ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.js";
 import {
@@ -152,6 +153,147 @@ function proveRepositoryLocalFsmonitorIgnoredV1(){
   }
 }
 
+function proveProductionTrackedFileReadBoundaryV1(){
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-v7-tracked-reader-"));
+  const repoRoot=path.join(temp,"repo");
+  const relative="ops/security/reader-fixture.json";
+  const absolute=path.join(repoRoot,...relative.split("/"));
+  const payload=Buffer.from('{"fixture":"reviewed"}\n',"utf8");
+  const mutableFs=fs as any;
+  const originalOpenSync=fs.openSync;
+  const originalReadSync=fs.readSync;
+  const gitEnv={PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"};
+  try{
+    fs.mkdirSync(path.dirname(absolute),{recursive:true,mode:0o700});
+    fs.writeFileSync(absolute,payload,{mode:0o600});
+    execFileSync("/usr/bin/git",["init","-b","main",repoRoot],{
+      stdio:"ignore",env:gitEnv,
+    });
+    execFileSync("/usr/bin/git",["-C",repoRoot,"add",relative],{
+      stdio:"ignore",env:gitEnv,
+    });
+    execFileSync("/usr/bin/git",[
+      "-C",repoRoot,
+      "-c","user.name=VOID Proof",
+      "-c","user.email=void-proof.invalid@example.invalid",
+      "commit","-m","fixture",
+    ],{stdio:"ignore",env:gitEnv});
+
+    const good=readTrackedFileV1(repoRoot,relative,payload.length);
+    assert.ok(good.bytes.equals(payload),"production_tracked_reader_success_bytes");
+
+    const replacement=absolute+".replacement-original";
+    let replaced=false;
+    mutableFs.openSync=(...args:any[])=>{
+      if(!replaced&&path.resolve(String(args[0]))===absolute){
+        replaced=true;
+        fs.renameSync(absolute,replacement);
+        fs.writeFileSync(absolute,payload,{mode:0o600});
+      }
+      return (originalOpenSync as any)(...args);
+    };
+    assert.throws(
+      ()=>readTrackedFileV1(repoRoot,relative,payload.length),
+      /accepted_enforcement_file_open_generation_mismatch/u,
+    );
+    assert.equal(replaced,true,"production_tracked_reader_replacement_not_exercised");
+    mutableFs.openSync=originalOpenSync;
+    fs.rmSync(absolute,{force:true});
+    fs.renameSync(replacement,absolute);
+
+    const directTarget=absolute+".direct-target";
+    fs.renameSync(absolute,directTarget);
+    fs.symlinkSync(path.basename(directTarget),absolute);
+    assert.throws(
+      ()=>readTrackedFileV1(repoRoot,relative,payload.length),
+      /accepted_enforcement_file_shape_invalid/u,
+    );
+    fs.rmSync(absolute,{force:true});
+    fs.renameSync(directTarget,absolute);
+
+    const swapOriginal=absolute+".swap-original";
+    const swapTarget=absolute+".swap-target";
+    fs.writeFileSync(swapTarget,payload,{mode:0o600});
+    let symlinked=false;
+    mutableFs.openSync=(...args:any[])=>{
+      if(!symlinked&&path.resolve(String(args[0]))===absolute){
+        symlinked=true;
+        fs.renameSync(absolute,swapOriginal);
+        fs.symlinkSync(path.basename(swapTarget),absolute);
+      }
+      return (originalOpenSync as any)(...args);
+    };
+    assert.throws(
+      ()=>readTrackedFileV1(repoRoot,relative,payload.length),
+      (error:any)=>error?.code==="ELOOP",
+    );
+    assert.equal(symlinked,true,"production_tracked_reader_symlink_swap_not_exercised");
+    mutableFs.openSync=originalOpenSync;
+    fs.rmSync(absolute,{force:true});
+    fs.renameSync(swapOriginal,absolute);
+    fs.rmSync(swapTarget,{force:true});
+
+    const fifoOriginal=absolute+".fifo-original";
+    const beforeFifo=fs.lstatSync(absolute);
+    let fifoSwapped=false;
+    let fifoOpenFlags=0;
+    mutableFs.openSync=(...args:any[])=>{
+      if(!fifoSwapped&&path.resolve(String(args[0]))===absolute){
+        fifoSwapped=true;
+        fifoOpenFlags=Number(args[1]);
+        fs.renameSync(absolute,fifoOriginal);
+        execFileSync("/usr/bin/mkfifo",[absolute],{
+          stdio:"ignore",env:gitEnv,
+        });
+        fs.chmodSync(absolute,0o600);
+      }
+      return (originalOpenSync as any)(...args);
+    };
+    assert.throws(
+      ()=>readTrackedFileV1(repoRoot,relative,payload.length),
+      /accepted_enforcement_file_opened_shape_invalid/u,
+    );
+    assert.equal(fifoSwapped,true,
+      "production_tracked_reader_fifo_swap_not_exercised");
+    assert.equal(
+      (fifoOpenFlags&fs.constants.O_NONBLOCK)!==0,true,
+      "production_tracked_reader_fifo_open_not_nonblocking",
+    );
+    mutableFs.openSync=originalOpenSync;
+    fs.rmSync(absolute,{force:true});
+    fs.renameSync(fifoOriginal,absolute);
+    assert.equal(fs.lstatSync(absolute).ino,beforeFifo.ino,
+      "production_tracked_reader_fifo_original_not_restored");
+
+    let grew=false;
+    mutableFs.readSync=(...args:any[])=>{
+      if(!grew){
+        grew=true;
+        fs.appendFileSync(absolute,Buffer.from("X","utf8"));
+      }
+      return (originalReadSync as any)(...args);
+    };
+    assert.throws(
+      ()=>readTrackedFileV1(repoRoot,relative,payload.length),
+      /accepted_enforcement_file_size_limit_exceeded/u,
+    );
+    assert.equal(grew,true,"production_tracked_reader_growth_not_exercised");
+    mutableFs.readSync=originalReadSync;
+    fs.writeFileSync(absolute,payload,{mode:0o600});
+
+    const status=execFileSync("/usr/bin/git",[
+      "-C",repoRoot,"status","--porcelain=v1","--untracked-files=all",
+    ],{encoding:"utf8",env:gitEnv}).trim();
+    assert.equal(status,"","production_tracked_reader_fixture_not_restored");
+  }finally{
+    mutableFs.openSync=originalOpenSync;
+    mutableFs.readSync=originalReadSync;
+    fs.rmSync(temp,{recursive:true,force:true});
+  }
+}
+
+proveProductionTrackedFileReadBoundaryV1();
+
 proveRepositoryLocalFsmonitorIgnoredV1();
 
 const rootCapable=
@@ -211,6 +353,14 @@ console.log("matching_reapply_idempotent="+String(rootCapable));
 console.log("mismatched_existing_receipt_rejected="+String(rootCapable));
 console.log("leaf_root_owned_mode_0444_single_link="+String(rootCapable));
 console.log("unprivileged_proof_stack_safe="+String(!rootCapable));
+console.log("production_tracked_file_descriptor_bound=true");
+console.log("production_tracked_file_nofollow=true");
+console.log("production_tracked_file_nonblocking=true");
+console.log("production_tracked_file_max_plus_one_bounded=true");
+console.log("production_tracked_file_replacement_rejected=true");
+console.log("production_tracked_file_symlink_swap_rejected=true");
+console.log("production_tracked_file_fifo_swap_rejected=true");
+console.log("current_enforcement_inventory_uses_bounded_descriptor=true");
 console.log("service_mutation=false");
 console.log("credential_wallet_signer_transaction_authority=false");
 console.log("presale_activation=false");
