@@ -57,7 +57,7 @@ V4_INSTALLER_BLOB = "4448acb51cbc15d845550a55cd11c38f4185a7b3"
 FULL_HISTORY_INSTALLER_REL = "ops/precision/void_v7_full_history_protected_replica_install_v1.py"
 FULL_HISTORY_INSTALLER_BLOB = "a4d5762fe0e1c41b0919b8abb827123e556552ca"
 QUALIFIER_REL = "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py"
-QUALIFIER_BLOB = "6ae8d863b693d711475d2c62ba955dc0b05de05e"
+QUALIFIER_BLOB = "09039f7e33ca0e252c31cb6fa49f783254e05fb2"
 
 SOURCE_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
 SOURCE_TREE = "de12c9d2d5e475d435d21da3b047d7b63b69e2b7"
@@ -693,7 +693,7 @@ def full_history_content_digest(
     return h.hexdigest(), nodes, total
 
 
-def verify_live_release() -> None:
+def verify_live_release() -> tuple[str, int, int]:
     root = LIVE_RELEASE
     if root.resolve(strict=True) != root or not root.is_dir() or root.is_symlink():
         raise InstallError("live_release_path_invalid")
@@ -723,6 +723,7 @@ def verify_live_release() -> None:
             break
         current = current.parent
     _require_runtime_uid_nonwritable(paths, "live_release")
+    live_tree_digest = tree_digest(root, SOURCE_RELEASE_ROOT_MODE)
     shallow_raw, shallow_identity = _read_metadata_file(
         root / ".git" / "shallow", "live_release_shallow", 4096
     )
@@ -739,6 +740,7 @@ def verify_live_release() -> None:
     for path, expected in identities:
         if _metadata_identity(path.lstat()) != expected:
             raise InstallError("live_release_ancestor_generation_changed:" + os.fspath(path))
+    return live_tree_digest
 
 
 def verify_source_release(
@@ -1192,7 +1194,7 @@ def collect_plan(
     install_parent_custody()
     verify_repository(expected_head, expected_tree)
     accepted_lock(expected_head, expected_tree)
-    verify_live_release()
+    live_identity = verify_live_release()
     source_ancestors = source_release_ancestor_custody()
     source_digest = tree_digest(SOURCE_RELEASE, SOURCE_RELEASE_ROOT_MODE)
     revalidate_source_release_ancestor_custody(source_ancestors)
@@ -1211,6 +1213,8 @@ def collect_plan(
         "predecessor_v3_installer_merge": PREDECESSOR_MERGE, "predecessor_v3_installer_tree": PREDECESSOR_TREE, "accepted_lock_id": LOCK_ID,
         "live_release": {"head": SOURCE_HEAD, "tree": SOURCE_TREE, "path": os.fspath(LIVE_RELEASE),
                          "root_mode": format(SOURCE_RELEASE_ROOT_MODE, "04o"), "shallow": True,
+                         "tree_digest": live_identity[0], "nodes": live_identity[1],
+                         "regular_file_bytes": live_identity[2],
                          "mutation_authorized": False},
         "source_release": {"head": SOURCE_HEAD, "tree": SOURCE_TREE, "path": os.fspath(SOURCE_RELEASE),
                            "root_mode": format(SOURCE_RELEASE_ROOT_MODE, "04o"),
@@ -1417,6 +1421,7 @@ def source_plan() -> None:
     print("trusted_launcher_expected_head_tree_pair_required=true")
     print("trusted_full_history_content_sha256_required=true")
     print("live_shallow_release_cross_binding_required=true")
+    print("live_release_acl_aware_tree_custody_required=true")
     print("protected_full_history_replica_source_required=true")
     print("v4_installer_dependency_bound=true")
     print("full_history_replica_installer_dependency_bound=true")
