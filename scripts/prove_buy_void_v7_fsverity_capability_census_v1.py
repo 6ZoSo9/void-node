@@ -10,7 +10,7 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py"
-TARGET_BLOB = "64d196b6dc0b779fa13f63440e04c2381444fd32"
+TARGET_BLOB = "123d0e1e6e57355850aeb9aa80f8632807ca5734"
 MARKER = "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_PROOF"
 
 
@@ -50,6 +50,8 @@ for required in (
     'target_path_alias_forbidden',
     'target_generation_changed',
     'target_path_generation_changed',
+    'target_mount_device_mismatch',
+    'target_mount_selection_ambiguous',
     'def _mount_for_target(',
     'def _kernel_config_value(',
     'def _parse_major_minor(',
@@ -105,11 +107,38 @@ mountinfo = (
     "40 36 8:3 / /opt rw,nosuid,nodev - ext4 /dev/sda3 rw\n"
 )
 rows = module._parse_mountinfo(mountinfo)
-selected = module._mount_for_target(rows, pathlib.Path("/opt/void-test"))
+selected = module._mount_for_target(
+    rows, pathlib.Path("/opt/void-test"), os.makedev(8, 3)
+)
 assert selected["mount_point"] == "/opt"
 assert selected["fstype"] == "ext4"
 assert selected["source"] == "/dev/sda3"
 assert module._parse_major_minor(selected["major_minor"]) == (8, 3)
+
+stacked = module._parse_mountinfo(
+    "36 25 8:2 / / rw - ext4 /dev/sda2 rw\n"
+    "40 36 8:3 / /opt rw - ext4 /dev/sda3 rw\n"
+    "41 36 0:42 / /opt rw - tmpfs tmpfs rw\n"
+)
+visible = module._mount_for_target(
+    stacked, pathlib.Path("/opt/void-test"), os.makedev(0, 42)
+)
+assert visible["mount_id"] == "41"
+assert visible["fstype"] == "tmpfs"
+
+ambiguous_mounts = module._parse_mountinfo(
+    "36 25 8:2 / / rw - ext4 /dev/sda2 rw\n"
+    "40 36 8:3 / /opt rw - ext4 /dev/sda3 rw\n"
+    "41 36 8:3 / /opt rw - ext4 /dev/sda3 rw\n"
+)
+try:
+    module._mount_for_target(
+        ambiguous_mounts, pathlib.Path("/opt/void-test"), os.makedev(8, 3)
+    )
+except module.CensusError as exc:
+    assert str(exc) == "target_mount_selection_ambiguous", str(exc)
+else:
+    raise AssertionError("ambiguous_stacked_mount_not_rejected")
 
 with tempfile.TemporaryDirectory(prefix="void-v7-fsverity-target-") as td:
     td_path = pathlib.Path(td)
@@ -190,6 +219,8 @@ for required in (
     "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_SELF_TEST_GREEN",
     "target_canonical_path_required=true",
     "terminal_target_generation_revalidation_required=true",
+    "target_mount_st_dev_binding_required=true",
+    "stacked_mount_ambiguity_rejected=true",
     "mountinfo_longest_prefix_selection_proven=true",
     "mountinfo_escape_decoding_proven=true",
     "mountinfo_device_number_binding_required=true",
@@ -257,6 +288,8 @@ print("root_execution_forbidden=true")
 print("target_symlink_adversary_rejected=true")
 print("target_canonical_path_required=true")
 print("terminal_target_generation_revalidation_required=true")
+print("target_mount_st_dev_binding_required=true")
+print("stacked_mount_ambiguity_rejected=true")
 print("mountinfo_descriptor_read_only_bound=true")
 print("kernel_config_fsverity_observation_bound=true")
 print("ext4_superblock_magic_bound=true")
