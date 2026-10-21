@@ -11,8 +11,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V5_PROOF"
 V5 = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_install_v5.py"
 Q4 = ROOT / "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py"
-V5_BLOB = "f000add1536bf7e1d1c679604e78a7ad42f5a8c5"
-Q4_BLOB = "46cacce75bb0af27de88212aee44c74cd084e595"
+V5_BLOB = "e8c3538aa3c3cc5e8a122a9b0ab1123deb1a7876"
+Q4_BLOB = "69b1ff028487a139470671cf0afb8937a299897d"
 
 
 def git_blob(raw: bytes) -> str:
@@ -65,7 +65,7 @@ required_v5 = (
     'SOURCE_RELEASE = pathlib.Path("/opt/void-v7-source-release-full-history-v1")',
     'V4_INSTALLER_BLOB = "4448acb51cbc15d845550a55cd11c38f4185a7b3"',
     'FULL_HISTORY_INSTALLER_BLOB = "a4d5762fe0e1c41b0919b8abb827123e556552ca"',
-    'QUALIFIER_BLOB = "46cacce75bb0af27de88212aee44c74cd084e595"',
+    'QUALIFIER_BLOB = "69b1ff028487a139470671cf0afb8937a299897d"',
     'def full_history_content_digest(',
     'def verify_live_release() -> None:',
     'allow_shallow=True',
@@ -74,10 +74,12 @@ required_v5 = (
     '"expected_full_history_content_sha256": expected_full_history_content_sha256',
     'parser.add_argument("--expected-full-history-content-sha256", default="")',
     'expected_full_history_content_sha256_required',
+    'or before.st_nlink != 1',
     'trusted_full_history_content_sha256_required=true',
     'live_shallow_release_cross_binding_required=true',
     'live_release_acl_aware_tree_custody_required=true',
     'protected_full_history_replica_source_required=true',
+    'full_history_regular_single_link_required=true',
     'live_runtime_release_mutation=false',
     'RUN_INSTALLED_QUALIFICATION_V4',
     'PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V5_GREEN',
