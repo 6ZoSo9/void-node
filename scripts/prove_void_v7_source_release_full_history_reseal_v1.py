@@ -58,8 +58,8 @@ assert 'def _sha256_fd(' in text
 assert 'pack_leaf_descriptors_retained=true' in text
 assert 'pack_leaf_generation_and_digest_revalidation=true' in text
 assert 'pack_generation_changed_during_verify' in text
-assert 'candidate_pack_file_digest_changed' in text
-assert 'candidate_pack_index_file_digest_changed' in text
+assert 'if observed_sha != expected_sha:' in text
+assert 'raise ResealError(label + "_digest_changed")' in text
 assert '_BUILD_WRITE_BOUNDARY_ENTERED = False' in text
 assert 'source_repository_mutation=unknown' in text
 assert 'protected_filesystem_mutation=unknown' in text
