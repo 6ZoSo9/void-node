@@ -250,6 +250,19 @@ static int open_regular_mode(const char *path,size_t max,mode_t exact_mode,bool 
     *id=fid(opened);return fd;
 }
 static void revalidate_file(const char *path,int fd,struct file_id expected){ struct stat a,b;if(fstat(fd,&a)||lstat(path,&b)||!same_id(fid(a),expected)||!same_id(fid(b),expected))hold("trusted_file_generation_changed"); }
+// The selected, already authenticated installer must remain open into Python.
+// The inactive installer keeps FD_CLOEXEC and is explicitly closed. The script
+// argument is an inherited descriptor, never a re-openable trusted pathname.
+static void prepare_installer_script_fd(int fd,char *path,size_t capacity){
+    if(fd<0||!path||capacity<20U)hold("selected_installer_descriptor_invalid");
+    int flags=fcntl(fd,F_GETFD);
+    if(flags<0||(flags&FD_CLOEXEC)==0)hold("selected_installer_not_close_on_exec");
+    if(fcntl(fd,F_SETFD,flags&~FD_CLOEXEC))hold("selected_installer_inheritance_failed");
+    int inherited=fcntl(fd,F_GETFD);
+    if(inherited<0||(inherited&FD_CLOEXEC))hold("selected_installer_inheritance_unverified");
+    int n=snprintf(path,capacity,"/proc/self/fd/%d",fd);
+    if(n<=0||(size_t)n>=capacity)hold("selected_installer_procfd_path_invalid");
+}
 static void require_running_self(struct file_id expected){
     char observed[PATH_MAX];
     ssize_t n=readlink("/proc/self/exe",observed,sizeof(observed)-1);
@@ -526,7 +539,10 @@ static bool parse_request_inner(int argc,char **argv,request_v1 *out,const char 
         if(!strcmp(key,"--expected-plan-id"))ok=set_arg_once(&r.expected_plan_id,value,reason);
         else if(!strcmp(key,"--confirm"))ok=set_arg_once(&r.confirm,value,reason);
         else {*reason="argument_invalid";return false;}
-        if(!ok)return false;i+=2;
+        if(!ok){
+            return false;
+        }
+        i+=2;
     }
     if(apply){
         if(!planid_prefix(r.expected_plan_id,prefix)||!r.confirm||strcmp(r.confirm,confirm)){
@@ -545,6 +561,21 @@ static request_v1 parse_request(int argc,char **argv){
 static int selftest_fail(const char *reason){
     fprintf(stderr, MARKER "_SELF_TEST_HOLD reason=%s\\n", reason);
     return 1;
+}
+static int installer_fd_selftest(void){
+    int fd=open("/dev/null",O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
+    if(fd<0)return selftest_fail("selected_installer_fd_fixture_open_failed");
+    char script_path[48]={0};
+    prepare_installer_script_fd(fd,script_path,sizeof(script_path));
+    struct stat opened={0},through_procfd={0};
+    int flags=fcntl(fd,F_GETFD);
+    bool ok=flags>=0&&(flags&FD_CLOEXEC)==0&&
+        !strncmp(script_path,"/proc/self/fd/",sizeof("/proc/self/fd/")-1)&&
+        fstat(fd,&opened)==0&&stat(script_path,&through_procfd)==0&&
+        opened.st_dev==through_procfd.st_dev&&opened.st_ino==through_procfd.st_ino;
+    int close_rc=close(fd);
+    if(!ok||close_rc)return selftest_fail("selected_installer_fd_inheritance_self_test_failed");
+    return 0;
 }
 static int receipt_parser_selftest(void){
     char h[65];memset(h,'a',64);h[64]=0;char raw[65536];size_t off=0;
@@ -572,6 +603,7 @@ static int selftest(void){
     if(strcmp(hx,"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"))
         return selftest_fail("sha256_self_test_failed");
     if(receipt_parser_selftest())return 1;
+    if(installer_fd_selftest())return 1;
     {
         char *valid[]={"launcher","source-stage-plan"};
         request_v1 req={0};const char *reason=NULL;
@@ -644,6 +676,7 @@ static int selftest(void){
     puts("caller_receipt_bytes_authority=false");
     puts("cross_operation_confirmation_rejected=true");
     puts("python_retained_descriptor_exec_required=true");
+    puts("python_selected_installer_descriptor_inheritance_required=true");
     puts("python_isolated_no_site_no_bytecode_required=true");
     puts("minimal_environment_required=true");
     puts("production_payload_manifest_lock_embedded=false");
@@ -771,14 +804,22 @@ int main(int argc,char **argv){
 
     bool source=(req.operation==OP_SOURCE_PLAN||req.operation==OP_SOURCE_APPLY);
     bool apply=(req.operation==OP_SOURCE_APPLY||req.operation==OP_RECEIPT_APPLY);
-    const char *installer=source?FIXED_SOURCE_INSTALLER:FIXED_RECEIPT_INSTALLER;
+    int selected_installer_fd=source?source_installer_fd:receipt_installer_fd;
+    int unselected_installer_fd=source?receipt_installer_fd:source_installer_fd;
+    struct file_id selected_installer_id=source?source_installer_id:receipt_installer_id;
+    const char *selected_installer_path=source?FIXED_SOURCE_INSTALLER:FIXED_RECEIPT_INSTALLER;
 
     free_receipt(&receipt);close(receipt_fd);close(git_head_fd);close(git_config_fd);close(git_main_fd);
-    close(self_fd);close(policy_fd);close(source_installer_fd);close(receipt_installer_fd);close(stdlib_fd);
+    close(self_fd);close(policy_fd);
+    if(close(unselected_installer_fd))hold("unselected_installer_close_failed");
+    close(stdlib_fd);
+    revalidate_file(selected_installer_path,selected_installer_fd,selected_installer_id);
+    char installer_script[48];
+    prepare_installer_script_fd(selected_installer_fd,installer_script,sizeof(installer_script));
 
     char *args[20];size_t n=0;
     args[n++]=(char*)FIXED_PYTHON;args[n++]="-I";args[n++]="-B";args[n++]="-S";
-    args[n++]=(char*)installer;args[n++]=apply?"--apply":"--plan";
+    args[n++]=installer_script;args[n++]=apply?"--apply":"--plan";
     if(source){
         args[n++]="--expected-head";args[n++]=(char*)IMPLEMENTATION_HEAD;
         args[n++]="--expected-tree";args[n++]=(char*)IMPLEMENTATION_TREE;
