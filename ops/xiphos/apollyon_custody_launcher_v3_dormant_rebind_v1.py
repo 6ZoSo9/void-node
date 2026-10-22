@@ -873,11 +873,13 @@ def self_test()->None:
         "v3","no",
     )["lifecycle_state"]=="complete"
     own=Path(__file__).read_text(encoding="utf-8")
-    for forbidden in (
-        'systemctl","start','systemctl","stop',
+    forbidden_patterns=(
+        'systemctl",'+'"start',
+        'systemctl",'+'"stop',
         '"training_execution":True','"durable_attempt_claim":True',
         "eth_sendRawTransaction","PRIVATE KEY-----",
-    ):
+    )
+    for forbidden in forbidden_patterns:
         assert forbidden not in own,forbidden
     for required in (
         'run(["/usr/bin/systemctl","daemon-reload"])',
