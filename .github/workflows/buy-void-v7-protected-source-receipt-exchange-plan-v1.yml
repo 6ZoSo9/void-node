@@ -1,0 +1,79 @@
+name: VOID V7 protected source receipt exchange plan v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-v7-protected-source-receipt-exchange-plan-v1.yml"
+      - "docs/architecture/buy-void-v7-protected-source-receipt-exchange-plan-v1.md"
+      - "ops/security/buy-void-v7-protected-source-receipt-exchange-plan-v1.json"
+      - "scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+      - "ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c"
+      - "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts"
+      - "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts"
+      - "ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py"
+      - "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact plan head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact parent and four-add scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PARENT=be2fbe41aaba291d3f874b9de52bcb87336307f5
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+          mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-v7-protected-source-receipt-exchange-plan-v1.yml'
+            $'A\tdocs/architecture/buy-void-v7-protected-source-receipt-exchange-plan-v1.md'
+            $'A\tops/security/buy-void-v7-protected-source-receipt-exchange-plan-v1.json'
+            $'A\tscripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "$PARENT" HEAD
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Bind exact plan surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-protected-source-receipt-exchange-plan-v1.json)" = "22b94916ab3e93c8f594c3d25b70ee6f9a483375"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs)" = "d299e3a1b166f46a1bdd1e46c5bdf316e6ea024b"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-protected-source-receipt-exchange-plan-v1.md)" = "d73c9604530e6e7676a87e17c92598e32f7b8ced"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5.json)" = "46e3774ca442cf593d25b6062ab5538d5ac43611"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = "bc1b2f4095315861db7a257d4cc3c80a9f112530"
+
+      - name: Syntax
+        run: node --check scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs
+
+      - name: Prove exchange plan
+        run: node scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs
