@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+# Privileged apply must fail before importing any source-tree-shadowable module
+# unless Python was entered through the reviewed isolated/safe-path boundary.
+import sys as _bootstrap_sys
+
+_BOOTSTRAP_MARKER="VOID_BUY_VOID_V7_V5_RECEIPT_STAGE_INSTALL_V1"
+if (
+    _bootstrap_sys.flags.isolated != 1
+    or not getattr(_bootstrap_sys.flags, "safe_path", False)
+    or _bootstrap_sys.flags.optimize != 0
+    or not __debug__
+):
+    if __name__ == "__main__":
+        print(_BOOTSTRAP_MARKER)
+        print("status=HOLD")
+        print("reason=python_isolated_unoptimized_mode_required")
+        print("filesystem_write=false")
+        print("fixed_receipt_mutation=false")
+        raise SystemExit(2)
+    raise RuntimeError("python_isolated_unoptimized_mode_required")
 
 import argparse
 import ctypes
@@ -11,7 +29,7 @@ import re
 import stat
 import sys
 
-MARKER="VOID_BUY_VOID_V7_V5_RECEIPT_STAGE_INSTALL_V1"
+MARKER=_BOOTSTRAP_MARKER
 PLAN_PREFIX="voidv7v5receiptstageinstall1_"
 CONFIRM_TOKEN="INSTALL_VOID_V7_V5_RECEIPT_STAGE_V1_CREATE_ONLY"
 RENAME_NOREPLACE=1
@@ -245,6 +263,7 @@ def self_test():
     libc=ctypes.CDLL(None)
     assert getattr(libc,"renameat2",None) is not None
     print(MARKER+"_SELF_TEST_GREEN")
+    print("isolated_python_entry_required=true")
     print("create_only=true")
     print("rename_noreplace_required=true")
     print("exact_match_reapply_allowed=true")

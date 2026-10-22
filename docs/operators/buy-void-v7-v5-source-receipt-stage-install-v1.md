@@ -69,3 +69,26 @@ pair qualification followed by the separately reviewed hardened exchange
 implementation.
 
 PROTECT THE CORE.
+
+## Boundary hardening successor — October 22, 2026
+
+Independent review found two defenses present in the parallel staging prototype
+but absent from the canonical installer generation.
+
+All retained read-only `O_NOFOLLOW` source boundaries now also use
+`O_NONBLOCK`, so a regular-to-FIFO substitution cannot turn an authenticated
+pathname race into a blocking open. The source self-test exercises that exact
+race at `_copy_regular_at` and requires fail-closed behavior with no
+destination bytes created.
+
+The receipt installer now checks isolated/safe-path/unoptimized Python before
+importing any source-tree-shadowable module. Its proof places a hostile sibling
+`argparse.py` beside a copied installer and invokes it without `-I`; the
+installer must HOLD before the hostile module executes.
+
+Targets, create-only publication, content-addressed plans, fixed-V4 guards,
+exchange authority, service authority, presale authority and funds authority
+are unchanged. The V2 trusted launcher already supplies static Python
+`-I -B -S`; this adds defense-in-depth for accidental direct execution.
+
+PROTECT THE CORE.

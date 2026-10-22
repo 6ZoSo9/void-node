@@ -19,6 +19,9 @@ required=(
  'BUILDER_BLOB = "bb78c7d9f468baa20b580d052d934d9b97c05134"',
  'V4_BLOB = "fd63775747dae7b90a565686597d016a907bc313"',
  'candidate_copy_descriptor_relative=true',
+ 'os.O_NOFOLLOW | os.O_NONBLOCK',
+ 'copy_source_fifo_swap_nonblocking=true',
+ 'candidate_read_boundaries_nonblocking=true',
  'runtime_uid_child_capability_clear_required=true',
  'candidate_copy_iterative_depth_bound_required=true',
  'RENAME_NOREPLACE = 1',
@@ -45,6 +48,8 @@ cp=subprocess.run([sys.executable,"-I","-B",str(TARGET),"--self-test"],
  stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=60,check=False)
 assert cp.returncode==0 and cp.stderr=="",cp.stdout+cp.stderr
 assert "VOID_V7_V5_SOURCE_STAGE_INSTALL_V1_SELF_TEST_GREEN" in cp.stdout.splitlines()
+assert "copy_source_fifo_swap_nonblocking=true" in cp.stdout.splitlines()
+assert "candidate_read_boundaries_nonblocking=true" in cp.stdout.splitlines()
 sp=subprocess.run([sys.executable,"-I","-B",str(TARGET),"--source-plan"],
  stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=60,check=False)
 assert sp.returncode==0 and sp.stderr=="",sp.stdout+sp.stderr
@@ -59,6 +64,8 @@ print("predecessor_algorithm_family_bound=true")
 print("v5_exact_generation_bound=true")
 print("single_parent_bound=true")
 print("hidden_source_stage_target_bound=true")
+print("candidate_read_boundaries_nonblocking=true")
+print("copy_source_fifo_swap_nonblocking=true")
 print("final_stage_root_mode_0755_bound=true")
 print("fixed_v4_source_revalidation_bound=true")
 print("fixed_source_exchange_authority=false")
