@@ -11,6 +11,10 @@ import * as path from "node:path";
 import { Node } from "../src/node_core.js";
 import { deriveVoidNodeIdFromPublicPemV1 } from "../src/p2p/auth_v1.js";
 import {
+  VoidDirectUpgradeRelayStateV1,
+  normalizeVoidDirectUpgradeControlMessageV1,
+} from "../src/p2p/direct_upgrade_v1.js";
+import {
   VOID_RETIRED_P2P_IDENTITIES_V1,
   isVoidRetiredP2PNodeIdV1,
 } from "../src/p2p/retired_peer_identities_v1.js";
@@ -83,6 +87,7 @@ try {
   const healthyKeys = keypair();
   const clientKeys = keypair();
   assert.equal(isVoidRetiredP2PNodeIdV1(healthyKeys.nodeId), false);
+  assert.notEqual(clientKeys.nodeId, healthyKeys.nodeId);
 
   setEnv(path.join(root, "healthy"));
   healthy = new Node(0, healthyKeys);
@@ -131,6 +136,80 @@ try {
   client.connect(legacyAddress, LEGACY_RAILWAY_NODE_ID);
   await new Promise((resolve) => setTimeout(resolve, 250));
   assert.equal(legacyTcpConnections, 0, "explicit pinned reconnect must refuse retired identity");
+
+  // The direct-upgrade control boundary must reject the retired identity before
+  // a relay session, local upgrade session, timer, or TCP attempt can exist.
+  const directRequestId = "1".repeat(32);
+  const directStreamId = "2".repeat(32);
+  const directSessionId = "3".repeat(32);
+  assert.equal(
+    normalizeVoidDirectUpgradeControlMessageV1({
+      type: "DIRECT_UPGRADE_REQUEST",
+      request_id: directRequestId,
+      stream_id: directStreamId,
+      target_node_id: LEGACY_RAILWAY_NODE_ID,
+      start_delay_ms: 50,
+      attempt_timeout_ms: 1000,
+    }, true),
+    undefined,
+  );
+  assert.equal(
+    normalizeVoidDirectUpgradeControlMessageV1({
+      type: "DIRECT_UPGRADE_OFFER",
+      request_id: directRequestId,
+      session_id: directSessionId,
+      stream_id: directStreamId,
+      peer_node_id: LEGACY_RAILWAY_NODE_ID,
+      peer_observed_address: legacyAddress,
+      start_delay_ms: 50,
+      attempt_timeout_ms: 1000,
+    }, true),
+    undefined,
+  );
+
+  const acceptedDirectRequest = normalizeVoidDirectUpgradeControlMessageV1({
+    type: "DIRECT_UPGRADE_REQUEST",
+    request_id: directRequestId,
+    stream_id: directStreamId,
+    target_node_id: healthyKeys.nodeId,
+    start_delay_ms: 50,
+    attempt_timeout_ms: 1000,
+  }, true);
+  assert.equal(acceptedDirectRequest?.type, "DIRECT_UPGRADE_REQUEST");
+
+  const directRelayState = new VoidDirectUpgradeRelayStateV1();
+  assert.throws(
+    () => directRelayState.openSession({
+      requestId: directRequestId,
+      streamId: directStreamId,
+      sourceNodeId: clientKeys.nodeId,
+      targetNodeId: LEGACY_RAILWAY_NODE_ID,
+      sourceObservedAddress: healthyAddress,
+      targetObservedAddress: legacyAddress,
+      startDelayMs: 50,
+      attemptTimeoutMs: 1000,
+      allowNonPublicObservedAddress: true,
+    }),
+    /direct-upgrade relay session input is invalid/,
+  );
+  assert.equal(directRelayState.snapshot().session_count, 0);
+
+  const healthyDirectSession = directRelayState.openSession({
+    requestId: directRequestId,
+    streamId: directStreamId,
+    sourceNodeId: clientKeys.nodeId,
+    targetNodeId: healthyKeys.nodeId,
+    sourceObservedAddress: legacyAddress,
+    targetObservedAddress: healthyAddress,
+    startDelayMs: 50,
+    attemptTimeoutMs: 1000,
+    allowNonPublicObservedAddress: true,
+  });
+  assert.equal(healthyDirectSession.target_node_id, healthyKeys.nodeId);
+  assert.equal(directRelayState.snapshot().session_count, 1);
+  directRelayState.removePeer(healthyKeys.nodeId);
+  assert.equal(directRelayState.snapshot().session_count, 0);
+  assert.equal(legacyTcpConnections, 0, "retired direct-upgrade control must not open TCP");
 
   // A retired Tor target must never open a SOCKS connection, reserve a Tor dial
   // slot, or seed a reconnection backoff even when a caller passes the target
@@ -188,6 +267,7 @@ try {
 
   console.log("retired_identity_authenticated_admission_policy=true");
   console.log("legacy_record_not_loaded_or_redialed=true");
+  console.log("retired_direct_upgrade_control_and_relay_session_blocked=true");
   console.log("retired_tor_pre_dial_and_reconnect_blocked=true");
   console.log("retired_ephemeral_socket_admission_blocked=true");
   console.log("unrelated_peer_authentication_preserved=true");

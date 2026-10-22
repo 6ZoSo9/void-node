@@ -24,9 +24,10 @@ Runtime rejects a signed AUTH from a listed identity before any transport-specif
 authentication promotion (direct, relay, Tor, UDP-upgrade, or reachability probe).
 A pinned outbound dial to a listed identity is not attempted, and reconnect
 schedulers refuse that identity. This includes Tor introduction startup,
-Tor SOCKS pre-dial/retry, direct/punch-capable dials, and ephemeral direct
-mounts. An unknown/unpinned endpoint may still complete a TCP connection but
-cannot authenticate as a retired identity.
+Tor SOCKS pre-dial/retry, direct/punch-capable dials, direct-upgrade
+requests/offers/relay sessions, and ephemeral direct mounts. An unknown/unpinned
+endpoint may still complete a TCP connection but cannot authenticate as a retired
+identity.
 
 Cache reads fully validate records, omit retired identities from in-memory peer
 evidence and dial targets, and do not rewrite the file. Cache writers fail closed
@@ -53,6 +54,8 @@ CI runs:
 - the existing verified-peer-cache and P2P authenticated identity proofs
 - a bounded localhost-only Tor SOCKS regression proving zero retired Tor dials
   and zero retired Tor reconnect-backoff state
+- direct-upgrade request/offer and relay-session negatives proving no retired
+  session or TCP attempt
 
 Expected proof marker: VOID_P2P_RETIRED_PEER_IDENTITY_V1_PROOF_GREEN.
 
