@@ -23,7 +23,8 @@ required=(
  'candidate_copy_iterative_depth_bound_required=true',
  'RENAME_NOREPLACE = 1',
  'fixed_v4_source_revalidation_required=true',
- 'fixed_v4_source_mutation=false',\n 'fixed_source_exchange_authority=false',
+ 'fixed_v4_source_mutation=false',
+ 'fixed_source_exchange_authority=false',
 )
 for token in required:
     assert token in text, token
