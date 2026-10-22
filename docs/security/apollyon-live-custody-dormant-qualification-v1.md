@@ -1,5 +1,16 @@
 # Apollyon live custody dormant qualification v1
 
+## October 22 runtime group-vector repair
+
+A live Xiphos qualification observed the custody process with the exact reviewed
+primary custody GID and IPC GID both present in `/proc/<pid>/status` `Groups:`.
+The earlier qualifier incorrectly required an IPC-only vector even though its
+own NSS closure required exactly those two GIDs. This source-only repair permits
+the primary GID as an optional redundant supplementary-list entry while still
+requiring the IPC GID and rejecting duplicates or every GID outside the reviewed
+closure. It changes no systemd unit, account membership, service lifecycle,
+training authority, durable claim, key, transaction, or funds behavior.
+
 This gate is the first live activation of the installed custody service.
 
 It exercises custody only. The training service is never started.
@@ -79,11 +90,17 @@ consumed directory must remain real custody-owned 0700 directories; and the
 socket parent must remain a real custody:IPC 0750 directory. Symlink or metadata
 substitution HOLDs. The custody account's NSS group closure must be exactly its
 primary custody GID plus the reviewed IPC GID. Once live, the process
-supplementary `Groups:` set must equal that reviewed IPC-only supplementary
-set; an extra effective group HOLDs. The exact installed files, environment,
-effective systemd command arrays and other static boundary facts are also
-reverified before every target start; identity drift between cycles therefore
-HOLDs before another activation.
+`Groups:` field must contain the reviewed IPC GID, contain no duplicate GIDs,
+and contain no GID outside that exact two-GID closure. Linux exposes the kernel
+supplementary-group vector in `/proc/<pid>/status`, and systemd initializes
+that vector from the user's account group list before extending it with
+`SupplementaryGroups=`; the already separately verified primary custody GID
+may therefore appear redundantly in `Groups:` on a reviewed host without
+granting additional authority. Both IPC-only and primary+IPC representations
+are accepted; missing IPC, duplicate, or any third/unreviewed GID HOLDs. The
+exact installed files, environment, effective systemd command arrays and other
+static boundary facts are also reverified before every target start; identity
+drift between cycles therefore HOLDs before another activation.
 
 The custody UID lifecycle is therefore 0 -> exact service generation -> 0 for
 each cycle, and no process carrying the dedicated training UID may appear before,
