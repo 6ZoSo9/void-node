@@ -1,0 +1,171 @@
+name: VOID V7 deployment receipt candidate v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-source-finality-v7-deployment-receipt-candidate-v2.yml"
+      - "docs/architecture/buy-void-source-finality-v7-deployment-receipt-candidate-v2.md"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "src/economic/buy_void_source_finality_generation_provenance_v7.ts"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact receipt-candidate head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact parent and three-add scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PARENT=554aeb2955ab557c13dd6622f61dbe443decca17
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+          mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-source-finality-v7-deployment-receipt-candidate-v2.yml'
+            $'A\tdocs/architecture/buy-void-source-finality-v7-deployment-receipt-candidate-v2.md'
+            $'A\tscripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "$PARENT" HEAD
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Bind production receipt constructor and V5 lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts)" = "779c023d82b81dfb75ec6248212acc94670999bd"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-candidate-v2.md)" = "36c6da7e2bf8aab2e9392529cd95dfe88d0aec8b"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e0a682ea4038ca22e3a3b97da2cac29874096c46"
+          test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_generation_provenance_v7.ts)" = "390ff1a2ff0437cd8c8693e7807c12275df42573"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5.json)" = "46e3774ca442cf593d25b6062ab5538d5ac43611"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = "bc1b2f4095315861db7a257d4cc3c80a9f112530"
+          test "$(git rev-parse be2fbe41aaba291d3f874b9de52bcb87336307f5^{tree})" = "749877d2320ecee9d659720b32e4726a0c42d697"
+          test "$(git rev-list --parents -n 1 be2fbe41aaba291d3f874b9de52bcb87336307f5)" = "be2fbe41aaba291d3f874b9de52bcb87336307f5 79081038cf4f03c2971bdcb32c54daf6a87fbabf"
+
+      - name: Focused TypeScript
+        run: |
+          ./node_modules/.bin/tsc \
+            --noEmit \
+            --target ES2022 \
+            --module NodeNext \
+            --moduleResolution NodeNext \
+            --lib ES2022 \
+            --types node \
+            --esModuleInterop \
+            --allowSyntheticDefaultImports \
+            --downlevelIteration \
+            --skipLibCheck \
+            ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            src/economic/buy_void_source_finality_generation_provenance_v7.ts \
+            scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts
+
+      - name: Derive V5 deployment receipt twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROOF=scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts
+          OUT="$RUNNER_TEMP/deployment-receipt-v5-node-${{ matrix.node }}.json"
+          AGAIN="$RUNNER_TEMP/deployment-receipt-v5-node-${{ matrix.node }}.again.json"
+          ./node_modules/.bin/tsx "$PROOF" --derive > "$OUT"
+          ./node_modules/.bin/tsx "$PROOF" --derive > "$AGAIN"
+          cmp "$OUT" "$AGAIN"
+          ./node_modules/.bin/tsx "$PROOF" --self-test
+          sha256sum "$OUT"
+
+      - name: Upload exact V5 deployment receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-v7-deployment-receipt-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/deployment-receipt-v5-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [derive]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact receipt-candidate head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download Node-major receipts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-v7-deployment-receipt-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: receipts
+
+      - name: Require cross-node byte identity and independent rederivation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp receipts/deployment-receipt-v5-node-22.json receipts/deployment-receipt-v5-node-24.json
+          cmp receipts/deployment-receipt-v5-node-22.json receipts/deployment-receipt-v5-node-26.json
+          ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts --derive > "$RUNNER_TEMP/rederived-v5-receipt.json"
+          cmp receipts/deployment-receipt-v5-node-22.json "$RUNNER_TEMP/rederived-v5-receipt.json"
+          node - <<'NODE'
+          const fs=require("node:fs");
+          const crypto=require("node:crypto");
+          const p="receipts/deployment-receipt-v5-node-22.json";
+          const raw=fs.readFileSync(p);
+          const v=JSON.parse(raw);
+          if(v.marker!=="VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1")process.exit(2);
+          if(v.process_source_commit!=="be2fbe41aaba291d3f874b9de52bcb87336307f5")process.exit(3);
+          if(v.process_source_tree!=="749877d2320ecee9d659720b32e4726a0c42d697")process.exit(4);
+          if(v.accepted_enforcement_set_sha256!=="e72f512b0006eef7cec7325f39c56823eb3c878d7f8452a08c717478b7c8ac45")process.exit(5);
+          if(v.reviewed_source_files_sha256!=="18d63ea70fc3a7a4d0ce3d427205717e2c72c40eb145fe677eb4ab6e869acb24")process.exit(6);
+          if(v.reviewed_source_file_count!=="10")process.exit(7);
+          if(v.candidate_enforcement_identity_accepted!==true)process.exit(8);
+          if(v.complete_executable_closure_verified!==true)process.exit(9);
+          if(v.status!=="DEPLOYED_SOURCE_FINALITY_GENERATION_ACCEPTED")process.exit(10);
+          console.log("VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_CANDIDATE_V2_CROSS_NODE_GREEN");
+          console.log("receipt_id="+v.receipt_id);
+          console.log("receipt_sha256="+crypto.createHash("sha256").update(raw).digest("hex"));
+          console.log("receipt_bytes="+raw.length);
+          console.log("receipt_install_called=false");
+          console.log("filesystem_mutation=false");
+          console.log("service_mutation=false");
+          console.log("presale_activation=false");
+          console.log("funds_movement=false");
+          NODE
