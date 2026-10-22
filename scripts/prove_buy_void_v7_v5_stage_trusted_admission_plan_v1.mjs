@@ -1,0 +1,164 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import {execFileSync} from "node:child_process";
+import {fileURLToPath} from "node:url";
+
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const MARKER="VOID_V7_V5_STAGE_TRUSTED_ADMISSION_PLAN_V1";
+const PARENT="f171973a91056f9e0452cfbe06e760f411f62a72";
+const PLAN="ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json";
+const PLAN_BLOB="3762b757a21048d6eb891245559e7c277716cf93";
+const SELF="scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v1.mjs";
+const DOC="docs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v1.md";
+const WORKFLOW=".github/workflows/buy-void-v7-v5-stage-trusted-admission-plan-v1.yml";
+const OWNED=Object.freeze([WORKFLOW,DOC,PLAN,SELF].sort());
+const EXPECTED_ID="voidv7v5stageadmissionplan1_8db770a16aae8dd961299d4c1dd2baa4b4cac9a2788e7480380a67aa80da06ef";
+
+const BOUND=Object.freeze([
+  ["ops/precision/void_v7_v5_source_stage_install_v1.py","a3cb44b02606b49be2c678f4fb28e258cf765e3b"],
+  ["ops/precision/void_v7_v5_receipt_stage_install_v1.py","c4e7edfeda3196cdebc1ac4656cf514f77a53969"],
+  ["scripts/prove_void_v7_v5_source_receipt_stage_builders_v1.py","cc65e21e22c2d424e853607fd5c817810ead7339"],
+  ["ops/security/buy-void-v7-v5-source-receipt-staging-plan-v1.json","37c6f5bd5753f05e57dde3c95f9c2f89c0abdc4d"],
+  ["ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json","9dde5523dca6ab240626430ce1c2b82f1cfe7f20"],
+  ["ops/security/buy-void-v7-create-only-closed-tree-acceptance-v1.json","919db72903a5fcff59dec7635a4288f41d1753d9"],
+  ["ops/precision/void_buy_void_v7_create_only_closed_tree_bootstrap_v1.c","2a8397c85d698d168f2257ec801557281b73c04d"],
+  ["ops/precision/void_v7_full_history_protected_replica_root_launcher_v2.c","19b89e92df6f640c017cb9f544ddbf094d69f6eb"],
+  ["scripts/prove_void_v7_full_history_protected_replica_root_launcher_v2.py","be8012e94c1d5d8f51b0162eb009ef16d6e81aaf"],
+]);
+
+const sha256=s=>crypto.createHash("sha256").update(s,"utf8").digest("hex");
+function canonical(v){
+  if(v===null)return "null";
+  if(typeof v==="string"||typeof v==="boolean")return JSON.stringify(v);
+  if(typeof v==="number"){assert.ok(Number.isSafeInteger(v));return String(v);}
+  if(Array.isArray(v))return "["+v.map(canonical).join(",")+"]";
+  assert.ok(v&&typeof v==="object"&&!Array.isArray(v));
+  return "{"+Object.keys(v).sort().map(k=>JSON.stringify(k)+":"+canonical(v[k])).join(",")+"}";
+}
+function git(args){
+  return execFileSync("/usr/bin/git",[
+    "--no-replace-objects","-c","core.hooksPath=/dev/null","-c","core.fsmonitor=false",
+    "-C",ROOT,...args,
+  ],{
+    encoding:"utf8",
+    env:{
+      PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC",
+      GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null",
+      GIT_CONFIG_SYSTEM:"/dev/null",GIT_NO_REPLACE_OBJECTS:"1",
+      GIT_OPTIONAL_LOCKS:"0",GIT_TERMINAL_PROMPT:"0",GIT_ASKPASS:"/bin/false",
+    },
+  }).trim();
+}
+function pin(relative,blob){
+  assert.equal(git(["rev-parse","HEAD:"+relative]),blob,"blob_drift:"+relative);
+  return fs.readFileSync(path.join(ROOT,relative),"utf8");
+}
+function scope(){
+  git(["merge-base","--is-ancestor",PARENT,"HEAD"]);
+  assert.equal(git(["merge-base",PARENT,"HEAD"]),PARENT);
+  const rows=git(["diff","--name-status",PARENT,"HEAD","--"]).split(/\n/u).filter(Boolean);
+  assert.equal(rows.length,4);
+  const actual=rows.map(row=>{
+    const m=row.match(/^A\t(.+)$/u);assert.ok(m,row);return m[1];
+  }).sort();
+  assert.deepEqual(actual,OWNED);
+  git(["diff","--check",PARENT,"HEAD"]);
+}
+scope();
+for(const [relative,blob] of BOUND)pin(relative,blob);
+const value=JSON.parse(pin(PLAN,PLAN_BLOB));
+const {plan_id,...body}=value;
+assert.equal(plan_id,EXPECTED_ID);
+assert.equal(plan_id,"voidv7v5stageadmissionplan1_"+sha256(canonical(body)));
+
+assert.equal(body.implementation_generation.commit,PARENT);
+assert.equal(body.implementation_generation.tree,"c03fe5f85d4a1d372c001595ae19d822ce55e3b8");
+assert.equal(body.implementation_generation.focused_workflow_success,true);
+assert.equal(body.closed_tree_precedent.seal_mode,"CREATE_ONLY_CLOSED_TREE_V1");
+assert.equal(body.closed_tree_precedent.model_reused_not_modified,true);
+
+assert.equal(body.future_closed_tree.fixed_root,
+  "/opt/void-v7-v5-source-receipt-stage-closed-tree-v1");
+assert.equal(body.future_closed_tree.complete_source_snapshot_required,true);
+assert.equal(body.future_closed_tree.static_python_descriptor_execution_required,true);
+assert.equal(body.future_closed_tree.minimal_fixed_environment_required,true);
+assert.equal(body.future_closed_tree.stdin_devnull_required,true);
+assert.equal(body.future_closed_tree.caller_environment_authority,false);
+assert.equal(body.future_closed_tree.caller_path_authority,false);
+
+assert.deepEqual(body.launcher_request_surface.operations,[
+  "source-stage-plan","source-stage-apply","receipt-stage-plan","receipt-stage-apply",
+]);
+assert.deepEqual(body.launcher_request_surface.source_stage_plan_caller_arguments,[]);
+assert.deepEqual(body.launcher_request_surface.receipt_stage_plan_caller_arguments,[]);
+assert.deepEqual(body.launcher_request_surface.source_stage_apply_caller_arguments,[
+  "expected_plan_id","explicit_source_stage_confirmation",
+]);
+assert.deepEqual(body.launcher_request_surface.receipt_stage_apply_caller_arguments,[
+  "expected_plan_id","explicit_receipt_stage_confirmation",
+]);
+for(const key of [
+  "filesystem_path_arguments_forbidden",
+  "candidate_path_arguments_forbidden",
+  "receipt_bytes_arguments_forbidden",
+  "source_generation_arguments_forbidden",
+  "exchange_operations_forbidden",
+  "transition_journal_operations_forbidden",
+  "consumer_fence_operations_forbidden",
+  "service_operations_forbidden",
+])assert.equal(body.launcher_request_surface[key],true,key);
+
+assert.equal(body.stage_pair_qualification_contract.separate_read_only_qualifier_required,true);
+assert.equal(body.stage_pair_qualification_contract.fixed_paths_only,true);
+assert.equal(body.stage_pair_qualification_contract.pair_ready_output_grants_exchange_authority,false);
+assert.equal(body.stage_pair_qualification_contract.pair_ready_output_grants_runtime_cutover_authority,false);
+
+assert.equal(body.manifest_cycle_contract.production_payload_manifest_external_to_launcher_required,true);
+assert.equal(body.manifest_cycle_contract.separate_manifest_acceptance_required,true);
+assert.equal(body.manifest_cycle_contract.separate_bootstrap_install_authorization_required,true);
+assert.equal(body.manifest_cycle_contract.separate_root_execution_authorization_required,true);
+assert.equal(body.manifest_cycle_contract.stage_apply_authorizations_separate_from_launcher_install,true);
+
+for(const [key,val] of Object.entries(body.authority)){
+  if(key==="plan_only")assert.equal(val,true);
+  else assert.equal(val,false,"authority_overclaim:"+key);
+}
+
+const launcher=pin(
+  "ops/precision/void_v7_full_history_protected_replica_root_launcher_v2.c",
+  "19b89e92df6f640c017cb9f544ddbf094d69f6eb",
+);
+for(const token of [
+  '#define FIXED_ROOT "/opt/void-v7-full-history-protected-replica-closed-tree-v1"',
+  'receipt_bound_inode_hash_mode_nlink_required=true',
+  'fexecve(python_fd,args,envp)',
+  'closed_tree_receipt_before_python_exec_required=true',
+  'root_execution_authorized=false',
+  'protected_replica_apply_authorized=false',
+])assert.ok(launcher.includes(token),token);
+for(const forbidden of ["getenv(","system(","execvp(","execlp(","socket(","connect("]){
+  assert.equal(launcher.includes(forbidden),false,forbidden);
+}
+
+console.log(MARKER+"_PROOF_GREEN");
+console.log("plan_id="+EXPECTED_ID);
+console.log("closed_tree_precedent_bound=true");
+console.log("complete_source_snapshot_required=true");
+console.log("static_python_descriptor_execution_required=true");
+console.log("minimal_fixed_environment_required=true");
+console.log("caller_path_authority=false");
+console.log("caller_source_generation_authority=false");
+console.log("exchange_operations_forbidden=true");
+console.log("stage_pair_read_only_qualifier_required=true");
+console.log("production_manifest_external_required=true");
+console.log("launcher_source_implementation_authorized=false");
+console.log("launcher_install_authorized=false");
+console.log("root_execution_authorized=false");
+console.log("source_stage_apply_authorized=false");
+console.log("receipt_stage_apply_authorized=false");
+console.log("service_mutation=false");
+console.log("public_presale_activation=false");
+console.log("funds_movement=false");
