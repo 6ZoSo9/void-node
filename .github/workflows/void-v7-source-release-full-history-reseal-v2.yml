@@ -33,8 +33,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           PARENT=96cef1412155480841f3adf629b91efb2dfe8b34
           test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
-          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v2.py)" = "e95a35fa2a95b4c9671e3e97e804b0dcfd89550a"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v2.py)" = "5add34d425f15a4a9b444c7ceccee2c62dfa19a7"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v2.py)" = "bb78c7d9f468baa20b580d052d934d9b97c05134"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v2.py)" = "77c0e6eaa859f3f4d6df8a46da477e72a451c10c"
           test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v2.md)" = "f1f7116ed22d421bc357d5c52133182133b20c57"
           mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
           expected=(
