@@ -1219,6 +1219,12 @@ def self_test()->None:
         'custody_process_generation_not_renewed',
         'training_uid_process_observed',
         'custody_uid_process_exclusivity_failed',
+        'uid_thread_process_map(',
+        'custody_thread_inventory(',
+        'custody_thread_credentials_changed',
+        'custody_thread_capability_nonzero:',
+        'custody_thread_no_new_privileges_missing:',
+        'return not uid_thread_process_map(training_uid,proc_root)',
         'preexisting_custody_uid_process',
         'prestart_custody_uid_process',
         '"prestart_cycle_"+str(cycle)',
@@ -1364,9 +1370,9 @@ def self_test()->None:
     assert cleanup_green is False
     assert cleanup_reason=="Hold:synthetic_safe_dormant_timeout"
 
-    assert exact_live_custody_process_set({101:"77"},101,"77")
-    assert not exact_live_custody_process_set({},101,"77")
-    assert not exact_live_custody_process_set({101:"77",102:"88"},101,"77")
+    assert exact_live_custody_process_set({101:(101,)},101)
+    assert not exact_live_custody_process_set({},101)
+    assert not exact_live_custody_process_set({101:(101,),102:(102,)},101)
     assert parse_uid_slots({"Uid":"123 123 123 123"})==(123,123,123,123)
     assert safely_dormant_unit_props({
         "LoadState":"loaded","ActiveState":"inactive","MainPID":"0",
@@ -1389,17 +1395,20 @@ def self_test()->None:
     )->None:
         process_root=proc_root/str(pid)
         process_root.mkdir()
-        (process_root/"status").write_text(
+        status_text=(
             "Name:\tsynthetic\nUid:\t"
             +"\t".join(str(value) for value in uids)
-            +"\n",
-            encoding="utf-8",
+            +"\n"
         )
+        (process_root/"status").write_text(status_text,encoding="utf-8")
         stat_fields=["S"]+["0"]*18+[start_ticks]
         (process_root/"stat").write_text(
             f"{pid} (synthetic) "+" ".join(stat_fields)+"\n",
             encoding="ascii",
         )
+        task=process_root/"task"/str(pid)
+        task.mkdir(parents=True)
+        (task/"status").write_text(status_text,encoding="utf-8")
 
     def expect_hold(fn,reason:str)->None:
         try:
@@ -1568,7 +1577,9 @@ def self_test()->None:
         write_proc(proc_root,101,(custody_uid,)*4,"77")
         observed=uid_process_generations(custody_uid,proc_root)
         assert observed=={101:"77"}
-        assert exact_live_custody_process_set(observed,101,"77")
+        thread_observed=uid_thread_process_map(custody_uid,proc_root)
+        assert thread_observed=={101:(101,)}
+        assert exact_live_custody_process_set(thread_observed,101)
 
     with tempfile.TemporaryDirectory(prefix="apollyon-child-proc-second-") as td:
         proc_root=Path(td)
@@ -1576,7 +1587,9 @@ def self_test()->None:
         write_proc(proc_root,102,(custody_uid,)*4,"88")
         observed=uid_process_generations(custody_uid,proc_root)
         assert observed=={101:"77",102:"88"}
-        assert not exact_live_custody_process_set(observed,101,"77")
+        thread_observed=uid_thread_process_map(custody_uid,proc_root)
+        assert thread_observed=={101:(101,),102:(102,)}
+        assert not exact_live_custody_process_set(thread_observed,101)
 
     with tempfile.TemporaryDirectory(prefix="apollyon-child-proc-saved-fs-") as td:
         proc_root=Path(td)
@@ -1584,6 +1597,24 @@ def self_test()->None:
         write_proc(proc_root,104,(1,2,3,custody_uid),"100")
         observed=uid_process_generations(custody_uid,proc_root)
         assert observed=={103:"99",104:"100"}
+        assert uid_thread_process_map(custody_uid,proc_root)=={
+            103:(103,),104:(104,),
+        }
+
+    with tempfile.TemporaryDirectory(
+        prefix="apollyon-child-thread-saved-fs-"
+    ) as td:
+        proc_root=Path(td)
+        write_proc(proc_root,107,(1,1,1,1),"101")
+        task=proc_root/"107"/"task"/"108"
+        task.mkdir()
+        (task/"status").write_text(
+            "Name:\tsynthetic-thread\n"
+            "Uid:\t1\t1\t"+str(custody_uid)+"\t1\n",
+            encoding="utf-8",
+        )
+        assert uid_process_generations(custody_uid,proc_root)=={}
+        assert uid_thread_process_map(custody_uid,proc_root)=={107:(108,)}
 
     with tempfile.TemporaryDirectory(prefix="apollyon-child-proc-malformed-") as td:
         proc_root=Path(td)
@@ -1607,9 +1638,12 @@ def self_test()->None:
             lambda:uid_process_generations(custody_uid,proc_root),
             "custody_uid_process_status_unreadable:106",
         )
+        task=process_root/"task"/"106"
+        task.mkdir(parents=True)
+        (task/"status").write_bytes(b"\xff")
         expect_hold(
             lambda:no_training_uid_processes(training_uid,proc_root),
-            "custody_uid_process_status_unreadable:106",
+            "custody_thread_status_unreadable:106:106",
         )
 
     failure=LifecycleHold(
@@ -1656,6 +1690,7 @@ def self_test()->None:
     print("custody_thread_credentials_exact_required=true")
     print("second_custody_uid_process_rejected=true")
     print("saved_fs_uid_slots_counted=true")
+    print("saved_fs_uid_only_thread_detected=true")
     print("malformed_live_process_status_rejected=true")
     print("unreadable_live_process_status_rejected=true")
     print("training_uid_unreadable_status_rejected=true")
