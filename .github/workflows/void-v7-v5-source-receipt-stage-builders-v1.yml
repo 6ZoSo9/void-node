@@ -93,5 +93,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -F -- '--apply' "$0" 2>/dev/null || true
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          workflow = Path(".github/workflows/void-v7-v5-source-receipt-stage-builders-v1.yml").read_text(encoding="utf-8")
+          token = "--" + "apply"
+          if token in workflow:
+              raise SystemExit("forbidden apply token present in CI workflow")
+          print("ci_apply_invocation_absent=true")
+          PY
           grep -Fq 'root_apply_authorized=false' "$RUNNER_TEMP/v5-stage-builders.log"
