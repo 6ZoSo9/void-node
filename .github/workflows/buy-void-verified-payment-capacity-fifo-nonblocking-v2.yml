@@ -33,25 +33,41 @@ jobs:
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
+          HISTORICAL_BASE="1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"
+          HISTORICAL_HEAD="abbfa9c5b074a01e8381e533a1a349fb9b2b2e23"
+          CURRENT_MAIN="e83b1df4bc3b52d08d5e38e076fa6c80085f7e01"
+
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git merge-base --is-ancestor "851940b36e9fc0d3d8f00503d4b56f613e6312b4" HEAD
-          test "$(git merge-base "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c" HEAD)" = "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"
-          test "$(git rev-list --count "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"..HEAD)" -ge 2
-          test "$(git rev-list --count --merges "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"..HEAD)" -eq 0
-          git merge-base --is-ancestor "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c" HEAD
-          printf '%s\n' \
-            'A	.github/workflows/buy-void-verified-payment-capacity-fifo-nonblocking-v2.yml' \
-            'A	docs/architecture/buy-void-verified-payment-capacity-fifo-nonblocking-v2.md' \
-            'A	scripts/prove_buy_void_verified_payment_capacity_fifo_nonblocking_v2.ts' \
-            'M	src/economic/buy_void_verified_payment_capacity_admission_v1.ts' | sort > "$RUNNER_TEMP/expected.txt"
-          git diff --name-status "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c" HEAD -- | sort > "$RUNNER_TEMP/actual.txt"
-          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/actual.txt"
-          test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "d1320be22fe55af24017b84f0655fbcde82dbee9"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_capacity_fifo_nonblocking_v2.ts)" = "1b3d72c2eda967f5cd84d929cd80c62508cce16e"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-verified-payment-capacity-fifo-nonblocking-v2.md)" = "9439e92089031aa3a63e991ae86d42c944b1c367"
-          git diff --check "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c" HEAD --
+          test "$BASE_REF" = "main"
+          test "$PR_BASE" = "$CURRENT_MAIN"
+          git merge-base --is-ancestor "$PR_BASE" HEAD
+          git merge-base --is-ancestor "$HISTORICAL_HEAD" HEAD
+
+          # Preserve the original reviewed linear generation as immutable
+          # historical evidence rather than pretending the restack was linear.
+          test "$(git merge-base "$HISTORICAL_BASE" "$HISTORICAL_HEAD")" = "$HISTORICAL_BASE"
+          test "$(git rev-list --count --merges "$HISTORICAL_BASE".."$HISTORICAL_HEAD")" -eq 0
+          test "$(git rev-parse "$HISTORICAL_HEAD:.github/workflows/buy-void-verified-payment-capacity-fifo-nonblocking-v2.yml")" =             "53915c7fc0cb658e40437466da67f56c03d003c9"
+
+          printf '%s\n'             'A	.github/workflows/buy-void-verified-payment-capacity-fifo-nonblocking-v2.yml'             'A	docs/architecture/buy-void-verified-payment-capacity-fifo-nonblocking-v2.md'             'A	scripts/prove_buy_void_verified_payment_capacity_fifo_nonblocking_v2.ts'             'M	src/economic/buy_void_verified_payment_capacity_admission_v1.ts'             | sort > "$RUNNER_TEMP/expected.txt"
+
+          git diff --name-status "$HISTORICAL_BASE" "$HISTORICAL_HEAD" --             | sort > "$RUNNER_TEMP/historical.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/historical.txt"
+
+          # The current candidate must have the identical four-path semantic
+          # surface relative to the exact current-main first parent.
+          git diff --name-status "$PR_BASE" "$EXPECTED_HEAD" --             | sort > "$RUNNER_TEMP/current.txt"
+          diff -u "$RUNNER_TEMP/expected.txt" "$RUNNER_TEMP/current.txt"
+
+          test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" =             "d1320be22fe55af24017b84f0655fbcde82dbee9"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_capacity_fifo_nonblocking_v2.ts)" =             "1b3d72c2eda967f5cd84d929cd80c62508cce16e"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-verified-payment-capacity-fifo-nonblocking-v2.md)" =             "9439e92089031aa3a63e991ae86d42c944b1c367"
+
+          git diff --check "$PR_BASE" "$EXPECTED_HEAD" --
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Install locked source dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
