@@ -29,8 +29,9 @@ SERVICE_PATH=Path("/etc/systemd/system/void-apollyon-authorization-custody-v1.se
 HELPER_PATH=Path("/opt/void-apollyon-custody-lifecycle-v1/apollyon_custody_stale_socket_cleanup_v1.py")
 NODE_PATH=Path("/opt/void-apollyon-node-runtime-v1/node")
 LAUNCHER_PATH=Path("/opt/void-apollyon-custody-service-v2-reviewed-v1/tools/apollyon-authorization-custody-launcher-v3.mjs")
-ENV_PATH=Path("/etc/void/apollyon-custody-v1/custody.env")
-PUBLIC_KEY_PATH=Path("/etc/void/apollyon-custody-v1/operator-public-key.pem")
+CONFIG_DIR=Path("/etc/void/apollyon-custody-v1")
+ENV_PATH=CONFIG_DIR/"custody.env"
+PUBLIC_KEY_PATH=CONFIG_DIR/"operator-public-key.pem"
 SOCKET_PARENT=Path("/run/void-apollyon-custody-v1")
 SOCKET_PATH=SOCKET_PARENT/"custody.sock"
 STATE_ROOT=Path("/var/lib/void-apollyon-custody-v1")
@@ -1274,6 +1275,9 @@ def qualify()->dict:
     }
 
 def self_test()->None:
+    assert CONFIG_DIR==Path("/etc/void/apollyon-custody-v1")
+    assert ENV_PATH==CONFIG_DIR/"custody.env"
+    assert PUBLIC_KEY_PATH==CONFIG_DIR/"operator-public-key.pem"
     own=Path(__file__).read_text(encoding="utf-8")
     for required in (
         'run(["/usr/bin/systemctl","start",TARGET_UNIT])',
@@ -1331,6 +1335,9 @@ def self_test()->None:
         'assert_no_unreviewed_dependency_directories(SERVICE_UNIT)',
         'unreviewed_systemd_dependency_entry:',
         'require_trusted_ancestor_chain(',
+        'CONFIG_DIR=Path("/etc/void/apollyon-custody-v1")',
+        'ENV_PATH=CONFIG_DIR/"custody.env"',
+        'PUBLIC_KEY_PATH=CONFIG_DIR/"operator-public-key.pem"',
         'verify_path_custody(ids)',
         'custody_group_closure_invalid',
         'custody_supplementary_groups_unreviewed',
@@ -1834,6 +1841,7 @@ def self_test()->None:
         forbidden="".join(parts)
         assert forbidden not in own,forbidden
     print(MARKER+"_SELF_TEST_GREEN")
+    print("config_directory_constant_bound=true")
     print("processless_target_mainpid_not_required=true")
     print("omitted_empty_service_exec_properties_normalized=true")
     print("required_service_exec_properties_still_mandatory=true")

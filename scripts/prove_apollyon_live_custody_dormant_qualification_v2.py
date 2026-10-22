@@ -16,6 +16,9 @@ for required in (
     'st.st_nlink!=2',
     'wait_socket(False)',
     'unit!=TARGET_UNIT',
+    'CONFIG_DIR=Path("/etc/void/apollyon-custody-v1")',
+    'ENV_PATH=CONFIG_DIR/"custody.env"',
+    'PUBLIC_KEY_PATH=CONFIG_DIR/"operator-public-key.pem"',
     'normalize_show_properties(',
     'optional_empty=(',
     'wait_unit(SERVICE_UNIT,"inactive")',
@@ -117,6 +120,7 @@ r=subprocess.run(
 assert r.returncode==0,r.stderr
 for line in (
     "VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V2_SELF_TEST_GREEN",
+    "config_directory_constant_bound=true",
     "processless_target_mainpid_not_required=true",
     "omitted_empty_service_exec_properties_normalized=true",
     "required_service_exec_properties_still_mandatory=true",
@@ -177,6 +181,7 @@ for line in (
 ):
     assert line in r.stdout,line
 print("VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V2_PROOF_GREEN")
+print("config_directory_constant_bound=true")
 print("processless_target_mainpid_not_required=true")
 print("omitted_empty_service_exec_properties_normalized=true")
 print("required_service_exec_properties_still_mandatory=true")
