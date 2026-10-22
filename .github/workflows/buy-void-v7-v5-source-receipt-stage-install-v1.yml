@@ -1,0 +1,115 @@
+name: VOID V7 V5 source receipt stage installers v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-v7-v5-source-receipt-stage-install-v1.yml"
+      - "docs/operators/buy-void-v7-v5-source-receipt-stage-install-v1.md"
+      - "ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
+      - "ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py"
+      - "scripts/prove_buy_void_v7_v5_source_stage_install_v1.py"
+      - "scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py"
+      - "ops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json"
+      - "ops/security/buy-void-source-finality-v7-deployment-receipt-v5.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    steps:
+      - name: Checkout exact installer head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact parent and six-add scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PARENT=28a1952407a25a2ac12f2d7095858485c27ad926
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+          mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-v7-v5-source-receipt-stage-install-v1.yml'
+            $'A\tdocs/operators/buy-void-v7-v5-source-receipt-stage-install-v1.md'
+            $'A\tops/precision/void_buy_void_v7_v5_source_stage_install_v1.py'
+            $'A\tops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py'
+            $'A\tscripts/prove_buy_void_v7_v5_source_stage_install_v1.py'
+            $'A\tscripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "$PARENT" HEAD
+
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Bind exact installer surfaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "8a1376e927eab5e06ec954847a0eb4566077846e"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py)" = "a42c23c0b50b6300fd6a8657fe28ce1f29f1596f"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_source_stage_install_v1.py)" = "a04a41c18e7896ceab79a0b596bd5b280fc128e9"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py)" = "4f5569fb9fce6ee0fa6b8db954fbd577b5767118"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-v5-source-receipt-stage-install-v1.md)" = "afbb1762fb1b194a1954c22ee048f48eea6ecbf6"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json)" = "e0bc98a4e44d25273f9247b4982a1474fc2dde27"
+          test "$(git rev-parse HEAD:ops/security/buy-void-source-finality-v7-deployment-receipt-v5.json)" = "eddd0b47263213ae8dd65ef72a5479c40ea6812e"
+
+      - name: Syntax and focused proofs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -I -B -m py_compile ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py scripts/prove_buy_void_v7_v5_source_stage_install_v1.py scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py
+          python -I -B scripts/prove_buy_void_v7_v5_source_stage_install_v1.py
+          python -I -B scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py
+
+      - name: Preserve bounded copy walker fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -n python -I -B - <<'PY'
+          import os, pathlib, runpy, tempfile
+          m=runpy.run_path("ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py",run_name="v5_source_stage_fixture")
+          E=m["InstallError"]; walk=m["_copy_candidate_tree_iterative"]
+          with tempfile.TemporaryDirectory(prefix="v5-stage-copy-") as td:
+              root=pathlib.Path(td); src=root/"src"; dst=root/"dst"; src.mkdir(); dst.mkdir()
+              for i in range(6): (src/("n"+str(i))).mkdir()
+              s=os.open(src,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
+              d=os.open(dst,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
+              try:
+                  try: walk(s,d,node_limit=3,depth_limit=8,total_limit=1024)
+                  except E as exc:
+                      if str(exc)!="copy_node_limit": raise
+                  else: raise SystemExit("copy_node_limit_not_enforced")
+              finally: os.close(d); os.close(s)
+          print("VOID_V7_V5_SOURCE_STAGE_COPY_FIXTURE_GREEN")
+          PY
+
+      - name: Verify source-only authority receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -I -B ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py --source-plan > "$RUNNER_TEMP/source-plan"
+          grep -Fx 'source_only=true' "$RUNNER_TEMP/source-plan"
+          grep -Fx 'host_read=false' "$RUNNER_TEMP/source-plan"
+          grep -Fx 'host_write=false' "$RUNNER_TEMP/source-plan"
+          grep -Fx 'create_only=true' "$RUNNER_TEMP/source-plan"
+          grep -Fx 'fixed_v4_source_mutation=false' "$RUNNER_TEMP/source-plan"
+          grep -Fx 'service_mutation=false' "$RUNNER_TEMP/source-plan"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/source-plan"
