@@ -42,9 +42,25 @@ The updater requires:
 The updater parses the effective systemd execution records; launcher generation
 is never inferred from a pathname substring.
 
-The updater also supports its own resumable intermediate states: v3 launcher
-already created, service file replaced but manager still loaded on v2, and
-fully rebound. A pre-existing `failed` custody service is admitted only when
+The updater also supports its own resumable intermediate states. Launcher
+publication uses one fixed root-owned pending pathname and recognizes:
+
+- `absent`: neither pending nor destination exists;
+- `pending_incomplete`: a single-link mode 0600/0444 pending file whose bytes
+  are an exact prefix of the reviewed v3 launcher, recoverable by deleting only
+  that bounded scratch object and restarting publication;
+- `pending_exact`: complete, fsynced mode 0444 pending generation ready to
+  link create-only into the canonical destination;
+- `linked_pending`: pending and destination are the same exact two-link inode,
+  recoverable by unlinking only the pending name;
+- `exact`: the canonical v3 destination is complete with link count one.
+
+A mismatched pending file, unexpected metadata/link topology, or a destination
+collision HOLDs. This closes process-crash windows before and after the
+create-only hard-link publication. The updater also resumes a service file
+replacement whose manager is still loaded on v2.
+
+A pre-existing `failed` custody service is admitted only when
 `MainPID=0`; this preserves the fail-closed dormant state left by the October
 22 qualification failure without requiring a `reset-failed` mutation before
 the rebind.
