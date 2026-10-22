@@ -298,8 +298,13 @@ static bool receipt_clean_rel(const char *path){
 }
 static bool decu_receipt(const char *s,uintmax_t *out){
     if(!s||!*s||(s[0]=='0'&&s[1]))return false;
-    errno=0;char *end=NULL;uintmax_t v=strtoumax(s,&end,10);
-    if(errno||!end||*end)return false;
+    uintmax_t v=0;
+    for(const char *p=s;*p;p++){
+        if(*p<'0'||*p>'9')return false;
+        unsigned digit=(unsigned)(*p-'0');
+        if(v>(UINTMAX_MAX-digit)/10U)return false;
+        v=v*10U+digit;
+    }
     *out=v;
     return true;
 }
@@ -496,6 +501,13 @@ static int selftest(void){
     unsigned char abc[32];char hx[65];sha256_buffer((const unsigned char*)"abc",3,abc);hex32(abc,hx);if(strcmp(hx,"ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"))return selftest_fail("sha256_self_test_failed");
     if(receipt_parser_selftest())return 1;
     {
+        uintmax_t v=0;
+        if(!decu_receipt("0",&v)||v!=0)return selftest_fail("canonical_decimal_zero_rejected");
+        if(!decu_receipt("1",&v)||v!=1)return selftest_fail("canonical_decimal_one_rejected");
+        if(decu_receipt("+1",&v)||decu_receipt("-1",&v)||decu_receipt(" 1",&v)||decu_receipt("01",&v))
+            return selftest_fail("noncanonical_receipt_decimal_accepted");
+    }
+    {
         char *valid[]={"launcher","--plan","--native","/native","--selector","/selector",
             "--expected-head","aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "--expected-tree","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -519,6 +531,7 @@ static int selftest(void){
     puts("static_native_first_instruction_required=true");
     puts("closed_tree_receipt_before_python_exec_required=true");
     puts("closed_tree_receipt_schema_bound=true");
+    puts("canonical_receipt_decimal_required=true");
     puts("closed_tree_plan_contract_bound=true");
     puts("closed_tree_acceptance_id_bound=true");
     puts("receipt_bound_inode_hash_mode_nlink_required=true");
