@@ -14,7 +14,7 @@ BOOTSTRAP = ROOT / "ops/precision/void_buy_void_v7_create_only_closed_tree_boots
 BOOTSTRAP_PROOF = ROOT / "scripts/prove_buy_void_v7_create_only_closed_tree_bootstrap_v1.py"
 
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V3_PROOF"
-SOURCE_BLOB = "2f378b348466d945d3edec55c4e30023b4522e52"
+SOURCE_BLOB = "b62a8168d7647f71a920300f88a2bedef9527955"
 INSTALLER_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 PLAN_BLOB = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
 ACCEPTANCE_BLOB = "919db72903a5fcff59dec7635a4288f41d1753d9"
@@ -119,6 +119,8 @@ for required in (
     'bind_receipt_file(&receipt,PYTHON_REL,python_fd,python_id)',
     'bind_receipt_file(&receipt,STDLIB_REL,stdlib_fd,stdlib_id)',
     'closed_tree_receipt_before_python_exec_required=true',
+    'canonical_receipt_decimal_required=true',
+    'noncanonical_receipt_decimal_accepted',
     'receipt_bound_inode_hash_mode_nlink_required=true',
     'arbitrary_malicious_root_resistance_claimed=false',
     'const char *expected_tree;',
@@ -198,6 +200,7 @@ with tempfile.TemporaryDirectory(prefix="void-v7-launcher-v3-proof-") as td:
         "static_native_first_instruction_required=true",
         "closed_tree_receipt_before_python_exec_required=true",
         "closed_tree_receipt_schema_bound=true",
+        "canonical_receipt_decimal_required=true",
         "closed_tree_plan_contract_bound=true",
         "closed_tree_acceptance_id_bound=true",
         "receipt_bound_inode_hash_mode_nlink_required=true",
@@ -232,6 +235,7 @@ with tempfile.TemporaryDirectory(prefix="void-v7-launcher-v3-proof-") as td:
     print("static_elf_sha256=" + hashlib.sha256(raw_a).hexdigest())
     print("two_builds_byte_identical=true")
     print("closed_tree_receipt_first_instruction_bound=true")
+    print("canonical_receipt_decimal_bound=true")
     print("receipt_inode_hash_mode_nlink_rebinding_bound=true")
     print("v5_argument_surface_preserved=true")
     print("fsverity_v2_unchanged_and_v3_absent=true")
