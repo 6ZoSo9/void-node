@@ -41,8 +41,8 @@ for(const required of [
   "assertRootOwnedImmutableFile(VERIFIER,VERIFIER_BLOB_SHA1",
   "await import(pathToFileURL(SERVICE).href)",
   "waitForApollyonAuthorizationCustodyShutdownV3(service)",
-  'signalSource.once("SIGTERM",onSignal)',
-  'signalSource.once("SIGINT",onSignal)',
+  'signalSource.on("SIGTERM",onSignal)',
+  'signalSource.on("SIGINT",onSignal)',
   '.then(()=>service.stop())',
   'signalSource.removeListener("SIGTERM",onSignal)',
   'signalSource.removeListener("SIGINT",onSignal)',
@@ -57,7 +57,7 @@ for(const required of [
   assert.equal(source.includes(required),true,required);
 }
 for(const forbidden of [
-  "timer.unref","setInterval(","createPrivateKey","crypto.sign(",
+  "timer.unref","setInterval(","signalSource.once(","createPrivateKey","crypto.sign(",
   "signTransaction(","eth_sendRawTransaction","fetch(","node:child_process",
   "attempt_claimed:true","training_execution_performed:true",
   "candidate_weight_mutation_performed:true",
@@ -88,11 +88,25 @@ async function bounded(promise,label){
 {
   const signals=new EventEmitter();
   let stops=0;
+  let releaseStop;
+  let markStopStarted;
+  const stopGate=new Promise((resolve)=>{ releaseStop=resolve; });
+  const stopStarted=new Promise((resolve)=>{ markStopStarted=resolve; });
   const done=launcher.waitForApollyonAuthorizationCustodyShutdownV3({
-    async stop(){ stops+=1; },
+    async stop(){
+      stops+=1;
+      markStopStarted();
+      await stopGate;
+    },
   },signals);
   signals.emit("SIGTERM");
+  await bounded(stopStarted,"sigterm-stop-started");
+  assert.equal(signals.listenerCount("SIGTERM"),1);
+  assert.equal(signals.listenerCount("SIGINT"),1);
+  signals.emit("SIGTERM");
   signals.emit("SIGINT");
+  assert.equal(stops,1);
+  releaseStop();
   await bounded(done,"sigterm");
   assert.equal(stops,1);
   assert.equal(signals.listenerCount("SIGTERM"),0);
@@ -140,6 +154,8 @@ console.log("dependency_blobs_verified_before_import=true");
 console.log("sigterm_stop_settled=true");
 console.log("sigint_stop_settled=true");
 console.log("duplicate_signal_single_stop=true");
+console.log("duplicate_same_signal_single_stop=true");
+console.log("signal_handlers_retained_until_stop_settles=true");
 console.log("shutdown_listener_cleanup=true");
 console.log("shutdown_failure_propagated=true");
 console.log("unref_polling_removed=true");
