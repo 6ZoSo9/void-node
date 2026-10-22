@@ -1,0 +1,91 @@
+name: VOID accepted protected V4 lock canonical V5 composition v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-protected-v4-lock-canonical-v5-composition-v2.yml"
+      - ".github/workflows/canonical-producer-legacy-self-http-observers-v1.yml"
+      - ".github/workflows/void-live-agent-jsonl-runtime-wedge-v1.yml"
+      - "docs/architecture/buy-void-protected-v4-lock-canonical-v5-composition-v2.md"
+      - "docs/operations/canonical-producer-source-custody-v1.md"
+      - "ops/run-void-node-live-v1.sh"
+      - "runtime/canonical-producer-self-http-guard-v5.cjs"
+      - "scripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json"
+      - "src/index.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact composition head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact checkout and two-parent restack
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          read -r head p1 p2 extra <<<"$(git rev-list --parents -n 1 HEAD)"
+          test "$head" = "$EXPECTED_HEAD"
+          test "$p1" = "5e6137c8b3e905e891d5571ec95cc413b8207334"
+          test "$p2" = "75927cae2c7ed0b4273e6218937dedf69824f64c"
+          test -z "${extra:-}"
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Bind exact composition sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs)" = "21d2e830c915e1a92daa6e837169b05bd75805d3"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-protected-v4-lock-canonical-v5-composition-v2.md)" = "089c8c88d5497df506798b38f2094463f4e57a91"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json)" = "854b9e39772e1e930c63b71e1099509df0f2dbf8"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "5893e300a78dc4ca7729ef47f95a8e3eea2043cf"
+          test "$(git rev-parse HEAD:ops/run-void-node-live-v1.sh)" = "d7d7aede7fcd764a6182bd31f12338c5d3674ecb"
+          test "$(git rev-parse HEAD:src/index.ts)" = "7df1f21c730b554c414c88c550a4475234485370"
+          git diff --check "75927cae2c7ed0b4273e6218937dedf69824f64c" HEAD
+      - name: Syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n ops/run-void-node-live-v1.sh
+          node --check runtime/canonical-producer-self-http-guard-v5.cjs
+          node --check scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs
+          node --check scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs
+          node --check scripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs
+      - name: Prove canonical V5
+        run: node scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs
+      - name: Prove accepted-lock composition
+        run: node scripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs
+      - name: Derive deterministic composition receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs --receipt > "$RUNNER_TEMP/composition-v2.json"
+          node -e '
+            const fs=require("node:fs");
+            const value=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+            if(value.accepted_v4_lock_preserved!==true) process.exit(2);
+            if(value.candidate_v5_required!==true) process.exit(3);
+            if(value.candidate_v5_accepted!==false) process.exit(4);
+            if(value.runtime_cutover_authorized!==false) process.exit(5);
+          ' "$RUNNER_TEMP/composition-v2.json"
