@@ -26,8 +26,10 @@ The updater requires:
 - custody target loaded/inactive/disabled;
 - custody service loaded/static with no MainPID and either inactive or failed;
 - training service inactive or failed with no MainPID;
-- zero processes carrying the custody UID in any real/effective/saved/fs UID slot;
-- zero processes carrying the training UID in any real/effective/saved/fs UID slot;
+- zero threads in any process carrying the custody UID in any
+  real/effective/saved/fs UID slot;
+- zero threads in any process carrying the training UID in any
+  real/effective/saved/fs UID slot;
 - no target or service drop-ins;
 - target dependency/stop-propagation still closed to the custody service;
 - exact target Git blob `9daceeb07933a8a5158bc93bbc2760027d79e2d8`;
@@ -95,7 +97,8 @@ the rebind.
 3. `systemctl daemon-reload`.
 
 Dormancy is rechecked before publication/replacement and immediately before
-daemon reload, including a fresh four-slot custody/training UID process census.
+daemon reload, including two consecutive all-process/all-TID censuses of the
+four real/effective/saved/fs UID slots for both custody and training roles.
 Before any destination write, the updater also revalidates the
 complete root-owned, symlink-free, non-group/world-writable ancestor chains for
 the canonical systemd unit and reviewed launcher paths. The updater contains no
