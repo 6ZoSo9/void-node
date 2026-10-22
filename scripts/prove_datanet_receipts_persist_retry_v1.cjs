@@ -16,14 +16,14 @@ assert.equal(
   "4.22.3",
   "router alias contract is bound to pinned Express 4.22.3",
 );
-const EXPRESS4_22_3_APPLICATION_BLOB =
-  "ebb30b51b3d6e84d33288251d11ab92d8462c181";
+// Exact getter excerpt from expressjs/express@v4.22.3 lib/application.js,
+// Git blob ebb30b51b3d6e84d33288251d11ab92d8462c181.
 const express4RouterGetterSource = String.raw`
 Object.defineProperty(app, "router", {
   configurable: true,
   get: function getrouter() {
     throw new Error(
-      "'app.router' is deprecated!\\n" +
+      "'app.router' is deprecated!\n" +
       "Please see the 3.x to 4.x migration guide for details on how to update your app."
     );
   }
@@ -45,7 +45,6 @@ assert.ok(
   !actualExpress4RouterGetterError.includes("\\n"),
   "pinned Express getter must not emit a literal backslash-n",
 );
-assert.equal(EXPRESS4_22_3_APPLICATION_BLOB.length, 40);
 
 function makeMountHarness(app, options = {}) {
   let tick;
