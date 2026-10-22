@@ -14,7 +14,7 @@ BOOTSTRAP = ROOT / "ops/precision/void_buy_void_v7_create_only_closed_tree_boots
 BOOTSTRAP_PROOF = ROOT / "scripts/prove_buy_void_v7_create_only_closed_tree_bootstrap_v1.py"
 
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V3_PROOF"
-SOURCE_BLOB = "42051d5e772aeef13975032c94715c0d0475b2d9"
+SOURCE_BLOB = "a4595f350be38a68a7d7d66deb81543a23b4bec2"
 INSTALLER_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 PLAN_BLOB = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
 ACCEPTANCE_BLOB = "919db72903a5fcff59dec7635a4288f41d1753d9"
