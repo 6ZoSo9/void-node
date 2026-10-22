@@ -110,6 +110,7 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_capacity_fifo_nonblocking_v2.ts)" = "1b3d72c2eda967f5cd84d929cd80c62508cce16e"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs)" = "ad1c47b610b6b986250c250eb788f4ec26366009"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "00a4c8681073ced2588a62163ec4eae23e278f0f"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v3_trigger_closure_v1.mjs)" = "494546c93df8c1fa5c09bb9a87f213f4d0f8c9f6"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Build exact composition
         run: |
@@ -130,6 +131,8 @@ jobs:
           grep -Fx 'protected_consumer_count=5' "$out"
           grep -Fx 'compatibility_trigger_count=16' "$out"
           grep -Fx 'compatibility_successor_triggers_complete=true' "$out"
+          grep -Fx 'v3_trigger_reader_descriptor_bound=true' "$out"
+          grep -Fx 'v3_trigger_reader_fifo_swap_rejected=true' "$out"
       - name: Prove composed current generation
         run: |
           set -euo pipefail
