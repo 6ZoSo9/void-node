@@ -39,8 +39,12 @@ The updater requires:
   `d23ff045d8c355401fed499c6bcffd503ba4c7fd`;
 - exact hardened seven-name `UnsetEnvironment` set;
 - exact loaded `ExecStart` for either the reviewed v2 or v3 launcher generation;
-- no loaded `ExecCondition`, `ExecStartPre`, `ExecStartPost` or `ExecStop`;
-- exact loaded cleanup-helper `ExecStopPost`;
+- `ExecCondition`, `ExecStartPre`, `ExecStartPost` and `ExecStop` must be
+  absent or empty; Xiphos systemd omits those unset properties from
+  `systemctl show -p`, so omission is normalized only for those four reviewed
+  empty execution-list properties;
+- exact loaded cleanup-helper `ExecStopPost`; `ExecStart` and
+  `ExecStopPost` remain mandatory and may not be omitted;
 - loaded `NoNewPrivileges=yes` and `RestrictAddressFamilies=AF_UNIX`.
 
 The updater parses the effective systemd execution records; launcher generation
@@ -101,7 +105,7 @@ blobs. A direct root invocation from a user-writable checkout or
 A host operator must first stage the exact reviewed closure into a root-custodied
 directory and execute the absolute staged updater path. Before execution, the
 root-owned staged updater must have exact Git blob
-`af7d323e8c736cf3a8b28ea3505fc8fdd1670795`; the staged launcher and service payloads remain
+`7eb3ae379a9e008421fd6f3d67bfb2aad5b22f08`; the staged launcher and service payloads remain
 bound to their exact blobs by the updater itself. This requirement binds root
 execution to the reviewed generation rather than trusting the transport copy.
 
