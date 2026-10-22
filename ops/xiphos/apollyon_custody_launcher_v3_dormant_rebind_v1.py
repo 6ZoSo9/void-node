@@ -217,7 +217,36 @@ def loaded_exec_generation(service:dict[str,str])->str:
         return "v3"
     hold("service_effective_execstart_invalid")
 
-def unit_props(unit:str,names:tuple[str,...])->dict[str,str]:
+def normalize_unit_props(
+    unit:str,
+    observed:dict[str,str],
+    names:tuple[str,...],
+    optional_empty:tuple[str,...]=(),
+)->dict[str,str]:
+    expected=set(names)
+    optional=set(optional_empty)
+    if not optional.issubset(expected):
+        hold("unit_probe_optional_schema_invalid:"+unit)
+    extra=set(observed)-expected
+    if extra:
+        hold("unit_probe_extra:"+unit+":"+",".join(sorted(extra)))
+    missing=expected-set(observed)
+    required_missing=missing-optional
+    if required_missing:
+        hold(
+            "unit_probe_incomplete:"+unit+":"+
+            ",".join(sorted(required_missing))
+        )
+    out=dict(observed)
+    for name in missing:
+        out[name]=""
+    return out
+
+def unit_props(
+    unit:str,
+    names:tuple[str,...],
+    optional_empty:tuple[str,...]=(),
+)->dict[str,str]:
     argv=["/usr/bin/systemctl","show",unit,"--no-pager"]
     for name in names:
         argv.extend(["-p",name])
@@ -232,9 +261,7 @@ def unit_props(unit:str,names:tuple[str,...])->dict[str,str]:
         if key in out:
             hold("unit_probe_duplicate:"+unit)
         out[key]=value
-    if set(out)!=set(names):
-        hold("unit_probe_incomplete:"+unit)
-    return out
+    return normalize_unit_props(unit,out,names,optional_empty)
 
 def proc_start_ticks(pid:int,proc_root:Path=Path("/proc"))->str:
     text=(proc_root/str(pid)/"stat").read_text(
@@ -380,13 +407,18 @@ def require_dormant()->dict[str,dict[str,str]]:
         "LoadState","ActiveState","UnitFileState","NeedDaemonReload",
         "FragmentPath","DropInPaths","Wants","PropagatesStopTo",
     ))
-    service=unit_props(SERVICE_UNIT,(
-        "LoadState","ActiveState","UnitFileState","MainPID","NeedDaemonReload",
-        "FragmentPath","DropInPaths","RefuseManualStart","RefuseManualStop",
-        "NoNewPrivileges","RestrictAddressFamilies","UnsetEnvironment",
-        "ExecCondition","ExecStartPre","ExecStart","ExecStartPost","ExecStop",
-        "ExecStopPost",
-    ))
+    service=unit_props(
+        SERVICE_UNIT,(
+            "LoadState","ActiveState","UnitFileState","MainPID","NeedDaemonReload",
+            "FragmentPath","DropInPaths","RefuseManualStart","RefuseManualStop",
+            "NoNewPrivileges","RestrictAddressFamilies","UnsetEnvironment",
+            "ExecCondition","ExecStartPre","ExecStart","ExecStartPost","ExecStop",
+            "ExecStopPost",
+        ),
+        optional_empty=(
+            "ExecCondition","ExecStartPre","ExecStartPost","ExecStop",
+        ),
+    )
     training=unit_props(TRAINING_UNIT,(
         "LoadState","ActiveState","UnitFileState","MainPID",
     ))
@@ -839,6 +871,28 @@ def self_test()->None:
         assert uid_thread_inventory(4242,proc_root)=={
             201:(202,203),
         }
+    assert normalize_unit_props(
+        "fixture.service",
+        {"ExecStart":"required","ExecStopPost":"cleanup"},
+        (
+            "ExecCondition","ExecStartPre","ExecStart",
+            "ExecStartPost","ExecStop","ExecStopPost",
+        ),
+        ("ExecCondition","ExecStartPre","ExecStartPost","ExecStop"),
+    )=={
+        "ExecCondition":"","ExecStartPre":"","ExecStart":"required",
+        "ExecStartPost":"","ExecStop":"","ExecStopPost":"cleanup",
+    }
+    try:
+        normalize_unit_props(
+            "fixture.service",{},
+            ("ExecStart","ExecStopPost"),("ExecStopPost",),
+        )
+    except Hold as exc:
+        assert str(exc)=="unit_probe_incomplete:fixture.service:ExecStart"
+    else:
+        raise AssertionError("missing required unit property accepted")
+
     assert classify(
         "v2_exact","absent",
         "v2","no",
@@ -887,6 +941,8 @@ def self_test()->None:
         'require_dormant()',
         'service["ActiveState"] not in ("inactive","failed")',
         '"LoadState","ActiveState","UnitFileState","NeedDaemonReload"',
+        'normalize_unit_props(',
+        'optional_empty=(',
         'require_trusted_ancestor_chain(',
         'trusted_ancestor_invalid:',
         'require_apply_source_custody()',
@@ -927,6 +983,8 @@ def self_test()->None:
         assert required in own,required
     print(MARKER+"_SELF_TEST_GREEN")
     print("processless_target_mainpid_not_required=true")
+    print("omitted_empty_service_exec_properties_normalized=true")
+    print("required_service_exec_properties_still_mandatory=true")
     print("v2_launcher_preserved=true")
     print("v3_launcher_create_only=true")
     print("apply_root_custodied_source_required=true")
