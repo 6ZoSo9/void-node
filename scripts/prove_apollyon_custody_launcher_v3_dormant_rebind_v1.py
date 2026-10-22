@@ -63,8 +63,10 @@ for required in (
     'service["NoNewPrivileges"]!="yes"',
     'service["RestrictAddressFamilies"]!="AF_UNIX"',
     'uid_process_generations(',
-    'custody_uid_process_present:',
-    'training_uid_process_present:',
+    'uid_thread_inventory(',
+    'custody_uid_thread_present:',
+    'training_uid_thread_present:',
+    'thread_status_unreadable:',
     'require_no_role_processes()',
     'require_trusted_ancestor_chain(',
     'trusted_ancestor_invalid:',
@@ -103,6 +105,9 @@ for line in (
     "training_uid_process_absence_required=true",
     "saved_fs_uid_slots_counted=true",
     "all_four_uid_slots_counted=true",
+    "all_tid_role_uid_census_required=true",
+    "saved_fs_uid_only_threads_counted=true",
+    "role_thread_census_repeated=true",
     "service_unit_atomic_replace=true",
     "daemon_reload_only_systemd_mutation=true",
     "service_action=false",
@@ -128,6 +133,9 @@ print("custody_uid_process_absence_required=true")
 print("training_uid_process_absence_required=true")
 print("saved_fs_uid_slots_counted=true")
 print("all_four_uid_slots_counted=true")
+print("all_tid_role_uid_census_required=true")
+print("saved_fs_uid_only_threads_counted=true")
+print("role_thread_census_repeated=true")
 print("service_unit_atomic_replace=true")
 print("daemon_reload_only_systemd_mutation=true")
 print("v3_qualifier_group_fix_bound=true")
