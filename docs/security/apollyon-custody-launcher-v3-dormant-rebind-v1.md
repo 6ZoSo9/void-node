@@ -29,7 +29,14 @@ The updater requires:
   `30b7b7c62b6b7834ae91db1eb37df05286ca5764`;
 - exact installed v2 launcher Git blob
   `d23ff045d8c355401fed499c6bcffd503ba4c7fd`;
-- exact hardened seven-name `UnsetEnvironment` set.
+- exact hardened seven-name `UnsetEnvironment` set;
+- exact loaded `ExecStart` for either the reviewed v2 or v3 launcher generation;
+- no loaded `ExecCondition`, `ExecStartPre`, `ExecStartPost` or `ExecStop`;
+- exact loaded cleanup-helper `ExecStopPost`;
+- loaded `NoNewPrivileges=yes` and `RestrictAddressFamilies=AF_UNIX`.
+
+The updater parses the effective systemd execution records; launcher generation
+is never inferred from a pathname substring.
 
 The updater also supports its own resumable intermediate states: v3 launcher
 already created, service file replaced but manager still loaded on v2, and
