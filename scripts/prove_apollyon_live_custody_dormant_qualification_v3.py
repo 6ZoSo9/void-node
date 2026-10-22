@@ -86,11 +86,18 @@ assert live.index('raw=service.get("MainPID","")')<live.index("exact_custody_nod
 assert live.index("exact_custody_node_executable(pid)")<live.index("status=proc_status(pid)")
 assert 'if proc_start_ticks(pid)!=start_ticks:' in live
 assert 'if latest.get("MainPID")!=raw:' in live
+assert live.count("exact_custody_node_executable(pid)")==2
+assert live.rfind("exact_custody_node_executable(pid)")>live.index(
+    'if latest.get("MainPID")!=raw:'
+)
+assert "custody_mainpid_generation_changed_after_executable_recheck" in live
 assert "def exact_custody_node_executable(" in new
 assert 'observed=os.readlink(exe_link)' in new
 assert 'not same_executable_inode(live_st,expected_st)' in new
 assert "custody_node_executable_disappeared" in new
 assert "custody_node_executable_inode_mismatch" in new
+assert 'with mock.patch.object(os,"stat",side_effect=inode_drift_stat)' in new
+assert '"custody_node_executable_inode_mismatch",' in new
 
 for forbidden in (
     'systemctl","start",SERVICE_UNIT',
@@ -118,6 +125,8 @@ for required in (
     "socket_ready_before_mainpid_inspection=true",
     "raw_executable_path_and_inode_bound=true",
     "mainpid_generation_rechecked=true",
+    "final_executable_identity_reattested=true",
+    "checker_inode_mismatch_adversary_executed=true",
     "custody_thread_credentials_exact_required=true",
     "custody_uid_process_exclusivity_required=true",
     "final_success_attestation_failure_receipt_truthful=true",
@@ -133,6 +142,8 @@ print("source_only=true")
 print("socket_ready_before_mainpid_inspection=true")
 print("raw_executable_path_and_inode_bound=true")
 print("mainpid_generation_rechecked=true")
+print("final_executable_identity_reattested=true")
+print("checker_inode_mismatch_adversary_executed=true")
 print("systemd_service_source_unchanged=true")
 print("legacy_v2_source_preserved=true")
 print("unchanged_v2_production_ast_exact=true")
