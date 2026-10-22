@@ -157,7 +157,7 @@ for(const [key,val] of Object.entries(body.authority)){
   else assert.equal(val,false,key);
 }
 assert.equal(body.next_gate,
-  "REVIEW_TRUSTED_ADMISSION_PLAN_V2_THEN_IMPLEMENT_STATIC_STAGE_ROOT_LAUNCHER_V2_AND_READ_ONLY_PAIR_QUALIFIER_V2");
+  "REVIEW_HARDENED_TRUSTED_ADMISSION_PLAN_V2_THEN_REBIND_STATIC_STAGE_ROOT_LAUNCHER_V2");
 
 console.log(MARKER+"_PROOF_GREEN");
 console.log("plan_id="+EXPECTED_PLAN_ID);
