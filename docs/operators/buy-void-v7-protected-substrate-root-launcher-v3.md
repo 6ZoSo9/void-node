@@ -78,7 +78,10 @@ V3 requires:
 - exact reviewed plan ID and Git blob;
 - canonical bounded manifest/source/bootstrap identities;
 - receipt root device/inode equal to the visible closed-tree root;
-- every receipt entry to remain within `bin/`, `runtime/`, `source/`, or the fixed policy path;\n- all mandatory launcher/runtime/minimal-Git/V5 paths with exact kind and mode;\n- no duplicate, reordered, self-receipt, or alternate path encodings;\n- receipt-bound device, inode, mode, nlink, size and SHA-256 for every
+- every receipt entry to remain within `bin/`, `runtime/`, `source/`, or the fixed policy path;
+- all mandatory launcher/runtime/minimal-Git/V5 paths with exact kind and mode;
+- no duplicate, reordered, self-receipt, or alternate path encodings;
+- receipt-bound device, inode, mode, nlink, size and SHA-256 for every
   privileged consumed file;
 - receipt-bound identities for every consumed directory;
 - exact root/subdirectory visible layout;
@@ -103,25 +106,28 @@ binding:
 - exact landed V5 relative path, byte count and SHA-256;
 - exact closed-tree source-acceptance ID.
 
-## Production manifest-lock HOLD
+## Manifest lock remains external to launcher
 
-This source generation deliberately carries **no accepted production payload
-manifest**. The compile-time bindings default to empty/zero for:
+V3 deliberately does **not** compile-bind the production manifest SHA,
+bootstrap SHA or source-generation SHA.
 
-- accepted manifest SHA-256;
-- accepted manifest byte count;
-- accepted source-generation SHA-256;
-- accepted bootstrap SHA-256.
+Embedding those values in V3 would create a self-hash cycle: the launcher
+binary is itself a payload entry in the production manifest, while its bytes
+would then depend on that manifest's hash.
 
-`--self-test` remains available for source review, but every real root
-`--plan` or `--apply` path fails closed with
-`production_payload_manifest_lock_not_bound` until a separately reviewed
-manifest-lock candidate supplies all four exact identities.
+The landed acceptance instead authorizes a **bootstrap source revision** for
+the production manifest lock. The bootstrap executable is outside the final
+closed-tree payload, so it can safely compile-bind the complete manifest
+SHA/bytes and source generation, build fresh payload inodes, and record its own
+binary SHA in the durable receipt without a cycle.
 
-After a lock is compiled in, V3 also requires the receipt's
-`manifest_sha256`, `manifest_bytes`, `source_generation`, and
-`bootstrap_sha256` to match those exact bindings before any Python
-execution. This PR does not define or accept those production values.
+V3 then validates the receipt/tree produced by that separately accepted
+bootstrap under the reviewed threat model. The receipt's manifest/source/
+bootstrap identity fields are schema-validated and preserved as evidence, but
+they are not launcher compile-time authority.
+
+Production manifest acceptance, bootstrap candidate acceptance, launcher host
+acceptance and root execution authorization remain separate future gates.
 
 ## Complete V5 source composition
 
