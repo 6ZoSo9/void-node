@@ -1,5 +1,5 @@
 {
-  "acceptance_id": "voidv7closedtreeaccept1_ed5254b203016c9aef5d044b8bf9e20dbaead2998246b4ad3a352c5727f82e9b",
+  "acceptance_id": "voidv7closedtreeaccept1_19ac8c5b09377162ff42048535352a15b5dc75020701c9402c1ebc6ba73fc4b3",
   "schema": "VOID_BUY_VOID_V7_CREATE_ONLY_CLOSED_TREE_ACCEPTANCE_V1",
   "version": 1,
   "source_base": "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c",
@@ -19,7 +19,6 @@
     "alternative_seal_accepted_for_source_implementation": true,
     "new_launcher_generation_source_implementation_authorized": true,
     "bootstrap_manifest_lock_candidate_generation_authorized": true,
-    "bootstrap_source_revision_under_acceptance_authorized": true,
     "production_payload_manifest_accepted": false,
     "bootstrap_candidate_accepted": false,
     "new_launcher_generation_host_accepted": false,
@@ -36,7 +35,8 @@
     "public_presale_activation_authorized": false,
     "wc_void_market_activation_authorized": false,
     "treasury_liquidity_action_authorized": false,
-    "funds_movement_authorized": false
+    "funds_movement_authorized": false,
+    "bootstrap_source_revision_for_manifest_lock_candidate_only_authorized": true
   },
   "required_next_source_properties": [
     "launcher_v3_must_preserve_v2_first_instruction_static_native_boundary",
