@@ -29,8 +29,8 @@ jobs:
       - name: Bind exact four-file source scope
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_v7_static_rename_noreplace_bridge_v1.c)" = "b9982e9890caf3a2d7544816b6d8ae90b1a82492"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_static_rename_noreplace_bridge_v1.py)" = "1f1b6ce80b7303a95b0b19a98aba6b2798cc77e9"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_static_rename_noreplace_bridge_v1.c)" = "34e32a5b77e0bd82138aa47ad4f8645fc93c0b9c"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_static_rename_noreplace_bridge_v1.py)" = "57ce6591dbe5c07c29c0e5ed3d275a7fa50e144f"
           test "$(git rev-parse HEAD:docs/operators/void-v7-static-rename-noreplace-bridge-v1.md)" = "7795d06f316385ddcf21fa06fc1e7c16403ba81b"
           git merge-base --is-ancestor 4596bc73ce3adc8a4e59396ca1ebdf206ba9496f HEAD
           if [ "${{ github.event_name }}" = "pull_request" ]; then
