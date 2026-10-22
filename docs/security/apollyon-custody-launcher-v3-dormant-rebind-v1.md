@@ -90,6 +90,19 @@ the rebind.
 
 ## Mutation boundary
 
+Before `--apply` may mutate anything, the updater requires its own Python
+source, the launcher v3 source payload, and the v3-bound service source payload
+to be root-owned, single-link, nonsymlink files with no group/world write bit
+under fully root-owned, symlink-free, non-group/world-writable ancestor chains.
+The launcher and service payloads must also match their exact reviewed Git
+blobs. A direct root invocation from a user-writable checkout or
+`~/Downloads` therefore HOLDs before mutation.
+
+A host operator must first stage the exact reviewed closure into a root-custodied
+directory and execute the absolute staged updater path. This requirement binds
+root execution to the reviewed generation rather than trusting the transport
+copy.
+
 `--apply` may perform only:
 
 1. create-only publication of the root-owned mode 0444 v3 launcher;
