@@ -719,6 +719,29 @@ def wait_socket(present:bool,timeout_s:float=8.0)->None:
         time.sleep(0.05)
     hold("socket_transition_timeout:"+("present" if present else "absent"))
 
+def wait_unit_safely_dormant(unit:str,timeout_s:float=8.0)->dict[str,str]:
+    deadline=time.monotonic()+timeout_s
+    last={}
+    while time.monotonic()<deadline:
+        r=run([
+            "/usr/bin/systemctl","show",unit,"--no-pager",
+            "-p","LoadState","-p","ActiveState","-p","SubState","-p","MainPID",
+        ],check=False)
+        props={}
+        if r.returncode==0:
+            for line in r.stdout.splitlines():
+                if "=" in line:
+                    k,v=line.split("=",1);props[k]=v
+            last=props
+            if (
+                props.get("LoadState")=="loaded" and
+                props.get("ActiveState") in ("inactive","failed") and
+                props.get("MainPID") in ("","0",None)
+            ):
+                return props
+        time.sleep(0.1)
+    hold("unit_safe_dormant_timeout:"+unit+":"+json.dumps(last,sort_keys=True))
+
 def assert_socket_parent_empty(ids:dict[str,int])->None:
     exact_directory(
         SOCKET_PARENT,0o750,ids["custody_uid"],ids["ipc_gid"]
@@ -727,9 +750,18 @@ def assert_socket_parent_empty(ids:dict[str,int])->None:
     if names:
         hold("socket_parent_not_empty:"+",".join(names))
 
-def attest_dormant_boundary(ids:dict[str,int],prefix:str)->None:
+def attest_dormant_boundary(
+    ids:dict[str,int],
+    prefix:str,
+    *,
+    allow_service_failed:bool=False,
+)->None:
     exact_dormant(TARGET_UNIT,expected_unit_file_state="disabled")
-    exact_dormant(SERVICE_UNIT,expected_unit_file_state="static")
+    exact_dormant(
+        SERVICE_UNIT,
+        allow_failed=allow_service_failed,
+        expected_unit_file_state="static",
+    )
     if SOCKET_PATH.exists():hold(prefix+"_socket_present")
     assert_socket_parent_empty(ids)
     require_no_custody_uid_processes(
@@ -755,9 +787,15 @@ def emergency_cleanup(
         failures.append("emergency_target_stop_failed")
     try:
         _wait_unit_fn(TARGET_UNIT,"inactive",5.0)
-        _wait_unit_fn(SERVICE_UNIT,"inactive",5.0)
+        if _wait_unit_fn is wait_unit:
+            wait_unit_safely_dormant(SERVICE_UNIT,5.0)
+        else:
+            _wait_unit_fn(SERVICE_UNIT,"inactive",5.0)
         _wait_socket_fn(False,5.0)
-        _attest_fn(ids,"emergency")
+        if _attest_fn is attest_dormant_boundary:
+            _attest_fn(ids,"emergency",allow_service_failed=True)
+        else:
+            _attest_fn(ids,"emergency")
     except BaseException as exc:
         failures.append(type(exc).__name__+":"+str(exc))
     return (
@@ -861,7 +899,9 @@ def plan()->dict:
     if socket.gethostname().casefold()!=TARGET_HOST.casefold():hold("wrong_host")
     ids=verify_static_install()
     exact_dormant(TARGET_UNIT,expected_unit_file_state="disabled")
-    exact_dormant(SERVICE_UNIT,expected_unit_file_state="static")
+    exact_dormant(
+        SERVICE_UNIT,allow_failed=True,expected_unit_file_state="static"
+    )
     exact_dormant(TRAINING_UNIT,allow_failed=True)
     if SOCKET_PATH.exists():hold("preexisting_socket_path")
     assert_socket_parent_empty(ids)
@@ -951,7 +991,9 @@ def qualify()->dict:
     if error is not None:
         final_dormant_recheck_attempted=True
         try:
-            attest_dormant_boundary(ids,"failure_recheck")
+            attest_dormant_boundary(
+                ids,"failure_recheck",allow_service_failed=True
+            )
         except BaseException as recheck_exc:
             final_dormant_after_failure_proven=False
             final_dormant_recheck_reason=(
@@ -1053,6 +1095,11 @@ def self_test()->None:
         'final_dormant_after_failure_proven',
         'attest_dormant_boundary(ids,"emergency")',
         'attest_dormant_boundary(ids,"failure_recheck")',
+        'allow_service_failed:bool=False',
+        'wait_unit_safely_dormant(',
+        'unit_safe_dormant_timeout:',
+        'allow_failed=True,expected_unit_file_state="static"',
+        'allow_service_failed=True',
         'attest_dormant_boundary(ids,"final")',
         'final_consumed_state_changed',
         'emergency_cleanup(ids)',
