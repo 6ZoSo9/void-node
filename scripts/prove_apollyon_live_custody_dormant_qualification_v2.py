@@ -10,7 +10,7 @@ for required in (
     'TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"',
     'SERVICE_BLOB="51354b10da89413eb6991514496798c7a1b5d1e8"',
     'HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
-    'LAUNCHER_BLOB="ec9e1d2c01581ebdc5323056939f846e67692fe6"',
+    'LAUNCHER_BLOB="8d8561c08db7e500a818d269580dad15adca9f58"',
     'run(["/usr/bin/systemctl","start",TARGET_UNIT])',
     'run(["/usr/bin/systemctl","stop",TARGET_UNIT])',
     'st.st_nlink!=2',
