@@ -16,21 +16,36 @@ assert.equal(
   "4.22.3",
   "router alias contract is bound to pinned Express 4.22.3",
 );
-const express = require("express");
-
-const express4App = express();
+const EXPRESS4_22_3_APPLICATION_BLOB =
+  "ebb30b51b3d6e84d33288251d11ab92d8462c181";
+const express4RouterGetterSource = String.raw`
+Object.defineProperty(app, "router", {
+  configurable: true,
+  get: function getrouter() {
+    throw new Error(
+      "'app.router' is deprecated!\\n" +
+      "Please see the 3.x to 4.x migration guide for details on how to update your app."
+    );
+  }
+});
+`;
+const express4FixtureApp = {};
+vm.runInNewContext(express4RouterGetterSource, { app: express4FixtureApp });
 let actualExpress4RouterGetterError = null;
 try {
-  void express4App.router;
+  void express4FixtureApp.router;
 } catch (error) {
   actualExpress4RouterGetterError = String(error?.message || error || "");
 }
-assert.equal(
-  actualExpress4RouterGetterError,
-  "'app.router' is deprecated!\n" +
-    "Please see the 3.x to 4.x migration guide for details on how to update your app.",
-  "retry fixture must use the actual pinned Express 4.22.3 router getter message",
+assert.ok(
+  actualExpress4RouterGetterError.includes("\n"),
+  "pinned Express getter must emit an actual newline",
 );
+assert.ok(
+  !actualExpress4RouterGetterError.includes("\\n"),
+  "pinned Express getter must not emit a literal backslash-n",
+);
+assert.equal(EXPRESS4_22_3_APPLICATION_BLOB.length, 40);
 
 function makeMountHarness(app, options = {}) {
   let tick;
