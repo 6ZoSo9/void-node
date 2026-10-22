@@ -66,6 +66,9 @@ for required in (
     'custody_uid_process_exclusivity_failed',
     'preexisting_custody_uid_process',
     'prestart_custody_uid_process',
+    '"prestart_cycle_"+str(cycle)',
+    'allow_service_failed=(cycle==1)',
+    'exact_dormant(TRAINING_UNIT,allow_failed=True)',
     'custody_uid_process_after_stop',
     'target_start_attempts=',
     'emergency_cleanup_attempted=',
@@ -144,6 +147,9 @@ for line in (
     "consumed_directory_generation_bound=true",
     "critical_directory_metadata_bound=true",
     "prestart_static_boundary_reverified=true",
+    "prestart_unit_dormancy_reverified_each_cycle=true",
+    "cycle2_requires_clean_inactive_service=true",
+    "training_unit_dormancy_reverified=true",
     "training_execution=false","durable_attempt_claim=false","funds_movement=false",
 ):
     assert line in r.stdout,line
@@ -188,3 +194,6 @@ print("consumed_state_checked_after_each_cycle=true")
 print("consumed_directory_generation_bound=true")
 print("critical_directory_metadata_bound=true")
 print("prestart_static_boundary_reverified=true")
+print("prestart_unit_dormancy_reverified_each_cycle=true")
+print("cycle2_requires_clean_inactive_service=true")
+print("training_unit_dormancy_reverified=true")
