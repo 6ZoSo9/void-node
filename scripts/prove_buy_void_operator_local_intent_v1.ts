@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -161,6 +162,73 @@ try {
   {
     const { result, res } = response();
     assert.equal(authorizeBuyVoidOperatorLocalReadV1(request(), res), true);
+    assert.equal(result.body, null);
+  }
+
+  // The real credential path is first lstat'd as a regular file. Replace
+  // that leaf with a FIFO only in the production reader's openSync boundary:
+  // without O_NONBLOCK, O_RDONLY|O_NOFOLLOW could wait for a FIFO writer
+  // before the type/identity checks run. The injected guard prevents an
+  // accidental blocking open if a future refactor removes that flag.
+  {
+    const savedCredential = credentialPath + ".fifo-original";
+    const actualOpenSync = fs.openSync;
+    let fifoSubstituted = false;
+    let credentialOpenNonblocking = false;
+    let credentialOpenNoFollow = false;
+    try {
+      (fs as any).openSync = (...args: any[]) => {
+        const pathname = String(args[0] ?? "");
+        if (
+          !fifoSubstituted &&
+          pathname.startsWith("/proc/self/fd/") &&
+          pathname.endsWith(
+            "/" + VOID_BUY_VOID_OPERATOR_CAPABILITY_CREDENTIAL_ID_V1,
+          )
+        ) {
+          const flags = Number(args[1] ?? 0);
+          credentialOpenNonblocking =
+            (flags & fs.constants.O_NONBLOCK) !== 0;
+          credentialOpenNoFollow =
+            (flags & fs.constants.O_NOFOLLOW) !== 0;
+          // A regression must fail without opening a potentially blocking
+          // FIFO. This exception is swallowed by the production HOLD path,
+          // but the external proof assertions below still detect the fault.
+          if (!credentialOpenNonblocking || !credentialOpenNoFollow) {
+            throw new Error("synthetic_fifo_open_flags_missing");
+          }
+          fs.renameSync(credentialPath, savedCredential);
+          execFileSync("/usr/bin/mkfifo", [credentialPath], {
+            timeout: 5000,
+            stdio: "ignore",
+          });
+          fs.chmodSync(credentialPath, 0o400);
+          fifoSubstituted = true;
+        }
+        return (actualOpenSync as any)(...args);
+      };
+      const { result, res } = response();
+      assert.equal(authorizeBuyVoidOperatorLocalReadV1(request(), res), false);
+      assert.equal(credentialOpenNonblocking, true,
+        "credential regular-file open must be FIFO-nonblocking");
+      assert.equal(credentialOpenNoFollow, true,
+        "credential regular-file open must remain no-follow");
+      assert.equal(fifoSubstituted, true,
+        "test must substitute the actual credential leaf after lstat");
+      assert.equal(result.status, 503);
+      assert.equal(result.body?.error, "operator_capability_unavailable");
+      assert.equal(JSON.stringify(result.body).includes(capability), false,
+        "FIFO HOLD may not disclose bearer bytes");
+    } finally {
+      (fs as any).openSync = actualOpenSync;
+      if (fifoSubstituted) {
+        fs.rmSync(credentialPath, { force: true });
+        fs.renameSync(savedCredential, credentialPath);
+      }
+    }
+    const { result, res } = response();
+    assert.equal(authorizeBuyVoidOperatorLocalReadV1(request(), res), true,
+      "valid credential must remain usable after FIFO adversary cleanup");
     assert.equal(result.body, null);
   }
 
@@ -653,6 +721,7 @@ try {
   console.log("operator_credentials_directory_not_group_world_writable=true");
   console.log("operator_credentials_directory_descriptor_retained=true");
   console.log("operator_credential_descriptor_relative_open=true");
+  console.log("operator_credential_fifo_swap_nonblocking_rejected=true");
   console.log("credential_and_directory_close_uncertainty_holds=true");
   console.log("retained_directory_close_attempted_after_credential_failure=true");
   console.log("operator_credentials_directory_substitution_holds=true");
