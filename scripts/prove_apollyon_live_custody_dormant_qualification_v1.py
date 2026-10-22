@@ -52,6 +52,9 @@ for required in (
     'custody_group_closure_invalid',
     'custody_supplementary_groups_unreviewed',
     'exact_runtime_supplementary_groups(',
+    'primary_gid not in expected',
+    'required=expected-{primary_gid}',
+    'required.issubset(actual) and actual.issubset(expected)',
     'REVIEWED_SYSTEMD_MAJOR=255',
     'REVIEWED_SYSTEMD_PACKAGE_VERSIONS=(',
     'verify_systemd_generation()',
@@ -116,6 +119,8 @@ for line in (
     "retained_ancestor_custody_required=true",
     "world_writable_execution_parent_rejected=true",
     "custody_group_closure_required=true",
+    "runtime_primary_gid_optional_redundant_group_accepted=true",
+    "reviewed_ipc_supplementary_group_required=true",
     "extra_custody_supplementary_group_rejected=true",
     "failure_cleanup_receipt_truthful=true",
     "emergency_cleanup_adversaries_executed=true",
@@ -157,6 +162,8 @@ print("unreviewed_systemd_dependency_entries_rejected=true")
 print("retained_ancestor_custody_required=true")
 print("world_writable_execution_parent_rejected=true")
 print("custody_group_closure_required=true")
+print("runtime_primary_gid_optional_redundant_group_accepted=true")
+print("reviewed_ipc_supplementary_group_required=true")
 print("extra_custody_supplementary_group_rejected=true")
 print("failure_cleanup_receipt_truthful=true")
 print("emergency_cleanup_adversaries_executed=true")
