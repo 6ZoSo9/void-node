@@ -343,7 +343,7 @@ async function receiptsPersistMetricsRoute(req, res) {
 }
 
 const EXPRESS4_ROUTER_GETTER_ERROR =
-  "'app.router' is deprecated!\\n" +
+  "'app.router' is deprecated!\n" +
   "Please see the 3.x to 4.x migration guide for details on how to update your app.";
 
 function isExpectedExpress4RouterGetterError(key, error) {

@@ -16,9 +16,21 @@ assert.equal(
   "4.22.3",
   "router alias contract is bound to pinned Express 4.22.3",
 );
-const EXPRESS4_ROUTER_GETTER_ERROR =
-  "'app.router' is deprecated!\\n" +
-  "Please see the 3.x to 4.x migration guide for details on how to update your app.";
+const express = require("express");
+
+const express4App = express();
+let actualExpress4RouterGetterError = null;
+try {
+  void express4App.router;
+} catch (error) {
+  actualExpress4RouterGetterError = String(error?.message || error || "");
+}
+assert.equal(
+  actualExpress4RouterGetterError,
+  "'app.router' is deprecated!\n" +
+    "Please see the 3.x to 4.x migration guide for details on how to update your app.",
+  "retry fixture must use the actual pinned Express 4.22.3 router getter message",
+);
 
 function makeMountHarness(app, options = {}) {
   let tick;
@@ -86,7 +98,7 @@ function makeMountHarness(app, options = {}) {
     configurable: true,
     get() {
       legacyRouterReads += 1;
-      throw new Error(EXPRESS4_ROUTER_GETTER_ERROR);
+      throw new Error(actualExpress4RouterGetterError);
     },
   });
   const harness = makeMountHarness(app);
