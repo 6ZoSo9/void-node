@@ -23,7 +23,7 @@ that points at v3, and runs `systemctl daemon-reload`.
 The updater requires:
 
 - Xiphos hostname;
-- custody target loaded/inactive/disabled;
+- custody target loaded/inactive/disabled; as a processless `.target`, it is not required to expose `MainPID`;
 - custody service loaded/static with no MainPID and either inactive or failed;
 - training service inactive or failed with no MainPID;
 - zero threads in any process carrying the custody UID in any
@@ -101,7 +101,7 @@ blobs. A direct root invocation from a user-writable checkout or
 A host operator must first stage the exact reviewed closure into a root-custodied
 directory and execute the absolute staged updater path. Before execution, the
 root-owned staged updater must have exact Git blob
-`4cd7e2368237cd7dd44d03c55d0de4529b535bbd`; the staged launcher and service payloads remain
+`af7d323e8c736cf3a8b28ea3505fc8fdd1670795`; the staged launcher and service payloads remain
 bound to their exact blobs by the updater itself. This requirement binds root
 execution to the reviewed generation rather than trusting the transport copy.
 
