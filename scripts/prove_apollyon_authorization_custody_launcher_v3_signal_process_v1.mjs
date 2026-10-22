@@ -23,8 +23,10 @@ async function runSignal(signal){
         process.stdout.write("STOP_SETTLED\\n");
       },
     };
+    const shutdownPromise=
+      waitForApollyonAuthorizationCustodyShutdownV3(service,process);
     process.stdout.write("READY\\n");
-    await waitForApollyonAuthorizationCustodyShutdownV3(service,process);
+    await shutdownPromise;
     process.stdout.write("TOP_LEVEL_AWAIT_SETTLED\\n");
   `;
 
