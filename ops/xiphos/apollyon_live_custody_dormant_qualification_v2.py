@@ -611,7 +611,7 @@ def proc_status(
 def no_training_uid_processes(
     training_uid:int,proc_root:Path=Path("/proc")
 )->bool:
-    return not uid_thread_process_map(training_uid,proc_root)
+    return not stable_uid_thread_process_map(training_uid,proc_root)
 
 def parse_uid_slots(status:dict[str,str])->tuple[int,int,int,int]:
     raw=status.get("Uid")
@@ -741,6 +741,15 @@ def uid_thread_process_map(
             observed[pid]=tuple(matched)
     return observed
 
+def stable_uid_thread_process_map(
+    uid:int,proc_root:Path=Path("/proc")
+)->dict[int,tuple[int,...]]:
+    first=uid_thread_process_map(uid,proc_root)
+    second=uid_thread_process_map(uid,proc_root)
+    if first!=second:
+        hold("custody_thread_process_census_changed")
+    return second
+
 def validate_custody_thread_status(
     status:dict[str,str],
     tid:int,
@@ -828,7 +837,7 @@ def exact_live_custody_process_set(
     return set(observed)=={pid} and bool(observed.get(pid))
 
 def require_no_custody_uid_processes(uid:int,reason:str)->None:
-    if uid_thread_process_map(uid):hold(reason)
+    if stable_uid_thread_process_map(uid):hold(reason)
 
 def consumed_snapshot(ids:dict[str,int])->dict[str,object]:
     root=exact_directory(
@@ -1027,7 +1036,7 @@ def live_observation(ids:dict[str,int])->dict[str,object]:
     thread_inventory=custody_thread_inventory(pid,ids)
     if not no_training_uid_processes(ids["training_uid"]):
         hold("training_uid_process_observed")
-    custody_processes=uid_thread_process_map(ids["custody_uid"])
+    custody_processes=stable_uid_thread_process_map(ids["custody_uid"])
     if not exact_live_custody_process_set(custody_processes,pid):
         hold("custody_uid_process_exclusivity_failed")
 
@@ -1236,6 +1245,8 @@ def self_test()->None:
         'training_uid_process_observed',
         'custody_uid_process_exclusivity_failed',
         'uid_thread_process_map(',
+        'stable_uid_thread_process_map(',
+        'custody_thread_process_census_changed',
         'custody_thread_inventory(',
         'validate_custody_thread_status(',
         'custody_thread_credentials_changed',
@@ -1655,6 +1666,9 @@ def self_test()->None:
         assert uid_thread_process_map(custody_uid,proc_root)=={
             103:(103,),104:(104,),
         }
+        assert stable_uid_thread_process_map(custody_uid,proc_root)=={
+            103:(103,),104:(104,),
+        }
 
     with tempfile.TemporaryDirectory(
         prefix="apollyon-child-thread-saved-fs-"
@@ -1742,6 +1756,7 @@ def self_test()->None:
     print("child_process_census_executed=true")
     print("all_tid_custody_exclusivity_required=true")
     print("all_tid_training_absence_required=true")
+    print("global_role_thread_census_stable=true")
     print("custody_thread_credentials_exact_required=true")
     print("custody_thread_credential_adversaries_executed=true")
     print("second_custody_uid_process_rejected=true")
