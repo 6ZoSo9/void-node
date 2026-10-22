@@ -51,6 +51,12 @@ The expected launcher path is:
 
 `/opt/void-apollyon-custody-service-v2-reviewed-v1/tools/apollyon-authorization-custody-launcher-v3.mjs`
 
+For effective service execution properties, Xiphos systemd may omit unset
+`ExecCondition`, `ExecStartPre`, `ExecStartPost` and `ExecStop` keys
+entirely from `systemctl show -p`. The qualifier normalizes omission to an
+empty execution list only for those four reviewed properties. `ExecStart` and
+`ExecStopPost` remain mandatory and exact; omission of either HOLDs.
+
 ## Lifecycle
 
 The live `--run` mode retains the v1 lifecycle semantics:
