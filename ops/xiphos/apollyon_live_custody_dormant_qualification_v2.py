@@ -832,9 +832,11 @@ def custody_thread_inventory(
     return second
 
 def exact_live_custody_process_set(
-    observed:dict[int,tuple[int,...]],pid:int
+    observed:dict[int,tuple[int,...]],
+    pid:int,
+    expected_tids:tuple[int,...],
 )->bool:
-    return set(observed)=={pid} and bool(observed.get(pid))
+    return observed=={pid:expected_tids} and bool(expected_tids)
 
 def require_no_custody_uid_processes(uid:int,reason:str)->None:
     if stable_uid_thread_process_map(uid):hold(reason)
@@ -1036,15 +1038,22 @@ def live_observation(ids:dict[str,int])->dict[str,object]:
     thread_inventory=custody_thread_inventory(pid,ids)
     if not no_training_uid_processes(ids["training_uid"]):
         hold("training_uid_process_observed")
+    validated_tids=tuple(
+        int(subject["tid"]) for subject in thread_inventory
+    )
     custody_processes=stable_uid_thread_process_map(ids["custody_uid"])
-    if not exact_live_custody_process_set(custody_processes,pid):
+    if not exact_live_custody_process_set(
+        custody_processes,pid,validated_tids
+    ):
         hold("custody_uid_process_exclusivity_failed")
 
     return {
         "pid":pid,"start_ticks":start_ticks,
         "custody_uid_process_count":len(custody_processes),
         "custody_thread_count":len(thread_inventory),
+        "custody_thread_ids":list(validated_tids),
         "custody_thread_credentials_exact":True,
+        "custody_global_thread_map_matches_validated_inventory":True,
         "custody_uid_process_exclusivity_proven":True,
         "exact_runtime_argv_bound":True,
         "socket_dev":st.st_dev,"socket_ino":st.st_ino,
@@ -1250,6 +1259,8 @@ def self_test()->None:
         'custody_thread_inventory(',
         'validate_custody_thread_status(',
         'custody_thread_credentials_changed',
+        'validated_tids=tuple(',
+        'custody_global_thread_map_matches_validated_inventory',
         'custody_thread_capability_nonzero:',
         'custody_thread_no_new_privileges_missing:',
         'return not uid_thread_process_map(training_uid,proc_root)',
@@ -1396,9 +1407,12 @@ def self_test()->None:
     assert cleanup_green is False
     assert cleanup_reason=="Hold:synthetic_safe_dormant_timeout"
 
-    assert exact_live_custody_process_set({101:(101,)},101)
-    assert not exact_live_custody_process_set({},101)
-    assert not exact_live_custody_process_set({101:(101,),102:(102,)},101)
+    assert exact_live_custody_process_set({101:(101,)},101,(101,))
+    assert not exact_live_custody_process_set({},101,(101,))
+    assert not exact_live_custody_process_set(
+        {101:(101,),102:(102,)},101,(101,)
+    )
+    assert not exact_live_custody_process_set({101:(101,102)},101,(101,))
     assert parse_uid_slots({"Uid":"123 123 123 123"})==(123,123,123,123)
     assert safely_dormant_unit_props({
         "LoadState":"loaded","ActiveState":"inactive","MainPID":"0",
@@ -1645,7 +1659,9 @@ def self_test()->None:
         assert observed=={101:"77"}
         thread_observed=uid_thread_process_map(custody_uid,proc_root)
         assert thread_observed=={101:(101,)}
-        assert exact_live_custody_process_set(thread_observed,101)
+        assert exact_live_custody_process_set(
+            thread_observed,101,(101,)
+        )
 
     with tempfile.TemporaryDirectory(prefix="apollyon-child-proc-second-") as td:
         proc_root=Path(td)
@@ -1655,7 +1671,9 @@ def self_test()->None:
         assert observed=={101:"77",102:"88"}
         thread_observed=uid_thread_process_map(custody_uid,proc_root)
         assert thread_observed=={101:(101,),102:(102,)}
-        assert not exact_live_custody_process_set(thread_observed,101)
+        assert not exact_live_custody_process_set(
+            thread_observed,101,(101,)
+        )
 
     with tempfile.TemporaryDirectory(prefix="apollyon-child-proc-saved-fs-") as td:
         proc_root=Path(td)
@@ -1757,6 +1775,7 @@ def self_test()->None:
     print("all_tid_custody_exclusivity_required=true")
     print("all_tid_training_absence_required=true")
     print("global_role_thread_census_stable=true")
+    print("global_custody_tid_map_matches_validated_inventory=true")
     print("custody_thread_credentials_exact_required=true")
     print("custody_thread_credential_adversaries_executed=true")
     print("second_custody_uid_process_rejected=true")
