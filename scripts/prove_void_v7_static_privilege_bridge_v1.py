@@ -76,7 +76,6 @@ assert methods.count('"clear_capabilities"') == 1
 assert source.count("PyMODINIT_FUNC") == 1
 
 probe = r'''import os
-import pathlib
 import sys
 import _voidpriv
 
@@ -90,7 +89,8 @@ assert len(set(os.getresgid())) == 1
 before_ids = (os.getresuid(), os.getresgid(), os.getgroups())
 
 def security():
-    lines = pathlib.Path("/proc/self/status").read_text("ascii").splitlines()
+    with open("/proc/self/status", "rb") as status_file:
+        lines = status_file.read().decode("ascii").splitlines()
     return dict(line.split(":", 1) for line in lines if ":" in line)
 
 before = security()
