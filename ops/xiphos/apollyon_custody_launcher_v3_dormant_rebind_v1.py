@@ -844,7 +844,7 @@ def self_test()->None:
     own=Path(__file__).read_text(encoding="utf-8")
     for forbidden in (
         'systemctl","start','systemctl","stop',
-        "training_execution":True","durable_attempt_claim":True",
+        '"training_execution":True','"durable_attempt_claim":True',
         "eth_sendRawTransaction","PRIVATE KEY-----",
     ):
         assert forbidden not in own,forbidden
