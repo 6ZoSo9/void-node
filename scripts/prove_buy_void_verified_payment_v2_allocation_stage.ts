@@ -76,6 +76,12 @@ function response() {
 // Construct the event through the REAL canonical V2 USDC-log verifier,
 // rather than inventing fields that no actual verification result contains.
 function verifiedEventFor(original: any) {
+  const amount = String(original.usdc_amount);
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,6}))?$/u.exec(amount);
+  assert.ok(match, "synthetic verifier fixture requires canonical USDC amount");
+  const amountMicro = BigInt(match[1]) * 1_000_000n +
+    BigInt((match[2] || "").padEnd(6, "0") || "0");
+  assert.ok(amountMicro > 0n);
   const verified = buildBuyVoidVerifiedPaymentEventV2({
     request: original,
     receipt: {
@@ -89,7 +95,7 @@ function verifiedEventFor(original: any) {
           addressTopic(buyer),
           addressTopic(receiver),
         ],
-        data: "0x2dc6c0", // 3,000,000 USDC micro-units
+        data: "0x" + amountMicro.toString(16),
         logIndex: "0x1",
         transactionHash: chainTx,
         blockNumber: "0x64",
@@ -104,8 +110,8 @@ function verifiedEventFor(original: any) {
   });
   if (!verified.ok) throw new Error("synthetic_real_verifier_failed:" + verified.reason);
   assert.equal(Object.hasOwn(verified.event, "quoted_void"), false);
-  assert.equal(verified.event.payment_verifier.amount_units, "3000000");
-  assert.equal(verified.event.payment_verifier.requested_units, "3000000");
+  assert.equal(verified.event.payment_verifier.amount_units, amountMicro.toString());
+  assert.equal(verified.event.payment_verifier.requested_units, amountMicro.toString());
   return verified.event;
 }
 function serverInput(): any {
@@ -226,6 +232,7 @@ try {
     const allowed = serverInput();
     allowed.request.quoted_void = canonicalQuote;
     allowed.request.usdc_amount = usdcAmount;
+    allowed.event = verifiedEventFor(allowed.request);
     const admitted = stage(allowed).result;
     assert.equal(admitted?.status, "staged_unmounted");
     assert.equal(admitted?.payment_acceptance, false);
