@@ -22,6 +22,7 @@ def git_blob(path:Path)->str:
 source=UPDATER.read_text(encoding="utf-8")
 ast.parse(source)
 
+assert git_blob(UPDATER)=="4ae91c809adbadc6f627e1d75225850377af44a9"
 assert git_blob(V3)=="8d8561c08db7e500a818d269580dad15adca9f58"
 assert git_blob(SERVICE)=="51354b10da89413eb6991514496798c7a1b5d1e8"
 
@@ -125,6 +126,7 @@ for line in (
     assert line in r.stdout,line
 
 print("VOID_APOLLYON_CUSTODY_LAUNCHER_V3_DORMANT_REBIND_V1_PROOF_GREEN")
+print("updater_blob_bound=true")
 print("v3_launcher_blob_bound=true")
 print("v3_service_blob_bound=true")
 print("v2_launcher_preserved=true")
