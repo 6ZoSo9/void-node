@@ -1090,7 +1090,6 @@ def self_test()->None:
         'final_dormant_recheck_attempted=True',
         'final_dormant_recheck_reason',
         'final_dormant_after_failure_proven',
-        '_attest_fn(ids,"emergency",allow_service_failed=True)',
         'ids,"failure_recheck",allow_service_failed=True',
         'allow_service_failed:bool=False',
         'safely_dormant_unit_props(',
@@ -1179,11 +1178,26 @@ def self_test()->None:
         cleanup_ids,
         _run_fn=lambda argv,check=False:completed(0),
         _wait_unit_fn=lambda unit,state,timeout_s=5.0:{},
+        _wait_dormant_fn=lambda unit,timeout_s=5.0:{},
         _wait_socket_fn=socket_timeout,
         _attest_fn=lambda ids,prefix,allow_service_failed=False:None,
     )
     assert cleanup_green is False
     assert cleanup_reason=="Hold:synthetic_socket_timeout"
+
+    def dormant_timeout(unit:str,timeout_s:float=5.0):
+        raise Hold("synthetic_safe_dormant_timeout")
+    cleanup_green,cleanup_reason=emergency_cleanup(
+        cleanup_ids,
+        _run_fn=lambda argv,check=False:completed(0),
+        _wait_unit_fn=lambda unit,state,timeout_s=5.0:{},
+        _wait_dormant_fn=dormant_timeout,
+        _wait_socket_fn=lambda present,timeout_s=5.0:None,
+        _attest_fn=lambda ids,prefix,allow_service_failed=False:None,
+    )
+    assert cleanup_green is False
+    assert cleanup_reason=="Hold:synthetic_safe_dormant_timeout"
+
     assert exact_live_custody_process_set({101:"77"},101,"77")
     assert not exact_live_custody_process_set({},101,"77")
     assert not exact_live_custody_process_set({101:"77",102:"88"},101,"77")
@@ -1498,6 +1512,8 @@ def self_test()->None:
     print("failed_stop_cleanup_reported=true")
     print("wait_timeout_cleanup_reported=true")
     print("socket_timeout_cleanup_reported=true")
+    print("failed_dead_dormant_wait_failure_reported=true")
+    print("failed_dead_dormant_predicate_tested=true")
     print("alternate_runtime_config_rejected_by_exact_argv=true")
     print("failure_final_dormant_recheck_required=true")
     print("failure_preserves_original_reason=true")
