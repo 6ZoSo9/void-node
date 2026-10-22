@@ -4,6 +4,10 @@ Marker: `VOID_APOLLYON_CUSTODY_LAUNCHER_V3_DORMANT_REBIND_V1`
 
 Status: **source-only resumable host rebind; no host mutation by CI**.
 
+Standalone review base: `main@e83b1df4bc3b52d08d5e38e076fa6c80085f7e01`.
+This successor contains the corrected launcher v3 generation and the reviewed
+group-vector repair directly; neither Draft #3703 nor Draft #3701 is a merge
+dependency.
 ## Purpose
 
 Provide the smallest reviewed Xiphos transition from the currently installed
