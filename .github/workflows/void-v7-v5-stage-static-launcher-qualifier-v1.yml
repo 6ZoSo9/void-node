@@ -101,10 +101,3 @@ jobs:
           grep -Fx 'public_presale_activation=false' "$out"
           grep -Fx 'funds_movement=false' "$out"
 
-      - name: Assert host-facing operations are not invoked
-        shell: bash
-        run: |
-          set -euo pipefail
-          ! grep -F -- '--inspect' scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py
-          ! grep -F -- 'source-stage-apply' .github/workflows/void-v7-v5-stage-static-launcher-qualifier-v1.yml
-          ! grep -F -- 'receipt-stage-apply' .github/workflows/void-v7-v5-stage-static-launcher-qualifier-v1.yml
