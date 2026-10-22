@@ -18,7 +18,8 @@ async function runSignal(signal){
     } from ${JSON.stringify(launcherUrl)};
     const service={
       async stop(){
-        await new Promise((resolve)=>setImmediate(resolve));
+        process.stdout.write("STOP_BEGIN\\n");
+        await new Promise((resolve)=>setTimeout(resolve,100));
         process.stdout.write("STOP_SETTLED\\n");
       },
     };
@@ -81,10 +82,27 @@ async function runSignal(signal){
   });
 
   assert.equal(child.kill(signal),true);
+
+  await new Promise((resolve,reject)=>{
+    const timeout=setTimeout(
+      ()=>reject(new Error("child_stop_begin_timeout:"+signal)),
+      1000,
+    );
+    const onData=()=>{
+      if(!stdout.includes("STOP_BEGIN\n"))return;
+      clearTimeout(timeout);
+      child.stdout.off("data",onData);
+      resolve();
+    };
+    child.stdout.on("data",onData);
+  });
+
+  assert.equal(child.kill(signal),true);
   const result=await exitPromise;
 
   assert.deepEqual(result,{code:0,childSignal:null});
-  assert.equal(stdout.includes("STOP_SETTLED\n"),true,stdout);
+  assert.equal((stdout.match(/STOP_BEGIN\n/gu)??[]).length,1,stdout);
+  assert.equal((stdout.match(/STOP_SETTLED\n/gu)??[]).length,1,stdout);
   assert.equal(stdout.includes("TOP_LEVEL_AWAIT_SETTLED\n"),true,stdout);
   assert.equal(stderr.includes("unsettled top-level await"),false,stderr);
   assert.equal(stderr.includes("Warning:"),false,stderr);
@@ -100,6 +118,8 @@ assert.equal(intr.stderr,"");
 console.log("VOID_APOLLYON_AUTHORIZATION_CUSTODY_LAUNCHER_V3_SIGNAL_PROCESS_V1_PROOF_GREEN");
 console.log("sigterm_child_exit_zero=true");
 console.log("sigint_child_exit_zero=true");
+console.log("duplicate_same_signal_child_survives=true");
+console.log("duplicate_same_signal_single_stop=true");
 console.log("service_stop_settled_before_exit=true");
 console.log("top_level_await_settled=true");
 console.log("unsettled_top_level_await_warning_absent=true");
