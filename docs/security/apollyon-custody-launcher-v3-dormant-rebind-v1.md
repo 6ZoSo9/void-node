@@ -56,9 +56,17 @@ publication uses one fixed root-owned pending pathname and recognizes:
 - `exact`: the canonical v3 destination is complete with link count one.
 
 A mismatched pending file, unexpected metadata/link topology, or a destination
-collision HOLDs. This closes process-crash windows before and after the
-create-only hard-link publication. The updater also resumes a service file
-replacement whose manager is still loaded on v2.
+collision HOLDs. Before a resumed `pending_exact` file may be linked into the
+canonical destination, it is reopened without symlink following, its metadata is
+revalidated, its descriptor is fsynced, and the visible pending state is
+revalidated again. This closes the crash window between final mode assignment
+and the original data fsync as well as the windows before/after create-only
+hard-link publication.
+
+The updater also resumes a service file replacement whenever the exact service
+file is v3 but PID 1 still exposes the exact v2 `ExecStart`, even if
+`NeedDaemonReload` has not yet changed to `yes`; the loaded execution
+generation is treated as the authoritative reload signal.
 
 A pre-existing `failed` custody service is admitted only when
 `MainPID=0`; this preserves the fail-closed dormant state left by the October
