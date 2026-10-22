@@ -136,7 +136,7 @@ def require_dormant()->dict[str,dict[str,str]]:
     if (
         service["LoadState"]!="loaded" or service["ActiveState"]!="inactive" or
         service["UnitFileState"]!="static" or service["MainPID"] not in ("","0") or
-        service["NeedDaemonReload"]!="no" or
+        service["NeedDaemonReload"] not in ("no","yes") or
         service["FragmentPath"]!=os.fspath(SERVICE_PATH) or
         service["DropInPaths"]!="" or
         service["RefuseManualStart"]!="yes" or service["RefuseManualStop"]!="yes" or
@@ -168,19 +168,33 @@ def service_state()->str:
     if digest==NEW_SERVICE_BLOB:return "v3_exact"
     hold("service_unit_collision")
 
-def classify(service_file:str,launcher:str,exec_start:str)->dict[str,str]:
+def classify(
+    service_file:str,launcher:str,exec_start:str,need_reload:str,
+)->dict[str,str]:
     old_path=os.fspath(V2_LAUNCHER_PATH)
     new_path=os.fspath(V3_LAUNCHER_PATH)
     old_loaded=old_path in exec_start and new_path not in exec_start
     new_loaded=new_path in exec_start and old_path not in exec_start
-    if service_file=="v2_exact" and launcher=="absent" and old_loaded:
+    if (
+        service_file=="v2_exact" and launcher=="absent" and
+        old_loaded and need_reload=="no"
+    ):
         return {"lifecycle_state":"ready","next_action":"INSTALL_V3_LAUNCHER"}
-    if service_file=="v2_exact" and launcher=="exact" and old_loaded:
+    if (
+        service_file=="v2_exact" and launcher=="exact" and
+        old_loaded and need_reload=="no"
+    ):
         return {"lifecycle_state":"launcher_staged","next_action":"REPLACE_SERVICE_UNIT"}
-    if service_file=="v3_exact" and launcher=="exact" and new_loaded:
-        return {"lifecycle_state":"complete","next_action":"V3_DORMANT_REBIND_COMPLETE"}
-    if service_file=="v3_exact" and launcher=="exact" and old_loaded:
+    if (
+        service_file=="v3_exact" and launcher=="exact" and
+        old_loaded and need_reload=="yes"
+    ):
         return {"lifecycle_state":"service_file_pending_reload","next_action":"DAEMON_RELOAD"}
+    if (
+        service_file=="v3_exact" and launcher=="exact" and
+        new_loaded and need_reload=="no"
+    ):
+        return {"lifecycle_state":"complete","next_action":"V3_DORMANT_REBIND_COMPLETE"}
     hold("rebind_lifecycle_state_invalid")
 
 def plan()->dict[str,object]:
@@ -192,7 +206,10 @@ def plan()->dict[str,object]:
     units=require_dormant()
     launch=launcher_state()
     service=service_state()
-    state=classify(service,launch,units["service"]["ExecStart"])
+    state=classify(
+        service,launch,units["service"]["ExecStart"],
+        units["service"]["NeedDaemonReload"],
+    )
     return {
         "marker":MARKER,"mode":"--plan","target_host":TARGET_HOST,
         "launcher_state":launch,"service_unit_state":service,**state,
@@ -331,19 +348,19 @@ def self_test()->None:
     assert git_blob(b"abc")==hashlib.sha1(b"blob 3\0abc").hexdigest()
     assert classify(
         "v2_exact","absent",
-        "/node "+os.fspath(V2_LAUNCHER_PATH)+" --socket-path /x",
+        "/node "+os.fspath(V2_LAUNCHER_PATH)+" --socket-path /x","no",
     )["next_action"]=="INSTALL_V3_LAUNCHER"
     assert classify(
         "v2_exact","exact",
-        "/node "+os.fspath(V2_LAUNCHER_PATH)+" --socket-path /x",
+        "/node "+os.fspath(V2_LAUNCHER_PATH)+" --socket-path /x","no",
     )["next_action"]=="REPLACE_SERVICE_UNIT"
     assert classify(
         "v3_exact","exact",
-        "/node "+os.fspath(V2_LAUNCHER_PATH)+" --socket-path /x",
+        "/node "+os.fspath(V2_LAUNCHER_PATH)+" --socket-path /x","yes",
     )["next_action"]=="DAEMON_RELOAD"
     assert classify(
         "v3_exact","exact",
-        "/node "+os.fspath(V3_LAUNCHER_PATH)+" --socket-path /x",
+        "/node "+os.fspath(V3_LAUNCHER_PATH)+" --socket-path /x","no",
     )["lifecycle_state"]=="complete"
     own=Path(__file__).read_text(encoding="utf-8")
     for forbidden in (
