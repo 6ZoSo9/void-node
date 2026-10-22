@@ -365,7 +365,38 @@ def exact_dormant(
         hold("unit_mainpid_nonzero:"+unit)
     return props
 
-def show_properties(unit:str,names:tuple[str,...])->dict[str,str]:
+def normalize_show_properties(
+    unit:str,
+    observed:dict[str,str],
+    names:tuple[str,...],
+    optional_empty:tuple[str,...]=(),
+)->dict[str,str]:
+    expected=set(names)
+    optional=set(optional_empty)
+    if not optional.issubset(expected):
+        hold("unit_effective_config_optional_schema_invalid:"+unit)
+    extra=set(observed)-expected
+    if extra:
+        hold(
+            "unit_effective_config_duplicate_or_extra:"+unit
+        )
+    missing=expected-set(observed)
+    required_missing=missing-optional
+    if required_missing:
+        hold(
+            "unit_effective_config_incomplete:"+unit+":"+
+            ",".join(sorted(required_missing))
+        )
+    out=dict(observed)
+    for name in missing:
+        out[name]=""
+    return out
+
+def show_properties(
+    unit:str,
+    names:tuple[str,...],
+    optional_empty:tuple[str,...]=(),
+)->dict[str,str]:
     argv=["/usr/bin/systemctl","show",unit,"--no-pager"]
     for name in names:
         argv.extend(["-p",name])
@@ -379,8 +410,7 @@ def show_properties(unit:str,names:tuple[str,...])->dict[str,str]:
         if k not in expected or k in props:
             hold("unit_effective_config_duplicate_or_extra:"+unit)
         props[k]=v
-    if set(props)!=expected:hold("unit_effective_config_incomplete:"+unit)
-    return props
+    return normalize_show_properties(unit,props,names,optional_empty)
 
 def parse_exec_property(raw:str,label:str)->list[tuple[str,...]]:
     raw=raw.strip()
@@ -533,13 +563,18 @@ def loaded_relations()->None:
         "FragmentPath","DropInPaths","NeedDaemonReload",
         "Wants","PropagatesStopTo",
     ))
-    service=show_properties(SERVICE_UNIT,(
-        "FragmentPath","DropInPaths","NeedDaemonReload",
-        "RefuseManualStart","RefuseManualStop","NoNewPrivileges",
-        "RestrictAddressFamilies","UnsetEnvironment",
-        "ExecCondition","ExecStartPre","ExecStart",
-        "ExecStartPost","ExecStop","ExecStopPost",
-    ))
+    service=show_properties(
+        SERVICE_UNIT,(
+            "FragmentPath","DropInPaths","NeedDaemonReload",
+            "RefuseManualStart","RefuseManualStop","NoNewPrivileges",
+            "RestrictAddressFamilies","UnsetEnvironment",
+            "ExecCondition","ExecStartPre","ExecStart",
+            "ExecStartPost","ExecStop","ExecStopPost",
+        ),
+        optional_empty=(
+            "ExecCondition","ExecStartPre","ExecStartPost","ExecStop",
+        ),
+    )
     validate_loaded_relations(target,service)
     assert_no_unreviewed_dependency_directories(TARGET_UNIT)
     assert_no_unreviewed_dependency_directories(SERVICE_UNIT)
@@ -1424,6 +1459,28 @@ def self_test()->None:
         {101:(101,),102:(102,)},101,(101,)
     )
     assert not exact_live_custody_process_set({101:(101,102)},101,(101,))
+    assert normalize_show_properties(
+        "fixture.service",
+        {"ExecStart":"required","ExecStopPost":"cleanup"},
+        (
+            "ExecCondition","ExecStartPre","ExecStart",
+            "ExecStartPost","ExecStop","ExecStopPost",
+        ),
+        ("ExecCondition","ExecStartPre","ExecStartPost","ExecStop"),
+    )=={
+        "ExecCondition":"","ExecStartPre":"","ExecStart":"required",
+        "ExecStartPost":"","ExecStop":"","ExecStopPost":"cleanup",
+    }
+    try:
+        normalize_show_properties(
+            "fixture.service",{},
+            ("ExecStart","ExecStopPost"),("ExecStopPost",),
+        )
+    except Hold as exc:
+        assert str(exc)=="unit_effective_config_incomplete:fixture.service:ExecStart"
+    else:
+        raise AssertionError("missing required effective property accepted")
+
     assert parse_uid_slots({"Uid":"123 123 123 123"})==(123,123,123,123)
     assert safely_dormant_unit_props({
         "LoadState":"loaded","ActiveState":"inactive","MainPID":"0",
@@ -1778,6 +1835,8 @@ def self_test()->None:
         assert forbidden not in own,forbidden
     print(MARKER+"_SELF_TEST_GREEN")
     print("processless_target_mainpid_not_required=true")
+    print("omitted_empty_service_exec_properties_normalized=true")
+    print("required_service_exec_properties_still_mandatory=true")
     print("two_cycle_target_start_stop=true")
     print("direct_service_action=false")
     print("socket_cleanup_required_each_cycle=true")
