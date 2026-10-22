@@ -4,6 +4,7 @@ on:
     paths:
       - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
       - "scripts/prove_buy_void_canonical_caller_request_v1.ts"
+      - "scripts/prove_buy_void_canonical_caller_request_v2.ts"
       - "docs/architecture/buy-void-canonical-caller-request-v1.md"
       - ".github/workflows/buy-void-canonical-caller-request-v1.yml"
       - "package.json"
@@ -32,7 +33,8 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           test -z "$(git status --porcelain=v1)"
-          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = ac8bf352979e0e24d2cab45c3b23949e1bd2b026
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = d1320be22fe55af24017b84f0655fbcde82dbee9
+          test "$(git hash-object scripts/prove_buy_void_canonical_caller_request_v1.ts)" = 2815613e1c6fa54ee2d89eb5dc70338a68c7fcb3
           test "$(git hash-object src/economic/buy_void_verified_allocation_replay_binding_v1.ts)" = b451bcd895986dadaf6e53954671062068316ccf
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -40,14 +42,15 @@ jobs:
       - name: Locked dependency install
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Typecheck actual handoff regression
-        run: ./node_modules/.bin/tsc --noEmit --esModuleInterop --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck --types node scripts/prove_buy_void_canonical_caller_request_v1.ts
+        run: ./node_modules/.bin/tsc --noEmit --esModuleInterop --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck --types node scripts/prove_buy_void_canonical_caller_request_v1.ts scripts/prove_buy_void_canonical_caller_request_v2.ts
       - name: Build actual source handoff
         run: npm run build
       - name: Prove immutable original request through fsync and allocation
         shell: bash
         run: |
           set -euo pipefail
-          node --import tsx scripts/prove_buy_void_canonical_caller_request_v1.ts | tee canonical-request-${{ matrix.node }}.txt
+          node --import tsx scripts/prove_buy_void_canonical_caller_request_v2.ts | tee canonical-request-${{ matrix.node }}.txt
+          grep -Fx 'VOID_BUY_VOID_CANONICAL_CALLER_REQUEST_V2_SOURCE_BINDING_GREEN' canonical-request-${{ matrix.node }}.txt
           for assertion in \
             normal_handoff_preserved=true \
             postfsync_caller_wallet_quote_launch_mutation_cannot_poison_allocation=true \
