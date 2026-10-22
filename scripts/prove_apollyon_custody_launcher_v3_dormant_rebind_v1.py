@@ -50,6 +50,8 @@ for required in (
     'RESUME_V3_LAUNCHER_PUBLICATION',
     'FINALIZE_V3_LAUNCHER_PUBLICATION',
     'v3_launcher_pending_collision',
+    'launcher_pending_resume_metadata_invalid',
+    'launcher_pending_changed_after_fsync',
     'install_or_resume_launcher(launcher_data)',
     'service["ActiveState"] not in ("inactive","failed")',
     'parse_exec_property(',
@@ -91,6 +93,8 @@ for line in (
     "v3_launcher_crash_resumable_publication=true",
     "v3_launcher_pending_inode_bound=true",
     "v3_launcher_partial_pending_recovery=true",
+    "v3_launcher_resumed_pending_fsync=true",
+    "loaded_v2_forces_reload_even_without_need_reload_flag=true",
     "service_unit_atomic_replace=true",
     "daemon_reload_only_systemd_mutation=true",
     "service_action=false",
@@ -110,6 +114,8 @@ print("v3_launcher_create_only=true")
 print("v3_launcher_crash_resumable_publication=true")
 print("v3_launcher_pending_inode_bound=true")
 print("v3_launcher_partial_pending_recovery=true")
+print("v3_launcher_resumed_pending_fsync=true")
+print("loaded_v2_forces_reload_even_without_need_reload_flag=true")
 print("service_unit_atomic_replace=true")
 print("daemon_reload_only_systemd_mutation=true")
 print("v3_qualifier_group_fix_bound=true")
