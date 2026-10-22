@@ -458,7 +458,7 @@ function verifyCapacityRepair(){
 }
 
 function verifyV2ExpectedRefusal(){
-  const result=run("/usr/bin/node",[V2_SUCCESSOR,"--self-test"],{
+  const result=run(process.execPath,[V2_SUCCESSOR,"--self-test"],{
     timeout:120000,allowFail:true,
   });
   assert.notEqual(result.status,0,"v2_source_proof_unexpectedly_accepted_v3");
