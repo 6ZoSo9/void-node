@@ -764,6 +764,7 @@ def attest_dormant_boundary(
         allow_failed=allow_service_failed,
         expected_unit_file_state="static",
     )
+    exact_dormant(TRAINING_UNIT,allow_failed=True)
     if SOCKET_PATH.exists():hold(prefix+"_socket_present")
     assert_socket_parent_empty(ids)
     require_no_custody_uid_processes(
@@ -953,6 +954,11 @@ def qualify()->dict:
                 ids["custody_uid"],"prestart_custody_uid_process"
             )
             verify_path_custody(ids)
+            attest_dormant_boundary(
+                ids,
+                "prestart_cycle_"+str(cycle),
+                allow_service_failed=(cycle==1),
+            )
             target_maybe_started=True
             start_attempts+=1
             run(["/usr/bin/systemctl","start",TARGET_UNIT])
@@ -1060,6 +1066,9 @@ def self_test()->None:
         'custody_uid_process_exclusivity_failed',
         'preexisting_custody_uid_process',
         'prestart_custody_uid_process',
+        '"prestart_cycle_"+str(cycle)',
+        'allow_service_failed=(cycle==1)',
+        'exact_dormant(TRAINING_UNIT,allow_failed=True)',
         'custody_uid_process_after_stop',
         'custody_argv_exact_mismatch',
         'target_dropins_present',
@@ -1523,6 +1532,9 @@ def self_test()->None:
     print("consumed_directory_generation_bound=true")
     print("critical_directory_metadata_bound=true")
     print("prestart_static_boundary_reverified=true")
+    print("prestart_unit_dormancy_reverified_each_cycle=true")
+    print("cycle2_requires_clean_inactive_service=true")
+    print("training_unit_dormancy_reverified=true")
     print("training_execution=false")
     print("durable_attempt_claim=false")
     print("funds_movement=false")
