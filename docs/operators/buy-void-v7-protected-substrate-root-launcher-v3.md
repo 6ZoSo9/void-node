@@ -40,7 +40,7 @@ Python executable and stdlib ZIP at their fixed paths.
 `source/` is different: it is a **complete manifest-locked repository
 snapshot** for V5, not a single installer leaf. The production manifest must
 carry the entire reviewed worktree at the exact expected tree plus a minimal
-closed `.git` authority containing at least:
+closed `.git` authority containing exactly:
 
 - `.git/HEAD`;
 - `.git/config`;
@@ -48,6 +48,11 @@ closed `.git` authority containing at least:
 - `.git/info/`;
 - `.git/refs/`, `.git/refs/heads/`, and
   `.git/refs/heads/main`.
+
+No other `.git` payload path is admitted by V3. In particular, object packs,
+tags, logs, shallow metadata, commondir/config.worktree indirection, grafts and
+alternates are outside the launcher snapshot contract.
+
 
 No Git object history is required by this launcher snapshot. V5 recomputes the
 worktree tree OID directly, authenticates the main ref and closed config, and
@@ -80,6 +85,7 @@ V3 requires:
 - receipt root device/inode equal to the visible closed-tree root;
 - every receipt entry to remain within `bin/`, `runtime/`, `source/`, or the fixed policy path;
 - all mandatory launcher/runtime/minimal-Git/V5 paths with exact kind and mode;
+- an exact minimal `.git` receipt layout with no additional Git metadata paths;
 - no duplicate, reordered, self-receipt, or alternate path encodings;
 - receipt-bound device, inode, mode, nlink, size and SHA-256 for every
   privileged consumed file;
