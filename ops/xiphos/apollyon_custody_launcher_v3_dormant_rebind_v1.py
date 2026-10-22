@@ -25,6 +25,9 @@ SERVICE_PATH=Path("/etc/systemd/system/void-apollyon-authorization-custody-v1.se
 LAUNCHER_ROOT=Path("/opt/void-apollyon-custody-service-v2-reviewed-v1/tools")
 V2_LAUNCHER_PATH=LAUNCHER_ROOT/"apollyon-authorization-custody-launcher-v2.mjs"
 V3_LAUNCHER_PATH=LAUNCHER_ROOT/"apollyon-authorization-custody-launcher-v3.mjs"
+V3_LAUNCHER_PENDING_PATH=LAUNCHER_ROOT/(
+    ".apollyon-authorization-custody-launcher-v3.mjs.pending-v1"
+)
 NODE_PATH=Path("/opt/void-apollyon-node-runtime-v1/node")
 HELPER_PATH=Path(
     "/opt/void-apollyon-custody-lifecycle-v1/"
@@ -258,15 +261,47 @@ def require_dormant()->dict[str,dict[str,str]]:
         hold("training_not_dormant")
     return {"target":target,"service":service,"training":training}
 
+def launcher_publication_file(path:Path)->tuple[os.stat_result,str]|None:
+    try:
+        st=os.lstat(path)
+    except FileNotFoundError:
+        return None
+    if (
+        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_uid!=0 or st.st_gid!=0 or
+        stat.S_IMODE(st.st_mode)!=0o444 or st.st_nlink not in (1,2)
+    ):
+        hold("v3_launcher_publication_metadata_invalid:"+os.fspath(path))
+    data=path.read_bytes()
+    if len(data)!=st.st_size:
+        hold("v3_launcher_publication_read_invalid:"+os.fspath(path))
+    digest=git_blob(data)
+    if digest!=V3_LAUNCHER_BLOB:
+        hold("v3_launcher_publication_blob_invalid:"+os.fspath(path))
+    return st,digest
+
 def launcher_state()->str:
     exact_regular(V2_LAUNCHER_PATH,0o444,0,0,V2_LAUNCHER_BLOB)
-    try:
-        digest=exact_regular(V3_LAUNCHER_PATH,0o444,0,0)
-    except FileNotFoundError:
+    destination=launcher_publication_file(V3_LAUNCHER_PATH)
+    pending=launcher_publication_file(V3_LAUNCHER_PENDING_PATH)
+    if destination is None and pending is None:
         return "absent"
-    if digest!=V3_LAUNCHER_BLOB:
-        hold("v3_launcher_collision")
-    return "exact"
+    if destination is None and pending is not None:
+        if pending[0].st_nlink!=1:
+            hold("v3_launcher_pending_link_count_invalid")
+        return "pending_exact"
+    if destination is not None and pending is None:
+        if destination[0].st_nlink!=1:
+            hold("v3_launcher_destination_link_count_invalid")
+        return "exact"
+    assert destination is not None and pending is not None
+    dst_st=destination[0];pending_st=pending[0]
+    if (
+        dst_st.st_dev!=pending_st.st_dev or dst_st.st_ino!=pending_st.st_ino or
+        dst_st.st_nlink!=2 or pending_st.st_nlink!=2
+    ):
+        hold("v3_launcher_linked_pending_identity_invalid")
+    return "linked_pending"
 
 def service_state()->str:
     digest=exact_regular(SERVICE_PATH,0o644,0,0)
@@ -284,6 +319,22 @@ def classify(
         old_loaded and need_reload=="no"
     ):
         return {"lifecycle_state":"ready","next_action":"INSTALL_V3_LAUNCHER"}
+    if (
+        service_file=="v2_exact" and launcher=="pending_exact" and
+        old_loaded and need_reload=="no"
+    ):
+        return {
+            "lifecycle_state":"launcher_pending",
+            "next_action":"RESUME_V3_LAUNCHER_PUBLICATION",
+        }
+    if (
+        service_file=="v2_exact" and launcher=="linked_pending" and
+        old_loaded and need_reload=="no"
+    ):
+        return {
+            "lifecycle_state":"launcher_linked_pending",
+            "next_action":"FINALIZE_V3_LAUNCHER_PUBLICATION",
+        }
     if (
         service_file=="v2_exact" and launcher=="exact" and
         old_loaded and need_reload=="no"
@@ -308,6 +359,7 @@ def plan()->dict[str,object]:
     read_source(V3_SERVICE_REL,NEW_SERVICE_BLOB)
     for protected in (
         TARGET_PATH,SERVICE_PATH,V2_LAUNCHER_PATH,V3_LAUNCHER_PATH,
+        V3_LAUNCHER_PENDING_PATH,
     ):
         require_trusted_ancestor_chain(protected,include_leaf=False)
     exact_regular(TARGET_PATH,0o644,0,0,TARGET_BLOB)
@@ -333,42 +385,78 @@ def fsync_dir(path:Path)->None:
     try:os.fsync(fd)
     finally:os.close(fd)
 
-def create_exact(path:Path,data:bytes,mode:int)->bool:
+def install_or_resume_launcher(data:bytes)->bool:
+    path=V3_LAUNCHER_PATH
+    pending=V3_LAUNCHER_PENDING_PATH
     require_trusted_ancestor_chain(path,include_leaf=False)
-    try:
-        digest=exact_regular(path,mode,0,0)
-    except FileNotFoundError:
-        pass
-    else:
-        if digest!=git_blob(data):hold("existing_destination_collision:"+os.fspath(path))
+    changed=False
+    state=launcher_state()
+    if state=="exact":
         return False
-    require_dormant()
-    tmp=path.parent/("."+path.name+".pending."+str(os.getpid()))
-    fd=None
-    try:
-        fd=os.open(
-            tmp,os.O_RDWR|os.O_CREAT|os.O_EXCL|
-            getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0),0o600,
-        )
-        sent=0
-        while sent<len(data):
-            n=os.write(fd,data[sent:])
-            if n<=0:hold("pending_write_failed")
-            sent+=n
-        os.fchown(fd,0,0);os.fchmod(fd,mode)
-        os.fsync(fd)
+
+    if state=="absent":
         require_dormant()
-        os.link(tmp,path,follow_symlinks=False)
+        fd=None
+        try:
+            fd=os.open(
+                pending,os.O_RDWR|os.O_CREAT|os.O_EXCL|
+                getattr(os,"O_NOFOLLOW",0)|getattr(os,"O_CLOEXEC",0),0o600,
+            )
+            sent=0
+            while sent<len(data):
+                n=os.write(fd,data[sent:])
+                if n<=0:hold("launcher_pending_write_failed")
+                sent+=n
+            os.fchown(fd,0,0);os.fchmod(fd,0o444)
+            staged=os.fstat(fd)
+            if (
+                not stat.S_ISREG(staged.st_mode) or staged.st_nlink!=1 or
+                staged.st_uid!=0 or staged.st_gid!=0 or
+                stat.S_IMODE(staged.st_mode)!=0o444 or
+                staged.st_size!=len(data)
+            ):
+                hold("launcher_pending_metadata_invalid")
+            os.lseek(fd,0,os.SEEK_SET)
+            observed=b""
+            while len(observed)<len(data):
+                chunk=os.read(fd,len(data)-len(observed))
+                if not chunk:break
+                observed+=chunk
+            if observed!=data:hold("launcher_pending_bytes_invalid")
+            os.fsync(fd)
+        finally:
+            if fd is not None:
+                try:os.close(fd)
+                except OSError:pass
         fsync_dir(path.parent)
-        os.unlink(tmp);fsync_dir(path.parent)
-    finally:
-        if fd is not None:
-            try:os.close(fd)
-            except OSError:pass
-        try:os.unlink(tmp)
-        except FileNotFoundError:pass
-    exact_regular(path,mode,0,0,git_blob(data))
-    return True
+        changed=True
+        state=launcher_state()
+        if state!="pending_exact":
+            hold("launcher_pending_publication_invalid")
+
+    if state=="pending_exact":
+        require_dormant()
+        try:
+            os.link(pending,path,follow_symlinks=False)
+        except FileExistsError:
+            pass
+        fsync_dir(path.parent)
+        changed=True
+        state=launcher_state()
+        if state not in ("linked_pending","exact"):
+            hold("launcher_link_publication_invalid")
+
+    if state=="linked_pending":
+        require_dormant()
+        os.unlink(pending)
+        fsync_dir(path.parent)
+        changed=True
+        state=launcher_state()
+
+    if state!="exact":
+        hold("v3_launcher_publication_not_exact")
+    exact_regular(path,0o444,0,0,V3_LAUNCHER_BLOB)
+    return changed
 
 def replace_service(data:bytes)->bool:
     require_trusted_ancestor_chain(SERVICE_PATH,include_leaf=False)
@@ -419,8 +507,8 @@ def apply()->dict[str,object]:
     service_replaced=False
     daemon_reload_performed=False
 
-    if before["launcher_state"]=="absent":
-        launcher_installed=create_exact(V3_LAUNCHER_PATH,launcher_data,0o444)
+    if before["launcher_state"]!="exact":
+        launcher_installed=install_or_resume_launcher(launcher_data)
     mid=plan()
     if mid["service_unit_state"]=="v2_exact":
         service_replaced=replace_service(service_data)
@@ -455,6 +543,14 @@ def self_test()->None:
         "v2","no",
     )["next_action"]=="INSTALL_V3_LAUNCHER"
     assert classify(
+        "v2_exact","pending_exact",
+        "v2","no",
+    )["next_action"]=="RESUME_V3_LAUNCHER_PUBLICATION"
+    assert classify(
+        "v2_exact","linked_pending",
+        "v2","no",
+    )["next_action"]=="FINALIZE_V3_LAUNCHER_PUBLICATION"
+    assert classify(
         "v2_exact","exact",
         "v2","no",
     )["next_action"]=="REPLACE_SERVICE_UNIT"
@@ -482,6 +578,13 @@ def self_test()->None:
         'parse_exec_property(',
         'loaded_exec_generation(',
         'loaded_generation=="v2"',
+        'V3_LAUNCHER_PENDING_PATH=',
+        'launcher_pending',
+        'launcher_linked_pending',
+        'RESUME_V3_LAUNCHER_PUBLICATION',
+        'FINALIZE_V3_LAUNCHER_PUBLICATION',
+        'launcher_publication_file(',
+        'install_or_resume_launcher(',
         'service_effective_execstart_invalid',
         'service_effective_execstoppost_invalid',
         'service_unexpected_exec_command:',
@@ -496,6 +599,8 @@ def self_test()->None:
     print(MARKER+"_SELF_TEST_GREEN")
     print("v2_launcher_preserved=true")
     print("v3_launcher_create_only=true")
+    print("v3_launcher_crash_resumable_publication=true")
+    print("v3_launcher_pending_inode_bound=true")
     print("service_unit_atomic_replace=true")
     print("daemon_reload_only_systemd_mutation=true")
     print("service_action=false")
