@@ -114,7 +114,7 @@ jobs:
           node-version: 24
 
       - name: Download Node-major candidates
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c809b
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: buy-void-protected-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
