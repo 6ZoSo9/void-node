@@ -108,7 +108,7 @@ function verifiedEventFor(original: any) {
       current_block_number_by_chain: { base: "0x65" },
     },
   });
-  if (!verified.ok) throw new Error("synthetic_real_verifier_failed:" + verified.reason);
+  if ("reason" in verified) throw new Error("synthetic_real_verifier_failed:" + verified.reason);
   assert.equal(Object.hasOwn(verified.event, "quoted_void"), false);
   assert.equal(verified.event.payment_verifier.amount_units, amountMicro.toString());
   assert.equal(verified.event.payment_verifier.requested_units, amountMicro.toString());
