@@ -14,7 +14,7 @@ BOOTSTRAP = ROOT / "ops/precision/void_buy_void_v7_create_only_closed_tree_boots
 BOOTSTRAP_PROOF = ROOT / "scripts/prove_buy_void_v7_create_only_closed_tree_bootstrap_v1.py"
 
 MARKER = "VOID_V7_FULL_HISTORY_PROTECTED_REPLICA_ROOT_LAUNCHER_V2_PROOF"
-SOURCE_BLOB = "9e55b85b43f7ea6a28537f76d422c5641671beb5"
+SOURCE_BLOB = "19b89e92df6f640c017cb9f544ddbf094d69f6eb"
 INSTALLER_BLOB = "a4d5762fe0e1c41b0919b8abb827123e556552ca"
 PLAN_BLOB = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
 ACCEPTANCE_BLOB = "919db72903a5fcff59dec7635a4288f41d1753d9"
@@ -101,6 +101,7 @@ for required in (
     '#define ACCEPTANCE_ID "voidv7closedtreeaccept1_19ac8c5b09377162ff42048535352a15b5dc75020701c9402c1ebc6ba73fc4b3"',
     '#define FIXED_ROOT "/opt/void-v7-full-history-protected-replica-closed-tree-v1"',
     '#define SELF_REL "bin/void_v7_full_history_protected_replica_root_launcher_v2"',
+    'require_exact_dir_entries(FIXED_BIN,"void_v7_full_history_protected_replica_root_launcher_v2",NULL)',
     '#define POLICY_REL "policy-v2.conf"',
     '#define RECEIPT_REL "install-receipt-v1.conf"',
     '#define INSTALLER_REL "source/ops/precision/void_v7_full_history_protected_replica_install_v1.py"',
