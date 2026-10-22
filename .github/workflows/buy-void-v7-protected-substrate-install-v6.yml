@@ -32,7 +32,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v6.py)" = "2ae608c43906d19f857ebcba110465cec92272ef"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v5.py)" = "5b49d8bd472f977c78bbb4e174212a84ffd74d6a"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v6.py)" = "ea6b09aaa1356cf58bf6f72aba4c57287ba1b3ba"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v6.py)" = "a828900e513d7c398bace100f388f7b751ea2f80"
           test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v6.md)" = "bad278c4c9d3f472f45a100c40648370072f61e9"
           git merge-base --is-ancestor cfc77165cdff35dd02090c1137473dadd385e8f4 HEAD
 
