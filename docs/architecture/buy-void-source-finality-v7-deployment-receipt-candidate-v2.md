@@ -48,6 +48,20 @@ The resulting bytes are candidate/staging evidence only. They do not authorize
 writing the fixed production path
 `/var/lib/void-source-finality-v7/deployment-receipt.json`.
 
+### Truth boundary
+
+The pure in-memory classifier result describes how these **candidate bytes
+would classify** if paired with the declared source identity. It is not an
+observation of the installed protected source, installed receipt, running
+process, or production gate. Hosted proof output therefore reports
+`actual_installed_deployment_generation_verified=false`.
+
+This proof is scoped to an exact **clean hosted checkout**. It pins committed
+Git identities and rejects a dirty checkout, but it is not a hostile-worktree-
+independent privileged/offline source authenticator. Any later root/offline
+consumer must independently authenticate/materialize the reviewed source
+closure before executing it.
+
 ## Preconditions for later use
 
 A future V5 receipt-stage gate may bind these bytes only after:

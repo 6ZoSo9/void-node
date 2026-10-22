@@ -90,6 +90,8 @@ function verifyScope():void{
   }).sort();
   assert.deepEqual(actual,OWNED,"receipt_candidate_scope_paths");
   runGit(["diff","--check",PARENT,"HEAD"]);
+  assert.equal(runGit(["status","--porcelain=v1","--untracked-files=all"]),"",
+    "hosted_checkout_not_clean");
 }
 
 function derive(){
@@ -197,9 +199,13 @@ if(args.length===1&&args[0]==="--derive"){
   console.log("receipt_id="+value.receipt_id);
   console.log("receipt_sha256="+value.receipt_sha256);
   console.log("receipt_bytes="+String(value.receipt_bytes));
-  console.log("runtime_classifier_status=deployment_generation_verified");
-  console.log("source_generation_verified=true");
-  console.log("deployed_artifact_generation_verified=true");
+  console.log("in_memory_candidate_classifier_status=deployment_generation_verified");
+  console.log("in_memory_candidate_source_generation_verified=true");
+  console.log("in_memory_candidate_would_classify_deployed=true");
+  console.log("actual_installed_deployment_generation_verified=false");
+  console.log("source_authentication_scope=clean_hosted_checkout_candidate_only");
+  console.log("hostile_worktree_independent_execution=false");
+  console.log("privileged_or_offline_source_authentication_authority=false");
   console.log("receipt_install_called=false");
   console.log("filesystem_mutation=false");
   console.log("service_mutation=false");

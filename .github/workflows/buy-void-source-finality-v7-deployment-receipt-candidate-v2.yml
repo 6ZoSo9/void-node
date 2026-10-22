@@ -49,6 +49,7 @@ jobs:
           test "${#actual[@]}" -eq "${#expected[@]}"
           for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
           git diff --check "$PARENT" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -62,8 +63,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts)" = "0c03fdacbd46925347e14b95ba3f7b060588cc6b"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-candidate-v2.md)" = "36c6da7e2bf8aab2e9392529cd95dfe88d0aec8b"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts)" = "76a05cbcd1be72e2817f04b676b5a8c395a5bf0e"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-candidate-v2.md)" = "bfa07660bcc612ad888c2a8de2f1cd5b7d05b368"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e0a682ea4038ca22e3a3b97da2cac29874096c46"
           test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_generation_provenance_v7.ts)" = "390ff1a2ff0437cd8c8693e7807c12275df42573"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5.json)" = "46e3774ca442cf593d25b6062ab5538d5ac43611"
@@ -163,6 +164,9 @@ jobs:
           console.log("receipt_id="+v.receipt_id);
           console.log("receipt_sha256="+crypto.createHash("sha256").update(raw).digest("hex"));
           console.log("receipt_bytes="+raw.length);
+          console.log("in_memory_candidate_receipt_status=DEPLOYED_SOURCE_FINALITY_GENERATION_ACCEPTED");
+          console.log("actual_installed_deployment_generation_verified=false");
+          console.log("source_authentication_scope=clean_hosted_checkout_candidate_only");
           console.log("receipt_install_called=false");
           console.log("filesystem_mutation=false");
           console.log("service_mutation=false");
