@@ -53,7 +53,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v1.c)" = "79c273b0b17b2467a26ede1a4134322eecd5dfcb"
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v1.py)" = "c3ec29996876aa5b0f712988c4595c946d51868b"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py)" = "d07cf3cfc6847e2ec5a58bde33dca48482da515a"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py)" = "d9035da0474880ff28bd2890502abd2957d37535"
           test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v1.md)" = "62e8e25050bb4f30b3ba406fb67665c9995eb3ca"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json)" = "c070bcf061c57a066a7c037d768888f8838448e3"
 
