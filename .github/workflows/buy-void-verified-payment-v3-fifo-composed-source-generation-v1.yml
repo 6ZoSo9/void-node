@@ -6,6 +6,7 @@ on:
       - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
       - "scripts/prove_buy_void_verified_payment_capacity_fifo_nonblocking_v2.ts"
       - ".github/workflows/buy-void-stable-request-root-policy-v1.yml"
+      - ".github/workflows/buy-void-verified-payment-v2-source-generation-acceptance-v1.yml"
       - ".github/workflows/buy-void-runtime-integration-v1.yml"
       - ".github/workflows/buy-void-request-root-runtime-topology-census-v2.yml"
       - ".github/workflows/buy-void-operator-verified-allocation-dispatch-v2.yml"
@@ -97,6 +98,7 @@ M	.github/workflows/buy-void-request-root-runtime-topology-census-v2.yml
 M	.github/workflows/buy-void-runtime-integration-v1.yml
 M	.github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml
 M	.github/workflows/buy-void-stable-request-root-policy-v1.yml
+M	.github/workflows/buy-void-verified-payment-v2-source-generation-acceptance-v1.yml
 M	src/economic/buy_void_verified_payment_capacity_admission_v1.ts
 EOF
           sort -o "$RUNNER_TEMP/expected" "$RUNNER_TEMP/expected"
@@ -123,7 +125,7 @@ EOF
           grep -Fx 'v2_source_file_triggers_complete=true' "$out"
           grep -Fx 'capacity_fifo_source_and_proof_triggers_complete=true' "$out"
           grep -Fx 'protected_consumer_count=5' "$out"
-          grep -Fx 'compatibility_trigger_count=15' "$out"
+          grep -Fx 'compatibility_trigger_count=16' "$out"
           grep -Fx 'compatibility_successor_triggers_complete=true' "$out"
       - name: Prove composed current generation
         run: |
