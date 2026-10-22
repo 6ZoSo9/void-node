@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import socket
 import stat
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -24,6 +25,14 @@ SERVICE_PATH=Path("/etc/systemd/system/void-apollyon-authorization-custody-v1.se
 LAUNCHER_ROOT=Path("/opt/void-apollyon-custody-service-v2-reviewed-v1/tools")
 V2_LAUNCHER_PATH=LAUNCHER_ROOT/"apollyon-authorization-custody-launcher-v2.mjs"
 V3_LAUNCHER_PATH=LAUNCHER_ROOT/"apollyon-authorization-custody-launcher-v3.mjs"
+NODE_PATH=Path("/opt/void-apollyon-node-runtime-v1/node")
+HELPER_PATH=Path(
+    "/opt/void-apollyon-custody-lifecycle-v1/"
+    "apollyon_custody_stale_socket_cleanup_v1.py"
+)
+EXPECTED_EXEC_STOP_POST_ARGV=(
+    "/usr/bin/python3","-I","-B",os.fspath(HELPER_PATH),"--cleanup",
+)
 
 V3_LAUNCHER_REL="tools/apollyon-authorization-custody-launcher-v3.mjs"
 V3_SERVICE_REL="ops/xiphos/void-apollyon-authorization-custody-v1-launcher-v3.service"
@@ -106,6 +115,74 @@ def exact_regular(
         hold("installed_file_blob_invalid:"+os.fspath(path))
     return digest
 
+def parse_exec_property(raw:str,label:str)->list[tuple[str,...]]:
+    raw=raw.strip()
+    if raw=="":return []
+    bodies=[]
+    depth=0
+    start:int|None=None
+    for index,char in enumerate(raw):
+        if char=="{":
+            if depth==0:start=index+1
+            depth+=1
+        elif char=="}":
+            if depth==0:hold("exec_property_shape_invalid:"+label)
+            depth-=1
+            if depth==0:
+                if start is None:hold("exec_property_shape_invalid:"+label)
+                bodies.append(raw[start:index])
+                start=None
+        elif depth==0 and not char.isspace():
+            hold("exec_property_shape_invalid:"+label)
+    if depth!=0 or start is not None or not bodies:
+        hold("exec_property_shape_invalid:"+label)
+    commands=[]
+    for body in bodies:
+        fields={}
+        for part in body.split(" ; "):
+            part=part.strip()
+            if "=" not in part:hold("exec_property_field_invalid:"+label)
+            key,value=part.split("=",1)
+            key=key.strip();value=value.strip()
+            if key in fields:hold("exec_property_field_duplicate:"+label)
+            fields[key]=value
+        path=fields.get("path")
+        argv_raw=fields.get("argv[]")
+        if not path or argv_raw is None or fields.get("ignore_errors")!="no":
+            hold("exec_property_required_field_invalid:"+label)
+        try:
+            argv=tuple(shlex.split(argv_raw,posix=True))
+        except ValueError as exc:
+            raise Hold("exec_property_argv_invalid:"+label) from exc
+        if not argv or argv[0]!=path:
+            hold("exec_property_path_argv_mismatch:"+label)
+        commands.append(argv)
+    return commands
+
+def expected_exec_start_argv(launcher:Path)->tuple[str,...]:
+    return (
+        os.fspath(NODE_PATH),
+        os.fspath(launcher),
+        "--socket-path","$"+"{VOID_APOLLYON_CUSTODY_SOCKET_PATH}",
+        "--state-root","$"+"{VOID_APOLLYON_CUSTODY_STATE_ROOT}",
+        "--socket-group-gid","$"+"{VOID_APOLLYON_CUSTODY_SOCKET_GROUP_GID}",
+        "--expected-operator-public-key-raw-sha256",
+        "$"+"{VOID_APOLLYON_CUSTODY_OPERATOR_PUBLIC_KEY_RAW_SHA256}",
+        "--operator-public-key-file",
+        "$"+"{VOID_APOLLYON_CUSTODY_OPERATOR_PUBLIC_KEY_FILE}",
+    )
+
+def loaded_exec_generation(service:dict[str,str])->str:
+    if parse_exec_property(service.get("ExecStart",""),"ExecStart")==[
+        expected_exec_start_argv(V2_LAUNCHER_PATH)
+    ]:
+        return "v2"
+    if parse_exec_property(service.get("ExecStart",""),"ExecStart")==[
+        expected_exec_start_argv(V3_LAUNCHER_PATH)
+    ]:
+        return "v3"
+    hold("service_effective_execstart_invalid")
+
 def unit_props(unit:str,names:tuple[str,...])->dict[str,str]:
     argv=["/usr/bin/systemctl","show",unit,"--no-pager"]
     for name in names:
@@ -133,7 +210,9 @@ def require_dormant()->dict[str,dict[str,str]]:
     service=unit_props(SERVICE_UNIT,(
         "LoadState","ActiveState","UnitFileState","MainPID","NeedDaemonReload",
         "FragmentPath","DropInPaths","RefuseManualStart","RefuseManualStop",
-        "UnsetEnvironment","ExecStart",
+        "NoNewPrivileges","RestrictAddressFamilies","UnsetEnvironment",
+        "ExecCondition","ExecStartPre","ExecStart","ExecStartPost","ExecStop",
+        "ExecStopPost",
     ))
     training=unit_props(TRAINING_UNIT,(
         "LoadState","ActiveState","UnitFileState","MainPID",
@@ -157,9 +236,19 @@ def require_dormant()->dict[str,dict[str,str]]:
         service["FragmentPath"]!=os.fspath(SERVICE_PATH) or
         service["DropInPaths"]!="" or
         service["RefuseManualStart"]!="yes" or service["RefuseManualStop"]!="yes" or
+        service["NoNewPrivileges"]!="yes" or
+        service["RestrictAddressFamilies"]!="AF_UNIX" or
         set(service["UnsetEnvironment"].split())!=set(EXPECTED_UNSET)
     ):
         hold("service_not_exactly_dormant")
+    for name in ("ExecCondition","ExecStartPre","ExecStartPost","ExecStop"):
+        if parse_exec_property(service.get(name,""),name):
+            hold("service_unexpected_exec_command:"+name)
+    if parse_exec_property(service.get("ExecStopPost",""),"ExecStopPost")!=[
+        EXPECTED_EXEC_STOP_POST_ARGV
+    ]:
+        hold("service_effective_execstoppost_invalid")
+    loaded_exec_generation(service)
     if (
         training["LoadState"]!="loaded" or
         training["ActiveState"] not in ("inactive","failed") or
@@ -186,12 +275,10 @@ def service_state()->str:
     hold("service_unit_collision")
 
 def classify(
-    service_file:str,launcher:str,exec_start:str,need_reload:str,
+    service_file:str,launcher:str,loaded_exec:str,need_reload:str,
 )->dict[str,str]:
-    old_path=os.fspath(V2_LAUNCHER_PATH)
-    new_path=os.fspath(V3_LAUNCHER_PATH)
-    old_loaded=old_path in exec_start and new_path not in exec_start
-    new_loaded=new_path in exec_start and old_path not in exec_start
+    old_loaded=loaded_exec=="v2"
+    new_loaded=loaded_exec=="v3"
     if (
         service_file=="v2_exact" and launcher=="absent" and
         old_loaded and need_reload=="no"
@@ -227,13 +314,14 @@ def plan()->dict[str,object]:
     units=require_dormant()
     launch=launcher_state()
     service=service_state()
+    loaded_exec=loaded_exec_generation(units["service"])
     state=classify(
-        service,launch,units["service"]["ExecStart"],
-        units["service"]["NeedDaemonReload"],
+        service,launch,loaded_exec,units["service"]["NeedDaemonReload"],
     )
     return {
         "marker":MARKER,"mode":"--plan","target_host":TARGET_HOST,
-        "launcher_state":launch,"service_unit_state":service,**state,
+        "launcher_state":launch,"service_unit_state":service,
+        "loaded_exec_generation":loaded_exec,**state,
         "target_dormant":True,"service_dormant":True,"training_dormant":True,
         "service_action":False,"target_action":False,"training_action":False,
         "durable_attempt_claim":False,"training_execution":False,
@@ -366,19 +454,19 @@ def self_test()->None:
     assert git_blob(b"abc")==hashlib.sha1(b"blob 3\0abc").hexdigest()
     assert classify(
         "v2_exact","absent",
-        "/node "+os.fspath(V2_LAUNCHER_PATH)+" --socket-path /x","no",
+        "v2","no",
     )["next_action"]=="INSTALL_V3_LAUNCHER"
     assert classify(
         "v2_exact","exact",
-        "/node "+os.fspath(V2_LAUNCHER_PATH)+" --socket-path /x","no",
+        "v2","no",
     )["next_action"]=="REPLACE_SERVICE_UNIT"
     assert classify(
         "v3_exact","exact",
-        "/node "+os.fspath(V2_LAUNCHER_PATH)+" --socket-path /x","yes",
+        "v2","yes",
     )["next_action"]=="DAEMON_RELOAD"
     assert classify(
         "v3_exact","exact",
-        "/node "+os.fspath(V3_LAUNCHER_PATH)+" --socket-path /x","no",
+        "v3","no",
     )["lifecycle_state"]=="complete"
     own=Path(__file__).read_text(encoding="utf-8")
     for forbidden in (
@@ -393,6 +481,13 @@ def self_test()->None:
         'service["ActiveState"] not in ("inactive","failed")',
         'require_trusted_ancestor_chain(',
         'trusted_ancestor_invalid:',
+        'parse_exec_property(',
+        'loaded_exec_generation(',
+        'service_effective_execstart_invalid',
+        'service_effective_execstoppost_invalid',
+        'service_unexpected_exec_command:',
+        'service["NoNewPrivileges"]!="yes"',
+        'service["RestrictAddressFamilies"]!="AF_UNIX"',
         'rebind_material_changed_before_daemon_reload',
         'V3_LAUNCHER_BLOB="ec9e1d2c01581ebdc5323056939f846e67692fe6"',
         'NEW_SERVICE_BLOB="51354b10da89413eb6991514496798c7a1b5d1e8"',
