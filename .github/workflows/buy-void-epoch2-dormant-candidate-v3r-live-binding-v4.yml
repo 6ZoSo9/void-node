@@ -8,7 +8,6 @@ on:
       - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c"
       - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs"
       - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py"
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,62 +19,55 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Bind exact V4 successor scope
         env:
           EVENT_NAME: ${{ github.event_name }}
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
+          test "$EVENT_NAME" = "pull_request"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          case "$EVENT_NAME" in
-            pull_request)
-              case "$BASE_REF" in
-                ren/epoch2-v6r3-main-integration-v1-20261019|ren/epoch2-dormant-v3r-live-binding-v4-current-source-20261019|ren/epoch2-dormant-v4-retained-root-exec-v1-20261020|ren/epoch2-dormant-v4-canonical-configured-root-exec-v1-20261020|ren/epoch2-dormant-native-byte-firstexec-guard-v1-20261020)
-                  base="$PR_BASE"
-                  ;;
-                ren/epoch2-dormant-root-elf-parser-adversarial-proof-20261020)
-                  base="$PR_BASE"
-                  test "$base" = "268680e4e00d7adfed4695a3051ddb437510262a"
-                  ;;
-                ren/epoch2-dormant-v4-proof-optimized-codeobject-hold-20261020)
-                  base="$PR_BASE"
-                  test "$base" = "8a58301048437f6406349665dcd6c48287fce53a"
-                  ;;
-                ren/epoch2-dormant-elf-load-extent-independent-fixture-20261020)
-                  base="$PR_BASE"
-                  test "$base" = "891db34c74ebbba102515e5184f157ec1898cb46"
-                  ;;
-                ren/epoch2-dormant-native-preentry-sealed-source-v1-20261020)
-                  base="$PR_BASE"
-                  test "$base" = "9746fdd767f35cb08e2967c616fb5da4a144c44e"
-                  ;;
-                ren/epoch2-binder-native-nonblocking-trusted-open-v1-20261020)
-                  base="$PR_BASE"
-                  test "$base" = "d44a2a57abf80d41eac605cbe8518f0dc7b673b7"
-                  ;;
-                main)
-                  base="$PR_BASE"
-                  test "$base" = "db1b67ca713d3c4500764313513e76938502cc0f"
-                  ;;
-                *)
-                  exit 1
-                  ;;
-              esac
+          case "$BASE_REF" in
+            ren/epoch2-v6r3-main-integration-v1-20261019|ren/epoch2-dormant-v3r-live-binding-v4-current-source-20261019|ren/epoch2-dormant-v4-retained-root-exec-v1-20261020|ren/epoch2-dormant-v4-canonical-configured-root-exec-v1-20261020|ren/epoch2-dormant-native-byte-firstexec-guard-v1-20261020)
+              base="$PR_BASE"
               ;;
-            workflow_dispatch)
-              base="977164822ca9032a9f8ec2fd988758102612d866"
+            ren/epoch2-dormant-root-elf-parser-adversarial-proof-20261020)
+              base="$PR_BASE"
+              test "$base" = "268680e4e00d7adfed4695a3051ddb437510262a"
+              ;;
+            ren/epoch2-dormant-v4-proof-optimized-codeobject-hold-20261020)
+              base="$PR_BASE"
+              test "$base" = "8a58301048437f6406349665dcd6c48287fce53a"
+              ;;
+            ren/epoch2-dormant-elf-load-extent-independent-fixture-20261020)
+              base="$PR_BASE"
+              test "$base" = "891db34c74ebbba102515e5184f157ec1898cb46"
+              ;;
+            ren/epoch2-dormant-native-preentry-sealed-source-v1-20261020)
+              base="$PR_BASE"
+              test "$base" = "9746fdd767f35cb08e2967c616fb5da4a144c44e"
+              ;;
+            ren/epoch2-binder-native-nonblocking-trusted-open-v1-20261020)
+              base="$PR_BASE"
+              test "$base" = "d44a2a57abf80d41eac605cbe8518f0dc7b673b7"
+              ;;
+            main)
+              base="$PR_BASE"
+              test "$base" = "db1b67ca713d3c4500764313513e76938502cc0f"
               ;;
             *)
               exit 1
               ;;
           esac
-          if [ "$BASE_REF" != "main" ]; then
+          if [ "$BASE_REF" = "main" ]; then
+            git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+          else
             git merge-base --is-ancestor 977164822ca9032a9f8ec2fd988758102612d866 "$EXPECTED_HEAD"
           fi
 
@@ -130,6 +122,28 @@ jobs:
           fi
           git diff --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
+
+          if [ "$BASE_REF" = "main" ]; then
+            historical_leaf="41380839014d202421643d252288bd89985a1191"
+            adapted_workflow='.github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.yml'
+            git cat-file -e "$historical_leaf^{commit}"
+            test "$(wc -l < "$expected")" -eq 21
+            while IFS= read -r relative; do
+              current_entry="$(git ls-tree "$EXPECTED_HEAD" -- "$relative")"
+              test -n "$current_entry"
+              if [ "$relative" = "$adapted_workflow" ]; then
+                test "$(printf '%s\n' "$current_entry" | awk '{print $1" "$2}')" = "100644 blob"
+                current_blob="$(git rev-parse "$EXPECTED_HEAD:$relative")"
+                historical_blob="$(git rev-parse "$historical_leaf:$relative")"
+                [[ "$current_blob" =~ ^[0-9a-f]{40}$ ]]
+                test "$current_blob" != "$historical_blob"
+              else
+                historical_entry="$(git ls-tree "$historical_leaf" -- "$relative")"
+                test -n "$historical_entry"
+                test "$current_entry" = "$historical_entry"
+              fi
+            done < "$expected"
+          fi
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs)" = \
             "d2d648b144d3b406ff845a597fa4b9f54167b6bc"
