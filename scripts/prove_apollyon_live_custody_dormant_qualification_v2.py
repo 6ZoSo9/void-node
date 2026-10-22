@@ -93,6 +93,8 @@ for required in (
     'custody_thread_inventory(',
     'validate_custody_thread_status(',
     'custody_thread_credentials_changed',
+    'validated_tids=tuple(',
+    'custody_global_thread_map_matches_validated_inventory',
     'custody_thread_capability_nonzero:',
     'custody_thread_no_new_privileges_missing:',
     'proc_root:Path=Path("/proc")',
@@ -120,6 +122,7 @@ for line in (
     "all_tid_custody_exclusivity_required=true",
     "all_tid_training_absence_required=true",
     "global_role_thread_census_stable=true",
+    "global_custody_tid_map_matches_validated_inventory=true",
     "custody_thread_credentials_exact_required=true",
     "custody_thread_credential_adversaries_executed=true",
     "second_custody_uid_process_rejected=true",
@@ -174,6 +177,7 @@ print("child_process_census_executed=true")
 print("all_tid_custody_exclusivity_required=true")
 print("all_tid_training_absence_required=true")
 print("global_role_thread_census_stable=true")
+print("global_custody_tid_map_matches_validated_inventory=true")
 print("custody_thread_credentials_exact_required=true")
 print("custody_thread_credential_adversaries_executed=true")
 print("second_custody_uid_process_rejected=true")
