@@ -173,7 +173,7 @@ export async function waitForApollyonAuthorizationCustodyShutdownV3(
   }
   if(
     !signalSource||
-    typeof signalSource.once!=="function"||
+    typeof signalSource.on!=="function"||
     typeof signalSource.removeListener!=="function"
   ){
     fail("apollyon_custody_launcher_v3_shutdown_signal_source_invalid");
@@ -192,8 +192,8 @@ export async function waitForApollyonAuthorizationCustodyShutdownV3(
       .then(()=>service.stop())
       .then(resolveDone,rejectDone);
   };
-  signalSource.once("SIGTERM",onSignal);
-  signalSource.once("SIGINT",onSignal);
+  signalSource.on("SIGTERM",onSignal);
+  signalSource.on("SIGINT",onSignal);
   try{
     await done;
   }finally{
