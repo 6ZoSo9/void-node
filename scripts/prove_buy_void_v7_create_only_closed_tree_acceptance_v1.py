@@ -11,14 +11,14 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 MARKER = "VOID_BUY_VOID_V7_CREATE_ONLY_CLOSED_TREE_ACCEPTANCE_V1_PROOF"
 SOURCE_BASE = "1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"
 ACCEPTANCE_REL = "ops/security/buy-void-v7-create-only-closed-tree-acceptance-v1.json"
-ACCEPTANCE_BLOB = "f6bc2f321f90db9c4ae3d9e597383066aa1e75f2"
+ACCEPTANCE_BLOB = "919db72903a5fcff59dec7635a4288f41d1753d9"
 PLAN_REL = "ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json"
 PLAN_BLOB = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
 BOOTSTRAP_REL = "ops/precision/void_buy_void_v7_create_only_closed_tree_bootstrap_v1.c"
 BOOTSTRAP_BLOB = "2a8397c85d698d168f2257ec801557281b73c04d"
 BOOTSTRAP_PROOF_REL = "scripts/prove_buy_void_v7_create_only_closed_tree_bootstrap_v1.py"
 BOOTSTRAP_PROOF_BLOB = "2bec40bb30b26f229e5a9a290ce262cd40e344c5"
-EXPECTED_ID = "voidv7closedtreeaccept1_ed5254b203016c9aef5d044b8bf9e20dbaead2998246b4ad3a352c5727f82e9b"
+EXPECTED_ID = "voidv7closedtreeaccept1_19ac8c5b09377162ff42048535352a15b5dc75020701c9402c1ebc6ba73fc4b3"
 
 def git(*args: str) -> str:
     cp = subprocess.run(
@@ -126,7 +126,7 @@ true_fields = {
     "alternative_seal_accepted_for_source_implementation",
     "new_launcher_generation_source_implementation_authorized",
     "bootstrap_manifest_lock_candidate_generation_authorized",
-    "bootstrap_source_revision_under_acceptance_authorized",
+    "bootstrap_source_revision_for_manifest_lock_candidate_only_authorized",
 }
 for key in true_fields:
     if decision.get(key) is not True:
