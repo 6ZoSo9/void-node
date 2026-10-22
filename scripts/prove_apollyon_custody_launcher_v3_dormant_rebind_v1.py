@@ -43,7 +43,14 @@ for required in (
     'V2_LAUNCHER_BLOB="d23ff045d8c355401fed499c6bcffd503ba4c7fd"',
     'V3_LAUNCHER_BLOB="8d8561c08db7e500a818d269580dad15adca9f58"',
     'run(["/usr/bin/systemctl","daemon-reload"])',
-    'create_exact(V3_LAUNCHER_PATH,launcher_data,0o444)',
+    'V3_LAUNCHER_PENDING_PATH=',
+    'launcher_destination_file(',
+    'launcher_pending_file(',
+    'RECOVER_V3_LAUNCHER_PENDING',
+    'RESUME_V3_LAUNCHER_PUBLICATION',
+    'FINALIZE_V3_LAUNCHER_PUBLICATION',
+    'v3_launcher_pending_collision',
+    'install_or_resume_launcher(launcher_data)',
     'service["ActiveState"] not in ("inactive","failed")',
     'parse_exec_property(',
     'loaded_exec_generation(',
@@ -81,6 +88,9 @@ for line in (
     "VOID_APOLLYON_CUSTODY_LAUNCHER_V3_DORMANT_REBIND_V1_SELF_TEST_GREEN",
     "v2_launcher_preserved=true",
     "v3_launcher_create_only=true",
+    "v3_launcher_crash_resumable_publication=true",
+    "v3_launcher_pending_inode_bound=true",
+    "v3_launcher_partial_pending_recovery=true",
     "service_unit_atomic_replace=true",
     "daemon_reload_only_systemd_mutation=true",
     "service_action=false",
@@ -97,6 +107,9 @@ print("v3_launcher_blob_bound=true")
 print("v3_service_blob_bound=true")
 print("v2_launcher_preserved=true")
 print("v3_launcher_create_only=true")
+print("v3_launcher_crash_resumable_publication=true")
+print("v3_launcher_pending_inode_bound=true")
+print("v3_launcher_partial_pending_recovery=true")
 print("service_unit_atomic_replace=true")
 print("daemon_reload_only_systemd_mutation=true")
 print("v3_qualifier_group_fix_bound=true")
