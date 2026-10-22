@@ -99,6 +99,16 @@ const V3_SELF="scripts/prove_buy_void_repaired_v7_v3_current_generation_dispatch
 const V3_TRIGGER="scripts/prove_buy_void_verified_payment_v3_trigger_closure_v1.mjs";
 const V3_DOC="docs/architecture/buy-void-verified-payment-v3-source-generation-acceptance-v1.md";
 const V3_DEDICATED=".github/workflows/buy-void-verified-payment-v3-source-generation-acceptance-v1.yml";
+const V3_TRIGGER_BLOB="d8282ff6bc403d7dacb6b902f80d21299ebc27f3";
+const V3_DOC_BLOB="812c02a2fdaa1a11aaaac75b74486ca473e0cb57";
+const V3_CONSUMER_WORKFLOW_BLOBS=Object.freeze({
+  [PROVIDER_WORKFLOW]:"521096800aa980e48b093f3019cf2f0429aadc5a",
+  [HISTORICAL_WORKFLOW]:"5fd9e86fb243dc0c049a00b2182d054eb36e9dff",
+  [FINAL_WORKFLOW]:"e895675c1e104951dbef5e8d1a9331fa3eaca42a",
+  [V4_WORKFLOW]:"006719f4ab28260f14890b3464c35f81b101cdba",
+  [DELTA_WORKFLOW]:"1fae14285f11ffbfbfa9d5cd8c5112989e0b7eb6",
+});
+
 
 const NONPROTECTED_ECONOMIC_DRIFT=Object.freeze([
   ...LEGACY_NONPROTECTED_ECONOMIC_DRIFT,
@@ -372,6 +382,28 @@ function verifyV3Scope(){
     .split("\n").filter(Boolean).sort();
   assert.deepEqual(actual,expected,"v3_parent_relative_scope_changed");
   assert.equal(expected.length,12,"v3_expected_path_count");
+
+  const exactPaths=[
+    ...SUCCESSOR_MODIFIED,
+    CAPACITY_DOC,CAPACITY_PROOF,CAPACITY_SOURCE,
+    V3_SELF,V3_TRIGGER,V3_DOC,V3_DEDICATED,
+  ];
+  assert.equal(new Set(exactPaths).size,12,"v3_exact_path_duplicate");
+  for(const relative of exactPaths){
+    assert.equal(treeMode("HEAD",relative),"100644",
+      "v3_path_mode_drift:"+relative);
+  }
+  for(const [relative,blob] of Object.entries(V3_CONSUMER_WORKFLOW_BLOBS)){
+    assert.equal(treeBlob("HEAD",relative),blob,
+      "v3_consumer_workflow_blob_drift:"+relative);
+    pin(relative,blob,256*1024);
+  }
+  assert.equal(treeBlob("HEAD",V3_TRIGGER),V3_TRIGGER_BLOB,
+    "v3_trigger_proof_blob_drift");
+  assert.equal(treeBlob("HEAD",V3_DOC),V3_DOC_BLOB,
+    "v3_document_blob_drift");
+  pin(V3_TRIGGER,V3_TRIGGER_BLOB,64*1024);
+  pin(V3_DOC,V3_DOC_BLOB,64*1024);
 }
 
 function verifyV2AcceptedSuccessor(){
