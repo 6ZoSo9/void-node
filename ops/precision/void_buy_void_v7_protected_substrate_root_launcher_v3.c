@@ -336,6 +336,12 @@ static bool receipt_scope_allowed(const char *path){
     }
     return false;
 }
+static bool receipt_source_git_path_allowed(const char *path){
+    const char *prefix="source/.git";size_t n=strlen(prefix);
+    if(strcmp(path,prefix)&&(strncmp(path,prefix,n)||path[n]!='/'))return true;
+    for(size_t i=0;i<REQUIRED_RECEIPT_COUNT;i++)if(!strcmp(REQUIRED_RECEIPT[i].path,path))return true;
+    return false;
+}
 static receipt_v1 parse_receipt(char *raw,size_t size){
     if(!size||raw[size-1]!='\n')hold("receipt_final_lf_required");
     receipt_v1 out={0};char *p=raw;char *v=NULL;size_t tmp=0;uintmax_t u=0;uint64_t total=0;
@@ -359,6 +365,7 @@ static receipt_v1 parse_receipt(char *raw,size_t size){
         if(strlen(fields[0])!=1||(fields[0][0]!='D'&&fields[0][0]!='F'))hold("receipt_entry_kind_invalid");
         mode_t mode=0;if(!mode4_receipt(fields[1],&mode))hold("receipt_entry_mode_invalid");
         if(!receipt_clean_rel(fields[2])||!strcmp(fields[2],RECEIPT_REL)||!receipt_scope_allowed(fields[2]))hold("receipt_entry_path_invalid");
+        if(!receipt_source_git_path_allowed(fields[2]))hold("receipt_source_git_extra_path");
         if(i&&strcmp(out.entries[i-1].path,fields[2])>=0)hold("receipt_entries_not_strictly_sorted");
         receipt_entry_v1 *e=&out.entries[i];e->kind=fields[0][0];e->mode=mode;
         if((e->kind=='D'&&e->mode!=0555)||(e->kind=='F'&&e->mode!=0444&&e->mode!=0555))hold("receipt_entry_mode_contract_invalid");
@@ -552,6 +559,7 @@ static int selftest(void){
     puts("closed_tree_fixed_runtime_and_complete_source_payload_required=true");
     puts("dynamic_bounded_receipt_entries_required=true");
     puts("minimal_git_authority_paths_required=true");
+    puts("minimal_git_authority_exact_layout_required=true");
     puts("create_only_closed_tree_seal_mode_required=true");
     puts("existing_launcher_v2_unchanged=true");
     puts("arbitrary_malicious_root_resistance_claimed=false");
