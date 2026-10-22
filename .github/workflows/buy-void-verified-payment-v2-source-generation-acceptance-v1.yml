@@ -60,6 +60,7 @@ jobs:
           grep -Fx "VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2_GREEN" "$out"
           grep -Fx "v2_seven_add_only_paths_exact=true" "$out"
           grep -Fx "v2_three_new_economic_sources_pinned=true" "$out"
+          grep -Fx "v2_five_workflow_dispatches_bound=true" "$out"
           grep -Fx "historical_v1_source_proof_preserved=true" "$out"
           node --input-type=module - "$receipt" <<'NODE'
           import assert from "node:assert/strict";
@@ -71,6 +72,8 @@ jobs:
           assert.equal(p.nonprotected_economic_drift_count,6);
           assert.equal(p.added_v2_economic_source_count,3);
           assert.equal(p.verified_payment_v2_add_only_source_paths_verified,true);
+          assert.equal(p.five_historical_workflow_successors_bound,true);
+          assert.equal(p.successor_workflow_dispatch_independently_approved,false);
           assert.equal(p.current_built_census_identity_matches_frozen_v4,true);
           assert.equal(p.provider_source_identity_preserved,true);
           assert.equal(p.previous_source_dispatch_proof_unchanged,true);

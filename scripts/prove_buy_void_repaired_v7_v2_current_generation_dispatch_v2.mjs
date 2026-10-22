@@ -438,17 +438,25 @@ function verifyProviderIdentity(){
 }
 
 function verifyWorkflowDispatch(){
+  // Keep the historical V1 trigger, but require every current workflow to
+  // select the separately versioned V2 source-generation proof and marker.
   const rows=[
-    [FINAL_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V1"],
-    [HISTORICAL_WORKFLOW,"HISTORICAL_V1_REFUSAL_CURRENT_V2_DISPATCH_V1"],
-    [DELTA_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V1"],
-    [V4_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V1"],
-    [PROVIDER_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V1"],
+    [FINAL_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"],
+    [HISTORICAL_WORKFLOW,"HISTORICAL_V1_REFUSAL_CURRENT_V2_DISPATCH_V2"],
+    [DELTA_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"],
+    [V4_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"],
+    [PROVIDER_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"],
   ];
+  const successor="scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs";
   for(const [relative,marker] of rows){
-    const text=read(relative,256*1024).toString("utf8");
-    assert.ok(text.includes(marker),"workflow_dispatch_marker_missing:"+relative);
-    assert.ok(text.includes(SELF),"workflow_dispatch_proof_missing:"+relative);
+    const source=read(relative,256*1024).toString("utf8");
+    assert.ok(source.includes(marker),"v2_workflow_dispatch_marker_missing:"+relative);
+    assert.ok(source.includes(SELF),"historical_v1_trigger_missing:"+relative);
+    assert.ok(source.includes(successor),"v2_workflow_trigger_missing:"+relative);
+    assert.ok(source.includes("node "+successor+" --self-test"),
+      "v2_workflow_invocation_missing:"+relative);
+    assert.ok(!source.includes("node "+SELF+" --self-test"),
+      "historical_v1_proof_still_current_dispatch:"+relative);
   }
 }
 
@@ -487,6 +495,8 @@ function verify(){
     verified_payment_v2_add_only_source_paths_verified:true,
     previous_source_dispatch_proof_unchanged:true,
     verified_payment_v2_route_mounted:false,
+    five_historical_workflow_successors_bound:true,
+    successor_workflow_dispatch_independently_approved:false,
     payment_allocation_custody_authority:false,
     source_finality_authentication_verified:false,
     independent_source_acceptance_complete:false,
@@ -510,6 +520,7 @@ if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   console.log("VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2_GREEN");
   console.log("v2_seven_add_only_paths_exact=true");
   console.log("v2_three_new_economic_sources_pinned=true");
+  console.log("v2_five_workflow_dispatches_bound=true");
   console.log("historical_v1_source_proof_preserved=true");
   console.log("payment_acceptance=false");
   console.log("verified_payment_v2_route_mounted=false");

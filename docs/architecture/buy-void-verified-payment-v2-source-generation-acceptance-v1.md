@@ -51,11 +51,17 @@ and is tested in the new workflow, not a reason to edit the V1 script or
 change frozen candidate/lock JSON.
 
 The source successor is meaningful **only after** exact-head hosted matrix
-tests, independent review, and separate source acceptance. The currently
-historical five workflow generations must remain fail-closed until a
-separately reviewed versioned dispatch/promotion step composes the new
-receipt into their exact source-generation gates. Simply copying the
-receipt into an old workflow is not approval.
+tests, independent review, and separate source acceptance. This Draft now
+includes a **source-only versioned dispatch candidate** for the five formerly
+V1 workflows. Their exact frozen V2 candidate/lock and V4 census are
+untouched. Only the current source-generation invocation/markers and
+source-version expectations are changed. The workflows remain unmerged and
+cannot grant production authority.
+
+V2 itself fails closed when a workflow does not invoke V2 or lacks a V2
+source trigger. The historical V1 proof remains unchanged and still rejects
+the new generation directly. Source CI GREEN is not independent acceptance,
+deployment authority, payment acceptance, or a public launch approval.
 
 ## Runtime and customer-safety boundaries
 
