@@ -15,6 +15,9 @@ import {
   stageAuthenticatedBuyVoidVerifiedPaymentV2,
 } from "../src/economic/buy_void_verified_payment_v2_allocation_stage.js";
 import {
+  buildBuyVoidVerifiedPaymentEventV2,
+} from "../src/economic/buy_void_verified_payment_v2.js";
+import {
   VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1,
   VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1,
 } from "../src/economic/buy_void_operator_verified_allocation_dispatch_v1.js";
@@ -27,6 +30,9 @@ const id = "buyvoid_stage_aaaaaaaa";
 const chainTx = "0x" + "a".repeat(64);
 const buyer = "0x" + "b".repeat(40);
 const receiver = "0x" + "c".repeat(40);
+const nativeUsdc = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const transferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const addressTopic = (address: string) => "0x" + "0".repeat(24) + address.slice(2);
 let sideEffects = 0;
 let cases = 0;
 
@@ -67,35 +73,68 @@ function response() {
   };
   return { res, state };
 }
+// Construct the event through the REAL canonical V2 USDC-log verifier,
+// rather than inventing fields that no actual verification result contains.
+function verifiedEventFor(original: any) {
+  const verified = buildBuyVoidVerifiedPaymentEventV2({
+    request: original,
+    receipt: {
+      status: "0x1",
+      transactionHash: chainTx,
+      blockNumber: "0x64",
+      logs: [{
+        address: nativeUsdc,
+        topics: [
+          transferTopic,
+          addressTopic(buyer),
+          addressTopic(receiver),
+        ],
+        data: "0x2dc6c0", // 3,000,000 USDC micro-units
+        logIndex: "0x1",
+        transactionHash: chainTx,
+        blockNumber: "0x64",
+      }],
+    },
+    policy: {
+      allowed_chains: ["base"],
+      usdc_contract_by_chain: { base: nativeUsdc },
+      receive_address_by_chain: { base: receiver },
+      current_block_number_by_chain: { base: "0x65" },
+    },
+  });
+  if (!verified.ok) throw new Error("synthetic_real_verifier_failed:" + verified.reason);
+  assert.equal(Object.hasOwn(verified.event, "quoted_void"), false);
+  assert.equal(verified.event.payment_verifier.amount_units, "3000000");
+  assert.equal(verified.event.payment_verifier.requested_units, "3000000");
+  return verified.event;
+}
 function serverInput(): any {
+  const original = {
+    request_id: id,
+    source_chain: "base",
+    payment_chain: "base",
+    payment_chain_id: 8453,
+    tx_hash: chainTx,
+    usdc_amount: "3",
+    quoted_void: "6",
+    rate_void_per_usdc: "2",
+    price_usdc_per_void: "0.50",
+    delivery_address: buyer,
+    receive_address: receiver,
+    usdc_contract: nativeUsdc,
+    payment_instructions: {
+      send_chain: "base",
+      send_chain_id: 8453,
+      token_contract: nativeUsdc,
+      token_decimals: 6,
+      send_to: receiver,
+      send_from: buyer,
+      amount: "3",
+    },
+  };
   return {
-    event: {
-      schema: "void_buy_void_verified_payment_event_v2",
-      marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2",
-      request_id: id,
-      operator_status: "payment_verified",
-      payment_verified: true,
-      payment_identity_input_complete: true,
-      marked_at_ms: 100,
-      tx_hash: chainTx,
-      quoted_void: "6",
-      payment_verifier: {
-        chain: "base",
-        transaction_hash: chainTx,
-        log_index: "1",
-        from_address: buyer,
-        delivery_address: buyer,
-        receive_address: receiver,
-      },
-    },
-    request: {
-      request_id: id,
-      source_chain: "base",
-      tx_hash: chainTx,
-      quoted_void: "6",
-      delivery_address: buyer,
-      receive_address: receiver,
-    },
+    event: verifiedEventFor(original),
+    request: original,
     request_dir: scratch,
     allocation_ledger_root: VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1,
     allocation_high_water_root: VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1,
@@ -145,6 +184,9 @@ try {
   assert.ok(result);
   assert.equal(state.code, null);
   assert.equal(result.marker, VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE);
+  assert.equal(Object.hasOwn(result.event, "quoted_void"), false,
+    "real canonical event has no quote property");
+  assert.equal(result.event.payment_verifier.usdc_contract, nativeUsdc);
   assert.equal(result.status, "staged_unmounted");
   assert.equal(result.kind, "verified_payment_allocation_handoff");
   assert.equal(result.mounted_verified_allocation_dispatch, false);
@@ -173,48 +215,63 @@ try {
   assert.equal(result.event_snapshot_sha256, stage(serverInput()).result?.event_snapshot_sha256);
   cases++;
 
-  // The real public request handler stores a NUMBER; the private fixture uses
-  // decimal text. Positive canonical quotes in either format must still stage.
-  for (const canonicalQuote of [6, 0.000001, "0.000001"]) {
+  // Both production numeric and historical canonical decimal-text requests
+  // must work with a REAL verifier-generated event (which has no VOID quote).
+  for (const [canonicalQuote, usdcAmount] of [
+    [6, 3],
+    ["6", 3],
+    ["0.000002", "0.000001"],
+    [0.000002, 0.000001],
+  ] as const) {
     const allowed = serverInput();
-    allowed.event.quoted_void = canonicalQuote;
     allowed.request.quoted_void = canonicalQuote;
+    allowed.request.usdc_amount = usdcAmount;
     const admitted = stage(allowed).result;
     assert.equal(admitted?.status, "staged_unmounted");
     assert.equal(admitted?.payment_acceptance, false);
+    assert.equal(Object.hasOwn(admitted?.event || {}, "quoted_void"), false);
     cases++;
   }
 
-  // Plain equality was insufficient: two omitted or equal invalid values
-  // must never authorize even an unmounted allocation preflight.
-  const missingQuotes = serverInput();
-  delete missingQuotes.event.quoted_void;
-  delete missingQuotes.request.quoted_void;
-  negative(missingQuotes, "event_request_original_identity_mismatch");
-  const badQuotePairs: [unknown, unknown][] = [
-    [null, null],
-    ["", ""],
-    ["0", "0"],
-    [0, 0],
-    ["-6", "-6"],
-    ["06", "06"],
-    ["6 ", "6 "],
-    ["6e0", "6e0"],
-    ["6.0000001", "6.0000001"],
-    ["10000001", "10000001"],
-    [10000001, 10000001],
-    [0.0000001, 0.0000001],
-    [true, true],
-    ["6", 6],
-    [6, "6"],
-    ["6", "7"],
-  ];
-  for (const [eventQuote, requestQuote] of badQuotePairs) {
-    const invalid = serverInput();
-    invalid.event.quoted_void = eventQuote;
-    invalid.request.quoted_void = requestQuote;
-    negative(invalid, "event_request_original_identity_mismatch");
+  const missingQuote = serverInput();
+  delete missingQuote.request.quoted_void;
+  negative(missingQuote, "event_request_original_identity_mismatch");
+  for (const badQuote of [
+    null, "", "0", 0, "-6", "06", "6 ", "6e0", "6.0000001",
+    "10000001", 10000001, 0.0000001, true, {}, [],
+  ]) {
+    const bad = serverInput();
+    bad.request.quoted_void = badQuote;
+    negative(bad, "event_request_original_identity_mismatch");
   }
+  for (const [field, value] of [
+    ["usdc_amount", "2.5"],
+    ["usdc_amount", ""],
+    ["usdc_amount", "0"],
+    ["rate_void_per_usdc", "3"],
+    ["rate_void_per_usdc", null],
+    ["price_usdc_per_void", "0.40"],
+    ["price_usdc_per_void", null],
+    ["quoted_void", "7"],
+    ["quoted_void", 6.000001],
+    ["usdc_contract", "0x" + "f".repeat(40)],
+  ] as const) {
+    const bad = serverInput();
+    bad.request[field] = value;
+    negative(bad, "event_request_original_identity_mismatch");
+  }
+  for (const [field, value] of [
+    ["amount_units", "3000001"],
+    ["requested_units", "2999999"],
+    ["usdc_contract", "0x" + "f".repeat(40)],
+  ] as const) {
+    const bad = serverInput();
+    bad.event.payment_verifier[field] = value;
+    negative(bad, "event_request_original_identity_mismatch");
+  }
+  const fabricatedQuote = serverInput();
+  fabricatedQuote.event.quoted_void = "6";
+  negative(fabricatedQuote, "event_request_original_identity_mismatch");
 
   negative({ ...serverInput(), event: { ...serverInput().event, request_id: "buyvoid_forged_ffffffff" } },
     "request_event_identity_status_or_server_callbacks_invalid");
@@ -242,8 +299,8 @@ try {
       ...serverInput().event.payment_verifier, log_index: "-1",
     },
   } }, "event_request_original_identity_mismatch");
-  negative({ ...serverInput(), event: {
-    ...serverInput().event, quoted_void: "600000",
+  negative({ ...serverInput(), request: {
+    ...serverInput().request, quoted_void: "600000",
   } }, "event_request_original_identity_mismatch");
 
   let invokedGetter = 0;
@@ -305,6 +362,8 @@ console.log("adversarial_cases=" + String(cases));
 console.log("real_private_bearer_and_canonical_allocation_planner_used=true");
 console.log("server_only_event_and_request_snapshotted=true");
 console.log("numeric_and_text_canonical_void_quotes_supported=true");
+console.log("real_canonical_verifier_event_without_quote_stages=true");
+console.log("request_quote_bound_to_verified_usdc_micro_units_and_rate=true");
 console.log("equal_missing_zero_or_invalid_void_quotes_rejected=true");
 console.log("auth_denial_precedes_untrusted_planning=true");
 console.log("payment_only_writer_unreachable=true");
