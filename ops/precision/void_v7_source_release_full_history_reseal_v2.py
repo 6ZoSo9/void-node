@@ -1462,7 +1462,7 @@ def build(output: Path) -> None:
     print("protected_replace_authorized=false")
 
 def self_test() -> None:
-    if len(TARGET_PARENTS) != 2 or any(HEX40.fullmatch(p) is None for p in TARGET_PARENTS):
+    if len(TARGET_PARENTS) != 1 or any(HEX40.fullmatch(p) is None for p in TARGET_PARENTS):
         raise AssertionError("parent_constants_invalid")
     if CONFIG_TEXT.count("[core]") != 1:
         raise AssertionError("config_contract_invalid")
