@@ -65,9 +65,7 @@ async function runSignal(signal){
     });
   });
 
-  assert.equal(child.kill(signal),true);
-
-  const result=await new Promise((resolve,reject)=>{
+  const exitPromise=new Promise((resolve,reject)=>{
     const timeout=setTimeout(()=>{
       child.kill("SIGKILL");
       reject(new Error("child_exit_timeout:"+signal));
@@ -81,6 +79,9 @@ async function runSignal(signal){
       reject(error);
     });
   });
+
+  assert.equal(child.kill(signal),true);
+  const result=await exitPromise;
 
   assert.deepEqual(result,{code:0,childSignal:null});
   assert.equal(stdout.includes("STOP_SETTLED\n"),true,stdout);
