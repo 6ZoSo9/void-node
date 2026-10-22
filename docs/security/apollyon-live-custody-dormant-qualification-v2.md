@@ -24,7 +24,9 @@ primary GID. The live generation extends this credential binding to every TID
 in the custody process. A second process is rejected even when only one of its
 nonleader threads carries the custody UID, including saved/fs-UID-only cases.
 The same all-TID rule proves training-UID absence before, during and after both
-cycles.
+cycles. Global custody/training role maps are accepted only when two consecutive
+all-process/all-TID snapshots are identical; a changing role census HOLDs rather
+than being treated as absence or exclusivity.
 
 ## Exact source bindings
 
@@ -63,8 +65,9 @@ The live `--run` mode retains the v1 lifecycle semantics:
    every custody TID must have exact custody UID/GID slots, only the reviewed
    group closure, zero inheritable/permitted/effective/ambient capabilities,
    and NoNewPrivileges;
-7. census every process/TID on the host and require the custody UID to appear
-   only inside that exact service process and the training UID nowhere;
+7. census every process/TID on the host twice, require the two global role-UID
+   maps to be identical, then require the custody UID to appear only inside that
+   exact service process and the training UID nowhere;
 8. prove exact executable, argv, socket and remaining runtime bindings;
 9. stop only the custody activation target;
 10. prove service/target dormant and socket/process cleanup using the all-TID
