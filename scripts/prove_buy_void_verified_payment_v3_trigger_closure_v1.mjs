@@ -20,6 +20,23 @@ const CONSUMERS=Object.freeze([
   ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml",
   ".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml",
 ]);
+const COMPATIBILITY=Object.freeze([
+  "scripts/prove_buy_void_canonical_caller_request_v2.ts",
+  "scripts/prove_buy_void_legacy_operator_status_exact_identity_v2.ts",
+  "scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts",
+  "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v4.ts",
+  "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v5.ts",
+  "scripts/prove_void_buy_request_root_runtime_topology_census_v3.py",
+  "scripts/prove_void_buy_stable_request_root_policy_v2.mjs",
+  ".github/workflows/buy-void-canonical-caller-request-v1.yml",
+  ".github/workflows/buy-void-current-presale-source-tuple-v3.yml",
+  ".github/workflows/buy-void-current-presale-source-tuple-v4.yml",
+  ".github/workflows/buy-void-legacy-operator-status-exact-identity-v1.yml",
+  ".github/workflows/buy-void-operator-verified-allocation-dispatch-v2.yml",
+  ".github/workflows/buy-void-request-root-runtime-topology-census-v2.yml",
+  ".github/workflows/buy-void-runtime-integration-v1.yml",
+  ".github/workflows/buy-void-stable-request-root-policy-v1.yml",
+]);
 const MARKER="VOID_BUY_VOID_VERIFIED_PAYMENT_V3_TRIGGER_CLOSURE_V1_GREEN";
 
 function read(relative,max=1024*1024){
@@ -97,7 +114,7 @@ assert.equal(new Set(sourceFiles).size,7,"v2_source_file_duplicate");
 const dedicatedSource=read(DEDICATED);
 const dedicatedPaths=pullRequestPaths(dedicatedSource,DEDICATED);
 for(const relative of sourceFiles)requirePath(dedicatedPaths,relative,DEDICATED);
-for(const relative of [SUCCESSOR,PREDECESSOR,HISTORICAL,CAPACITY_SOURCE,CAPACITY_PROOF,SELF,DOC,DEDICATED,...CONSUMERS]){
+for(const relative of [SUCCESSOR,PREDECESSOR,HISTORICAL,CAPACITY_SOURCE,CAPACITY_PROOF,SELF,DOC,DEDICATED,...CONSUMERS,...COMPATIBILITY]){
   requirePath(dedicatedPaths,relative,DEDICATED);
 }
 assert.ok(dedicatedSource.includes(`node --check ${SELF}`),"dedicated_trigger_proof_check_missing");
@@ -121,6 +138,8 @@ console.log("v2_source_file_count="+sourceFiles.length);
 console.log("v2_source_file_triggers_complete=true");
 console.log("capacity_fifo_source_and_proof_triggers_complete=true");
 console.log("protected_consumer_count="+CONSUMERS.length);
+console.log("compatibility_trigger_count="+COMPATIBILITY.length);
+console.log("compatibility_successor_triggers_complete=true");
 console.log("protected_consumer_definitions_trigger_dedicated_gate=true");
 console.log("alternative_compulsory_trigger_bound=true");
 console.log("historical_v1_source_proof_preserved=true");
