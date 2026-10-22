@@ -68,7 +68,7 @@ for required in (
     'prestart_custody_uid_process',
     '"prestart_cycle_"+str(cycle)',
     'allow_service_failed=(cycle==1)',
-    'exact_dormant(TRAINING_UNIT,allow_failed=True)',
+    'TRAINING_UNIT,allow_failed=True,expected_unit_file_state="static"',
     'custody_uid_process_after_stop',
     'target_start_attempts=',
     'emergency_cleanup_attempted=',
