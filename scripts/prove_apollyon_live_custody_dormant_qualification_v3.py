@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""Read-only source/test proof for the separate V3 custody qualification."""
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+import subprocess
+import sys
+
+ROOT=Path(__file__).resolve().parents[1]
+V2=ROOT/"ops/xiphos/apollyon_live_custody_dormant_qualification_v2.py"
+V3=ROOT/"ops/xiphos/apollyon_live_custody_dormant_qualification_v3.py"
+
+old=V2.read_text(encoding="utf-8")
+new=V3.read_text(encoding="utf-8")
+ast.parse(old,filename=str(V2))
+ast.parse(new,filename=str(V3))
+assert 'MARKER="VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V2"' in old
+assert 'MARKER="VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V3"' in new
+assert old!=new
+
+# The pinned service, launcher, node bytes and credential/static boundaries
+# must not change when fixing the qualifier's pre-exec readiness observation.
+for expected in (
+    'TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"',
+    'SERVICE_BLOB="51354b10da89413eb6991514496798c7a1b5d1e8"',
+    'HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
+    'LAUNCHER_BLOB="8d8561c08db7e500a818d269580dad15adca9f58"',
+    'NODE_BYTES=126595440',
+    'NODE_SHA256="7fde7b8afa198da66257f42ee2001d874c7355631e6d1579a5fb5ef1f246df4c"',
+    'EXPECTED_PUBLIC_RAW_SHA256="c7aba012afd257699e85b296cc3337cf7b205a869e3f9b37876688c675783134"',
+    'run(["/usr/bin/systemctl","start",TARGET_UNIT])',
+    'run(["/usr/bin/systemctl","stop",TARGET_UNIT])',
+    'if argv!=expected_live_argv(ids):hold("custody_argv_exact_mismatch")',
+    'attest_dormant_boundary(ids,"final")',
+    'emergency_cleanup(ids)',
+    'consumed_snapshot(ids)!=consumed_before',
+    'stable_uid_thread_process_map(',
+    'custody_thread_inventory(',
+    'loaded_unset_environment_invalid',
+    'service_effective_execstart_invalid',
+    'service_effective_execstoppost_invalid',
+):
+    assert expected in old and expected in new,expected
+
+# The readiness gate must occur before MainPID executable inspection.
+live=new.split("def live_observation(ids:",1)[1].split("def stop_and_attest(",1)[0]
+assert live.index("wait_socket(True)")<live.index('raw=service.get("MainPID","")')
+assert live.index('raw=service.get("MainPID","")')<live.index("exact_custody_node_executable(pid)")
+assert live.index("exact_custody_node_executable(pid)")<live.index("status=proc_status(pid)")
+assert 'if proc_start_ticks(pid)!=start_ticks:' in live
+assert 'if latest.get("MainPID")!=raw:' in live
+assert "def exact_custody_node_executable(" in new
+assert 'observed=os.readlink(exe_link)' in new
+assert 'not same_executable_inode(live_st,expected_st)' in new
+assert "custody_node_executable_disappeared" in new
+assert "custody_node_executable_inode_mismatch" in new
+
+for forbidden in (
+    'systemctl","start",SERVICE_UNIT',
+    'systemctl","stop",SERVICE_UNIT',
+    'PRIVATE KEY-----',
+    'eth_sendRawTransaction',
+):
+    assert forbidden not in new,forbidden
+
+result=subprocess.run(
+    [sys.executable,"-I","-B",str(V3),"--self-test"],
+    cwd=ROOT,
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=30,
+)
+assert result.returncode==0,(
+    "V3 self-test failed: "+result.stderr+" "+result.stdout[-1500:]
+)
+for required in (
+    "VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V3_SELF_TEST_GREEN",
+    "socket_ready_before_mainpid_inspection=true",
+    "raw_executable_path_and_inode_bound=true",
+    "mainpid_generation_rechecked=true",
+    "custody_thread_credentials_exact_required=true",
+    "custody_uid_process_exclusivity_required=true",
+    "final_success_attestation_failure_receipt_truthful=true",
+    "training_execution=false",
+    "durable_attempt_claim=false",
+    "funds_movement=false",
+):
+    assert required in result.stdout,required
+
+print("VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V3_PROOF_GREEN")
+print("read_only=true")
+print("source_only=true")
+print("socket_ready_before_mainpid_inspection=true")
+print("raw_executable_path_and_inode_bound=true")
+print("mainpid_generation_rechecked=true")
+print("systemd_service_source_unchanged=true")
+print("legacy_v2_source_preserved=true")
+print("direct_service_action=false")
+print("training_execution=false")
+print("durable_attempt_claim=false")
+print("funds_movement=false")
