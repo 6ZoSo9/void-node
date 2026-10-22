@@ -135,20 +135,21 @@ jobs:
         with:
           pattern: buy-void-v7-deployment-receipt-v5-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
-          path: receipts
+          path: ${{ runner.temp }}/receipts
 
       - name: Require cross-node byte identity and independent rederivation
         shell: bash
         run: |
           set -euo pipefail
-          cmp receipts/deployment-receipt-v5-node-22.json receipts/deployment-receipt-v5-node-24.json
-          cmp receipts/deployment-receipt-v5-node-22.json receipts/deployment-receipt-v5-node-26.json
+          RECEIPTS="$RUNNER_TEMP/receipts"
+          cmp "$RECEIPTS/deployment-receipt-v5-node-22.json" "$RECEIPTS/deployment-receipt-v5-node-24.json"
+          cmp "$RECEIPTS/deployment-receipt-v5-node-22.json" "$RECEIPTS/deployment-receipt-v5-node-26.json"
           ./node_modules/.bin/tsx scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts --derive > "$RUNNER_TEMP/rederived-v5-receipt.json"
-          cmp receipts/deployment-receipt-v5-node-22.json "$RUNNER_TEMP/rederived-v5-receipt.json"
-          node - <<'NODE'
+          cmp "$RECEIPTS/deployment-receipt-v5-node-22.json" "$RUNNER_TEMP/rederived-v5-receipt.json"
+          RECEIPTS="$RECEIPTS" node - <<'NODE'
           const fs=require("node:fs");
           const crypto=require("node:crypto");
-          const p="receipts/deployment-receipt-v5-node-22.json";
+          const p=process.env.RECEIPTS+"/deployment-receipt-v5-node-22.json";
           const raw=fs.readFileSync(p);
           const v=JSON.parse(raw);
           if(v.marker!=="VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1")process.exit(2);
