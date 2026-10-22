@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git hash-object --no-filters ops/precision/void_v7_static_privilege_bridge_v1.c)" = "91a37d6291dd4370c251ac7895595a3ccf5c5d91"
-          test "$(git hash-object --no-filters scripts/prove_void_v7_static_privilege_bridge_v1.py)" = "b4e98fe83fc3be0a647ba42092bb2647b5d891e9"
+          test "$(git hash-object --no-filters scripts/prove_void_v7_static_privilege_bridge_v1.py)" = "bbe0f0680263f35488558f119e81d16a8d8bbe7b"
           git diff --check
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             cat > /tmp/voidpriv-expected.txt <<'SCOPE'
