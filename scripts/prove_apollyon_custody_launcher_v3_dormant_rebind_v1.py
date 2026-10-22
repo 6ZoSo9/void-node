@@ -25,7 +25,7 @@ ast.parse(source)
 assert git_blob(UPDATER)=="7eb3ae379a9e008421fd6f3d67bfb2aad5b22f08"
 assert git_blob(V3)=="8d8561c08db7e500a818d269580dad15adca9f58"
 assert git_blob(SERVICE)=="51354b10da89413eb6991514496798c7a1b5d1e8"
-assert git_blob(QUALIFIER)=="9ba84ef684097f6a152d07303c2630d9ed156d84"
+assert git_blob(QUALIFIER)=="fa3e468dd7718f79a3576d322bcf2ab6d8f30a15"
 
 qualifier=QUALIFIER.read_text(encoding="utf-8")
 for required in (
