@@ -70,6 +70,9 @@ for required in (
     'require_no_role_processes()',
     'require_trusted_ancestor_chain(',
     'trusted_ancestor_invalid:',
+    'require_apply_source_custody()',
+    'apply_source_not_root_custodied:',
+    'apply_source_blob_invalid:',
     'os.replace(tmp,SERVICE_PATH)',
     '"service_action":False',
     '"target_action":False',
@@ -96,6 +99,8 @@ for line in (
     "VOID_APOLLYON_CUSTODY_LAUNCHER_V3_DORMANT_REBIND_V1_SELF_TEST_GREEN",
     "v2_launcher_preserved=true",
     "v3_launcher_create_only=true",
+    "apply_root_custodied_source_required=true",
+    "apply_payload_root_custody_required=true",
     "v3_launcher_crash_resumable_publication=true",
     "v3_launcher_pending_inode_bound=true",
     "v3_launcher_partial_pending_recovery=true",
@@ -124,6 +129,8 @@ print("v3_launcher_blob_bound=true")
 print("v3_service_blob_bound=true")
 print("v2_launcher_preserved=true")
 print("v3_launcher_create_only=true")
+print("apply_root_custodied_source_required=true")
+print("apply_payload_root_custody_required=true")
 print("v3_launcher_crash_resumable_publication=true")
 print("v3_launcher_pending_inode_bound=true")
 print("v3_launcher_partial_pending_recovery=true")
