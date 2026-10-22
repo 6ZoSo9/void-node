@@ -791,4 +791,3 @@ int main(int argc,char **argv){
     char *const envp[]={"PATH=/usr/bin:/bin","HOME=/nonexistent","LANG=C","LC_ALL=C","TZ=UTC","OPENSSL_CONF=/dev/null",NULL};
     fexecve(python_fd,args,envp);hold("python_fexecve_failed");
 }
-
