@@ -20,7 +20,11 @@ live Xiphos qualification:
 - every third/unreviewed GID remains forbidden.
 
 The separately verified four primary GID slots must still all equal the custody
-primary GID.
+primary GID. The live generation extends this credential binding to every TID
+in the custody process. A second process is rejected even when only one of its
+nonleader threads carries the custody UID, including saved/fs-UID-only cases.
+The same all-TID rule proves training-UID absence before, during and after both
+cycles.
 
 ## Exact source bindings
 
@@ -55,12 +59,18 @@ The live `--run` mode retains the v1 lifecycle semantics:
    state, while cycle 2 requires the clean inactive state proven by cycle 1;
 4. start only the custody activation target;
 5. observe the dependency-started custody service generation;
-6. prove exact executable, argv, credentials, reviewed groups, zero
-   capabilities, NNP, socket and custody-UID exclusivity;
-7. stop only the custody activation target;
-8. prove service/target dormant and socket/process cleanup;
-9. repeat once with a distinct process generation;
-10. require consumed-state metadata unchanged across both cycles.
+6. enumerate the custody process's complete TID set twice and require it stable;
+   every custody TID must have exact custody UID/GID slots, only the reviewed
+   group closure, zero inheritable/permitted/effective/ambient capabilities,
+   and NoNewPrivileges;
+7. census every process/TID on the host and require the custody UID to appear
+   only inside that exact service process and the training UID nowhere;
+8. prove exact executable, argv, socket and remaining runtime bindings;
+9. stop only the custody activation target;
+10. prove service/target dormant and socket/process cleanup using the all-TID
+    role census;
+11. repeat once with a distinct process generation;
+12. require consumed-state metadata unchanged across both cycles.
 
 A pre-existing or failure-cleanup custody state may be `failed` only when the
 unit is dead, the socket is absent and no custody process remains. That
