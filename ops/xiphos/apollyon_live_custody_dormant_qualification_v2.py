@@ -741,10 +741,12 @@ def uid_thread_process_map(
             observed[pid]=tuple(matched)
     return observed
 
-def custody_thread_subject(
-    pid:int,tid:int,ids:dict[str,int],proc_root:Path=Path("/proc")
+def validate_custody_thread_status(
+    status:dict[str,str],
+    tid:int,
+    ids:dict[str,int],
+    expected_groups:set[int],
 )->dict[str,object]:
-    status=proc_thread_status(pid,tid,proc_root)
     uid_slots=parse_uid_slots(status)
     if uid_slots!=(ids["custody_uid"],)*4:
         hold("custody_thread_uid_slots_invalid:"+str(tid))
@@ -760,7 +762,6 @@ def custody_thread_subject(
     if not raw_groups or any(not value.isdigit() for value in raw_groups):
         hold("custody_thread_groups_invalid:"+str(tid))
     groups=[int(value,10) for value in raw_groups]
-    expected_groups=exact_group_closure(ids)
     if not exact_runtime_supplementary_groups(
         groups,expected_groups,ids["custody_gid"]
     ):
@@ -787,19 +788,34 @@ def custody_thread_subject(
         "no_new_privileges":True,
     }
 
+def custody_thread_subject(
+    pid:int,
+    tid:int,
+    ids:dict[str,int],
+    expected_groups:set[int],
+    proc_root:Path=Path("/proc"),
+)->dict[str,object]:
+    return validate_custody_thread_status(
+        proc_thread_status(pid,tid,proc_root),
+        tid,
+        ids,
+        expected_groups,
+    )
+
 def custody_thread_inventory(
     pid:int,ids:dict[str,int],proc_root:Path=Path("/proc")
 )->list[dict[str,object]]:
+    expected_groups=exact_group_closure(ids)
     first_ids=process_thread_ids(pid,proc_root)
     first=[
-        custody_thread_subject(pid,tid,ids,proc_root)
+        custody_thread_subject(pid,tid,ids,expected_groups,proc_root)
         for tid in first_ids
     ]
     second_ids=process_thread_ids(pid,proc_root)
     if first_ids!=second_ids:
         hold("custody_thread_inventory_changed")
     second=[
-        custody_thread_subject(pid,tid,ids,proc_root)
+        custody_thread_subject(pid,tid,ids,expected_groups,proc_root)
         for tid in second_ids
     ]
     if first!=second:
@@ -1221,6 +1237,7 @@ def self_test()->None:
         'custody_uid_process_exclusivity_failed',
         'uid_thread_process_map(',
         'custody_thread_inventory(',
+        'validate_custody_thread_status(',
         'custody_thread_credentials_changed',
         'custody_thread_capability_nonzero:',
         'custody_thread_no_new_privileges_missing:',
@@ -1507,6 +1524,46 @@ def self_test()->None:
     assert not exact_runtime_supplementary_groups([981,982],reviewed_groups,980)
     assert not exact_runtime_supplementary_groups([980,981,981],reviewed_groups,980)
 
+    thread_ids={
+        "custody_uid":4242,"custody_gid":4243,"ipc_gid":4244,
+    }
+    good_thread_status={
+        "Uid":"4242 4242 4242 4242",
+        "Gid":"4243 4243 4243 4243",
+        "Groups":"4243 4244",
+        "CapInh":"0000000000000000",
+        "CapPrm":"0000000000000000",
+        "CapEff":"0000000000000000",
+        "CapAmb":"0000000000000000",
+        "NoNewPrivs":"1",
+    }
+    thread_subject=validate_custody_thread_status(
+        good_thread_status,201,thread_ids,{4243,4244}
+    )
+    assert thread_subject["tid"]==201
+    assert thread_subject["no_new_privileges"] is True
+    bad_groups=dict(good_thread_status);bad_groups["Groups"]="4243 4244 4999"
+    expect_hold(
+        lambda:validate_custody_thread_status(
+            bad_groups,201,thread_ids,{4243,4244}
+        ),
+        "custody_thread_groups_unreviewed:201",
+    )
+    bad_cap=dict(good_thread_status);bad_cap["CapEff"]="0000000000000001"
+    expect_hold(
+        lambda:validate_custody_thread_status(
+            bad_cap,201,thread_ids,{4243,4244}
+        ),
+        "custody_thread_capability_nonzero:201:CapEff",
+    )
+    bad_nnp=dict(good_thread_status);bad_nnp["NoNewPrivs"]="0"
+    expect_hold(
+        lambda:validate_custody_thread_status(
+            bad_nnp,201,thread_ids,{4243,4244}
+        ),
+        "custody_thread_no_new_privileges_missing:201",
+    )
+
     with tempfile.TemporaryDirectory(
         prefix="apollyon-ancestor-custody-"
     ) as td:
@@ -1688,6 +1745,7 @@ def self_test()->None:
     print("all_tid_custody_exclusivity_required=true")
     print("all_tid_training_absence_required=true")
     print("custody_thread_credentials_exact_required=true")
+    print("custody_thread_credential_adversaries_executed=true")
     print("second_custody_uid_process_rejected=true")
     print("saved_fs_uid_slots_counted=true")
     print("saved_fs_uid_only_thread_detected=true")
