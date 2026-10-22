@@ -23,7 +23,7 @@ Draft #3680 at `895c2bf320defbbca5fba6792e2a75126b2c4d76`.
 - enforcement-set SHA-256: `ff084a754e7eb6bef08ec1b1079a17a6110b4333876f0231e46395eed63042d2`
 - Dispatch V4: `51a51a7f85c8068269bad0e09e3ae872c4323a58`
 - lock JSON: `854b9e39772e1e930c63b71e1099509df0f2dbf8`
-- lock proof: `a06ff8479eac29ecce12b39fc20048e68e102c5e`
+- lock proof: `040414e96906043e2a01995bf2cbd259a7dbd58f`
 
 The accepted candidate records the exact descriptor-bound production reader
 transition `3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0` to `e0a682ea4038ca22e3a3b97da2cac29874096c46` and preserves the other 48 protected
@@ -31,14 +31,16 @@ source rows.
 
 ## CI source-context isolation
 
-The final acceptance-lock successor spans seven paths relative to exact V4
-candidate head `895c2bf320defbbca5fba6792e2a75126b2c4d76`: four lock-generation paths plus three legacy
+The final acceptance-lock successor spans eight paths relative to exact V4
+candidate head `895c2bf320defbbca5fba6792e2a75126b2c4d76`: four lock-generation paths plus four legacy
 workflow consumers whose candidate-only Dispatch V4 jobs are pinned back to
 that exact candidate head.
 
 Candidate and Dispatch artifacts are downloaded under `$RUNNER_TEMP`, outside
-the checked-out repository. The current-head lock proof therefore keeps a
-clean Git worktree while validating the exact seven-path successor delta.
+the checked-out repository. The provider-closure, census, historical-refusal,
+executable-delta, and candidate/Dispatch proof contexts are all isolated from
+the later acceptance-lock head. The current-head lock proof therefore keeps a
+clean Git worktree while validating the exact eight-path successor delta.
 
 ## Authority boundary
 

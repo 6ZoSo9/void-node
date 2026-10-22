@@ -510,6 +510,7 @@ jobs:
           echo funds_movement=false
 
 
+
   lock-v4-source-proof:
     needs: [cross-node-v4-reader-repair, current-v4-dispatch-cross-node]
     runs-on: ubuntu-24.04
@@ -538,6 +539,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$CANDIDATE_HEAD" "$EXPECTED_HEAD")" = "$CANDIDATE_HEAD"
           cat > "$RUNNER_TEMP/expected-v4-lock-delta" <<'EOF'
+          M	.github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml
           M	.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml
           M	.github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml
           M	.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml
@@ -553,8 +555,8 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs)" = "f33a579e62c8201de24d5076cfcbffab66df8dae"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs)" = "51a51a7f85c8068269bad0e09e3ae872c4323a58"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json)" = "854b9e39772e1e930c63b71e1099509df0f2dbf8"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs)" = "a06ff8479eac29ecce12b39fc20048e68e102c5e"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4.md)" = "7df526f6802b4d57e3f19b1cfa43ef7d4f170180"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs)" = "040414e96906043e2a01995bf2cbd259a7dbd58f"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4.md)" = "3f8774841ea347b817b1a232e85e1cb0751d0416"
           for node in 22 24 26; do
             test -s "$EVIDENCE/v4-reader-repair-candidate-$node.json"
             test -s "$EVIDENCE/dispatch-v4-$node.json"
