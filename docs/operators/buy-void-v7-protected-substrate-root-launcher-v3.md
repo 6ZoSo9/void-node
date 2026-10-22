@@ -24,42 +24,61 @@ fs-verity-only.
 
 V3 expects one create-only root:
 
-`/opt/void-buy-void-v7-create-only-closed-tree-v1`
+`/opt/void-buy-void-v7-create-only-closed-tree-v1`.
 
-with payload paths exactly:
+The root surface remains fixed:
 
 - `bin/`
-- `bin/void_buy_void_v7_protected_substrate_root_launcher_v3`
 - `policy-v3.conf`
 - `runtime/`
-- `runtime/bin/`
-- `runtime/bin/python3.12-static`
-- `runtime/lib/`
-- `runtime/lib/python312.zip`
 - `source/`
-- `source/ops/`
-- `source/ops/precision/`
-- `source/ops/precision/void_buy_void_v7_protected_substrate_install_v5.py`
+- bootstrap-created `install-receipt-v1.conf`.
 
-plus bootstrap-created receipt:
+`bin/` contains only the V3 launcher. `runtime/` contains only the static
+Python executable and stdlib ZIP at their fixed paths.
 
-`install-receipt-v1.conf`.
+`source/` is different: it is a **complete manifest-locked repository
+snapshot** for V5, not a single installer leaf. The production manifest must
+carry the entire reviewed worktree at the exact expected tree plus a minimal
+closed `.git` authority containing at least:
 
-All payload directories are exact `root:root 0555`. Consumed executable files
-are exact `0555`; policy, stdlib ZIP and V5 source are exact `0444`.
+- `.git/HEAD`;
+- `.git/config`;
+- `.git/objects/` and `.git/objects/info/`;
+- `.git/info/`;
+- `.git/refs/`, `.git/refs/heads/`, and
+  `.git/refs/heads/main`.
+
+No Git object history is required by this launcher snapshot. V5 recomputes the
+worktree tree OID directly, authenticates the main ref and closed config, and
+then authenticates its pinned sibling dependency files.
+
+All payload directories are exact `root:root 0555`. Payload files are exact
+`0444` or `0555` as declared by the reviewed manifest.
+
+The closed-tree bootstrap supports regular files and directories only. The
+production manifest-lock candidate must therefore independently prove that its
+reviewed source tree contains no tracked symlink before it can be proposed. The
+source tree at the #3693 acceptance base was independently observed with 12,008
+Git-tree entries and zero mode-`120000` symlinks; that observation is not
+future manifest authority and must be rechecked at the exact candidate head.
 
 ## Receipt-first admission
 
-Before Python execution V3 requires:
+Before Python execution V3 requires a bounded receipt of at most 250,000
+manifest payload entries and 128 MiB, with canonical strictly sorted paths.
+The receipt may contain the complete `source/` snapshot, while the fixed
+launcher/runtime and minimal Git authority paths remain mandatory.
+
+V3 requires:
+
 
 - receipt schema `VOID_BUY_VOID_V7_CREATE_ONLY_CLOSED_TREE_RECEIPT_V1`;
 - seal mode `CREATE_ONLY_CLOSED_TREE_V1`;
 - exact reviewed plan ID and Git blob;
 - canonical bounded manifest/source/bootstrap identities;
 - receipt root device/inode equal to the visible closed-tree root;
-- exactly the twelve reviewed payload entries and no duplicate or alternate
-  path encodings;
-- receipt-bound device, inode, mode, nlink, size and SHA-256 for every
+- every receipt entry to remain within `bin/`, `runtime/`, `source/`, or the fixed policy path;\n- all mandatory launcher/runtime/minimal-Git/V5 paths with exact kind and mode;\n- no duplicate, reordered, self-receipt, or alternate path encodings;\n- receipt-bound device, inode, mode, nlink, size and SHA-256 for every
   privileged consumed file;
 - receipt-bound identities for every consumed directory;
 - exact root/subdirectory visible layout;
@@ -103,6 +122,18 @@ After a lock is compiled in, V3 also requires the receipt's
 `manifest_sha256`, `manifest_bytes`, `source_generation`, and
 `bootstrap_sha256` to match those exact bindings before any Python
 execution. This PR does not define or accept those production values.
+
+## Complete V5 source composition
+
+The future production manifest must build `source/` so that V5 can satisfy
+`require_git_metadata_provenance(ROOT)` and
+`require_worktree_matches_tree(ROOT, expected_tree)`. A payload that contains
+only `void_buy_void_v7_protected_substrate_install_v5.py` is invalid and will
+HOLD.
+
+V3 receipt-binds the minimal Git metadata files and V5 installer before exec.
+V5 remains the final authority for the complete source worktree and its pinned
+lock/materializer/predecessor/qualifier dependencies.
 
 ## V5 operation surface
 
