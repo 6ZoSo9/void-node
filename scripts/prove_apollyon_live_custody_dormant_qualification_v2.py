@@ -15,6 +15,7 @@ for required in (
     'run(["/usr/bin/systemctl","stop",TARGET_UNIT])',
     'st.st_nlink!=2',
     'wait_socket(False)',
+    'wait_unit(SERVICE_UNIT,"inactive")',
     'assert_socket_parent_empty(ids)',
     'target_maybe_started=True',
     'active not in ("inactive","failed")',
