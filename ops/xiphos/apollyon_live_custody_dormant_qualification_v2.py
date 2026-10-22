@@ -719,6 +719,13 @@ def wait_socket(present:bool,timeout_s:float=8.0)->None:
         time.sleep(0.05)
     hold("socket_transition_timeout:"+("present" if present else "absent"))
 
+def safely_dormant_unit_props(props:dict[str,str])->bool:
+    return (
+        props.get("LoadState")=="loaded" and
+        props.get("ActiveState") in ("inactive","failed") and
+        props.get("MainPID") in ("","0",None)
+    )
+
 def wait_unit_safely_dormant(unit:str,timeout_s:float=8.0)->dict[str,str]:
     deadline=time.monotonic()+timeout_s
     last={}
@@ -733,11 +740,7 @@ def wait_unit_safely_dormant(unit:str,timeout_s:float=8.0)->dict[str,str]:
                 if "=" in line:
                     k,v=line.split("=",1);props[k]=v
             last=props
-            if (
-                props.get("LoadState")=="loaded" and
-                props.get("ActiveState") in ("inactive","failed") and
-                props.get("MainPID") in ("","0",None)
-            ):
+            if safely_dormant_unit_props(props):
                 return props
         time.sleep(0.1)
     hold("unit_safe_dormant_timeout:"+unit+":"+json.dumps(last,sort_keys=True))
@@ -753,7 +756,6 @@ def assert_socket_parent_empty(ids:dict[str,int])->None:
 def attest_dormant_boundary(
     ids:dict[str,int],
     prefix:str,
-    *,
     allow_service_failed:bool=False,
 )->None:
     exact_dormant(TARGET_UNIT,expected_unit_file_state="disabled")
@@ -775,6 +777,7 @@ def emergency_cleanup(
     *,
     _run_fn=run,
     _wait_unit_fn=wait_unit,
+    _wait_dormant_fn=wait_unit_safely_dormant,
     _wait_socket_fn=wait_socket,
     _attest_fn=attest_dormant_boundary,
 )->tuple[bool,str]:
@@ -787,15 +790,9 @@ def emergency_cleanup(
         failures.append("emergency_target_stop_failed")
     try:
         _wait_unit_fn(TARGET_UNIT,"inactive",5.0)
-        if _wait_unit_fn is wait_unit:
-            wait_unit_safely_dormant(SERVICE_UNIT,5.0)
-        else:
-            _wait_unit_fn(SERVICE_UNIT,"inactive",5.0)
+        _wait_dormant_fn(SERVICE_UNIT,5.0)
         _wait_socket_fn(False,5.0)
-        if _attest_fn is attest_dormant_boundary:
-            _attest_fn(ids,"emergency",allow_service_failed=True)
-        else:
-            _attest_fn(ids,"emergency")
+        _attest_fn(ids,"emergency",True)
     except BaseException as exc:
         failures.append(type(exc).__name__+":"+str(exc))
     return (
@@ -1096,9 +1093,11 @@ def self_test()->None:
         '_attest_fn(ids,"emergency",allow_service_failed=True)',
         'ids,"failure_recheck",allow_service_failed=True',
         'allow_service_failed:bool=False',
+        'safely_dormant_unit_props(',
         'wait_unit_safely_dormant(',
         'unit_safe_dormant_timeout:',
         'allow_failed=True,expected_unit_file_state="static"',
+        '_attest_fn(ids,"emergency",True)',
         'allow_service_failed=True',
         'attest_dormant_boundary(ids,"final")',
         'final_consumed_state_changed',
@@ -1143,8 +1142,9 @@ def self_test()->None:
         cleanup_ids,
         _run_fn=lambda argv,check=False:completed(0),
         _wait_unit_fn=lambda unit,state,timeout_s=5.0:{},
+        _wait_dormant_fn=lambda unit,timeout_s=5.0:{},
         _wait_socket_fn=lambda present,timeout_s=5.0:None,
-        _attest_fn=lambda ids,prefix:None,
+        _attest_fn=lambda ids,prefix,allow_service_failed=False:None,
     )
     assert cleanup_green is True
     assert cleanup_reason=="none"
@@ -1153,8 +1153,9 @@ def self_test()->None:
         cleanup_ids,
         _run_fn=lambda argv,check=False:completed(1),
         _wait_unit_fn=lambda unit,state,timeout_s=5.0:{},
+        _wait_dormant_fn=lambda unit,timeout_s=5.0:{},
         _wait_socket_fn=lambda present,timeout_s=5.0:None,
-        _attest_fn=lambda ids,prefix:None,
+        _attest_fn=lambda ids,prefix,allow_service_failed=False:None,
     )
     assert cleanup_green is False
     assert cleanup_reason=="emergency_target_stop_failed"
@@ -1165,8 +1166,9 @@ def self_test()->None:
         cleanup_ids,
         _run_fn=lambda argv,check=False:completed(0),
         _wait_unit_fn=wait_timeout,
+        _wait_dormant_fn=lambda unit,timeout_s=5.0:{},
         _wait_socket_fn=lambda present,timeout_s=5.0:None,
-        _attest_fn=lambda ids,prefix:None,
+        _attest_fn=lambda ids,prefix,allow_service_failed=False:None,
     )
     assert cleanup_green is False
     assert cleanup_reason=="Hold:synthetic_wait_timeout"
@@ -1178,7 +1180,7 @@ def self_test()->None:
         _run_fn=lambda argv,check=False:completed(0),
         _wait_unit_fn=lambda unit,state,timeout_s=5.0:{},
         _wait_socket_fn=socket_timeout,
-        _attest_fn=lambda ids,prefix:None,
+        _attest_fn=lambda ids,prefix,allow_service_failed=False:None,
     )
     assert cleanup_green is False
     assert cleanup_reason=="Hold:synthetic_socket_timeout"
@@ -1186,6 +1188,18 @@ def self_test()->None:
     assert not exact_live_custody_process_set({},101,"77")
     assert not exact_live_custody_process_set({101:"77",102:"88"},101,"77")
     assert parse_uid_slots({"Uid":"123 123 123 123"})==(123,123,123,123)
+    assert safely_dormant_unit_props({
+        "LoadState":"loaded","ActiveState":"inactive","MainPID":"0",
+    })
+    assert safely_dormant_unit_props({
+        "LoadState":"loaded","ActiveState":"failed","MainPID":"0",
+    })
+    assert not safely_dormant_unit_props({
+        "LoadState":"loaded","ActiveState":"failed","MainPID":"77",
+    })
+    assert not safely_dormant_unit_props({
+        "LoadState":"loaded","ActiveState":"active","MainPID":"77",
+    })
 
     def write_proc(
         proc_root:Path,
