@@ -14,7 +14,7 @@ BOOTSTRAP = ROOT / "ops/precision/void_buy_void_v7_create_only_closed_tree_boots
 BOOTSTRAP_PROOF = ROOT / "scripts/prove_buy_void_v7_create_only_closed_tree_bootstrap_v1.py"
 
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V3_PROOF"
-SOURCE_BLOB = "48d8f4502670413f9a7d4aa83325e0362d6733e8"
+SOURCE_BLOB = "3c465ef5fdb8a9d261b4e3f02322576b63d39740"
 INSTALLER_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 PLAN_BLOB = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
 ACCEPTANCE_BLOB = "919db72903a5fcff59dec7635a4288f41d1753d9"
@@ -101,14 +101,6 @@ for required in (
     '#define PLAN_CONTRACT_ID "voidv7createonlysealplan1_80486c8e43751493d1480ebdf8be63a26195e465e96f3e1d29b1d7b4765773cc"',
     '#define PLAN_CONTRACT_BLOB "' + PLAN_BLOB + '"',
     '#define ACCEPTANCE_ID "voidv7closedtreeaccept1_19ac8c5b09377162ff42048535352a15b5dc75020701c9402c1ebc6ba73fc4b3"',
-    '#ifndef VOID_V7_CLOSED_TREE_ACCEPTED_MANIFEST_SHA256',
-    '#define VOID_V7_CLOSED_TREE_ACCEPTED_MANIFEST_SHA256 ""',
-    '#define VOID_V7_CLOSED_TREE_ACCEPTED_MANIFEST_BYTES 0U',
-    '#define VOID_V7_CLOSED_TREE_ACCEPTED_SOURCE_GENERATION ""',
-    '#define VOID_V7_CLOSED_TREE_ACCEPTED_BOOTSTRAP_SHA256 ""',
-    'production_payload_manifest_lock_not_bound',
-    'production_payload_manifest_lock_mismatch',
-    'require_production_manifest_lock(&receipt)',
     '#define FIXED_ROOT "/opt/void-buy-void-v7-create-only-closed-tree-v1"',
     '#define MAX_RECEIPT_BYTES (128U * 1024U * 1024U)',
     '#define MAX_RECEIPT_ENTRIES 250000U',
@@ -161,6 +153,12 @@ for forbidden in (
     "FS_VERITY_HASH_ALG_SHA256",
     "linux/fsverity.h",
     "require_fsverity_sha256",
+    "VOID_V7_CLOSED_TREE_ACCEPTED_MANIFEST_SHA256",
+    "VOID_V7_CLOSED_TREE_ACCEPTED_MANIFEST_BYTES",
+    "VOID_V7_CLOSED_TREE_ACCEPTED_SOURCE_GENERATION",
+    "VOID_V7_CLOSED_TREE_ACCEPTED_BOOTSTRAP_SHA256",
+    "production_manifest_lock_bound(",
+    "require_production_manifest_lock(",
     "getenv(",
     "system(",
     "execvp(",
@@ -238,7 +236,9 @@ with tempfile.TemporaryDirectory(prefix="void-v7-launcher-v3-proof-") as td:
         "python_isolated_no_site_no_bytecode_required=true",
         "runtime_uid_nonwritability_required=true",
         "v5_expected_head_tree_full_history_digest_required=true",
-        "production_payload_manifest_lock_bound=false",
+        "production_payload_manifest_lock_embedded=false",
+        "bootstrap_manifest_lock_external_to_launcher=true",
+        "manifest_hash_compile_cycle_avoided=true",
         "production_payload_manifest_accepted=false",
         "launcher_install_authorized=false",
         "root_execution_authorized=false",
@@ -262,7 +262,9 @@ with tempfile.TemporaryDirectory(prefix="void-v7-launcher-v3-proof-") as td:
     print("minimal_git_authority_paths_bound=true")
     print("v5_argument_surface_preserved=true")
     print("fsverity_v2_unchanged_and_v3_absent=true")
-    print("production_payload_manifest_lock_bound=false")
+    print("production_payload_manifest_lock_embedded=false")
+    print("bootstrap_manifest_lock_external_to_launcher=true")
+    print("manifest_hash_compile_cycle_avoided=true")
     print("production_payload_manifest_accepted=false")
     print("root_execution_authorized=false")
     print("launcher_install_authorized=false")
