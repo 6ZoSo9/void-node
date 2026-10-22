@@ -176,7 +176,7 @@ function readerSelfTest(){
   const file=path.join(dir,"acceptance");
   const backup=path.join(dir,"backup");
   const accepted=Buffer.from("REVIEWED!","utf8");
-  const attacker=Buffer.from("ATTACKER","utf8");
+  const attacker=Buffer.from("ATTACKER!","utf8");
   assert.equal(accepted.length,attacker.length);
   try{
     fs.writeFileSync(file,accepted,{mode:0o600});
