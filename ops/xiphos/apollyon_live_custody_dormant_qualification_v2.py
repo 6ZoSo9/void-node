@@ -330,11 +330,14 @@ def exact_dormant(
     allow_failed:bool=False,
     expected_unit_file_state:str|None=None,
 )->dict[str,str]:
-    r=run([
+    argv=[
         "/usr/bin/systemctl","show",unit,"--no-pager",
         "-p","LoadState","-p","ActiveState","-p","SubState",
-        "-p","UnitFileState","-p","MainPID",
-    ],check=False)
+        "-p","UnitFileState",
+    ]
+    if unit!=TARGET_UNIT:
+        argv.extend(["-p","MainPID"])
+    r=run(argv,check=False)
     if r.returncode!=0:hold("unit_state_probe_failed:"+unit)
     props={}
     for line in r.stdout.splitlines():
@@ -355,7 +358,11 @@ def exact_dormant(
             hold("unit_file_state_mismatch:"+unit)
     elif unit_file_state=="enabled":
         hold("unit_enabled:"+unit)
-    if props.get("MainPID") not in ("","0",None):hold("unit_mainpid_nonzero:"+unit)
+    if (
+        unit!=TARGET_UNIT and
+        props.get("MainPID") not in ("","0",None)
+    ):
+        hold("unit_mainpid_nonzero:"+unit)
     return props
 
 def show_properties(unit:str,names:tuple[str,...])->dict[str,str]:
@@ -871,10 +878,13 @@ def wait_unit(unit:str,state:str,timeout_s:float=8.0)->dict[str,str]:
     deadline=time.monotonic()+timeout_s
     last={}
     while time.monotonic()<deadline:
-        r=run([
+        argv=[
             "/usr/bin/systemctl","show",unit,"--no-pager",
-            "-p","LoadState","-p","ActiveState","-p","SubState","-p","MainPID",
-        ],check=False)
+            "-p","LoadState","-p","ActiveState","-p","SubState",
+        ]
+        if unit!=TARGET_UNIT:
+            argv.extend(["-p","MainPID"])
+        r=run(argv,check=False)
         props={}
         if r.returncode==0:
             for line in r.stdout.splitlines():
@@ -1234,6 +1244,7 @@ def self_test()->None:
         'run(["/usr/bin/systemctl","start",TARGET_UNIT])',
         'run(["/usr/bin/systemctl","stop",TARGET_UNIT])',
         'wait_socket(False)',
+        'unit!=TARGET_UNIT',
         'assert_socket_parent_empty(ids)',
         'directory_metadata_invalid:',
         '"directory":{',
@@ -1766,6 +1777,7 @@ def self_test()->None:
         forbidden="".join(parts)
         assert forbidden not in own,forbidden
     print(MARKER+"_SELF_TEST_GREEN")
+    print("processless_target_mainpid_not_required=true")
     print("two_cycle_target_start_stop=true")
     print("direct_service_action=false")
     print("socket_cleanup_required_each_cycle=true")
