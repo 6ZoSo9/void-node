@@ -1734,6 +1734,9 @@ def self_test() -> None:
     print("runtime_write_audit_external_helper_free=true")
     print("source_release_ancestor_acl_custody_required=true")
     print("source_release_ancestor_generation_revalidation_required=true")
+    print("v5_installer_dependency_bound=true")
+    print("voidfs_plan_dependency_bound=true")
+    print("voidfs_bridge_dependency_bound=true")
     assert PREDECESSOR_QUALIFIER_V4_REL.endswith("_installed_qualification_v4.py") and len(PREDECESSOR_QUALIFIER_V4_BLOB) == 40
     print("predecessor_installed_qualifier_v4_bound=true")
     print("installed_qualifier_v5_successor_required=true")
