@@ -40,6 +40,27 @@ launcher=bind(LAUNCHER_REL,LAUNCHER_BLOB)
 qualifier=bind(QUALIFIER_REL,QUALIFIER_BLOB)
 bind(PLAN_REL,PLAN_BLOB)
 
+# Bind actual upstream #3712 source bytes, not just launcher declarations.
+# Hashes and lengths are content identities, independent of Python's text mode.
+for relative,expected_blob,expected_bytes,expected_sha256 in (
+    (
+        "ops/precision/void_v7_v5_source_stage_install_v1.py",
+        "1f251a8489e0b2a69683d991785cb4f46fa6dff5",
+        129950,
+        "0266d018eb89b38d80b0dc2c877dfdeb1c3c4e2e11ac61caf4f6c42863981251",
+    ),
+    (
+        "ops/precision/void_v7_v5_receipt_stage_install_v1.py",
+        "d719de6e8c4974a9356577ee16a9e68fa02b7ca0",
+        20381,
+        "dcbb9c379c37132020fe93f87c9a2afad2ecdf4fec3be88e3082544c6ff35b4b",
+    ),
+):
+    bind(relative,expected_blob)
+    raw=(ROOT/relative).read_bytes()
+    assert len(raw)==expected_bytes,(relative,len(raw))
+    assert hashlib.sha256(raw).hexdigest()==expected_sha256,relative
+
 for token in (
     '#define MARKER "VOID_V7_V5_SOURCE_RECEIPT_STAGE_ROOT_LAUNCHER_V1"',
     '#define FIXED_ROOT "/opt/void-v7-v5-source-receipt-stage-closed-tree-v1"',
@@ -232,6 +253,7 @@ print("trusted_admission_plan_blob="+PLAN_BLOB)
 print("launcher_compiles_with_werror=true")
 print("launcher_self_test_green=true")
 print("trusted_admission_rebound_to_updated_installer_generation=true")
+print("actual_upstream_installer_bytes_and_sha256_bound=true")
 print("selected_installer_procfd_execution_bound=true")
 print("path_substitution_cannot_change_executed_fd_bytes=true")
 print("production_manifest_lock_unbound=true")

@@ -53,8 +53,8 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v1.c)" = "8581bb5ab534fa081b3a5f5a5b9fba5cccb683db"
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v1.py)" = "c3ec29996876aa5b0f712988c4595c946d51868b"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py)" = "fc9e8ed76ac31c1554cfc9fd987f6589eec3df19"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v1.md)" = "a1fe0c34cb93e9a9256421329f85ce7bbd97900a"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py)" = "69191d6315959a66a43e32e1cb2136f33a461a4b"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v1.md)" = "5b928991e71846f0e47c8ecf60835f5c32404439"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json)" = "1688e55a0f2b2065b4c27a651a35c1aa9e0138b8"
 
       - name: Python syntax
@@ -86,6 +86,7 @@ jobs:
           grep -Fx 'launcher_compiles_with_werror=true' "$out"
           grep -Fx 'launcher_self_test_green=true' "$out"
           grep -Fx 'trusted_admission_rebound_to_updated_installer_generation=true' "$out"
+          grep -Fx 'actual_upstream_installer_bytes_and_sha256_bound=true' "$out"
           grep -Fx 'selected_installer_procfd_execution_bound=true' "$out"
           grep -Fx 'path_substitution_cannot_change_executed_fd_bytes=true' "$out"
           grep -Fx 'production_manifest_lock_unbound=true' "$out"

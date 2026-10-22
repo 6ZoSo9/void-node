@@ -189,6 +189,9 @@ Focused CI:
 
 - compiles the launcher with `-Wall -Wextra -Werror`;
 - runs launcher `--self-test`;
+- independently hashes the actual updated #3712 installer bytes and validates exact
+  source/receipt Git blobs, byte lengths and SHA-256 identities against the
+  native launcher source bindings;
 - proves a normal launcher operation fails closed on the unbound manifest lock;
 - compiles the qualifier;
 - runs qualifier `--self-test` only;
