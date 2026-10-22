@@ -19,6 +19,9 @@ import {
   VOID_BUY_VOID_VERIFIED_PAYMENT_ROUTE_V2,
 } from "../dist/economic/buy_void_verified_payment_transport_v2.js";
 import {
+  buildBuyVoidVerifiedPaymentEventV2,
+} from "../dist/economic/buy_void_verified_payment_v2.js";
+import {
   VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1,
   VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1,
 } from "../dist/economic/buy_void_operator_verified_allocation_dispatch_v1.js";
@@ -65,22 +68,46 @@ function response() {
 function input() {
   const tx = "0x" + "a".repeat(64), buyer = "0x" + "b".repeat(40),
     receiver = "0x" + "c".repeat(40), id = "buyvoid_stage_aaaaaaaa";
+  const nativeUsdc = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+  const transferTopic =
+    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+  const topicAddress = address => "0x" + "0".repeat(24) + address.slice(2);
+  const original = {
+    request_id: id, source_chain: "base", payment_chain: "base",
+    payment_chain_id: 8453, tx_hash: tx,
+    usdc_amount: "3", quoted_void: "6",
+    rate_void_per_usdc: "2", price_usdc_per_void: "0.50",
+    usdc_contract: nativeUsdc,
+    delivery_address: buyer, receive_address: receiver,
+    payment_instructions: {
+      send_chain: "base", send_chain_id: 8453,
+      token_contract: nativeUsdc, token_decimals: 6,
+      send_from: buyer, send_to: receiver, amount: "3",
+    },
+  };
+  const verified = buildBuyVoidVerifiedPaymentEventV2({
+    request: original,
+    receipt: {
+      status: "0x1", transactionHash: tx, blockNumber: "0x64",
+      logs: [{
+        address: nativeUsdc,
+        topics: [transferTopic, topicAddress(buyer), topicAddress(receiver)],
+        data: "0x2dc6c0", logIndex: "0x1",
+        transactionHash: tx, blockNumber: "0x64",
+      }],
+    },
+    policy: {
+      allowed_chains: ["base"],
+      usdc_contract_by_chain: { base: nativeUsdc },
+      receive_address_by_chain: { base: receiver },
+      current_block_number_by_chain: { base: "0x65" },
+    },
+  });
+  assert.equal(verified.ok, true, verified.reason);
+  assert.equal(Object.hasOwn(verified.event, "quoted_void"), false);
   return {
-    event: {
-      schema: "void_buy_void_verified_payment_event_v2",
-      marker: "VOID_BUY_VOID_VERIFIED_PAYMENT_V2",
-      request_id: id, operator_status: "payment_verified",
-      payment_verified: true, payment_identity_input_complete: true,
-      tx_hash: tx, quoted_void: "6",
-      payment_verifier: {
-        chain: "base", transaction_hash: tx, log_index: "1",
-        from_address: buyer, delivery_address: buyer, receive_address: receiver,
-      },
-    },
-    request: {
-      request_id: id, source_chain: "base", tx_hash: tx,
-      quoted_void: "6", delivery_address: buyer, receive_address: receiver,
-    },
+    event: verified.event,
+    request: original,
     request_dir: requests,
     allocation_ledger_root: VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1,
     allocation_high_water_root: VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1,
@@ -219,6 +246,7 @@ try {
 console.log("VOID_BUY_VOID_V2_CUSTODY_INSPECT_BRIDGE_REAL_UNIX_PROOF_GREEN");
 console.log("cases="+String(cases));
 console.log("real_custody_v2_unix_socket_and_existing_client_exercised=true");
+console.log("real_v2_verifier_event_used_without_invented_quote=true");
 console.log("authentication_precedes_socket_config_access=true");
 console.log("custody_inspect_never_promotes_reservation_authority=true");
 console.log("canonical_payment_and_allocation_journals_unchanged=true");
