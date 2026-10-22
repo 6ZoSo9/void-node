@@ -247,13 +247,25 @@ def exact_group_closure(ids:dict[str,int])->set[int]:
     expected={ids["custody_gid"],ids["ipc_gid"]}
     if groups!=expected:
         hold("custody_group_closure_invalid")
-    return groups-{ids["custody_gid"]}
+    return groups
 
 def exact_runtime_supplementary_groups(
     observed:list[int],
     expected:set[int],
+    primary_gid:int,
 )->bool:
-    return len(observed)==len(set(observed)) and set(observed)==expected
+    if len(observed)!=len(set(observed)) or primary_gid not in expected:
+        return False
+    actual=set(observed)
+    required=expected-{primary_gid}
+    # Linux exposes the kernel supplementary-group list in /proc/<pid>/status.
+    # systemd initializes that list from the account database and then extends
+    # it with SupplementaryGroups=. Depending on the resolved group vector, the
+    # primary GID may therefore also appear redundantly in Groups:. It grants no
+    # authority beyond the separately verified four primary GID slots. Require
+    # the reviewed non-primary group(s), allow only the reviewed primary GID as
+    # an optional redundant entry, and reject every other or duplicate GID.
+    return required.issubset(actual) and actual.issubset(expected)
 
 def verify_path_custody(ids:dict[str,int])->None:
     for path in (
@@ -783,7 +795,9 @@ def live_observation(ids:dict[str,int])->dict[str,object]:
         hold("custody_supplementary_groups_invalid")
     groups=[int(x) for x in raw_groups]
     expected_groups=exact_group_closure(ids)
-    if not exact_runtime_supplementary_groups(groups,expected_groups):
+    if not exact_runtime_supplementary_groups(
+        groups,expected_groups,ids["custody_gid"]
+    ):
         hold("custody_supplementary_groups_unreviewed")
     for cap in ("CapInh","CapPrm","CapEff","CapAmb"):
         rawcap=status.get(cap)
@@ -1236,9 +1250,12 @@ def self_test()->None:
         target=dict(good_target);service=dict(good_service)
         (target if which=="target" else service)[key]=value
         expect_hold(lambda t=target,s=service:validate_loaded_relations(t,s),reason)
-    assert exact_runtime_supplementary_groups([980],{980})
-    assert not exact_runtime_supplementary_groups([980,981],{980})
-    assert not exact_runtime_supplementary_groups([980,980],{980})
+    reviewed_groups={980,981}
+    assert exact_runtime_supplementary_groups([981],reviewed_groups,980)
+    assert exact_runtime_supplementary_groups([980,981],reviewed_groups,980)
+    assert not exact_runtime_supplementary_groups([980],reviewed_groups,980)
+    assert not exact_runtime_supplementary_groups([981,982],reviewed_groups,980)
+    assert not exact_runtime_supplementary_groups([980,981,981],reviewed_groups,980)
 
     with tempfile.TemporaryDirectory(
         prefix="apollyon-ancestor-custody-"
@@ -1412,6 +1429,8 @@ def self_test()->None:
     print("retained_ancestor_custody_required=true")
     print("world_writable_execution_parent_rejected=true")
     print("custody_group_closure_required=true")
+    print("runtime_primary_gid_optional_redundant_group_accepted=true")
+    print("reviewed_ipc_supplementary_group_required=true")
     print("extra_custody_supplementary_group_rejected=true")
     print("failure_cleanup_receipt_truthful=true")
     print("emergency_cleanup_adversaries_executed=true")
