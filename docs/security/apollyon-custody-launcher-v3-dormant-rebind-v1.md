@@ -20,7 +20,7 @@ The updater requires:
 
 - Xiphos hostname;
 - custody target loaded/inactive/disabled;
-- custody service loaded/inactive/static;
+- custody service loaded/static with no MainPID and either inactive or failed;
 - training service inactive or failed with no MainPID;
 - no target or service drop-ins;
 - target dependency/stop-propagation still closed to the custody service;
@@ -33,7 +33,10 @@ The updater requires:
 
 The updater also supports its own resumable intermediate states: v3 launcher
 already created, service file replaced but manager still loaded on v2, and
-fully rebound.
+fully rebound. A pre-existing `failed` custody service is admitted only when
+`MainPID=0`; this preserves the fail-closed dormant state left by the October
+22 qualification failure without requiring a `reset-failed` mutation before
+the rebind.
 
 ## Destination
 
