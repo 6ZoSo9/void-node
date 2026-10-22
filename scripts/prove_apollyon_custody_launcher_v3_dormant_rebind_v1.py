@@ -44,6 +44,7 @@ for required in (
     'V3_LAUNCHER_BLOB="ec9e1d2c01581ebdc5323056939f846e67692fe6"',
     'run(["/usr/bin/systemctl","daemon-reload"])',
     'create_exact(V3_LAUNCHER_PATH,launcher_data,0o444)',
+    'service["ActiveState"] not in ("inactive","failed")',
     'require_trusted_ancestor_chain(',
     'trusted_ancestor_invalid:',
     'os.replace(tmp,SERVICE_PATH)',
