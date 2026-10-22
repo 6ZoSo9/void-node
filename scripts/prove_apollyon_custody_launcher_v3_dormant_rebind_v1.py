@@ -22,7 +22,7 @@ def git_blob(path:Path)->str:
 source=UPDATER.read_text(encoding="utf-8")
 ast.parse(source)
 
-assert git_blob(UPDATER)=="4cd7e2368237cd7dd44d03c55d0de4529b535bbd"
+assert git_blob(UPDATER)=="af7d323e8c736cf3a8b28ea3505fc8fdd1670795"
 assert git_blob(V3)=="8d8561c08db7e500a818d269580dad15adca9f58"
 assert git_blob(SERVICE)=="51354b10da89413eb6991514496798c7a1b5d1e8"
 
@@ -34,6 +34,7 @@ for required in (
     'apollyon-authorization-custody-launcher-v3.mjs',
     'required=expected-{primary_gid}',
     'required.issubset(actual) and actual.issubset(expected)',
+    'unit!=TARGET_UNIT',
 ):
     assert required in qualifier,required
 
@@ -55,6 +56,7 @@ for required in (
     'launcher_pending_changed_after_fsync',
     'install_or_resume_launcher(launcher_data)',
     'service["ActiveState"] not in ("inactive","failed")',
+    '"LoadState","ActiveState","UnitFileState","NeedDaemonReload"',
     'parse_exec_property(',
     'loaded_exec_generation(',
     'loaded_generation=="v2"',
@@ -98,6 +100,7 @@ r=subprocess.run(
 assert r.returncode==0,r.stderr
 for line in (
     "VOID_APOLLYON_CUSTODY_LAUNCHER_V3_DORMANT_REBIND_V1_SELF_TEST_GREEN",
+    "processless_target_mainpid_not_required=true",
     "v2_launcher_preserved=true",
     "v3_launcher_create_only=true",
     "apply_root_custodied_source_required=true",
@@ -127,6 +130,7 @@ for line in (
 
 print("VOID_APOLLYON_CUSTODY_LAUNCHER_V3_DORMANT_REBIND_V1_PROOF_GREEN")
 print("updater_blob_bound=true")
+print("processless_target_mainpid_not_required=true")
 print("v3_launcher_blob_bound=true")
 print("v3_service_blob_bound=true")
 print("v2_launcher_preserved=true")
