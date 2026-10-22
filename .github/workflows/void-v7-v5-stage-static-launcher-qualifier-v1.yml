@@ -100,4 +100,3 @@ jobs:
           grep -Fx 'service_mutation=false' "$out"
           grep -Fx 'public_presale_activation=false' "$out"
           grep -Fx 'funds_movement=false' "$out"
-
