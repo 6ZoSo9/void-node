@@ -354,10 +354,6 @@ static bool receipt_scope_allowed(const char *path){
     }
     return false;
 }
-static const required_receipt_entry_v1 *required_receipt(const char *path){
-    for(size_t i=0;i<REQUIRED_RECEIPT_COUNT;i++)if(!strcmp(REQUIRED_RECEIPT[i].path,path))return &REQUIRED_RECEIPT[i];
-    return NULL;
-}
 static receipt_v1 parse_receipt(char *raw,size_t size){
     if(!size||raw[size-1]!='\n')hold("receipt_final_lf_required");
     receipt_v1 out={0};char *p=raw;char *v=NULL;size_t tmp=0;uintmax_t u=0;uint64_t total=0;
