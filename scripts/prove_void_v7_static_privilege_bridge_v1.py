@@ -8,6 +8,7 @@ import pathlib
 import shlex
 import shutil
 import subprocess
+import sysconfig
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -166,8 +167,14 @@ with tempfile.TemporaryDirectory(prefix="void-v7-voidpriv-hosted-") as temp:
     cfg = launch([python_config, "--embed", "--cflags", "--ldflags"])
     assert cfg.returncode == 0, "python3_config_failed:" + cfg.stderr
     flags = shlex.split(cfg.stdout)
+    # Hosted embedder ONLY: explicitly bind the selected Python's shared
+    # libpython path. This is NOT an option for the fully-static VOID ELF.
+    libdir = pathlib.Path(sysconfig.get_config_var("LIBDIR") or "")
+    libname = sysconfig.get_config_var("LDLIBRARY") or ""
+    assert libdir.is_absolute() and (libdir / libname).is_file(), "hosted_libpython_missing"
     build = launch([
         "/usr/bin/gcc", "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
+        "-Wl,-rpath," + str(libdir),
         "-o", str(executable), str(SOURCE), str(embedder), *flags,
     ], timeout=90)
     assert build.returncode == 0, "hosted_build_failed:\n" + build.stdout + build.stderr
