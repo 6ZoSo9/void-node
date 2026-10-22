@@ -186,10 +186,26 @@ for name in sorted(set(v5_funcs) - ALLOWED_CHANGED_FUNCTIONS):
 q4_funcs = funcs(q4_raw)
 q5_funcs = funcs(q5_raw)
 assert set(q4_funcs) == set(q5_funcs)
-for name in sorted(set(q4_funcs) - {"source_plan", "self_test"}):
+for name in sorted(set(q4_funcs) - {"source_plan", "self_test", "qualify"}):
     assert ast.dump(q4_funcs[name], include_attributes=False) == ast.dump(
         q5_funcs[name], include_attributes=False
     ), "unexpected_qualifier_delta:" + name
+
+class _QualifierStatusNormalizer(ast.NodeTransformer):
+    def visit_Constant(self, node: ast.Constant) -> ast.AST:
+        if node.value == "status=INSTALLED_QUALIFICATION_V5_GREEN":
+            return ast.copy_location(
+                ast.Constant(value="status=INSTALLED_QUALIFICATION_V4_GREEN"),
+                node,
+            )
+        return node
+
+q5_qualify_normalized = _QualifierStatusNormalizer().visit(
+    ast.fix_missing_locations(q5_funcs["qualify"])
+)
+assert ast.dump(q4_funcs["qualify"], include_attributes=False) == ast.dump(
+    q5_qualify_normalized, include_attributes=False
+), "unexpected_qualifier_delta:qualify"
 
 # V6 source-plan is inert and must not need the built-in bridge.
 source_plan = run([str(pathlib.Path("/usr/bin/python3")), "-I", "-B", str(V6), "--source-plan"])
