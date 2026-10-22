@@ -5,6 +5,7 @@ on:
     paths:
       - "ops/xiphos/apollyon_custody_launcher_v3_dormant_rebind_v1.py"
       - "scripts/prove_apollyon_custody_launcher_v3_dormant_rebind_v1.py"
+      - "scripts/prove_apollyon_authorization_custody_launcher_v3_signal_process_v1.mjs"
       - "docs/security/apollyon-custody-launcher-v3-dormant-rebind-v1.md"
       - "ops/xiphos/void-apollyon-authorization-custody-v1-launcher-v3.service"
       - "tools/apollyon-authorization-custody-launcher-v3.mjs"
@@ -15,6 +16,7 @@ on:
     paths:
       - "ops/xiphos/apollyon_custody_launcher_v3_dormant_rebind_v1.py"
       - "scripts/prove_apollyon_custody_launcher_v3_dormant_rebind_v1.py"
+      - "scripts/prove_apollyon_authorization_custody_launcher_v3_signal_process_v1.mjs"
       - "docs/security/apollyon-custody-launcher-v3-dormant-rebind-v1.md"
       - "ops/xiphos/void-apollyon-authorization-custody-v1-launcher-v3.service"
       - "tools/apollyon-authorization-custody-launcher-v3.mjs"
@@ -39,6 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -I -B scripts/prove_apollyon_custody_launcher_v3_dormant_rebind_v1.py
+          node scripts/prove_apollyon_authorization_custody_launcher_v3_signal_process_v1.mjs
           python3 -I -B scripts/prove_apollyon_live_custody_dormant_qualification_v2.py
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Diff hygiene
