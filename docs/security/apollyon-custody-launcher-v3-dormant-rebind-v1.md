@@ -99,9 +99,11 @@ blobs. A direct root invocation from a user-writable checkout or
 `~/Downloads` therefore HOLDs before mutation.
 
 A host operator must first stage the exact reviewed closure into a root-custodied
-directory and execute the absolute staged updater path. This requirement binds
-root execution to the reviewed generation rather than trusting the transport
-copy.
+directory and execute the absolute staged updater path. Before execution, the
+root-owned staged updater must have exact Git blob
+`4ae91c809adbadc6f627e1d75225850377af44a9`; the staged launcher and service payloads remain
+bound to their exact blobs by the updater itself. This requirement binds root
+execution to the reviewed generation rather than trusting the transport copy.
 
 `--apply` may perform only:
 
