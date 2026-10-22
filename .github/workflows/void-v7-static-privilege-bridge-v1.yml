@@ -1,0 +1,57 @@
+name: VOID V7 static privilege bridge v1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/precision/void_v7_static_privilege_bridge_v1.c'
+      - 'scripts/prove_void_v7_static_privilege_bridge_v1.py'
+      - 'docs/operators/void-v7-static-privilege-bridge-v1.md'
+      - '.github/workflows/void-v7-static-privilege-bridge-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-privilege-bridge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Verify exact source identity and scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object --no-filters ops/precision/void_v7_static_privilege_bridge_v1.c)" = "91a37d6291dd4370c251ac7895595a3ccf5c5d91"
+          test "$(git hash-object --no-filters scripts/prove_void_v7_static_privilege_bridge_v1.py)" = "b4e98fe83fc3be0a647ba42092bb2647b5d891e9"
+          git diff --check
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cat > /tmp/voidpriv-expected.txt <<'SCOPE'
+          A	.github/workflows/void-v7-static-privilege-bridge-v1.yml
+          A	docs/operators/void-v7-static-privilege-bridge-v1.md
+          A	ops/precision/void_v7_static_privilege_bridge_v1.c
+          A	scripts/prove_void_v7_static_privilege_bridge_v1.py
+          SCOPE
+            git diff --name-status "${{ github.event.pull_request.base.sha }}" HEAD -- | sort > /tmp/voidpriv-actual.txt
+            sort /tmp/voidpriv-expected.txt > /tmp/voidpriv-expected.sorted.txt
+            diff -u /tmp/voidpriv-expected.sorted.txt /tmp/voidpriv-actual.txt
+          fi
+
+      - name: Source-bound nonroot built-in privilege proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          python3 -I -B scripts/prove_void_v7_static_privilege_bridge_v1.py
