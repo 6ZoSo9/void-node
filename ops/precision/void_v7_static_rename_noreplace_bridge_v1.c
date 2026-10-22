@@ -102,13 +102,10 @@ voidfs_rename_noreplace(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    long rc;
-    Py_BEGIN_ALLOW_THREADS
-    rc = syscall(SYS_renameat2,
-                 parent_fd, old_leaf,
-                 parent_fd, new_leaf,
-                 RENAME_NOREPLACE);
-    Py_END_ALLOW_THREADS
+    const long rc = syscall(SYS_renameat2,
+                            parent_fd, old_leaf,
+                            parent_fd, new_leaf,
+                            RENAME_NOREPLACE);
 
     if (rc != 0) {
         return PyErr_SetFromErrno(PyExc_OSError);
