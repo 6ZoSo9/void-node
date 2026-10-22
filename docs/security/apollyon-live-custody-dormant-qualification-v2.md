@@ -45,8 +45,9 @@ The expected launcher path is:
 
 The live `--run` mode retains the v1 lifecycle semantics:
 
-1. prove target dormant, training dormant, and custody service safely dead
-   (`inactive` or pre-existing `failed`, always with no MainPID);
+1. prove target dormant, the training unit dormant and exactly `static`, and
+   the custody service safely dead (`inactive` or pre-existing `failed`,
+   always with no MainPID);
 2. prove exact static install and effective systemd boundary;
 3. immediately before each start, re-attest target/service/training unit
    dormancy, socket absence, socket-parent emptiness and custody/training
