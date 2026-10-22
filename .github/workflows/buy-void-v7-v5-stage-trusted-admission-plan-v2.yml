@@ -35,21 +35,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact parent and four-add scope
+      - name: Verify exact hardened parent and four-path scope
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PARENT=f621ebb7b5e74ea1b34d30eff62bf6b66bb79b16
+          PARENT=5ec1658836c2f7580cbbd27d9b49b5f3892b90ef
           test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
           mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
           expected=(
-            $'A\t.github/workflows/buy-void-v7-v5-stage-trusted-admission-plan-v2.yml'
-            $'A\tdocs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v2.md'
-            $'A\tops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json'
-            $'A\tscripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v2.mjs'
+            $'M\t.github/workflows/buy-void-v7-v5-stage-trusted-admission-plan-v2.yml'
+            $'M\tdocs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v2.md'
+            $'M\tops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json'
+            $'M\tscripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v2.mjs'
           )
           test "${#actual[@]}" -eq "${#expected[@]}"
           for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
@@ -64,11 +64,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json)" = "615ed3862c2a78fc26dcc9d26cb1171966cf0b24"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v2.mjs)" = "714a5cebe69a9feff95adc84e26ef2e974f7db27"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v2.md)" = "d82cc6f4a82c0782edc05631649d5ab03f4463ee"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "e1fa010d5128b9846aafc8d353c874da96dfa48d"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py)" = "3ff41612a8a7aed926995e0892383e75fad99c7a"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json)" = "c7ff1128ff04f3ce5f995206af52f844564c6b39"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v2.mjs)" = "e0b9ebdfd1a409a7315580f5ae64b9184515209e"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v2.md)" = "bc848dd619572288f1d6a284dc5a5f01ec965b42"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py)" = "8a8da645c73216714fad1140c9981745fbb4a8de"
 
       - name: Syntax
         run: node --check scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v2.mjs

@@ -8,22 +8,22 @@ import { fileURLToPath } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const MARKER="VOID_V7_V5_STAGE_TRUSTED_ADMISSION_PLAN_V2";
-const PARENT="f621ebb7b5e74ea1b34d30eff62bf6b66bb79b16";
-const PARENT_TREE="b0affbc7f3553cef7f4ab46d7185c934b0013fe2";
+const PARENT="5ec1658836c2f7580cbbd27d9b49b5f3892b90ef";
+const PARENT_TREE="681040be548b140e9a15d2c4c851ecba9e8623ed";
 const PLAN="ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json";
-const PLAN_BLOB="615ed3862c2a78fc26dcc9d26cb1171966cf0b24";
-const EXPECTED_PLAN_ID="voidv7v5stageadmissionplan2_3e1b9c2c9cc112da764de6b68e7a4959d416cf286f3265759f331e1c5fd8c9fe";
+const PLAN_BLOB="c7ff1128ff04f3ce5f995206af52f844564c6b39";
+const EXPECTED_PLAN_ID="voidv7v5stageadmissionplan2_ab5bf952568a3633b494322dcef46f4ee8e15d20f8881c8bd9b6f787f414e2a5";
 const SELF="scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v2.mjs";
 const DOC="docs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v2.md";
 const WORKFLOW=".github/workflows/buy-void-v7-v5-stage-trusted-admission-plan-v2.yml";
 const OWNED=Object.freeze([WORKFLOW,DOC,PLAN,SELF].sort());
 
 const BOUND=Object.freeze([
-  ["ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py","e1fa010d5128b9846aafc8d353c874da96dfa48d"],
-  ["ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py","3ff41612a8a7aed926995e0892383e75fad99c7a"],
-  ["scripts/prove_buy_void_v7_v5_source_stage_install_v1.py","235d705455aa526467750d9a057a5e9134b40965"],
-  ["scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py","d192fc53d7b36e04e99b1de647d1e28ce301ac92"],
-  [".github/workflows/buy-void-v7-v5-source-receipt-stage-install-v1.yml","886aaed211a8dddaa23bd2d50f7b18dba1edad59"],
+  ["ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py","b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b"],
+  ["ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py","8a8da645c73216714fad1140c9981745fbb4a8de"],
+  ["scripts/prove_buy_void_v7_v5_source_stage_install_v1.py","b3c939f12bb97b05f3d50a4a4836f945b1ecbe01"],
+  ["scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py","8bdd918666492360e30fbd5d7a73f2655bddfc1b"],
+  [".github/workflows/buy-void-v7-v5-source-receipt-stage-install-v1.yml","6ab14eacb8889bc0197240aba36935dda0b3b15c"],
   ["ops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json","fd63775747dae7b90a565686597d016a907bc313"],
   ["ops/security/buy-void-source-finality-v7-deployment-receipt-v5.json","eddd0b47263213ae8dd65ef72a5479c40ea6812e"],
 ]);
@@ -62,7 +62,7 @@ function verifyScope(){
   const rows=git(["diff","--name-status",PARENT,"HEAD","--"]).split(/\n/u).filter(Boolean);
   assert.equal(rows.length,4,"scope_count");
   const actual=rows.map(row=>{
-    const m=row.match(/^A\t(.+)$/u);
+    const m=row.match(/^M\t(.+)$/u);
     assert.ok(m,"scope_not_add_only:"+row);
     return m[1];
   }).sort();
@@ -81,9 +81,13 @@ assert.equal(body.source_parent,PARENT);
 assert.equal(body.implementation_generation.commit,PARENT);
 assert.equal(body.implementation_generation.tree,PARENT_TREE);
 assert.equal(body.implementation_generation.focused_workflow_success,true);
-assert.equal(body.implementation_generation.focused_workflow_run,39826372776);
-assert.equal(body.implementation_generation.python312_job,119990621388);
-assert.equal(body.implementation_generation.python313_job,119990620812);
+assert.equal(body.implementation_generation.boundary_hardening.candidate_read_boundaries_nonblocking,true);
+assert.equal(body.implementation_generation.boundary_hardening.copy_source_fifo_swap_nonblocking_verified,true);
+assert.equal(body.implementation_generation.boundary_hardening.receipt_pre_import_isolation_required,true);
+assert.equal(body.implementation_generation.boundary_hardening.hostile_sibling_import_poison_rejected,true);
+assert.equal(body.implementation_generation.focused_workflow_run,39834113682);
+assert.equal(body.implementation_generation.python312_job,120017760398);
+assert.equal(body.implementation_generation.python313_job,120017760198);
 
 assert.equal(body.canonical_stage_semantics.source_stage_root_mode,"0755");
 assert.equal(body.canonical_stage_semantics.source_internal_stage,
@@ -133,6 +137,8 @@ for(const token of [
  '_verify_full_history_root(TARGET, 0, 0, 0o755)',
  '_verify_full_history_root(STAGE, 0, 0, 0o755)',
  'candidate_copy_descriptor_relative=true',
+ 'candidate_read_boundaries_nonblocking=true',
+ 'copy_source_fifo_swap_nonblocking=true',
  'trusted_root_launcher_required=true',
 ])assert.ok(source.includes(token),token);
 
@@ -143,6 +149,7 @@ for(const token of [
  'CONFIRM_TOKEN="INSTALL_VOID_V7_V5_RECEIPT_STAGE_V1_CREATE_ONLY"',
  'SOURCE_RECEIPT_BLOB="eddd0b47263213ae8dd65ef72a5479c40ea6812e"',
  'SOURCE_RECEIPT_SHA256="12d4028d317ce871a61c89c60fd36a1e31421401a39397974063677cb4ab8001"',
+ 'python_isolated_unoptimized_mode_required',
 ])assert.ok(receipt.includes(token),token);
 
 for(const [key,val] of Object.entries(body.authority)){
@@ -156,6 +163,7 @@ console.log(MARKER+"_PROOF_GREEN");
 console.log("plan_id="+EXPECTED_PLAN_ID);
 console.log("canonical_installer_generation_bound=true");
 console.log("installer_python312_python313_green=true");
+console.log("installer_boundary_hardening_bound=true");
 console.log("source_stage_mode_0755_required=true");
 console.log("source_internal_stage_build_v1_required=true");
 console.log("predecessor_0555_tmp_v1_assumptions_rejected=true");

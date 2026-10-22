@@ -3,7 +3,7 @@
 ## Purpose
 
 Define the trusted-root admission contract for the canonical create-only V5
-stage installers proven in Draft #3715.
+stage installers hardened and proven in Draft #3719.
 
 V2 exists because the earlier trusted-admission/launcher lineage in #3713/#3714
 was built against a different staging implementation. Its architecture is
@@ -27,22 +27,22 @@ generation identity.
 
 Trusted launcher V2 must bind the exact #3715 source snapshot:
 
-- commit: `f621ebb7b5e74ea1b34d30eff62bf6b66bb79b16`;
-- tree: `b0affbc7f3553cef7f4ab46d7185c934b0013fe2`;
+- commit: `5ec1658836c2f7580cbbd27d9b49b5f3892b90ef`;
+- tree: `681040be548b140e9a15d2c4c851ecba9e8623ed`;
 - source installer:
-  `e1fa010d5128b9846aafc8d353c874da96dfa48d`;
+  `b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b`;
 - receipt installer:
-  `3ff41612a8a7aed926995e0892383e75fad99c7a`;
+  `8a8da645c73216714fad1140c9981745fbb4a8de`;
 - source proof:
-  `235d705455aa526467750d9a057a5e9134b40965`;
+  `b3c939f12bb97b05f3d50a4a4836f945b1ecbe01`;
 - receipt proof:
-  `d192fc53d7b36e04e99b1de647d1e28ce301ac92`;
+  `8bdd918666492360e30fbd5d7a73f2655bddfc1b`;
 - focused workflow:
-  `886aaed211a8dddaa23bd2d50f7b18dba1edad59`;
+  `6ab14eacb8889bc0197240aba36935dda0b3b15c`;
 - stage plan:
   `fd63775747dae7b90a565686597d016a907bc313`.
 
-Focused run `39826372776` is GREEN on both Python 3.12 and 3.13.
+Focused run `39834113682` is GREEN on both Python 3.12 and 3.13.
 
 ## Future closed tree
 
@@ -158,10 +158,24 @@ funds_movement=false
 
 Plan ID:
 
-`voidv7v5stageadmissionplan2_3e1b9c2c9cc112da764de6b68e7a4959d416cf286f3265759f331e1c5fd8c9fe`
+`voidv7v5stageadmissionplan2_ab5bf952568a3633b494322dcef46f4ee8e15d20f8881c8bd9b6f787f414e2a5`
 
 Next gate:
 
 `REVIEW_TRUSTED_ADMISSION_PLAN_V2_THEN_IMPLEMENT_STATIC_STAGE_ROOT_LAUNCHER_V2_AND_READ_ONLY_PAIR_QUALIFIER_V2`
+
+PROTECT THE CORE.
+
+## Canonical boundary-hardening rebind
+
+V2 now binds #3719 rather than the pre-hardening #3715 installer generation.
+The source installer requires nonblocking retained reads and has a real
+regular-to-FIFO substitution regression. The receipt installer requires
+isolated/safe-path Python before importing source-tree-shadowable modules and
+has a hostile-sibling import regression.
+
+The trusted launcher remains separately production-disabled until its exact
+installer sizes/hashes, plan ID/blob, and source generation are rebound to this
+plan.
 
 PROTECT THE CORE.

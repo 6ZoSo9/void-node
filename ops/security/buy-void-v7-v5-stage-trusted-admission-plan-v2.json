@@ -1,27 +1,33 @@
 {
-  "plan_id": "voidv7v5stageadmissionplan2_3e1b9c2c9cc112da764de6b68e7a4959d416cf286f3265759f331e1c5fd8c9fe",
+  "plan_id": "voidv7v5stageadmissionplan2_ab5bf952568a3633b494322dcef46f4ee8e15d20f8881c8bd9b6f787f414e2a5",
   "schema": "void_v7_v5_stage_trusted_admission_plan_v2",
   "marker": "VOID_V7_V5_STAGE_TRUSTED_ADMISSION_PLAN_V2",
   "version": 2,
   "repository": "6ZoSo9/void-node",
-  "source_parent": "f621ebb7b5e74ea1b34d30eff62bf6b66bb79b16",
+  "source_parent": "5ec1658836c2f7580cbbd27d9b49b5f3892b90ef",
   "implementation_generation": {
-    "commit": "f621ebb7b5e74ea1b34d30eff62bf6b66bb79b16",
-    "tree": "b0affbc7f3553cef7f4ab46d7185c934b0013fe2",
+    "commit": "5ec1658836c2f7580cbbd27d9b49b5f3892b90ef",
+    "tree": "681040be548b140e9a15d2c4c851ecba9e8623ed",
     "source_stage_installer_path": "ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py",
-    "source_stage_installer_git_blob_sha1": "e1fa010d5128b9846aafc8d353c874da96dfa48d",
+    "source_stage_installer_git_blob_sha1": "b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b",
     "receipt_stage_installer_path": "ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py",
-    "receipt_stage_installer_git_blob_sha1": "3ff41612a8a7aed926995e0892383e75fad99c7a",
+    "receipt_stage_installer_git_blob_sha1": "8a8da645c73216714fad1140c9981745fbb4a8de",
     "source_stage_proof_path": "scripts/prove_buy_void_v7_v5_source_stage_install_v1.py",
-    "source_stage_proof_git_blob_sha1": "235d705455aa526467750d9a057a5e9134b40965",
+    "source_stage_proof_git_blob_sha1": "b3c939f12bb97b05f3d50a4a4836f945b1ecbe01",
     "receipt_stage_proof_path": "scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py",
-    "receipt_stage_proof_git_blob_sha1": "d192fc53d7b36e04e99b1de647d1e28ce301ac92",
-    "staging_workflow_git_blob_sha1": "886aaed211a8dddaa23bd2d50f7b18dba1edad59",
+    "receipt_stage_proof_git_blob_sha1": "8bdd918666492360e30fbd5d7a73f2655bddfc1b",
+    "staging_workflow_git_blob_sha1": "6ab14eacb8889bc0197240aba36935dda0b3b15c",
     "staging_plan_git_blob_sha1": "fd63775747dae7b90a565686597d016a907bc313",
-    "focused_workflow_run": 39826372776,
-    "python312_job": 119990621388,
-    "python313_job": 119990620812,
-    "focused_workflow_success": true
+    "focused_workflow_run": 39834113682,
+    "python312_job": 120017760398,
+    "python313_job": 120017760198,
+    "focused_workflow_success": true,
+    "boundary_hardening": {
+      "candidate_read_boundaries_nonblocking": true,
+      "copy_source_fifo_swap_nonblocking_verified": true,
+      "receipt_pre_import_isolation_required": true,
+      "hostile_sibling_import_poison_rejected": true
+    }
   },
   "canonical_stage_semantics": {
     "source_stage_target": "/opt/.void-buy-void-v7-reviewed-v1.stage-v5",
@@ -67,8 +73,8 @@
     "stdlib_rel": "runtime/lib/python312.zip",
     "source_root_rel": "source",
     "complete_source_snapshot_required": true,
-    "exact_source_commit": "f621ebb7b5e74ea1b34d30eff62bf6b66bb79b16",
-    "exact_source_tree": "b0affbc7f3553cef7f4ab46d7185c934b0013fe2",
+    "exact_source_commit": "5ec1658836c2f7580cbbd27d9b49b5f3892b90ef",
+    "exact_source_tree": "681040be548b140e9a15d2c4c851ecba9e8623ed",
     "create_only_closed_tree_publication_required": true,
     "receipt_bound_inode_hash_mode_nlink_required": true,
     "static_python_descriptor_execution_required": true,
@@ -78,8 +84,8 @@
     "caller_path_authority": false
   },
   "future_policy_contract": {
-    "source_stage_installer_git_blob_sha1": "e1fa010d5128b9846aafc8d353c874da96dfa48d",
-    "receipt_stage_installer_git_blob_sha1": "3ff41612a8a7aed926995e0892383e75fad99c7a",
+    "source_stage_installer_git_blob_sha1": "b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b",
+    "receipt_stage_installer_git_blob_sha1": "8a8da645c73216714fad1140c9981745fbb4a8de",
     "source_stage_target": "/opt/.void-buy-void-v7-reviewed-v1.stage-v5",
     "source_internal_stage": "/opt/.void-buy-void-v7-reviewed-v1.stage-v5.build-v1",
     "source_stage_root_mode": "0755",
@@ -111,8 +117,8 @@
       "expected_plan_id",
       "explicit_receipt_stage_confirmation"
     ],
-    "launcher_supplies_source_expected_head": "f621ebb7b5e74ea1b34d30eff62bf6b66bb79b16",
-    "launcher_supplies_source_expected_tree": "b0affbc7f3553cef7f4ab46d7185c934b0013fe2",
+    "launcher_supplies_source_expected_head": "5ec1658836c2f7580cbbd27d9b49b5f3892b90ef",
+    "launcher_supplies_source_expected_tree": "681040be548b140e9a15d2c4c851ecba9e8623ed",
     "filesystem_path_arguments_forbidden": true,
     "candidate_path_arguments_forbidden": true,
     "receipt_bytes_arguments_forbidden": true,
@@ -174,5 +180,5 @@
     "treasury_liquidity_action": false,
     "funds_movement": false
   },
-  "next_gate": "REVIEW_TRUSTED_ADMISSION_PLAN_V2_THEN_IMPLEMENT_STATIC_STAGE_ROOT_LAUNCHER_V2_AND_READ_ONLY_PAIR_QUALIFIER_V2"
+  "next_gate": "REVIEW_HARDENED_TRUSTED_ADMISSION_PLAN_V2_THEN_REBIND_STATIC_STAGE_ROOT_LAUNCHER_V2"
 }
