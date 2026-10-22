@@ -2,6 +2,7 @@
 // then classify a SERVER-SUPPLIED verified-payment event through the canonical
 // allocation-required dispatcher planner. No writer, IPC, RPC or funds access.
 import { createHash } from "node:crypto";
+import path from "node:path";
 import {
   planBuyVoidOperatorAllocationDispatchV1,
   VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1,
@@ -68,6 +69,14 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
       VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1
   ) hold("private_roots_not_canonical");
 
+  if (
+    typeof plan.request_dir !== "string" ||
+    !path.isAbsolute(plan.request_dir) ||
+    path.resolve(plan.request_dir) !== plan.request_dir ||
+    plan.request_dir === path.parse(plan.request_dir).root ||
+    plan.request_dir.includes("\0")
+  ) hold("request_root_not_absolute_normalized_private");
+
   const event = plan.event;
   const original = plan.request;
   const verifier = event.payment_verifier;
@@ -84,6 +93,10 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
       original.source_chain !== "ethereum") ||
     !verifier || typeof verifier !== "object" ||
     verifier.chain !== original.source_chain ||
+    typeof verifier.log_index !== "string" ||
+    !/^(?:0|[1-9][0-9]{0,9})$/u.test(verifier.log_index) ||
+    Number(verifier.log_index) > 0xffffffff ||
+    event.quoted_void !== original.quoted_void ||
     !sameHex(event.tx_hash, original.tx_hash, TX_HASH) ||
     !sameHex(verifier.transaction_hash, original.tx_hash, TX_HASH) ||
     !sameHex(verifier.from_address, original.delivery_address, ADDRESS) ||
@@ -105,6 +118,8 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
     marker: VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE,
     status: "staged_unmounted" as const,
     kind: plan.kind,
+    source_only_unmounted: true as const,
+    mounted_verified_allocation_dispatch: false as const,
     event: plan.event,
     request: plan.request,
     request_dir: plan.request_dir,

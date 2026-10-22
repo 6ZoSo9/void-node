@@ -147,6 +147,8 @@ try {
   assert.equal(result.marker, VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE);
   assert.equal(result.status, "staged_unmounted");
   assert.equal(result.kind, "verified_payment_allocation_handoff");
+  assert.equal(result.mounted_verified_allocation_dispatch, false);
+  assert.equal(result.source_only_unmounted, true);
   assert.equal(result.event.request_id, id);
   assert.equal(result.request.request_id, id);
   assert.equal(result.event_snapshot_sha256.length, 64);
@@ -187,6 +189,19 @@ try {
     "event_request_original_identity_mismatch");
   negative({ ...serverInput(), allocation_ledger_root: "/tmp/attacker" },
     "allocation_roots_not_canonical");
+  negative({ ...serverInput(), request_dir: "relative/attacker" },
+    "request_root_not_absolute_normalized_private");
+  negative({ ...serverInput(), request_dir: "/" },
+    "request_root_not_absolute_normalized_private");
+  negative({ ...serverInput(), event: {
+    ...serverInput().event,
+    payment_verifier: {
+      ...serverInput().event.payment_verifier, log_index: "-1",
+    },
+  } }, "event_request_original_identity_mismatch");
+  negative({ ...serverInput(), event: {
+    ...serverInput().event, quoted_void: "600000",
+  } }, "event_request_original_identity_mismatch");
 
   let invokedGetter = 0;
   const attacker = serverInput();
