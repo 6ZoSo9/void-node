@@ -3,8 +3,8 @@
 Status: **candidate / source and hosted CI only**. This is not an approved
 replacement for the historical protected enforcement lock. Target dependency:
 [PR #3692](https://github.com/6ZoSo9/void-node/pull/3692) at exact head
-`be0fc9a2663312e636171e856e958962b7fc5b36` with tree
-`0440b0ed6b5f6706106da26f7e380330aff50724`.
+`6304d8ff1e6eea9c24efed53328947ad2995e309` with tree
+`56dd98ed46c6d1929bc731ff6ae2e4a1ca71ebac`.
 
 ## Problem and authority
 
@@ -106,3 +106,12 @@ The accepted source HEAD, tree, and three changed dependency blob IDs in this
 version are pinned to that correction. The branch integrates the dependency by
 an **additive two-parent merge**, preserving the earlier successor history and
 the corrected #3692 parent; no force push or historical evidence repinning.
+
+## Disposable custody inspection regression alignment
+
+The #3692 correction also replaces the historical fabricated V2 event in
+`scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs` with the output of
+the real canonical receipt/log verifier, using one synthetic native Base USDC
+Transfer. The custody bridge remains **inspect-only** and returns HOLD even for
+a valid disposable Unix socket reply. The versioned source proof pins the
+updated Git blob `d0a81327e43a76e7b8171d975b7dde981483219f`.
