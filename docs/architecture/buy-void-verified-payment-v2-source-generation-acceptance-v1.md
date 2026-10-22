@@ -3,8 +3,8 @@
 Status: **candidate / source and hosted CI only**. This is not an approved
 replacement for the historical protected enforcement lock. Target dependency:
 [PR #3692](https://github.com/6ZoSo9/void-node/pull/3692) at exact head
-`6304d8ff1e6eea9c24efed53328947ad2995e309` with tree
-`56dd98ed46c6d1929bc731ff6ae2e4a1ca71ebac`.
+`0628d81259fed779ea3bb6c4d067b66b19a3e577` with tree
+`282648386bb2f0b79f95af398de61f231e79504c`.
 
 ## Problem and authority
 
@@ -115,3 +115,12 @@ the real canonical receipt/log verifier, using one synthetic native Base USDC
 Transfer. The custody bridge remains **inspect-only** and returns HOLD even for
 a valid disposable Unix socket reply. The versioned source proof pins the
 updated Git blob `d0a81327e43a76e7b8171d975b7dde981483219f`.
+
+## Broad TypeScript source regression
+
+The original real-verifier synthetic proof used a boolean-discriminant access
+that passed the dedicated build but not the repository's broader focused
+TypeScript invocation. It now uses the existing `"reason" in decision`
+union narrowing. The versioned source acceptance pins the corrected test blob
+`d447fad19edbb0897166f67ab2e435fe34d5e164` rather than relaxing
+TypeScript settings or altering a historical proof.

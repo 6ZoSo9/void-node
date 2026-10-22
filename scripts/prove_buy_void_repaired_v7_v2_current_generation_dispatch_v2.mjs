@@ -56,8 +56,8 @@ const V2_ADDED_ECONOMIC_SOURCE_BLOBS=Object.freeze({
     "ef397b7377a87326187f5e2e9882d6e4bdc0a4f8",
 });
 const V2_SOURCE_BASE="1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c";
-const V2_ACCEPTED_ADDITION_HEAD="6304d8ff1e6eea9c24efed53328947ad2995e309";
-const V2_ACCEPTED_ADDITION_TREE="56dd98ed46c6d1929bc731ff6ae2e4a1ca71ebac";
+const V2_ACCEPTED_ADDITION_HEAD="0628d81259fed779ea3bb6c4d067b66b19a3e577";
+const V2_ACCEPTED_ADDITION_TREE="282648386bb2f0b79f95af398de61f231e79504c";
 const V2_FROZEN_V1_PROOF_BLOB="4e123302d25dd0a83923032d2dc0f40c8937e77f";
 const V2_SOURCE_FILES=Object.freeze({
   ".github/workflows/buy-void-verified-payment-transport-v2.yml":
@@ -67,7 +67,7 @@ const V2_SOURCE_FILES=Object.freeze({
   "scripts/prove_buy_void_verified_payment_transport_v2.ts":
     "2714988acfbcded3d4779ef79a141cd3e39b1426",
   "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts":
-    "e5b85ab7d89fb92ef5660aa20186d2c736e9f727",
+    "d447fad19edbb0897166f67ab2e435fe34d5e164",
   ...V2_ADDED_ECONOMIC_SOURCE_BLOBS,
 });
 const NONPROTECTED_ECONOMIC_DRIFT=Object.freeze([
