@@ -14,7 +14,7 @@ BOOTSTRAP = ROOT / "ops/precision/void_buy_void_v7_create_only_closed_tree_boots
 BOOTSTRAP_PROOF = ROOT / "scripts/prove_buy_void_v7_create_only_closed_tree_bootstrap_v1.py"
 
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V3_PROOF"
-SOURCE_BLOB = "3c465ef5fdb8a9d261b4e3f02322576b63d39740"
+SOURCE_BLOB = "21d170554307c13aebba1d4827305ce3e01156a1"
 INSTALLER_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 PLAN_BLOB = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
 ACCEPTANCE_BLOB = "919db72903a5fcff59dec7635a4288f41d1753d9"
@@ -128,6 +128,8 @@ for required in (
     'receipt_entries_not_strictly_sorted',
     'receipt_total_bytes_limit',
     'receipt_required_entry_missing',
+    'receipt_source_git_path_allowed',
+    'receipt_source_git_extra_path',
     'source/.git/refs/heads/main',
     'free_receipt(&receipt)',
     'bind_receipt_file(&receipt,"source/.git/HEAD"',
@@ -224,6 +226,7 @@ with tempfile.TemporaryDirectory(prefix="void-v7-launcher-v3-proof-") as td:
         "closed_tree_fixed_runtime_and_complete_source_payload_required=true",
         "dynamic_bounded_receipt_entries_required=true",
         "minimal_git_authority_paths_required=true",
+        "minimal_git_authority_exact_layout_required=true",
         "create_only_closed_tree_seal_mode_required=true",
         "existing_launcher_v2_unchanged=true",
         "arbitrary_malicious_root_resistance_claimed=false",
@@ -260,6 +263,7 @@ with tempfile.TemporaryDirectory(prefix="void-v7-launcher-v3-proof-") as td:
     print("receipt_inode_hash_mode_nlink_rebinding_bound=true")
     print("dynamic_complete_source_receipt_bound=true")
     print("minimal_git_authority_paths_bound=true")
+    print("minimal_git_authority_exact_layout_bound=true")
     print("v5_argument_surface_preserved=true")
     print("fsverity_v2_unchanged_and_v3_absent=true")
     print("production_payload_manifest_lock_embedded=false")
