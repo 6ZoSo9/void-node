@@ -10,7 +10,7 @@ MARKER="VOID_V7_V5_SOURCE_RECEIPT_STAGE_BUILDERS_V1_PROOF"
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 
 SOURCE_REL="ops/precision/void_v7_v5_source_stage_install_v1.py"
-SOURCE_BLOB="a3cb44b02606b49be2c678f4fb28e258cf765e3b"
+SOURCE_BLOB="1f251a8489e0b2a69683d991785cb4f46fa6dff5"
 RECEIPT_REL="ops/precision/void_v7_v5_receipt_stage_install_v1.py"
 RECEIPT_BLOB="c4e7edfeda3196cdebc1ac4656cf514f77a53969"
 STAGING_PLAN_REL="ops/security/buy-void-v7-v5-source-receipt-staging-plan-v1.json"
@@ -69,6 +69,9 @@ for token in (
     'def _prepare_private_stage_for_runtime_verification(',
     'def _seal_verified_stage_for_publication(',
     'def _rename_noreplace(',
+    'os.O_NOFOLLOW | os.O_NONBLOCK',
+    'copy_source_fifo_swap_nonblocking=true',
+    'candidate_read_boundaries_nonblocking=true',
     'trusted_root_launcher_required=true',
     'fixed_source_exchange_authority=false',
     'deployment_receipt_mutation=false',
@@ -126,6 +129,8 @@ for relative,expected_markers in (
         "fixed_v4_source_cross_binding_required=true",
         "trusted_root_launcher_required=true",
         "rename_noreplace_publication_required=true",
+        "copy_source_fifo_swap_nonblocking=true",
+        "candidate_read_boundaries_nonblocking=true",
         "service_mutation=false",
         "funds_movement=false",
     )),
@@ -159,6 +164,8 @@ print("source_installer_blob="+SOURCE_BLOB)
 print("receipt_installer_blob="+RECEIPT_BLOB)
 print("staging_plan_blob="+STAGING_PLAN_BLOB)
 print("reviewed_source_replica_mechanics_reused=true")
+print("candidate_read_boundaries_nonblocking=true")
+print("copy_source_fifo_swap_nonblocking=true")
 print("v5_generation_exact=true")
 print("hidden_source_stage_only=true")
 print("hidden_receipt_stage_only=true")

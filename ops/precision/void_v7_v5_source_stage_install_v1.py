@@ -433,7 +433,7 @@ def _read_regular_stable(
         or before.st_size > maximum
     ):
         raise InstallError(label + "_metadata_invalid:" + os.fspath(path))
-    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         opened = os.fstat(fd)
         if _metadata_identity(opened) != _metadata_identity(before):
@@ -480,7 +480,7 @@ def _stream_regular_hashes_stable(
         or before.st_size > maximum
     ):
         raise InstallError(label + "_metadata_invalid:" + os.fspath(path))
-    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         opened = os.fstat(fd)
         opened_identity = _metadata_identity(opened)
@@ -553,7 +553,7 @@ def _open_stable_regular(path: pathlib.Path, label: str, maximum: int) -> tuple[
         or before.st_size > maximum
     ):
         raise InstallError(label + "_metadata_invalid")
-    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     opened = os.fstat(fd)
     identity = _metadata_identity(opened)
     if identity != _metadata_identity(before):
@@ -977,7 +977,7 @@ class _ObjectStore:
             or before.st_size > MAX_FILE_BYTES
         ):
             raise InstallError(self.label + "_loose_metadata_invalid")
-        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             opened = os.fstat(fd)
             identity = _metadata_identity(opened)
@@ -2195,7 +2195,7 @@ def _copy_regular_at(
         raise InstallError("copy_source_regular_invalid:" + name)
     sfd = os.open(
         name,
-        os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
         dir_fd=src_dir_fd,
     )
     dfd = None
@@ -2264,7 +2264,7 @@ def _prepare_private_stage_for_runtime_verification() -> None:
                 raise InstallError("stage_prepare_kind_invalid:" + os.fspath(path))
 
     for path in files:
-        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             private_mode = stat.S_IMODE(os.fstat(fd).st_mode)
             if private_mode == 0o400:
@@ -2285,7 +2285,7 @@ def _prepare_private_stage_for_runtime_verification() -> None:
     for directory in sorted(directories, key=lambda p: len(p.parts), reverse=True):
         fd = os.open(
             directory,
-            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
         )
         try:
             if stat.S_IMODE(os.fstat(fd).st_mode) != 0o700:
@@ -2321,7 +2321,7 @@ def _seal_verified_stage_for_publication() -> None:
                 raise InstallError("stage_seal_kind_invalid:" + os.fspath(path))
 
     for path in files:
-        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             verification_mode = stat.S_IMODE(os.fstat(fd).st_mode)
             if verification_mode == 0o440:
@@ -2345,7 +2345,7 @@ def _seal_verified_stage_for_publication() -> None:
     for directory in sorted(directories, key=lambda p: len(p.parts), reverse=True):
         fd = os.open(
             directory,
-            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
         )
         try:
             if stat.S_IMODE(os.fstat(fd).st_mode) != 0o750:
@@ -2464,7 +2464,8 @@ def _copy_candidate_tree_iterative(
                         os.O_RDONLY
                         | os.O_DIRECTORY
                         | os.O_CLOEXEC
-                        | os.O_NOFOLLOW,
+                        | os.O_NOFOLLOW
+                        | os.O_NONBLOCK,
                         dir_fd=frame["src_fd"],
                     )
                     opened = os.fstat(child_src)
@@ -2478,7 +2479,8 @@ def _copy_candidate_tree_iterative(
                         os.O_RDONLY
                         | os.O_DIRECTORY
                         | os.O_CLOEXEC
-                        | os.O_NOFOLLOW,
+                        | os.O_NOFOLLOW
+                        | os.O_NONBLOCK,
                         dir_fd=frame["dst_fd"],
                     )
                     os.fchown(child_dst, 0, 0)
@@ -2581,11 +2583,11 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
 
     candidate_fd = os.open(
         CANDIDATE,
-        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
     )
     parent_fd = os.open(
         INSTALL_PARENT,
-        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
     )
     stage_fd = -1
     try:
@@ -2600,7 +2602,7 @@ def _copy_candidate_to_stage(expected_candidate: dict[str, Any]) -> None:
         _STAGE_RETAINED = True
         stage_fd = os.open(
             STAGE_NAME,
-            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
             dir_fd=parent_fd,
         )
         os.fchown(stage_fd, 0, 0)
@@ -2692,7 +2694,7 @@ def _rename_noreplace(
     fn.restype = ctypes.c_int
     parent_fd = os.open(
         INSTALL_PARENT,
-        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
     )
     try:
         row = expected_ancestors[0]
@@ -2872,6 +2874,80 @@ def self_test() -> None:
                 raise AssertionError("rename_noreplace_fixture_state_invalid")
         finally:
             os.close(fd)
+    with tempfile.TemporaryDirectory(prefix="void-v7-copy-fifo-self-test-") as td:
+        root = pathlib.Path(td)
+        src = root / "src"
+        dst = root / "dst"
+        src.mkdir()
+        dst.mkdir()
+        leaf = src / "leaf"
+        displaced = src / "leaf.regular"
+        leaf.write_bytes(b"accepted")
+        src_fd = os.open(
+            src,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+        )
+        dst_fd = os.open(
+            dst,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+        )
+        expected = _metadata_identity(
+            os.stat("leaf", dir_fd=src_fd, follow_symlinks=False)
+        )
+        original_open = os.open
+        leaf_open_observed = False
+        fifo_substituted = False
+
+        def guarded_open(path_arg: Any, flags: int, mode: int = 0o777, *, dir_fd: int | None = None) -> int:
+            nonlocal leaf_open_observed, fifo_substituted
+            if (
+                not fifo_substituted
+                and path_arg == "leaf"
+                and dir_fd == src_fd
+                and (flags & os.O_WRONLY) == 0
+                and (flags & os.O_RDWR) == 0
+            ):
+                leaf_open_observed = True
+                if (flags & os.O_NONBLOCK) == 0:
+                    raise AssertionError("copy_source_nonblocking_flag_missing")
+                if (flags & os.O_NOFOLLOW) == 0:
+                    raise AssertionError("copy_source_nofollow_flag_missing")
+                os.rename(
+                    "leaf", "leaf.regular",
+                    src_dir_fd=src_fd, dst_dir_fd=src_fd,
+                )
+                os.mkfifo("leaf", 0o600, dir_fd=src_fd)
+                fifo_substituted = True
+            if dir_fd is None:
+                return original_open(path_arg, flags, mode)
+            return original_open(path_arg, flags, mode, dir_fd=dir_fd)
+
+        os.open = guarded_open
+        try:
+            held = False
+            try:
+                _copy_regular_at(
+                    src_fd, dst_fd, "leaf", expected, MAX_FILE_BYTES
+                )
+            except InstallError as exc:
+                if str(exc) != "copy_source_rebound:leaf":
+                    raise
+                held = True
+            if not held:
+                raise AssertionError("copy_source_fifo_substitution_not_rejected")
+        finally:
+            os.open = original_open
+            os.close(dst_fd)
+            os.close(src_fd)
+        if not leaf_open_observed or not fifo_substituted:
+            raise AssertionError("copy_source_fifo_fixture_not_exercised")
+        if displaced.read_bytes() != b"accepted":
+            raise AssertionError("copy_source_displaced_regular_changed")
+        if any(dst.iterdir()):
+            raise AssertionError("copy_source_fifo_created_destination")
+    print("copy_source_fifo_swap_nonblocking=true")
+    print("candidate_read_boundaries_nonblocking=true")
+
     print(MARKER + "_SELF_TEST_GREEN")
     print("create_only_target=true")
     print("fixed_v4_source_mutation=false")
@@ -2932,7 +3008,7 @@ def self_test() -> None:
         acl_path = pathlib.Path(acl_td) / "probe"
         acl_path.write_bytes(b"x")
         os.chmod(acl_path, 0o400)
-        acl_fd = os.open(acl_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        acl_fd = os.open(acl_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             acl_blob = _runtime_uid_read_acl_blob(0o4, 0o4)
             os.setxattr(acl_fd, POSIX_ACL_ACCESS_XATTR, acl_blob)
@@ -2963,7 +3039,7 @@ def self_test() -> None:
     with tempfile.TemporaryDirectory(prefix="void-v7-index-extension-self-test-") as td:
         ext_path = pathlib.Path(td) / "extensions.bin"
         ext_path.write_bytes(b"TREE" + struct.pack(">I", 3) + b"abc")
-        ext_fd = os.open(ext_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        ext_fd = os.open(ext_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             if _next_optional_index_extension(
                 ext_fd, 0, 11, "self_test_index"
@@ -2972,7 +3048,7 @@ def self_test() -> None:
         finally:
             os.close(ext_fd)
         ext_path.write_bytes(b"link" + struct.pack(">I", 0))
-        ext_fd = os.open(ext_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        ext_fd = os.open(ext_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             try:
                 _next_optional_index_extension(
