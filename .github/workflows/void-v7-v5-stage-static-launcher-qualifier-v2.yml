@@ -26,22 +26,21 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact parent and five-add scope
+      - name: Verify exact hardened parent and four-path scope
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PARENT=5e0bdeb3d3f0b65fcaa23f5002cc3a9a581c4f27
+          PARENT=d162c564f72666530f48c604c8f9a7b13aa04495
           test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
           mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
           expected=(
-            $'A\t.github/workflows/void-v7-v5-stage-static-launcher-qualifier-v2.yml'
-            $'A\tdocs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md'
-            $'A\tops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py'
-            $'A\tops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c'
-            $'A\tscripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py'
+            $'M\t.github/workflows/void-v7-v5-stage-static-launcher-qualifier-v2.yml'
+            $'M\tdocs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md'
+            $'M\tops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c'
+            $'M\tscripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py'
           )
           test "${#actual[@]}" -eq "${#expected[@]}"
           for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
@@ -51,11 +50,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c)" = "039a075868397080eb1baa149ef9addbb49a6441"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c)" = "2337466b713b6572cc5ec832817899bbcb4e2ac2"
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py)" = "f7ea902b7d145d4c770d76f41b0c2fb974ee3f3e"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py)" = "020d50a844fe4ce7a3962983dd3b84578678a783"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md)" = "5b8e66767365583c6c217698c23a3436e2238b48"
-          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json)" = "615ed3862c2a78fc26dcc9d26cb1171966cf0b24"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py)" = "06a52c04b0d9b3256c9897e08608040f4dfb95e7"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md)" = "be65b8ec0f2043d541e9d35b5e9d0cd4201888fe"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json)" = "c7ff1128ff04f3ce5f995206af52f844564c6b39"
 
       - name: Python syntax
         run: |
@@ -85,6 +84,9 @@ jobs:
           grep -Fx 'VOID_V7_V5_STAGE_STATIC_LAUNCHER_QUALIFIER_V2_PROOF_GREEN' "$out"
           grep -Fx 'launcher_compiles_with_werror=true' "$out"
           grep -Fx 'launcher_self_test_green=true' "$out"
+          grep -Fx 'hardened_installer_generation_bound=true' "$out"
+          grep -Fx 'source_nonblocking_read_boundary_bound=true' "$out"
+          grep -Fx 'receipt_pre_import_isolation_bound=true' "$out"
           grep -Fx 'selected_installer_procfd_execution_bound=true' "$out"
           grep -Fx 'path_substitution_cannot_change_executed_fd_bytes=true' "$out"
           grep -Fx 'production_manifest_lock_unbound=true' "$out"

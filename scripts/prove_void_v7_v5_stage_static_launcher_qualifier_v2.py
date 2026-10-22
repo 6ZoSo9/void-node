@@ -12,11 +12,15 @@ import tempfile
 MARKER="VOID_V7_V5_STAGE_STATIC_LAUNCHER_QUALIFIER_V2_PROOF"
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 LAUNCHER_REL="ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c"
-LAUNCHER_BLOB="039a075868397080eb1baa149ef9addbb49a6441"
+LAUNCHER_BLOB="2337466b713b6572cc5ec832817899bbcb4e2ac2"
 QUALIFIER_REL="ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py"
 QUALIFIER_BLOB="f7ea902b7d145d4c770d76f41b0c2fb974ee3f3e"
 PLAN_REL="ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json"
-PLAN_BLOB="615ed3862c2a78fc26dcc9d26cb1171966cf0b24"
+PLAN_BLOB="c7ff1128ff04f3ce5f995206af52f844564c6b39"
+SOURCE_INSTALLER_REL="ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
+SOURCE_INSTALLER_BLOB="b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b"
+RECEIPT_INSTALLER_REL="ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py"
+RECEIPT_INSTALLER_BLOB="8a8da645c73216714fad1140c9981745fbb4a8de"
 
 def run(argv:list[str],timeout:int=60)->subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -39,20 +43,27 @@ def bind(relative:str,blob:str)->str:
 launcher=bind(LAUNCHER_REL,LAUNCHER_BLOB)
 qualifier=bind(QUALIFIER_REL,QUALIFIER_BLOB)
 bind(PLAN_REL,PLAN_BLOB)
+source_installer=bind(SOURCE_INSTALLER_REL,SOURCE_INSTALLER_BLOB)
+receipt_installer=bind(RECEIPT_INSTALLER_REL,RECEIPT_INSTALLER_BLOB)
+assert "candidate_read_boundaries_nonblocking=true" in source_installer
+assert "copy_source_fifo_swap_nonblocking=true" in source_installer
+assert "os.O_NONBLOCK" in source_installer
+assert "MARKER=_BOOTSTRAP_MARKER" in receipt_installer
+assert "python_isolated_unoptimized_mode_required" in receipt_installer
 
 for token in (
     '#define MARKER "VOID_V7_V5_SOURCE_RECEIPT_STAGE_ROOT_LAUNCHER_V2"',
     '#define FIXED_ROOT "/opt/void-v7-v5-source-receipt-stage-closed-tree-v2"',
-    '#define PLAN_CONTRACT_ID "voidv7v5stageadmissionplan2_3e1b9c2c9cc112da764de6b68e7a4959d416cf286f3265759f331e1c5fd8c9fe"',
-    '#define PLAN_CONTRACT_BLOB "615ed3862c2a78fc26dcc9d26cb1171966cf0b24"',
+    '#define PLAN_CONTRACT_ID "voidv7v5stageadmissionplan2_ab5bf952568a3633b494322dcef46f4ee8e15d20f8881c8bd9b6f787f414e2a5"',
+    '#define PLAN_CONTRACT_BLOB "c7ff1128ff04f3ce5f995206af52f844564c6b39"',
     '#define SOURCE_INSTALLER_REL "source/ops/precision/void_v7_v5_source_stage_install_v1.py"',
     '#define RECEIPT_INSTALLER_REL "source/ops/precision/void_v7_v5_receipt_stage_install_v1.py"',
-    '#define SOURCE_INSTALLER_BYTES 126021U',
-    '#define SOURCE_INSTALLER_SHA256 "588a665df3788b21465859ef99a5b58f09bfeb3fc0a5955c44eb6d6aee6cee25"',
-    '#define RECEIPT_INSTALLER_BYTES 11645U',
-    '#define RECEIPT_INSTALLER_SHA256 "0191532118f7d543ac0b9cf2ea287f5a22f4dbf686b6b433d0c45a3d896b3d09"',
-    '#define IMPLEMENTATION_HEAD "f621ebb7b5e74ea1b34d30eff62bf6b66bb79b16"',
-    '#define IMPLEMENTATION_TREE "b0affbc7f3553cef7f4ab46d7185c934b0013fe2"',
+    '#define SOURCE_INSTALLER_BYTES 129332U',
+    '#define SOURCE_INSTALLER_SHA256 "b4e12ba83f2ef874bd5f55bf2577e412a02a6d9010ee5563f9dbd2dfb0db00db"',
+    '#define RECEIPT_INSTALLER_BYTES 12395U',
+    '#define RECEIPT_INSTALLER_SHA256 "755ce5836df711f7c3ff254f71246db7e1e6de9509dd84eddd6b67b2c8973a3a"',
+    '#define IMPLEMENTATION_HEAD "5ec1658836c2f7580cbbd27d9b49b5f3892b90ef"',
+    '#define IMPLEMENTATION_TREE "681040be548b140e9a15d2c4c851ecba9e8623ed"',
     '#define VOID_V7_V5_STAGE_V2_ACCEPTANCE_ID "UNACCEPTED"',
     '#define VOID_V7_V5_STAGE_V2_ACCEPTED_MANIFEST_SHA256 ""',
     '#define VOID_V7_V5_STAGE_V2_ACCEPTED_MANIFEST_BYTES 0U',
@@ -239,6 +250,9 @@ print("qualifier_blob="+QUALIFIER_BLOB)
 print("trusted_admission_plan_blob="+PLAN_BLOB)
 print("launcher_compiles_with_werror=true")
 print("launcher_self_test_green=true")
+print("hardened_installer_generation_bound=true")
+print("source_nonblocking_read_boundary_bound=true")
+print("receipt_pre_import_isolation_bound=true")
 print("selected_installer_procfd_execution_bound=true")
 print("path_substitution_cannot_change_executed_fd_bytes=true")
 print("production_manifest_lock_unbound=true")

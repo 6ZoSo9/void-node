@@ -3,19 +3,19 @@
 ## Purpose
 
 Implement the production-disabled trusted admission surfaces defined by Draft
-#3717 for the exact canonical staging installers proven in #3715.
+#3720 for the exact canonical staging installers proven in #3719.
 
 This successor reuses the reviewed #3714 closed-tree/static-launcher design but
 binds the canonical installer generation and canonical stage custody:
 
 - installer source commit:
-  `f621ebb7b5e74ea1b34d30eff62bf6b66bb79b16`;
+  `5ec1658836c2f7580cbbd27d9b49b5f3892b90ef`;
 - installer source tree:
-  `b0affbc7f3553cef7f4ab46d7185c934b0013fe2`;
+  `681040be548b140e9a15d2c4c851ecba9e8623ed`;
 - source installer blob:
-  `e1fa010d5128b9846aafc8d353c874da96dfa48d`;
+  `b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b`;
 - receipt installer blob:
-  `3ff41612a8a7aed926995e0892383e75fad99c7a`;
+  `8a8da645c73216714fad1140c9981745fbb4a8de`;
 - source stage mode:
   `0755`;
 - source internal build path:
@@ -34,13 +34,13 @@ Future fixed closed-tree root:
 The launcher binds:
 
 - V2 trusted-admission plan ID
-  `voidv7v5stageadmissionplan2_3e1b9c2c9cc112da764de6b68e7a4959d416cf286f3265759f331e1c5fd8c9fe`;
+  `voidv7v5stageadmissionplan2_ab5bf952568a3633b494322dcef46f4ee8e15d20f8881c8bd9b6f787f414e2a5`;
 - V2 plan blob
-  `615ed3862c2a78fc26dcc9d26cb1171966cf0b24`;
-- source installer: 126,021 bytes,
-  SHA-256 `588a665df3788b21465859ef99a5b58f09bfeb3fc0a5955c44eb6d6aee6cee25`;
-- receipt installer: 11,645 bytes,
-  SHA-256 `0191532118f7d543ac0b9cf2ea287f5a22f4dbf686b6b433d0c45a3d896b3d09`;
+  `c7ff1128ff04f3ce5f995206af52f844564c6b39`;
+- source installer: 129,332 bytes,
+  SHA-256 `b4e12ba83f2ef874bd5f55bf2577e412a02a6d9010ee5563f9dbd2dfb0db00db`;
+- receipt installer: 12,395 bytes,
+  SHA-256 `755ce5836df711f7c3ff254f71246db7e1e6de9509dd84eddd6b67b2c8973a3a`;
 - exact implementation commit/tree above.
 
 Its four operations remain:
@@ -152,5 +152,24 @@ wc_void_market_activation=false
 treasury_liquidity_action=false
 funds_movement=false
 ```
+
+PROTECT THE CORE.
+
+## Hardened installer boundary
+
+This V2 launcher generation now binds the #3719 installer hardening accepted by
+#3720:
+
+- source retained reads include `O_NONBLOCK` alongside `O_NOFOLLOW`, with
+  a real regular→FIFO race regression;
+- the receipt installer enforces isolated/safe-path Python before
+  source-tree-shadowable imports, with a hostile sibling import regression.
+
+The launcher still executes the selected installer from a retained descriptor
+under static Python `-I -B -S`, so the hardened installer checks are an
+additional fail-closed layer.
+
+The production manifest remains unaccepted. No root execution or staging apply
+is authorized by this rebind.
 
 PROTECT THE CORE.
