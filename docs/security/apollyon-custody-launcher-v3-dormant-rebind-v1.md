@@ -67,6 +67,20 @@ It does not mutate custody state, consumed records or sockets and does not
 create a durable attempt claim, start training, access keys, sign, transact or
 move funds.
 
+## Process-level shutdown proof
+
+The stacked source proof also launches a disposable Node child that imports only
+the v3 shutdown helper, waits at top level, receives real SIGTERM and SIGINT,
+and requires both runs to:
+
+- settle the synthetic service stop before exit;
+- settle the top-level await;
+- exit with code 0 rather than Node's unsettled-await exit status;
+- emit no unsettled top-level-await warning.
+
+This directly exercises the process-level failure class observed on Xiphos
+without starting the custody service or touching host state.
+
 ## Next gate
 
 After a successful dormant rebind, the eligible live gate is
