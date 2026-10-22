@@ -31,7 +31,7 @@ PARENT=TARGET.parent
 TEMP_NAME=".deployment-receipt.json.stage-v5.build-v1"
 
 STAGE_PLAN_REL="ops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json"
-STAGE_PLAN_BLOB="e0bc98a4e44d25273f9247b4982a1474fc2dde27"
+STAGE_PLAN_BLOB="fd63775747dae7b90a565686597d016a907bc313"
 
 SHA40=re.compile(r"^[0-9a-f]{40}$")
 WRITE_BOUNDARY=False

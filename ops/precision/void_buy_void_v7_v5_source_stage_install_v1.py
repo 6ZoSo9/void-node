@@ -42,7 +42,7 @@ BASE_HEAD = "28a1952407a25a2ac12f2d7095858485c27ad926"
 BUILDER_REL = "ops/precision/void_v7_source_release_full_history_reseal_v2.py"
 BUILDER_BLOB = "bb78c7d9f468baa20b580d052d934d9b97c05134"
 V4_REL = "ops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json"
-V4_BLOB = "e0bc98a4e44d25273f9247b4982a1474fc2dde27"
+V4_BLOB = "fd63775747dae7b90a565686597d016a907bc313"
 ATOMIC_REL = "ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
 ATOMIC_BLOB = "3fe1158a0fdf19fa4307c2a8122314b75ee36345"
 
