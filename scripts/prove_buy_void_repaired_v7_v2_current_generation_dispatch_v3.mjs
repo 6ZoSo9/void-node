@@ -457,22 +457,22 @@ function verifyProviderIdentity(){
 
 function verifyWorkflowDispatch(){
   // Keep the historical V1 trigger, but require every current workflow to
-  // select the separately versioned V2 source-generation proof and marker.
+  // select the separately versioned V3 source-generation proof and marker.
   const rows=[
-    [FINAL_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"],
-    [HISTORICAL_WORKFLOW,"HISTORICAL_V1_REFUSAL_CURRENT_V2_DISPATCH_V2"],
-    [DELTA_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"],
-    [V4_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"],
-    [PROVIDER_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"],
+    [FINAL_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V3"],
+    [HISTORICAL_WORKFLOW,"HISTORICAL_V1_V2_REFUSAL_CURRENT_V3_DISPATCH_V3"],
+    [DELTA_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V3"],
+    [V4_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V3"],
+    [PROVIDER_WORKFLOW,"CURRENT_PROTECTED_INTEGRATION_DISPATCH_V3"],
   ];
   const successor="scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs";
   for(const [relative,marker] of rows){
     const source=read(relative,256*1024).toString("utf8");
-    assert.ok(source.includes(marker),"v2_workflow_dispatch_marker_missing:"+relative);
+    assert.ok(source.includes(marker),"v3_workflow_dispatch_marker_missing:"+relative);
     assert.ok(source.includes(SELF),"historical_v1_trigger_missing:"+relative);
-    assert.ok(source.includes(successor),"v2_workflow_trigger_missing:"+relative);
+    assert.ok(source.includes(successor),"v3_workflow_trigger_missing:"+relative);
     assert.ok(source.includes("node "+successor+" --self-test"),
-      "v2_workflow_invocation_missing:"+relative);
+      "v3_workflow_invocation_missing:"+relative);
     assert.ok(!source.includes("node "+SELF+" --self-test"),
       "historical_v1_proof_still_current_dispatch:"+relative);
   }
@@ -577,5 +577,5 @@ if(args.length===0||(args.length===1&&args[0]==="--self-test")){
 }else if(args.length===1&&args[0]==="--receipt"){
   process.stdout.write(JSON.stringify(verify(),null,2)+"\n");
 }else{
-  throw new Error("usage: prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs [--self-test|--receipt]");
+  throw new Error("usage: prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs [--self-test|--receipt]");
 }
