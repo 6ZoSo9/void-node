@@ -62,6 +62,10 @@ for required in (
     'service_unexpected_exec_command:',
     'service["NoNewPrivileges"]!="yes"',
     'service["RestrictAddressFamilies"]!="AF_UNIX"',
+    'uid_process_generations(',
+    'custody_uid_process_present:',
+    'training_uid_process_present:',
+    'require_no_role_processes()',
     'require_trusted_ancestor_chain(',
     'trusted_ancestor_invalid:',
     'os.replace(tmp,SERVICE_PATH)',
@@ -95,6 +99,10 @@ for line in (
     "v3_launcher_partial_pending_recovery=true",
     "v3_launcher_resumed_pending_fsync=true",
     "loaded_v2_forces_reload_even_without_need_reload_flag=true",
+    "custody_uid_process_absence_required=true",
+    "training_uid_process_absence_required=true",
+    "saved_fs_uid_slots_counted=true",
+    "all_four_uid_slots_counted=true",
     "service_unit_atomic_replace=true",
     "daemon_reload_only_systemd_mutation=true",
     "service_action=false",
@@ -116,6 +124,10 @@ print("v3_launcher_pending_inode_bound=true")
 print("v3_launcher_partial_pending_recovery=true")
 print("v3_launcher_resumed_pending_fsync=true")
 print("loaded_v2_forces_reload_even_without_need_reload_flag=true")
+print("custody_uid_process_absence_required=true")
+print("training_uid_process_absence_required=true")
+print("saved_fs_uid_slots_counted=true")
+print("all_four_uid_slots_counted=true")
 print("service_unit_atomic_replace=true")
 print("daemon_reload_only_systemd_mutation=true")
 print("v3_qualifier_group_fix_bound=true")
