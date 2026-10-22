@@ -8,6 +8,17 @@ const vm = require("node:vm");
 const repositoryRoot = path.resolve(__dirname, "..");
 const target = path.join(repositoryRoot, "src/diag/datanet_receipts_persist_v1.cjs");
 const source = fs.readFileSync(target, "utf8");
+const packageManifest = JSON.parse(
+  fs.readFileSync(path.join(repositoryRoot, "package.json"), "utf8"),
+);
+assert.equal(
+  packageManifest.dependencies.express,
+  "4.22.3",
+  "router alias contract is bound to pinned Express 4.22.3",
+);
+const EXPRESS4_ROUTER_GETTER_ERROR =
+  "'app.router' is deprecated!\\n" +
+  "Please see the 3.x to 4.x migration guide for details on how to update your app.";
 
 function makeMountHarness(app, options = {}) {
   let tick;
@@ -75,7 +86,7 @@ function makeMountHarness(app, options = {}) {
     configurable: true,
     get() {
       legacyRouterReads += 1;
-      throw new Error("express deprecated app.router getter");
+      throw new Error(EXPRESS4_ROUTER_GETTER_ERROR);
     },
   });
   const harness = makeMountHarness(app);
@@ -110,6 +121,12 @@ function makeMountHarness(app, options = {}) {
       throw new Error("synthetic_after_retain");
     },
   };
+  Object.defineProperty(app, "router", {
+    configurable: true,
+    get() {
+      throw new Error("synthetic_unreadable_alias_after_retain");
+    },
+  });
   const harness = makeMountHarness(app);
 
   assert.doesNotThrow(harness.tick);
@@ -118,6 +135,34 @@ function makeMountHarness(app, options = {}) {
   assert.equal(app.__void_datanet_receipts_persist_v1_mounted, true);
   assert.equal(app._router.stack.length, 1);
   assert.equal(harness.clearCalls(), 1, "retained registration stops retries");
+})();
+
+(function proveUnexpectedUnreadableAliasFailsClosed() {
+  let attempts = 0;
+  const app = {
+    _router: { stack: [] },
+    get() {
+      attempts += 1;
+      throw new Error("synthetic_unreadable_alias_before_retain");
+    },
+  };
+  Object.defineProperty(app, "router", {
+    configurable: true,
+    get() {
+      throw new Error("synthetic_unexpected_router_getter");
+    },
+  });
+  const harness = makeMountHarness(app);
+
+  assert.doesNotThrow(harness.tick);
+  assert.equal(attempts, 1);
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "indeterminate");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mounted, undefined);
+  assert.equal(
+    harness.clearCalls(),
+    1,
+    "unexpected unreadable alias must fail closed instead of duplicating a route",
+  );
 })();
 
 (function proveMountErrorFallbackVisible() {
@@ -520,6 +565,7 @@ function metric(body, name) {
   console.log("VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN");
   console.log("registration_throw_retry=true");
   console.log("express4_router_getter_retry=true");
+  console.log("unexpected_unreadable_alias_fail_closed=true");
   console.log("mount_error_fallback_visible=true");
   console.log("retained_throw_single_mount=true");
   console.log("unknown_retention_fail_closed=true");
