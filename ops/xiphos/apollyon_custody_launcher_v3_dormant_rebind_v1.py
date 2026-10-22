@@ -679,6 +679,42 @@ def apply()->dict[str,object]:
 
 def self_test()->None:
     assert git_blob(b"abc")==hashlib.sha1(b"blob 3\0abc").hexdigest()
+
+    def write_proc(
+        proc_root:Path,
+        pid:int,
+        uids:tuple[int,int,int,int],
+        start_ticks:str,
+    )->None:
+        process_root=proc_root/str(pid)
+        process_root.mkdir()
+        (process_root/"status").write_text(
+            "Name:\tsynthetic\nUid:\t"
+            +"\t".join(str(value) for value in uids)
+            +"\n",
+            encoding="utf-8",
+        )
+        stat_fields=["S"]+["0"]*18+[start_ticks]
+        (process_root/"stat").write_text(
+            f"{pid} (synthetic) "+" ".join(stat_fields)+"\n",
+            encoding="ascii",
+        )
+
+    with tempfile.TemporaryDirectory(
+        prefix="apollyon-v3-rebind-proc-empty-"
+    ) as td:
+        assert uid_process_generations(4242,Path(td))=={}
+    with tempfile.TemporaryDirectory(
+        prefix="apollyon-v3-rebind-proc-slots-"
+    ) as td:
+        proc_root=Path(td)
+        write_proc(proc_root,101,(4242,1,2,3),"77")
+        write_proc(proc_root,102,(1,4242,2,3),"88")
+        write_proc(proc_root,103,(1,2,4242,3),"99")
+        write_proc(proc_root,104,(1,2,3,4242),"100")
+        assert uid_process_generations(4242,proc_root)=={
+            101:"77",102:"88",103:"99",104:"100",
+        }
     assert classify(
         "v2_exact","absent",
         "v2","no",
@@ -766,6 +802,7 @@ def self_test()->None:
     print("custody_uid_process_absence_required=true")
     print("training_uid_process_absence_required=true")
     print("saved_fs_uid_slots_counted=true")
+    print("all_four_uid_slots_counted=true")
     print("service_unit_atomic_replace=true")
     print("daemon_reload_only_systemd_mutation=true")
     print("service_action=false")
