@@ -5,6 +5,7 @@ on:
     paths:
       - "tools/void-buy-stable-request-root-policy-v1.mjs"
       - "scripts/prove_void_buy_stable_request_root_policy_v1.mjs"
+      - "scripts/prove_void_buy_stable_request_root_policy_v2.mjs"
       - "docs/operators/buy-void-stable-request-root-policy-v1.md"
       - ".github/workflows/buy-void-stable-request-root-policy-v1.yml"
       - "src/economic/buy_void_request_custody_read_policy_v1.ts"
@@ -15,6 +16,7 @@ on:
     paths:
       - "tools/void-buy-stable-request-root-policy-v1.mjs"
       - "scripts/prove_void_buy_stable_request_root_policy_v1.mjs"
+      - "scripts/prove_void_buy_stable_request_root_policy_v2.mjs"
       - "docs/operators/buy-void-stable-request-root-policy-v1.md"
       - ".github/workflows/buy-void-stable-request-root-policy-v1.yml"
       - "src/economic/buy_void_request_custody_read_policy_v1.ts"
@@ -48,9 +50,18 @@ jobs:
           npm run build
           node --check tools/void-buy-stable-request-root-policy-v1.mjs
           node --check scripts/prove_void_buy_stable_request_root_policy_v1.mjs
-          node scripts/prove_void_buy_stable_request_root_policy_v1.mjs |
+          node --check scripts/prove_void_buy_stable_request_root_policy_v2.mjs
+          set +e
+          node scripts/prove_void_buy_stable_request_root_policy_v1.mjs \
+            > "$RUNNER_TEMP/stable-request-root-v1.hold" 2>&1
+          v1_rc=$?
+          set -e
+          test "$v1_rc" -ne 0
+          grep -Fq 'accepted_parent_source_blob_drift:src/economic/buy_void_verified_payment_capacity_admission_v1.ts' \
+            "$RUNNER_TEMP/stable-request-root-v1.hold"
+          node scripts/prove_void_buy_stable_request_root_policy_v2.mjs |
             tee "$RUNNER_TEMP/stable-request-root-v1.txt"
-          grep -Fx 'VOID_BUY_VOID_STABLE_REQUEST_ROOT_POLICY_V1_GREEN' "$RUNNER_TEMP/stable-request-root-v1.txt"
+          grep -Fx 'VOID_BUY_VOID_STABLE_REQUEST_ROOT_POLICY_V2_GREEN' "$RUNNER_TEMP/stable-request-root-v1.txt"
           grep -Fx 'request_root=/var/lib/void-buy-request-journal-v1' "$RUNNER_TEMP/stable-request-root-v1.txt"
           grep -Fx 'request_directory_mode=0750' "$RUNNER_TEMP/stable-request-root-v1.txt"
           grep -Fx 'fixed_journal_mode=0640' "$RUNNER_TEMP/stable-request-root-v1.txt"
