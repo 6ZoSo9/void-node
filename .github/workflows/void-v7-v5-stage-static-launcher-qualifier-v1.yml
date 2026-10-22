@@ -1,0 +1,108 @@
+name: VOID V7 V5 staging static launcher qualifier v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-v7-v5-stage-static-launcher-qualifier-v1.yml"
+      - "docs/operators/void-v7-v5-stage-static-launcher-qualifier-v1.md"
+      - "ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v1.c"
+      - "ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v1.py"
+      - "scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py"
+      - "ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact launcher candidate head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact parent and five-add scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PARENT=4b7a3f43ddb2be18611a99d8cac6db4c070a257c
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+          mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
+          expected=(
+            $'A\t.github/workflows/void-v7-v5-stage-static-launcher-qualifier-v1.yml'
+            $'A\tdocs/operators/void-v7-v5-stage-static-launcher-qualifier-v1.md'
+            $'A\tops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v1.py'
+            $'A\tops/precision/void_v7_v5_source_receipt_stage_root_launcher_v1.c'
+            $'A\tscripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "$PARENT" HEAD
+
+      - name: Bind exact sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v1.c)" = "79c273b0b17b2467a26ede1a4134322eecd5dfcb"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v1.py)" = "c3ec29996876aa5b0f712988c4595c946d51868b"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py)" = "d07cf3cfc6847e2ec5a58bde33dca48482da515a"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v1.md)" = "62e8e25050bb4f30b3ba406fb67665c9995eb3ca"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json)" = "c070bcf061c57a066a7c037d768888f8838448e3"
+
+      - name: Python syntax
+        run: |
+          python3 -I -B -m py_compile             ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v1.py             scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py
+
+      - name: Build static launcher candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcc -std=c11 -O2 -Wall -Wextra -Werror -static             ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v1.c             -o "$RUNNER_TEMP/v5-stage-launcher-static"
+          test -x "$RUNNER_TEMP/v5-stage-launcher-static"
+          file "$RUNNER_TEMP/v5-stage-launcher-static" | grep -F 'statically linked'
+          "$RUNNER_TEMP/v5-stage-launcher-static" --self-test | tee "$RUNNER_TEMP/static-self-test.log"
+          grep -Fx 'VOID_V7_V5_SOURCE_RECEIPT_STAGE_ROOT_LAUNCHER_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/static-self-test.log"
+          grep -Fx 'production_payload_manifest_lock_embedded=false' "$RUNNER_TEMP/static-self-test.log"
+          grep -Fx 'python_selected_installer_descriptor_inheritance_required=true' "$RUNNER_TEMP/static-self-test.log"
+          grep -Fx 'root_execution_authorized=false' "$RUNNER_TEMP/static-self-test.log"
+          grep -Fx 'source_stage_apply_authorized=false' "$RUNNER_TEMP/static-self-test.log"
+          grep -Fx 'receipt_stage_apply_authorized=false' "$RUNNER_TEMP/static-self-test.log"
+
+      - name: Prove launcher and qualifier boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/v5-stage-launcher-qualifier-proof.log"
+          python3 -I -B scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py | tee "$out"
+          grep -Fx 'VOID_V7_V5_STAGE_STATIC_LAUNCHER_QUALIFIER_V1_PROOF_GREEN' "$out"
+          grep -Fx 'launcher_compiles_with_werror=true' "$out"
+          grep -Fx 'launcher_self_test_green=true' "$out"
+          grep -Fx 'trusted_admission_rebound_to_updated_installer_generation=true' "$out"
+          grep -Fx 'upstream_builder_success_resealed_in_admission_plan=true' "$out"
+          grep -Fx 'actual_upstream_installer_bytes_and_sha256_bound=true' "$out"
+          grep -Fx 'selected_installer_procfd_execution_bound=true' "$out"
+          grep -Fx 'path_substitution_cannot_change_executed_fd_bytes=true' "$out"
+          grep -Fx 'production_manifest_lock_unbound=true' "$out"
+          grep -Fx 'normal_launcher_operation_fail_closed=true' "$out"
+          grep -Fx 'four_fixed_operations_only=true' "$out"
+          grep -Fx 'caller_path_authority=false' "$out"
+          grep -Fx 'caller_source_generation_authority=false' "$out"
+          grep -Fx 'read_only_pair_qualifier_self_test_green=true' "$out"
+          grep -Fx 'journal_fence_path_selection_deferred=true' "$out"
+          grep -Fx 'launcher_install_authorized=false' "$out"
+          grep -Fx 'root_execution_authorized=false' "$out"
+          grep -Fx 'source_stage_apply_authorized=false' "$out"
+          grep -Fx 'receipt_stage_apply_authorized=false' "$out"
+          grep -Fx 'fixed_source_exchange_authority=false' "$out"
+          grep -Fx 'fixed_receipt_exchange_authority=false' "$out"
+          grep -Fx 'service_mutation=false' "$out"
+          grep -Fx 'public_presale_activation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
