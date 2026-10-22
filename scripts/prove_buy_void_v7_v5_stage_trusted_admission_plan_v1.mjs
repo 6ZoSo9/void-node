@@ -10,12 +10,12 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const MARKER="VOID_V7_V5_STAGE_TRUSTED_ADMISSION_PLAN_V1";
 const PARENT="5489b50be1e5631a6958d78afeb290f9d1b444bb";
 const PLAN="ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json";
-const PLAN_BLOB="1688e55a0f2b2065b4c27a651a35c1aa9e0138b8";
+const PLAN_BLOB="c070bcf061c57a066a7c037d768888f8838448e3";
 const SELF="scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v1.mjs";
 const DOC="docs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v1.md";
 const WORKFLOW=".github/workflows/buy-void-v7-v5-stage-trusted-admission-plan-v1.yml";
 const OWNED=Object.freeze([WORKFLOW,DOC,PLAN,SELF].sort());
-const EXPECTED_ID="voidv7v5stageadmissionplan1_050ae2426fcf4b9895ac92b280274c062ed95fc97358fb9786ee6b6b890cee2a";
+const EXPECTED_ID="voidv7v5stageadmissionplan1_55bfe3c9e93159cefc69cb946dbb85e504fc225a93d832a8d13b21547328c9b2";
 
 const BOUND=Object.freeze([
   ["ops/precision/void_v7_v5_source_stage_install_v1.py","1f251a8489e0b2a69683d991785cb4f46fa6dff5"],
@@ -72,7 +72,7 @@ assert.equal(plan_id,"voidv7v5stageadmissionplan1_"+sha256(canonical(body)));
 assert.equal(body.implementation_generation.commit,PARENT);
 assert.equal(body.implementation_generation.tree,"3b12eed28fe11a2b20f95ef185f56bd5e37677a1");
 assert.equal(body.implementation_generation.focused_workflow_run,39822339296);
-assert.equal(body.implementation_generation.focused_workflow_success,false);
+assert.equal(body.implementation_generation.focused_workflow_success,true);
 assert.equal(body.closed_tree_precedent.seal_mode,"CREATE_ONLY_CLOSED_TREE_V1");
 assert.equal(body.closed_tree_precedent.model_reused_not_modified,true);
 
@@ -144,7 +144,7 @@ assert.equal(
   "be8012e94c1d5d8f51b0162eb009ef16d6e81aaf",
 );
 console.log("historical_closed_tree_identities_plan_bound=true");
-console.log("upstream_builder_final_workflow_conclusion_pending=true");
+console.log("upstream_builder_exact_head_workflow_success_verified=true");
 
 console.log(MARKER+"_PROOF_GREEN");
 console.log("plan_id="+EXPECTED_ID);

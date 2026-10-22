@@ -11,7 +11,7 @@ stage apply.
 
 Plan ID:
 
-`voidv7v5stageadmissionplan1_050ae2426fcf4b9895ac92b280274c062ed95fc97358fb9786ee6b6b890cee2a`
+`voidv7v5stageadmissionplan1_55bfe3c9e93159cefc69cb946dbb85e504fc225a93d832a8d13b21547328c9b2`
 
 ## Bound implementation
 
@@ -28,7 +28,7 @@ Exact source-authored implementation generation:
 - staging plan blob
   `37c6f5bd5753f05e57dde3c95f9c2f89c0abdc4d`.
 
-Updated focused #3712 workflow `39822339296`: its proof job completed successfully, but the workflow run had not reached a terminal SUCCESS conclusion when this plan was bound. `focused_workflow_success=false` remains a conservative explicit HOLD pending that final conclusion.
+The exact-head #3712 staging-builders workflow `39822339296` completed with **SUCCESS** on `5489b50be1e5631a6958d78afeb290f9d1b444bb`; `focused_workflow_success=true` records that verified upstream result. This is a new, content-addressed plan generation; the preceding conservative plan with `focused_workflow_success=false` remains historical evidence. Upstream full CI was 17 SUCCESS and one historic V4 protected-lock scope failure, so this does **not** assert complete CI green or grant host authority.
 
 ## Reused closed-tree trust model
 

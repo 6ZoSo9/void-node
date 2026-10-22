@@ -1,5 +1,5 @@
 {
-  "plan_id": "voidv7v5stageadmissionplan1_050ae2426fcf4b9895ac92b280274c062ed95fc97358fb9786ee6b6b890cee2a",
+  "plan_id": "voidv7v5stageadmissionplan1_55bfe3c9e93159cefc69cb946dbb85e504fc225a93d832a8d13b21547328c9b2",
   "schema": "void_v7_v5_stage_trusted_admission_plan_v1",
   "marker": "VOID_V7_V5_STAGE_TRUSTED_ADMISSION_PLAN_V1",
   "version": 1,
@@ -16,7 +16,7 @@
     "implementation_proof_git_blob_sha1": "bba7841a9dea7082b05f03fccf90c7a0eeb3949e",
     "staging_plan_git_blob_sha1": "37c6f5bd5753f05e57dde3c95f9c2f89c0abdc4d",
     "focused_workflow_run": 39822339296,
-    "focused_workflow_success": false
+    "focused_workflow_success": true
   },
   "closed_tree_precedent": {
     "seal_mode": "CREATE_ONLY_CLOSED_TREE_V1",

@@ -62,9 +62,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json)" = "1688e55a0f2b2065b4c27a651a35c1aa9e0138b8"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v1.mjs)" = "693a31a5d3d9869d43c41f8c5ac52480e29eb24a"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v1.md)" = "18f0fcbefda31c2c8c2dc474398c59a97f0a9611"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json)" = "c070bcf061c57a066a7c037d768888f8838448e3"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v1.mjs)" = "71d7e54d72c3312e09d5ccf35e316e1f387783e6"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v1.md)" = "ce608fcff14298b2634075c5264e12d8841f69fd"
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_stage_install_v1.py)" = "1f251a8489e0b2a69683d991785cb4f46fa6dff5"
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_receipt_stage_install_v1.py)" = "d719de6e8c4974a9356577ee16a9e68fa02b7ca0"
 
@@ -76,10 +76,10 @@ jobs:
           out="$RUNNER_TEMP/v5-stage-admission-plan.log"
           node scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v1.mjs | tee "$out"
           grep -Fx 'VOID_V7_V5_STAGE_TRUSTED_ADMISSION_PLAN_V1_PROOF_GREEN' "$out"
-          grep -Fx 'plan_id=voidv7v5stageadmissionplan1_050ae2426fcf4b9895ac92b280274c062ed95fc97358fb9786ee6b6b890cee2a' "$out"
+          grep -Fx 'plan_id=voidv7v5stageadmissionplan1_55bfe3c9e93159cefc69cb946dbb85e504fc225a93d832a8d13b21547328c9b2' "$out"
           grep -Fx 'closed_tree_precedent_bound=true' "$out"
           grep -Fx 'historical_closed_tree_identities_plan_bound=true' "$out"
-          grep -Fx 'upstream_builder_final_workflow_conclusion_pending=true' "$out"
+          grep -Fx 'upstream_builder_exact_head_workflow_success_verified=true' "$out"
           grep -Fx 'complete_source_snapshot_required=true' "$out"
           grep -Fx 'static_python_descriptor_execution_required=true' "$out"
           grep -Fx 'minimal_fixed_environment_required=true' "$out"
