@@ -1,0 +1,96 @@
+name: VOID V7 V5 source receipt staging plan v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-v7-v5-source-receipt-staging-plan-v1.yml"
+      - "docs/architecture/buy-void-v7-v5-source-receipt-staging-plan-v1.md"
+      - "ops/security/buy-void-v7-v5-source-receipt-staging-plan-v1.json"
+      - "scripts/prove_buy_void_v7_v5_source_receipt_staging_plan_v1.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+      - "ops/security/buy-void-v7-protected-source-receipt-exchange-plan-v1.json"
+      - "scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs"
+      - "ops/precision/void_v7_source_release_full_history_reseal_v2.py"
+      - "scripts/prove_void_v7_source_release_full_history_reseal_v2.py"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts"
+      - ".github/workflows/buy-void-source-finality-v7-deployment-receipt-candidate-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact staging-plan head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact parent and four-add scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PARENT=242aa1054e1c9ee36a06047ea350f92976870038
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+          mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-v7-v5-source-receipt-staging-plan-v1.yml'
+            $'A\tdocs/architecture/buy-void-v7-v5-source-receipt-staging-plan-v1.md'
+            $'A\tops/security/buy-void-v7-v5-source-receipt-staging-plan-v1.json'
+            $'A\tscripts/prove_buy_void_v7_v5_source_receipt_staging_plan_v1.mjs'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "$PARENT" HEAD
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Bind exact staging plan surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-source-receipt-staging-plan-v1.json)" = "37c6f5bd5753f05e57dde3c95f9c2f89c0abdc4d"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_source_receipt_staging_plan_v1.mjs)" = "239bcf83944a9f045894ade9c73c84ceed2ee559"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-v5-source-receipt-staging-plan-v1.md)" = "ce64637fda88a91c58dff387a74025be83c1e9f3"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = "bc1b2f4095315861db7a257d4cc3c80a9f112530"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-protected-source-receipt-exchange-plan-v1.json)" = "191a8015e438bc1cebf9fadfcbc23c68f0d2d4ad"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs)" = "f3d1fdcd44a817dfffa35d59d7b7c2a3bc505912"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v2.py)" = "bb78c7d9f468baa20b580d052d934d9b97c05134"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v2.py)" = "77c0e6eaa859f3f4d6df8a46da477e72a451c10c"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts)" = "76a05cbcd1be72e2817f04b676b5a8c395a5bf0e"
+
+      - name: Prove staging plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_v7_v5_source_receipt_staging_plan_v1.mjs
+          out="$RUNNER_TEMP/v5-staging-plan.log"
+          node scripts/prove_buy_void_v7_v5_source_receipt_staging_plan_v1.mjs | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_V7_V5_SOURCE_RECEIPT_STAGING_PLAN_V1_PROOF_GREEN' "$out"
+          grep -Fx 'plan_id=voidv7v5stageplan1_f1a73d229fd78352758302cefd794bd07cfff77daaa02468c80125e378d41fa5' "$out"
+          grep -Fx 'descriptor_bound_source_reads=true' "$out"
+          grep -Fx 'equal_length_swap_rejected=true' "$out"
+          grep -Fx 'v5_full_history_reseal_bound=true' "$out"
+          grep -Fx 'v5_receipt_cross_node_identity_bound=true' "$out"
+          grep -Fx 'precision_same_filesystem_census_recorded=true' "$out"
+          grep -Fx 'root_stage_creation_authority=false' "$out"
+          grep -Fx 'fixed_source_exchange_authority=false' "$out"
+          grep -Fx 'fixed_receipt_exchange_authority=false' "$out"
+          grep -Fx 'service_mutation=false' "$out"
+          grep -Fx 'public_presale_activation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
