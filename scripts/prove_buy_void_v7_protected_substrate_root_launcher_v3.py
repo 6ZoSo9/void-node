@@ -14,7 +14,7 @@ BOOTSTRAP = ROOT / "ops/precision/void_buy_void_v7_create_only_closed_tree_boots
 BOOTSTRAP_PROOF = ROOT / "scripts/prove_buy_void_v7_create_only_closed_tree_bootstrap_v1.py"
 
 MARKER = "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V3_PROOF"
-SOURCE_BLOB = "b62a8168d7647f71a920300f88a2bedef9527955"
+SOURCE_BLOB = "48d8f4502670413f9a7d4aa83325e0362d6733e8"
 INSTALLER_BLOB = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
 PLAN_BLOB = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
 ACCEPTANCE_BLOB = "919db72903a5fcff59dec7635a4288f41d1753d9"
@@ -91,6 +91,9 @@ assert len(installer_raw) == INSTALLER_BYTES
 assert hashlib.sha256(installer_raw).hexdigest() == INSTALLER_SHA256
 
 source_text = SOURCE.read_text("utf-8")
+assert 'require_exact_dir_entries(FIXED_SOURCE_ROOT,"ops",NULL)' not in source_text
+assert 'require_exact_dir_entries(FIXED_SOURCE_OPS,"precision",NULL)' not in source_text
+assert 'require_exact_dir_entries(FIXED_SOURCE_PRECISION,"void_buy_void_v7_protected_substrate_install_v5.py",NULL)' not in source_text
 for required in (
     '#define MARKER "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_ROOT_LAUNCHER_V3"',
     '#define RECEIPT_SCHEMA "VOID_BUY_VOID_V7_CREATE_ONLY_CLOSED_TREE_RECEIPT_V1"',
@@ -107,6 +110,13 @@ for required in (
     'production_payload_manifest_lock_mismatch',
     'require_production_manifest_lock(&receipt)',
     '#define FIXED_ROOT "/opt/void-buy-void-v7-create-only-closed-tree-v1"',
+    '#define MAX_RECEIPT_BYTES (128U * 1024U * 1024U)',
+    '#define MAX_RECEIPT_ENTRIES 250000U',
+    '#define REQUIRED_RECEIPT_COUNT 21U',
+    '#define FIXED_SOURCE_GIT FIXED_SOURCE_ROOT "/.git"',
+    '#define FIXED_SOURCE_GIT_HEAD FIXED_SOURCE_GIT "/HEAD"',
+    '#define FIXED_SOURCE_GIT_CONFIG FIXED_SOURCE_GIT "/config"',
+    '#define FIXED_SOURCE_GIT_MAIN FIXED_SOURCE_GIT_HEADS "/main"',
     '#define RECEIPT_REL "install-receipt-v1.conf"',
     '#define INSTALLER_REL "source/ops/precision/void_buy_void_v7_protected_substrate_install_v5.py"',
     '#define INSTALLER_SHA256 "' + INSTALLER_SHA256 + '"',
@@ -122,6 +132,15 @@ for required in (
     'canonical_receipt_decimal_required=true',
     'noncanonical_receipt_decimal_accepted',
     'receipt_bound_inode_hash_mode_nlink_required=true',
+    'receipt_entries_alloc_failed',
+    'receipt_entries_not_strictly_sorted',
+    'receipt_total_bytes_limit',
+    'receipt_required_entry_missing',
+    'source/.git/refs/heads/main',
+    'free_receipt(&receipt)',
+    'bind_receipt_file(&receipt,"source/.git/HEAD"',
+    'bind_receipt_file(&receipt,"source/.git/config"',
+    'bind_receipt_file(&receipt,"source/.git/refs/heads/main"',
     'arbitrary_malicious_root_resistance_claimed=false',
     'const char *expected_tree;',
     'const char *expected_full_history_content_sha256;',
@@ -204,7 +223,9 @@ with tempfile.TemporaryDirectory(prefix="void-v7-launcher-v3-proof-") as td:
         "closed_tree_plan_contract_bound=true",
         "closed_tree_acceptance_id_bound=true",
         "receipt_bound_inode_hash_mode_nlink_required=true",
-        "closed_tree_exact_payload_paths_required=true",
+        "closed_tree_fixed_runtime_and_complete_source_payload_required=true",
+        "dynamic_bounded_receipt_entries_required=true",
+        "minimal_git_authority_paths_required=true",
         "create_only_closed_tree_seal_mode_required=true",
         "existing_launcher_v2_unchanged=true",
         "arbitrary_malicious_root_resistance_claimed=false",
@@ -237,6 +258,8 @@ with tempfile.TemporaryDirectory(prefix="void-v7-launcher-v3-proof-") as td:
     print("closed_tree_receipt_first_instruction_bound=true")
     print("canonical_receipt_decimal_bound=true")
     print("receipt_inode_hash_mode_nlink_rebinding_bound=true")
+    print("dynamic_complete_source_receipt_bound=true")
+    print("minimal_git_authority_paths_bound=true")
     print("v5_argument_surface_preserved=true")
     print("fsverity_v2_unchanged_and_v3_absent=true")
     print("production_payload_manifest_lock_bound=false")
