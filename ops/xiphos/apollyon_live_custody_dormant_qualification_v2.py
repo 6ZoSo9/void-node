@@ -764,7 +764,9 @@ def attest_dormant_boundary(
         allow_failed=allow_service_failed,
         expected_unit_file_state="static",
     )
-    exact_dormant(TRAINING_UNIT,allow_failed=True)
+    exact_dormant(
+        TRAINING_UNIT,allow_failed=True,expected_unit_file_state="static"
+    )
     if SOCKET_PATH.exists():hold(prefix+"_socket_present")
     assert_socket_parent_empty(ids)
     require_no_custody_uid_processes(
@@ -900,7 +902,9 @@ def plan()->dict:
     exact_dormant(
         SERVICE_UNIT,allow_failed=True,expected_unit_file_state="static"
     )
-    exact_dormant(TRAINING_UNIT,allow_failed=True)
+    exact_dormant(
+        TRAINING_UNIT,allow_failed=True,expected_unit_file_state="static"
+    )
     if SOCKET_PATH.exists():hold("preexisting_socket_path")
     assert_socket_parent_empty(ids)
     require_no_custody_uid_processes(
@@ -1068,7 +1072,9 @@ def self_test()->None:
         'prestart_custody_uid_process',
         '"prestart_cycle_"+str(cycle)',
         'allow_service_failed=(cycle==1)',
-        'exact_dormant(TRAINING_UNIT,allow_failed=True)',
+        'exact_dormant(
+        TRAINING_UNIT,allow_failed=True,expected_unit_file_state="static"
+    )',
         'custody_uid_process_after_stop',
         'custody_argv_exact_mismatch',
         'target_dropins_present',
