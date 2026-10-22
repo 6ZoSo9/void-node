@@ -54,8 +54,12 @@ The exact bound source generation covers:
 
 ## What this does not prove
 
-This plan does not execute runuser, systemctl, Git, SSH, RPC, or any host
-collector. It performs no host read.
+The source-only proof executes bounded read-only Git metadata/ancestry commands
+and reads regular files from its exact checkout on an unprivileged CI runner.
+It does not execute runuser, systemctl, SSH, RPC, or any host collector; it
+does not query the installed Precision protected host, read custody journals or
+signers, or mutate services/state. In this plan, `host_read_performed=false`
+means no protected installed-host observation, not zero filesystem reads by CI.
 
 In particular all of these remain false:
 
@@ -87,6 +91,6 @@ collector V5** that consumes this source plan, authenticates the already-install
 host generation, performs the required double census, and leaves all mutation
 and economic authority false until independent host review accepts the result.
 
-No host execution or activation authority is granted by this source plan.
+No protected-host execution or activation authority is granted by this source plan.
 
 PROTECT THE CORE.
