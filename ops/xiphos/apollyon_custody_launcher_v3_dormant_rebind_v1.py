@@ -265,15 +265,85 @@ def uid_process_generations(
         observed[pid]=start_ticks
     return observed
 
+def uid_slots_from_status_text(text:str)->tuple[int,int,int,int]:
+    raw=None
+    for line in text.splitlines():
+        if line.startswith("Uid:"):
+            raw=line.split(":",1)[1].strip()
+            break
+    if raw is None:hold("thread_uid_slots_missing")
+    slots=raw.split()
+    if len(slots)!=4 or any(not value.isdigit() for value in slots):
+        hold("thread_uid_slots_invalid")
+    values=tuple(int(value,10) for value in slots)
+    return values  # type: ignore[return-value]
+
+def uid_thread_inventory(
+    uid:int,proc_root:Path=Path("/proc")
+)->dict[int,tuple[int,...]]:
+    try:
+        processes=sorted(
+            (entry for entry in proc_root.iterdir() if entry.name.isdigit()),
+            key=lambda entry:int(entry.name,10),
+        )
+    except OSError as exc:
+        raise Hold("thread_process_census_unavailable") from exc
+    observed={}
+    for process in processes:
+        pid=int(process.name,10)
+        task_root=process/"task"
+        try:
+            threads=sorted(
+                (entry for entry in task_root.iterdir() if entry.name.isdigit()),
+                key=lambda entry:int(entry.name,10),
+            )
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            if not process.exists():continue
+            raise Hold("thread_inventory_unavailable:"+process.name) from exc
+        matched=[]
+        for thread in threads:
+            tid=int(thread.name,10)
+            try:
+                text=(thread/"status").read_text(
+                    encoding="utf-8",errors="strict"
+                )
+            except (FileNotFoundError,ProcessLookupError):
+                continue
+            except (PermissionError,OSError,UnicodeError) as exc:
+                if not thread.exists():continue
+                raise Hold(
+                    "thread_status_unreadable:"+process.name+":"+thread.name
+                ) from exc
+            if uid in uid_slots_from_status_text(text):
+                matched.append(tid)
+        if matched:
+            observed[pid]=tuple(matched)
+    return observed
+
 def require_no_role_processes()->None:
     custody_uid=pwd.getpwnam("voidapollyoncustody").pw_uid
     training_uid=pwd.getpwnam("voidapollyontrain").pw_uid
-    custody=uid_process_generations(custody_uid)
-    training=uid_process_generations(training_uid)
-    if custody:
-        hold("custody_uid_process_present:"+",".join(str(pid) for pid in custody))
-    if training:
-        hold("training_uid_process_present:"+",".join(str(pid) for pid in training))
+    for _ in range(2):
+        custody=uid_thread_inventory(custody_uid)
+        training=uid_thread_inventory(training_uid)
+        if custody:
+            hold(
+                "custody_uid_thread_present:"+
+                ",".join(
+                    f"{pid}:"+"/".join(str(tid) for tid in tids)
+                    for pid,tids in sorted(custody.items())
+                )
+            )
+        if training:
+            hold(
+                "training_uid_thread_present:"+
+                ",".join(
+                    f"{pid}:"+"/".join(str(tid) for tid in tids)
+                    for pid,tids in sorted(training.items())
+                )
+            )
 
 def require_dormant()->dict[str,dict[str,str]]:
     target=unit_props(TARGET_UNIT,(
@@ -715,6 +785,30 @@ def self_test()->None:
         assert uid_process_generations(4242,proc_root)=={
             101:"77",102:"88",103:"99",104:"100",
         }
+
+    with tempfile.TemporaryDirectory(
+        prefix="apollyon-v3-rebind-thread-slots-"
+    ) as td:
+        proc_root=Path(td)
+        process=proc_root/"201"
+        task=process/"task"
+        task.mkdir(parents=True)
+        for tid,uids in (
+            (201,(1,1,1,1)),
+            (202,(1,1,4242,1)),
+            (203,(1,1,1,4242)),
+        ):
+            thread=task/str(tid)
+            thread.mkdir()
+            (thread/"status").write_text(
+                "Name:\tsynthetic\nUid:\t"
+                +"\t".join(str(value) for value in uids)
+                +"\n",
+                encoding="utf-8",
+            )
+        assert uid_thread_inventory(4242,proc_root)=={
+            201:(202,203),
+        }
     assert classify(
         "v2_exact","absent",
         "v2","no",
@@ -782,8 +876,10 @@ def self_test()->None:
         'service["NoNewPrivileges"]!="yes"',
         'service["RestrictAddressFamilies"]!="AF_UNIX"',
         'uid_process_generations(',
-        'custody_uid_process_present:',
-        'training_uid_process_present:',
+        'uid_thread_inventory(',
+        'custody_uid_thread_present:',
+        'training_uid_thread_present:',
+        'thread_status_unreadable:',
         'require_no_role_processes()',
         'rebind_material_changed_before_daemon_reload',
         'V3_LAUNCHER_BLOB="8d8561c08db7e500a818d269580dad15adca9f58"',
@@ -803,6 +899,9 @@ def self_test()->None:
     print("training_uid_process_absence_required=true")
     print("saved_fs_uid_slots_counted=true")
     print("all_four_uid_slots_counted=true")
+    print("all_tid_role_uid_census_required=true")
+    print("saved_fs_uid_only_threads_counted=true")
+    print("role_thread_census_repeated=true")
     print("service_unit_atomic_replace=true")
     print("daemon_reload_only_systemd_mutation=true")
     print("service_action=false")
