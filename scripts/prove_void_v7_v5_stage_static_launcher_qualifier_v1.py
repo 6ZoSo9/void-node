@@ -91,7 +91,7 @@ for token in (
     'python_selected_installer_descriptor_inheritance_required=true',
 ):
     assert token in launcher,token
-script_arguments=re.findall(r'args\\[n\\+\\+\\]\\s*=\\s*([^;]+);',launcher)
+script_arguments=re.findall(r'args\[n\+\+\]\s*=\s*([^;]+);',launcher)
 assert "installer_script" in script_arguments
 assert not any(
     "FIXED_SOURCE_INSTALLER" in value or "FIXED_RECEIPT_INSTALLER" in value or
@@ -187,11 +187,11 @@ with tempfile.TemporaryDirectory(prefix="void-v5-stage-launcher-proof-") as td:
     # Non-root kernel behavior regression: a pathname swap must not change
     # which Python source bytes execute from the retained descriptor.
     fixture=pathlib.Path(td)/"verified_installer.py"
-    fixture.write_text("print('VERIFIED_FD_BYTES')\\n",encoding="utf-8")
+    fixture.write_text("print('VERIFIED_FD_BYTES')\n",encoding="utf-8")
     fd=os.open(fixture,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
     try:
         fixture.rename(pathlib.Path(td)/"original_installer.py")
-        fixture.write_text("print('SWAPPED_PATH_BYTES')\\n",encoding="utf-8")
+        fixture.write_text("print('SWAPPED_PATH_BYTES')\n",encoding="utf-8")
         retained=subprocess.run(
             [sys.executable,"-I","-B","-S",f"/proc/self/fd/{fd}"],
             pass_fds=(fd,),cwd=ROOT,stdin=subprocess.DEVNULL,
