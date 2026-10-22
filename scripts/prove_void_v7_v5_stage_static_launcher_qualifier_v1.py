@@ -44,6 +44,9 @@ assert plan["plan_id"]=="voidv7v5stageadmissionplan1_55bfe3c9e93159cefc69cb946db
 assert plan["implementation_generation"]["commit"]=="5489b50be1e5631a6958d78afeb290f9d1b444bb"
 assert plan["implementation_generation"]["focused_workflow_run"]==39822339296
 assert plan["implementation_generation"]["focused_workflow_success"] is True
+# The superseded admission generation must never be executable authority.
+assert "voidv7v5stageadmissionplan1_050ae2426fcf4b9895ac92b280274c062ed95fc97358fb9786ee6b6b890cee2a" not in launcher
+assert "1688e55a0f2b2065b4c27a651a35c1aa9e0138b8" not in launcher
 assert plan["authority"]["plan_only"] is True
 assert all(
     value is False for key,value in plan["authority"].items()
@@ -264,6 +267,7 @@ print("launcher_compiles_with_werror=true")
 print("launcher_self_test_green=true")
 print("trusted_admission_rebound_to_updated_installer_generation=true")
 print("upstream_builder_success_resealed_in_admission_plan=true")
+print("superseded_admission_generation_rejected=true")
 print("actual_upstream_installer_bytes_and_sha256_bound=true")
 print("selected_installer_procfd_execution_bound=true")
 print("path_substitution_cannot_change_executed_fd_bytes=true")
