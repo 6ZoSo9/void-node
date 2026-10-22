@@ -1,0 +1,99 @@
+name: VOID V7 V5 staging trusted admission plan v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-v7-v5-stage-trusted-admission-plan-v1.yml"
+      - "docs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v1.md"
+      - "ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json"
+      - "scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v1.mjs"
+      - "ops/precision/void_v7_v5_source_stage_install_v1.py"
+      - "ops/precision/void_v7_v5_receipt_stage_install_v1.py"
+      - "ops/precision/void_v7_full_history_protected_replica_root_launcher_v2.c"
+      - "ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json"
+      - "ops/security/buy-void-v7-create-only-closed-tree-acceptance-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact admission-plan head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact parent and four-add scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PARENT=f171973a91056f9e0452cfbe06e760f411f62a72
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+          mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-v7-v5-stage-trusted-admission-plan-v1.yml'
+            $'A\tdocs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v1.md'
+            $'A\tops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json'
+            $'A\tscripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v1.mjs'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "$PARENT" HEAD
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Bind exact plan surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json)" = "3762b757a21048d6eb891245559e7c277716cf93"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v1.mjs)" = "5da721d359487ac88510f5b4a54c9a19a335c8dc"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v1.md)" = "60d38e226586fd1faa591e535f027ec0af8e3937"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_stage_install_v1.py)" = "a3cb44b02606b49be2c678f4fb28e258cf765e3b"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_receipt_stage_install_v1.py)" = "c4e7edfeda3196cdebc1ac4656cf514f77a53969"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_root_launcher_v2.c)" = "19b89e92df6f640c017cb9f544ddbf094d69f6eb"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json)" = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-create-only-closed-tree-acceptance-v1.json)" = "919db72903a5fcff59dec7635a4288f41d1753d9"
+
+      - name: Prove trusted-admission plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v1.mjs
+          out="$RUNNER_TEMP/v5-stage-admission-plan.log"
+          node scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v1.mjs | tee "$out"
+          grep -Fx 'VOID_V7_V5_STAGE_TRUSTED_ADMISSION_PLAN_V1_PROOF_GREEN' "$out"
+          grep -Fx 'plan_id=voidv7v5stageadmissionplan1_8db770a16aae8dd961299d4c1dd2baa4b4cac9a2788e7480380a67aa80da06ef' "$out"
+          grep -Fx 'closed_tree_precedent_bound=true' "$out"
+          grep -Fx 'complete_source_snapshot_required=true' "$out"
+          grep -Fx 'static_python_descriptor_execution_required=true' "$out"
+          grep -Fx 'minimal_fixed_environment_required=true' "$out"
+          grep -Fx 'caller_path_authority=false' "$out"
+          grep -Fx 'caller_source_generation_authority=false' "$out"
+          grep -Fx 'exchange_operations_forbidden=true' "$out"
+          grep -Fx 'stage_pair_read_only_qualifier_required=true' "$out"
+          grep -Fx 'production_manifest_external_required=true' "$out"
+          grep -Fx 'launcher_source_implementation_authorized=false' "$out"
+          grep -Fx 'launcher_install_authorized=false' "$out"
+          grep -Fx 'root_execution_authorized=false' "$out"
+          grep -Fx 'source_stage_apply_authorized=false' "$out"
+          grep -Fx 'receipt_stage_apply_authorized=false' "$out"
+          grep -Fx 'service_mutation=false' "$out"
+          grep -Fx 'public_presale_activation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
