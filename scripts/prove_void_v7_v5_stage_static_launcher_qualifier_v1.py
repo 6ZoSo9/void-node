@@ -83,16 +83,15 @@ for forbidden in (
     "execlp(",
     "socket(",
     "connect(",
-    "--path",
     "--candidate",
     "--receipt-bytes",
-    "--expected-head", # caller parser must not accept it; implementation args do contain it
 ):
-    if forbidden=="--expected-head":
-        # Exactly one implementation argument emission is expected; parser keys are forbidden.
-        assert launcher.count('"--expected-head"')==1
-    else:
-        assert forbidden not in launcher,forbidden
+    assert forbidden not in launcher,forbidden
+
+# --path exists only as an explicitly rejected negative self-test fixture.
+assert launcher.count('"--path"')==1
+# --expected-head is emitted by the launcher to the source installer, never parsed from caller input.
+assert launcher.count('"--expected-head"')==1
 
 # Four operation names should appear in request parser/self-test but there must be no exchange/service operation.
 for forbidden in (
