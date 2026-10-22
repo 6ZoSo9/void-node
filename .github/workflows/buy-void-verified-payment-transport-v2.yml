@@ -37,7 +37,6 @@ jobs:
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
@@ -47,8 +46,8 @@ jobs:
 
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$BASE_REF" = "main"
-          test "$PR_BASE" = "$CURRENT_MAIN"
-          git merge-base --is-ancestor "$PR_BASE" "$EXPECTED_HEAD"
+          git cat-file -e "$CURRENT_MAIN^{commit}"
+          git merge-base --is-ancestor "$CURRENT_MAIN" "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$HISTORICAL_HEAD" "$EXPECTED_HEAD"
 
           # Preserve the original seven ADD-only generation exactly.
@@ -62,7 +61,7 @@ jobs:
           diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/historical"
 
           # Current-main composition must expose the same seven ADD-only paths.
-          git diff --name-status "$PR_BASE" "$EXPECTED_HEAD" --             | sort > "$RUNNER_TEMP/current"
+          git diff --name-status "$CURRENT_MAIN" "$EXPECTED_HEAD" --             | sort > "$RUNNER_TEMP/current"
           diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/current"
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs)" =             "d0a81327e43a76e7b8171d975b7dde981483219f"
@@ -72,7 +71,7 @@ jobs:
           test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_transport_v2.ts)" =             "61dc219117538f2894b170ac98bb56806f69f430"
           test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_v2_allocation_stage.ts)" =             "ef397b7377a87326187f5e2e9882d6e4bdc0a4f8"
 
-          git diff --check "$PR_BASE" "$EXPECTED_HEAD" --
+          git diff --check "$CURRENT_MAIN" "$EXPECTED_HEAD" --
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Verify all seven protected-domain paths trigger the security matrix
         shell: bash
