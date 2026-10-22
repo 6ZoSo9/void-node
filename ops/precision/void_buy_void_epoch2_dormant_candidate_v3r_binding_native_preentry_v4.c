@@ -97,7 +97,80 @@ static void hold(const char*reason){
   exit(2);
 }
 static bool lower_hex_exact(const char*s,size_t n){if(s==NULL||strlen(s)!=n)return false;for(size_t i=0;i<n;i++)if(!((s[i]>='0'&&s[i]<='9')||(s[i]>='a'&&s[i]<='f')))return false;return true;}
-static bool decimal_size(const char*s,size_t maximum,size_t*out){if(s==NULL||*s=='\0')return false;size_t v=0;for(const char*p=s;*p;p++){if(*p<'0'||*p>'9')return false;size_t d=(size_t)(*p-'0');if(v>(maximum-d)/10U)return false;v=v*10U+d;}if(v==0||v>maximum)return false;*out=v;return true;}
+static bool lower_hex_span(const unsigned char*s,size_t n){
+  if(s==NULL||n==0U)return false;
+  for(size_t i=0U;i<n;i++)if(!((s[i]>='0'&&s[i]<='9')||(s[i]>='a'&&s[i]<='f')))return false;
+  return true;
+}
+static bool decimal_size_span(const unsigned char*s,size_t n,size_t maximum,size_t*out){
+  if(s==NULL||out==NULL||n==0U||s[0]=='0')return false;
+  size_t v=0U;
+  for(size_t i=0U;i<n;i++){
+    if(s[i]<'0'||s[i]>'9')return false;
+    size_t d=(size_t)(s[i]-'0');
+    if(v>(maximum-d)/10U)return false;
+    v=v*10U+d;
+  }
+  if(v==0U||v>maximum)return false;
+  *out=v;
+  return true;
+}
+static bool policy_line_value(
+  const unsigned char*buf,size_t start,size_t len,const char*prefix,
+  const unsigned char**value,size_t*value_len
+){
+  size_t prefix_len=strlen(prefix);
+  if(buf==NULL||prefix==NULL||value==NULL||value_len==NULL||
+     len<=prefix_len||memcmp(buf+start,prefix,prefix_len)!=0)return false;
+  *value=buf+start+prefix_len;
+  *value_len=len-prefix_len;
+  return true;
+}
+static bool parse_policy_bytes(const unsigned char*buf,size_t n,policy_v1*out){
+  if(buf==NULL||out==NULL||n==0U||n>MAX_POLICY_BYTES||buf[n-1U]!='\n')return false;
+  size_t starts[6],lengths[6],count=0U,line_start=0U;
+  for(size_t i=0U;i<n;i++){
+    unsigned char ch=buf[i];
+    if(ch=='\n'){
+      if(i==line_start||count>=6U)return false;
+      starts[count]=line_start;
+      lengths[count]=i-line_start;
+      count++;
+      line_start=i+1U;
+      continue;
+    }
+    /* Canonical policy bytes are visible non-space ASCII only. This rejects
+     * NUL, CR, tabs, controls, high bytes and whitespace aliases before any
+     * field interpretation. */
+    if(ch<0x21U||ch>0x7eU)return false;
+  }
+  if(count!=6U||line_start!=n)return false;
+
+  static const char*prefixes[6]={
+    "schema=","expected_head=","runner_sha256=",
+    "runner_bytes=","node_sha256=","node_bytes="
+  };
+  const unsigned char*values[6];size_t value_lengths[6];
+  for(size_t i=0U;i<6U;i++){
+    if(!policy_line_value(buf,starts[i],lengths[i],prefixes[i],
+                          &values[i],&value_lengths[i]))return false;
+  }
+  if(value_lengths[0]!=strlen(POLICY_SCHEMA)||
+     memcmp(values[0],POLICY_SCHEMA,value_lengths[0])!=0)return false;
+  if(value_lengths[1]!=40U||!lower_hex_span(values[1],value_lengths[1]))return false;
+  if(value_lengths[2]!=64U||!lower_hex_span(values[2],value_lengths[2]))return false;
+  size_t runner_bytes=0U;
+  if(!decimal_size_span(values[3],value_lengths[3],MAX_RUNNER_BYTES,&runner_bytes))return false;
+  (void)runner_bytes;
+  if(value_lengths[4]!=64U||!lower_hex_span(values[4],value_lengths[4]))return false;
+
+  policy_v1 parsed;memset(&parsed,0,sizeof(parsed));
+  if(!decimal_size_span(values[5],value_lengths[5],MAX_NODE_BYTES,&parsed.node_bytes))return false;
+  memcpy(parsed.expected_head,values[1],40U);parsed.expected_head[40]='\0';
+  memcpy(parsed.node_sha256,values[4],64U);parsed.node_sha256[64]='\0';
+  *out=parsed;
+  return true;
+}
 static bool same_identity(const struct stat*a,const struct stat*b){return a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&a->st_uid==b->st_uid&&a->st_gid==b->st_gid&&a->st_mode==b->st_mode&&a->st_nlink==b->st_nlink&&a->st_size==b->st_size;}
 static bool safe_regular(const struct stat*st,bool executable){return S_ISREG(st->st_mode)&&st->st_uid==0&&st->st_nlink==1&&(st->st_mode&0022)==0&&(st->st_mode&(S_ISUID|S_ISGID))==0&&(!executable||(st->st_mode&0111)!=0);}
 static void require_safe_dir(const char*p,const char*r){struct stat st;if(lstat(p,&st)!=0||!S_ISDIR(st.st_mode)||S_ISLNK(st.st_mode)||st.st_uid!=0||(st.st_mode&0022)!=0)hold(r);}
@@ -206,22 +279,33 @@ static bool read_start_ticks(pid_t pid,unsigned long long*out){
   for(char*t=strtok_r(cur," ",&save);t!=NULL;t=strtok_r(NULL," ",&save),field++){if(field!=22U)continue;errno=0;char*end=NULL;unsigned long long v=strtoull(t,&end,10);if(errno!=0||end==t||*end!='\0'||v==0ULL)return false;*out=v;return true;}return false;
 }
 static policy_v1 read_policy(void){
-  int fd=open_trusted(FIXED_POLICY,false,"binder_preentry_policy_custody_invalid");struct stat st;if(fstat(fd,&st)!=0||st.st_size<=0||(uintmax_t)st.st_size>MAX_POLICY_BYTES){close(fd);hold("binder_preentry_policy_size_invalid");}
-  size_t n=(size_t)st.st_size;char*buf=calloc(n+1U,1U);if(buf==NULL){close(fd);hold("binder_preentry_policy_alloc_failed");}size_t off=0;
-  while(off<n){ssize_t got=read(fd,buf+off,n-off);if(got<0){if(errno==EINTR)continue;free(buf);close(fd);hold("binder_preentry_policy_read_failed");}if(got==0){free(buf);close(fd);hold("binder_preentry_policy_short_read");}off+=(size_t)got;}
-  struct stat after,visible;if(fstat(fd,&after)!=0||lstat(FIXED_POLICY,&visible)!=0||!same_identity(&st,&after)||!same_identity(&after,&visible)){free(buf);close(fd);hold("binder_preentry_policy_changed");}close(fd);
-  if(buf[n-1U]!='\n'){free(buf);hold("binder_preentry_policy_newline_required");}
-  char*save=NULL,*lines[6];size_t count=0;for(char*l=strtok_r(buf,"\n",&save);l;l=strtok_r(NULL,"\n",&save)){if(count>=6U){free(buf);hold("binder_preentry_policy_shape_invalid");}lines[count++]=l;}if(count!=6U){free(buf);hold("binder_preentry_policy_shape_invalid");}
-  const char*s0="schema=",*s1="expected_head=",*s2="runner_sha256=",*s3="runner_bytes=",*s4="node_sha256=",*s5="node_bytes=";
-  if(strncmp(lines[0],s0,strlen(s0))!=0||strcmp(lines[0]+strlen(s0),POLICY_SCHEMA)!=0||
-     strncmp(lines[1],s1,strlen(s1))!=0||strncmp(lines[2],s2,strlen(s2))!=0||
-     strncmp(lines[3],s3,strlen(s3))!=0||strncmp(lines[4],s4,strlen(s4))!=0||
-     strncmp(lines[5],s5,strlen(s5))!=0){free(buf);hold("binder_preentry_policy_schema_invalid");}
-  policy_v1 p;memset(&p,0,sizeof(p));const char*head=lines[1]+strlen(s1),*runner_sha=lines[2]+strlen(s2),*runner_bytes=lines[3]+strlen(s3),*node_sha=lines[4]+strlen(s4),*node_bytes=lines[5]+strlen(s5);size_t ignored_runner_bytes=0;
-  if(!lower_hex_exact(head,40U)||!lower_hex_exact(runner_sha,64U)||
-     !decimal_size(runner_bytes,MAX_RUNNER_BYTES,&ignored_runner_bytes)||
-     !lower_hex_exact(node_sha,64U)||!decimal_size(node_bytes,MAX_NODE_BYTES,&p.node_bytes)){free(buf);hold("binder_preentry_policy_value_invalid");}
-  memcpy(p.expected_head,head,41U);memcpy(p.node_sha256,node_sha,65U);free(buf);return p;
+  int fd=open_trusted(FIXED_POLICY,false,"binder_preentry_policy_custody_invalid");
+  struct stat st;
+  if(fstat(fd,&st)!=0||st.st_size<=0||(uintmax_t)st.st_size>MAX_POLICY_BYTES){
+    close(fd);hold("binder_preentry_policy_size_invalid");
+  }
+  size_t n=(size_t)st.st_size;
+  unsigned char*buf=malloc(n);
+  if(buf==NULL){close(fd);hold("binder_preentry_policy_alloc_failed");}
+  size_t off=0U;
+  while(off<n){
+    ssize_t got=read(fd,buf+off,n-off);
+    if(got<0){if(errno==EINTR)continue;free(buf);close(fd);hold("binder_preentry_policy_read_failed");}
+    if(got==0){free(buf);close(fd);hold("binder_preentry_policy_short_read");}
+    off+=(size_t)got;
+  }
+  struct stat after,visible;
+  if(fstat(fd,&after)!=0||lstat(FIXED_POLICY,&visible)!=0||
+     !same_identity(&st,&after)||!same_identity(&after,&visible)){
+    free(buf);close(fd);hold("binder_preentry_policy_changed");
+  }
+  close(fd);
+  policy_v1 p;
+  if(!parse_policy_bytes(buf,n,&p)){
+    free(buf);hold("binder_preentry_policy_canonical_invalid");
+  }
+  free(buf);
+  return p;
 }
 static void sha256_fd_hex(int fd,char out[65]){
   if(lseek(fd,0,SEEK_SET)<0)hold("binder_preentry_digest_seek_failed");
@@ -321,6 +405,79 @@ static bool self_test_fifo_replacement_nonblocking(void){
   (void)rmdir(dir);
   return ok;
 }
+static bool self_test_policy_parser(void){
+  static const unsigned char canonical[]=
+    "schema=" POLICY_SCHEMA "\n"
+    "expected_head=0123456789012345678901234567890123456789\n"
+    "runner_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+    "runner_bytes=66650\n"
+    "node_sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+    "node_bytes=123456\n";
+  static const unsigned char embedded_nul[]=
+    "schema=" POLICY_SCHEMA "\n"
+    "expected_head=0123456789012345678901234567890123456789\n"
+    "runner_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+    "runner_bytes=66650\0hidden\n"
+    "node_sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+    "node_bytes=123456\n";
+  static const unsigned char blank_line[]=
+    "schema=" POLICY_SCHEMA "\n"
+    "\n"
+    "expected_head=0123456789012345678901234567890123456789\n"
+    "runner_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+    "runner_bytes=66650\n"
+    "node_sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+    "node_bytes=123456\n";
+  static const unsigned char hidden_suffix[]=
+    "schema=" POLICY_SCHEMA "\n"
+    "expected_head=0123456789012345678901234567890123456789\n"
+    "runner_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+    "runner_bytes=66650\n"
+    "node_sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+    "node_bytes=123456\n"
+    "hidden=x\n";
+  static const unsigned char leading_zero_runner[]=
+    "schema=" POLICY_SCHEMA "\n"
+    "expected_head=0123456789012345678901234567890123456789\n"
+    "runner_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+    "runner_bytes=066650\n"
+    "node_sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+    "node_bytes=123456\n";
+  static const unsigned char leading_zero_node[]=
+    "schema=" POLICY_SCHEMA "\n"
+    "expected_head=0123456789012345678901234567890123456789\n"
+    "runner_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+    "runner_bytes=66650\n"
+    "node_sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+    "node_bytes=0123456\n";
+  static const unsigned char carriage_return[]=
+    "schema=" POLICY_SCHEMA "\r\n"
+    "expected_head=0123456789012345678901234567890123456789\n"
+    "runner_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+    "runner_bytes=66650\n"
+    "node_sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+    "node_bytes=123456\n";
+  static const unsigned char missing_final_lf[]=
+    "schema=" POLICY_SCHEMA "\n"
+    "expected_head=0123456789012345678901234567890123456789\n"
+    "runner_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+    "runner_bytes=66650\n"
+    "node_sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n"
+    "node_bytes=123456";
+  policy_v1 p;
+  if(!parse_policy_bytes(canonical,sizeof(canonical)-1U,&p))return false;
+  if(strcmp(p.expected_head,"0123456789012345678901234567890123456789")!=0||
+     strcmp(p.node_sha256,"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")!=0||
+     p.node_bytes!=123456U)return false;
+  if(parse_policy_bytes(embedded_nul,sizeof(embedded_nul)-1U,&p))return false;
+  if(parse_policy_bytes(blank_line,sizeof(blank_line)-1U,&p))return false;
+  if(parse_policy_bytes(hidden_suffix,sizeof(hidden_suffix)-1U,&p))return false;
+  if(parse_policy_bytes(leading_zero_runner,sizeof(leading_zero_runner)-1U,&p))return false;
+  if(parse_policy_bytes(leading_zero_node,sizeof(leading_zero_node)-1U,&p))return false;
+  if(parse_policy_bytes(carriage_return,sizeof(carriage_return)-1U,&p))return false;
+  if(parse_policy_bytes(missing_final_lf,sizeof(missing_final_lf)-1U,&p))return false;
+  return true;
+}
 static int self_test_hold(bool post_source){
   child_created=true;proof_released=true;binder_source_release_started=post_source;
   hold(post_source?"self_test_post_source":"self_test_pre_source");
@@ -331,7 +488,8 @@ static int self_test(void){
   unsigned char h[32];sha256_buffer((const unsigned char*)"abc",3U,h);if(memcmp(h,abc_expected,32U)!=0)return 1;if(BINDER_BYTES!=66650U||strlen(BINDER_GIT_BLOB)!=40U)return 1;
   if(!self_test_sealed_source())return 1;
   if(!self_test_fifo_replacement_nonblocking())return 1;
-  puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("binder_parent_proof_contains_accepted_source_digest=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("binder_verified_sealed_memfd_source=true");puts("trusted_fifo_swap_open_nonblocking=true");puts("binder_same_inode_mutation_streams_only_accepted_bytes=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("source_runtime_two_head_contract=true");puts("runtime_policy_head_separate_from_source_head=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("failure_truth_boundary_test_modes=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
+  if(!self_test_policy_parser())return 1;
+  puts(MARKER "_SELF_TEST_GREEN");puts("native_first_instruction=true");puts("fixed_self_path=true");puts("fixed_binder_path=true");puts("binder_exact_sha256_bound=true");puts("binder_git_blob_provenance_bound=true");puts("binder_parent_proof_contains_accepted_source_digest=true");puts("node_policy_sha256_bound=true");puts("binder_descriptor_retained=true");puts("binder_verified_sealed_memfd_source=true");puts("trusted_fifo_swap_open_nonblocking=true");puts("policy_exact_physical_bytes_canonical=true");puts("policy_embedded_nul_blank_suffix_leading_zero_rejected=true");puts("binder_same_inode_mutation_streams_only_accepted_bytes=true");puts("node_descriptor_fexecve=true");puts("private_parent_proof_channel=true");puts("source_runtime_two_head_contract=true");puts("runtime_policy_head_separate_from_source_head=true");puts("caller_stdin_javascript_forbidden=true");puts("loader_environment_sanitized=true");puts("failure_truth_boundary_test_modes=true");puts("credential_content_access=false");puts("transaction=false");puts("public_presale_activation=false");puts("funds_movement=false");return 0;
 }
 int main(int argc,char**argv){
   if(argc==2&&strcmp(argv[1],"--self-test")==0)return self_test();
