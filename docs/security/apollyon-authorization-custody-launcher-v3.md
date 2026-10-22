@@ -20,8 +20,12 @@ warning during an otherwise intentional target stop.
 
 v3 removes the polling timer entirely. A dedicated shutdown promise:
 
-- registers exactly one SIGTERM and one SIGINT listener;
+- installs one persistent SIGTERM handler and one persistent SIGINT handler for
+  the shutdown window;
 - allows only the first signal to initiate `service.stop()`;
+- keeps both handlers installed while `service.stop()` is pending so repeated
+  SIGTERM/SIGINT delivery cannot fall through to Node's default termination
+  behavior;
 - resolves only after `service.stop()` completes;
 - propagates a stop failure to the existing launcher HOLD path;
 - removes both signal listeners on either success or failure;
@@ -38,8 +42,9 @@ The focused proof imports only the v3 launcher candidate and uses a disposable
 
 - SIGTERM completes exactly one stop;
 - SIGINT completes exactly one stop;
-- a second signal cannot trigger a second stop;
-- signal listeners are removed after completion;
+- duplicate same-signal and cross-signal delivery cannot trigger a second stop;
+- both signal listeners remain present while stop is pending and are removed
+  only after completion/failure;
 - rejected `service.stop()` propagates as a failure;
 - invalid service/signal-source objects fail closed;
 - the old `setInterval(...).unref()` pattern is absent.
