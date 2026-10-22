@@ -84,6 +84,26 @@ binding:
 - exact landed V5 relative path, byte count and SHA-256;
 - exact closed-tree source-acceptance ID.
 
+## Production manifest-lock HOLD
+
+This source generation deliberately carries **no accepted production payload
+manifest**. The compile-time bindings default to empty/zero for:
+
+- accepted manifest SHA-256;
+- accepted manifest byte count;
+- accepted source-generation SHA-256;
+- accepted bootstrap SHA-256.
+
+`--self-test` remains available for source review, but every real root
+`--plan` or `--apply` path fails closed with
+`production_payload_manifest_lock_not_bound` until a separately reviewed
+manifest-lock candidate supplies all four exact identities.
+
+After a lock is compiled in, V3 also requires the receipt's
+`manifest_sha256`, `manifest_bytes`, `source_generation`, and
+`bootstrap_sha256` to match those exact bindings before any Python
+execution. This PR does not define or accept those production values.
+
 ## V5 operation surface
 
 V3 preserves V2's exact request surface.
