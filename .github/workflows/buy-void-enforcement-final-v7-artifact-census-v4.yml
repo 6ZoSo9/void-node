@@ -7,6 +7,7 @@ on:
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v4.md"
       - "ops/precision/**"
       - "ops/security/**"
@@ -28,6 +29,7 @@ on:
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v4.md"
       - "ops/precision/**"
       - "ops/security/**"
@@ -72,16 +74,16 @@ jobs:
       - name: Verify frozen V4 census against current protected integration
         run: |
           set -euo pipefail
-          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"
+          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V3"
           out="$RUNNER_TEMP/final-v7-v2-census-v4-node-${{ matrix.node }}.json"
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --receipt > "$out"
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --self-test
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --receipt > "$out"
           node --input-type=module - "$out" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(c.schema,"void_buy_void_repaired_v7_v2_current_generation_dispatch_v2");
-          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2");
+          assert.equal(c.schema,"void_buy_void_repaired_v7_v2_current_generation_dispatch_v3");
+          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
           assert.equal(c.protected_path_count,49);
           assert.equal(c.protected_path_identity_preserved,true);
           assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
@@ -121,7 +123,7 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync("census/final-v7-v2-census-v4-node-22.json","utf8"));
-          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2");
+          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
           assert.equal(c.protected_path_count,49);
           assert.equal(c.protected_path_identity_preserved,true);
           assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
