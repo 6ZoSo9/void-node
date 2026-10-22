@@ -47,7 +47,7 @@ jobs:
           test "${#actual[@]}" -eq "${#expected[@]}"
           for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
           test "$(git rev-parse HEAD:ops/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.json)" = "75d30f839a4752eb3a3877e15e55a4576ad0d72f"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs)" = "de2ef2e3416fcb6e3f94628c06ac6e6d56d0af42"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs)" = "ee152e72d4a72525448791392e9e7739c4838f4e"
           test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.md)" = "03d875bceaa78518f212f98fa0022aea68eb590f"
           git diff --check "$BASE" HEAD
 
