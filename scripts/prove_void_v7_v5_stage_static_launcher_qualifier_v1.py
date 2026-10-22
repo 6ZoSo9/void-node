@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import pathlib
 import re
 import subprocess
@@ -11,7 +12,7 @@ import tempfile
 MARKER="VOID_V7_V5_STAGE_STATIC_LAUNCHER_QUALIFIER_V1_PROOF"
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 LAUNCHER_REL="ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v1.c"
-LAUNCHER_BLOB="8ea02553776cf71dceb5a647e9bf0e69d3e2c978"
+LAUNCHER_BLOB="af16d2655359c6023bebdae25d8b0c35d9d1ae8a"
 QUALIFIER_REL="ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v1.py"
 QUALIFIER_BLOB="c3ec29996876aa5b0f712988c4595c946d51868b"
 PLAN_REL="ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json"
@@ -75,6 +76,29 @@ for token in (
     'funds_movement=false',
 ):
     assert token in launcher,token
+
+# Exact FD-to-Python binding: the reviewed installer is inherited rather than
+# re-opened by path after the last receipt/identity validation.
+for token in (
+    'int selected_installer_fd=source?source_installer_fd:receipt_installer_fd;',
+    'int unselected_installer_fd=source?receipt_installer_fd:source_installer_fd;',
+    'if(close(unselected_installer_fd))hold("unselected_installer_close_failed");',
+    'revalidate_file(selected_installer_path,selected_installer_fd,selected_installer_id);',
+    'prepare_installer_script_fd(selected_installer_fd,installer_script,sizeof(installer_script));',
+    'fcntl(fd,F_SETFD,flags&~FD_CLOEXEC)',
+    '"/proc/self/fd/%d"',
+    'args[n++]=installer_script;',
+    'python_selected_installer_descriptor_inheritance_required=true',
+):
+    assert token in launcher,token
+script_arguments=re.findall(r'args\\[n\\+\\+\\]\\s*=\\s*([^;]+);',launcher)
+assert "installer_script" in script_arguments
+assert not any(
+    "FIXED_SOURCE_INSTALLER" in value or "FIXED_RECEIPT_INSTALLER" in value or
+    "selected_installer_path" in value or "(char*)installer" in value
+    for value in script_arguments
+),script_arguments
+assert 'close(source_installer_fd);close(receipt_installer_fd)' not in launcher
 
 for forbidden in (
     "getenv(",
@@ -141,6 +165,7 @@ with tempfile.TemporaryDirectory(prefix="void-v5-stage-launcher-proof-") as td:
         "VOID_V7_V5_SOURCE_RECEIPT_STAGE_ROOT_LAUNCHER_V1_SELF_TEST_GREEN",
         "dual_installer_policy_binding_required=true",
         "four_fixed_operations_required=true",
+        "python_selected_installer_descriptor_inheritance_required=true",
         "caller_filesystem_path_authority=false",
         "caller_source_generation_authority=false",
         "caller_receipt_bytes_authority=false",
@@ -158,6 +183,29 @@ with tempfile.TemporaryDirectory(prefix="void-v5-stage-launcher-proof-") as td:
     assert hold.returncode==2,(hold.stdout,hold.stderr)
     assert "production_payload_manifest_lock_not_bound" in hold.stderr
     assert "root_execution_authorized=false" not in hold.stdout # launcher HOLD receipt is stderr-only authority text
+
+    # Non-root kernel behavior regression: a pathname swap must not change
+    # which Python source bytes execute from the retained descriptor.
+    fixture=pathlib.Path(td)/"verified_installer.py"
+    fixture.write_text("print('VERIFIED_FD_BYTES')\\n",encoding="utf-8")
+    fd=os.open(fixture,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
+    try:
+        fixture.rename(pathlib.Path(td)/"original_installer.py")
+        fixture.write_text("print('SWAPPED_PATH_BYTES')\\n",encoding="utf-8")
+        retained=subprocess.run(
+            [sys.executable,"-I","-B","-S",f"/proc/self/fd/{fd}"],
+            pass_fds=(fd,),cwd=ROOT,stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=30,
+            check=False,
+        )
+        assert retained.returncode==0,(retained.stdout,retained.stderr)
+        assert retained.stdout.strip()=="VERIFIED_FD_BYTES",retained.stdout
+        assert retained.stderr=="",retained.stderr
+        rebound=run([sys.executable,"-I","-B","-S",str(fixture)],30)
+        assert rebound.returncode==0,(rebound.stdout,rebound.stderr)
+        assert rebound.stdout.strip()=="SWAPPED_PATH_BYTES",rebound.stdout
+    finally:
+        os.close(fd)
 
 q=run([sys.executable,"-I","-B",QUALIFIER_REL,"--self-test"],60)
 assert q.returncode==0,(q.stdout,q.stderr)
@@ -181,6 +229,8 @@ print("qualifier_blob="+QUALIFIER_BLOB)
 print("trusted_admission_plan_blob="+PLAN_BLOB)
 print("launcher_compiles_with_werror=true")
 print("launcher_self_test_green=true")
+print("selected_installer_procfd_execution_bound=true")
+print("path_substitution_cannot_change_executed_fd_bytes=true")
 print("production_manifest_lock_unbound=true")
 print("normal_launcher_operation_fail_closed=true")
 print("four_fixed_operations_only=true")
