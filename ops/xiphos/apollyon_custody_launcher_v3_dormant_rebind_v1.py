@@ -72,6 +72,22 @@ def read_source(relative:str,expected_blob:str)->bytes:
         hold("source_blob_invalid:"+relative)
     return data
 
+def require_trusted_ancestor_chain(path:Path,*,include_leaf:bool)->None:
+    target=path if include_leaf else path.parent
+    raw=os.fspath(target)
+    if not target.is_absolute() or os.path.normpath(raw)!=raw:
+        hold("trusted_ancestor_path_invalid:"+raw)
+    current=Path("/")
+    for part in target.relative_to("/").parts:
+        current=current/part
+        st=os.lstat(current)
+        if (
+            not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+            st.st_uid!=0 or st.st_gid!=0 or
+            (stat.S_IMODE(st.st_mode)&0o022)!=0
+        ):
+            hold("trusted_ancestor_invalid:"+os.fspath(current))
+
 def exact_regular(
     path:Path,mode:int,uid:int,gid:int,expected_blob:str|None=None,
 )->str:
@@ -202,6 +218,10 @@ def plan()->dict[str,object]:
         hold("wrong_host")
     read_source(V3_LAUNCHER_REL,V3_LAUNCHER_BLOB)
     read_source(V3_SERVICE_REL,NEW_SERVICE_BLOB)
+    for protected in (
+        TARGET_PATH,SERVICE_PATH,V2_LAUNCHER_PATH,V3_LAUNCHER_PATH,
+    ):
+        require_trusted_ancestor_chain(protected,include_leaf=False)
     exact_regular(TARGET_PATH,0o644,0,0,TARGET_BLOB)
     units=require_dormant()
     launch=launcher_state()
@@ -225,6 +245,7 @@ def fsync_dir(path:Path)->None:
     finally:os.close(fd)
 
 def create_exact(path:Path,data:bytes,mode:int)->bool:
+    require_trusted_ancestor_chain(path,include_leaf=False)
     try:
         digest=exact_regular(path,mode,0,0)
     except FileNotFoundError:
@@ -261,6 +282,7 @@ def create_exact(path:Path,data:bytes,mode:int)->bool:
     return True
 
 def replace_service(data:bytes)->bool:
+    require_trusted_ancestor_chain(SERVICE_PATH,include_leaf=False)
     if service_state()=="v3_exact":return False
     if launcher_state()!="exact":hold("v3_launcher_not_exact")
     require_dormant()
@@ -367,6 +389,8 @@ def self_test()->None:
     for required in (
         'run(["/usr/bin/systemctl","daemon-reload"])',
         'require_dormant()',
+        'require_trusted_ancestor_chain(',
+        'trusted_ancestor_invalid:',
         'rebind_material_changed_before_daemon_reload',
         'V3_LAUNCHER_BLOB="ec9e1d2c01581ebdc5323056939f846e67692fe6"',
         'NEW_SERVICE_BLOB="51354b10da89413eb6991514496798c7a1b5d1e8"',
