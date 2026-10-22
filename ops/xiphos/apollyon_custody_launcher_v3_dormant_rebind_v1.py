@@ -261,44 +261,79 @@ def require_dormant()->dict[str,dict[str,str]]:
         hold("training_not_dormant")
     return {"target":target,"service":service,"training":training}
 
-def launcher_publication_file(path:Path)->tuple[os.stat_result,str]|None:
+def launcher_destination_file()->os.stat_result|None:
     try:
-        st=os.lstat(path)
+        st=os.lstat(V3_LAUNCHER_PATH)
     except FileNotFoundError:
         return None
     if (
         not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
-        st.st_uid!=0 or st.st_gid!=0 or
-        stat.S_IMODE(st.st_mode)!=0o444 or st.st_nlink not in (1,2)
+        st.st_uid!=0 or st.st_gid!=0 or stat.S_IMODE(st.st_mode)!=0o444 or
+        st.st_nlink not in (1,2)
     ):
-        hold("v3_launcher_publication_metadata_invalid:"+os.fspath(path))
-    data=path.read_bytes()
+        hold("v3_launcher_destination_metadata_invalid")
+    data=V3_LAUNCHER_PATH.read_bytes()
+    if len(data)!=st.st_size or git_blob(data)!=V3_LAUNCHER_BLOB:
+        hold("v3_launcher_destination_blob_invalid")
+    return st
+
+def launcher_pending_file()->tuple[os.stat_result,str]|None:
+    try:
+        st=os.lstat(V3_LAUNCHER_PENDING_PATH)
+    except FileNotFoundError:
+        return None
+    if (
+        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_uid!=0 or st.st_gid!=0 or st.st_nlink not in (1,2) or
+        stat.S_IMODE(st.st_mode) not in (0o600,0o444)
+    ):
+        hold("v3_launcher_pending_metadata_invalid")
+    data=V3_LAUNCHER_PENDING_PATH.read_bytes()
     if len(data)!=st.st_size:
-        hold("v3_launcher_publication_read_invalid:"+os.fspath(path))
-    digest=git_blob(data)
-    if digest!=V3_LAUNCHER_BLOB:
-        hold("v3_launcher_publication_blob_invalid:"+os.fspath(path))
-    return st,digest
+        hold("v3_launcher_pending_read_invalid")
+    expected=read_source(V3_LAUNCHER_REL,V3_LAUNCHER_BLOB)
+    if (
+        st.st_nlink==1 and len(data)<=len(expected) and
+        expected.startswith(data) and
+        (stat.S_IMODE(st.st_mode)==0o600 or len(data)==len(expected))
+    ):
+        if (
+            len(data)==len(expected) and data==expected and
+            stat.S_IMODE(st.st_mode)==0o444
+        ):
+            return st,"exact"
+        return st,"incomplete"
+    if (
+        st.st_nlink==2 and stat.S_IMODE(st.st_mode)==0o444 and
+        data==expected
+    ):
+        return st,"exact"
+    hold("v3_launcher_pending_collision")
 
 def launcher_state()->str:
     exact_regular(V2_LAUNCHER_PATH,0o444,0,0,V2_LAUNCHER_BLOB)
-    destination=launcher_publication_file(V3_LAUNCHER_PATH)
-    pending=launcher_publication_file(V3_LAUNCHER_PENDING_PATH)
+    destination=launcher_destination_file()
+    pending=launcher_pending_file()
     if destination is None and pending is None:
         return "absent"
     if destination is None and pending is not None:
+        if pending[1]=="incomplete":
+            return "pending_incomplete"
         if pending[0].st_nlink!=1:
             hold("v3_launcher_pending_link_count_invalid")
         return "pending_exact"
     if destination is not None and pending is None:
-        if destination[0].st_nlink!=1:
+        if destination.st_nlink!=1:
             hold("v3_launcher_destination_link_count_invalid")
         return "exact"
     assert destination is not None and pending is not None
-    dst_st=destination[0];pending_st=pending[0]
+    pending_st,pending_state=pending
+    if pending_state!="exact":
+        hold("v3_launcher_destination_with_incomplete_pending")
     if (
-        dst_st.st_dev!=pending_st.st_dev or dst_st.st_ino!=pending_st.st_ino or
-        dst_st.st_nlink!=2 or pending_st.st_nlink!=2
+        destination.st_dev!=pending_st.st_dev or
+        destination.st_ino!=pending_st.st_ino or
+        destination.st_nlink!=2 or pending_st.st_nlink!=2
     ):
         hold("v3_launcher_linked_pending_identity_invalid")
     return "linked_pending"
@@ -319,6 +354,14 @@ def classify(
         old_loaded and need_reload=="no"
     ):
         return {"lifecycle_state":"ready","next_action":"INSTALL_V3_LAUNCHER"}
+    if (
+        service_file=="v2_exact" and launcher=="pending_incomplete" and
+        old_loaded and need_reload=="no"
+    ):
+        return {
+            "lifecycle_state":"launcher_pending_incomplete",
+            "next_action":"RECOVER_V3_LAUNCHER_PENDING",
+        }
     if (
         service_file=="v2_exact" and launcher=="pending_exact" and
         old_loaded and need_reload=="no"
@@ -393,6 +436,15 @@ def install_or_resume_launcher(data:bytes)->bool:
     state=launcher_state()
     if state=="exact":
         return False
+
+    if state=="pending_incomplete":
+        require_dormant()
+        os.unlink(pending)
+        fsync_dir(path.parent)
+        changed=True
+        state=launcher_state()
+        if state!="absent":
+            hold("launcher_pending_recovery_failed")
 
     if state=="absent":
         require_dormant()
@@ -543,6 +595,10 @@ def self_test()->None:
         "v2","no",
     )["next_action"]=="INSTALL_V3_LAUNCHER"
     assert classify(
+        "v2_exact","pending_incomplete",
+        "v2","no",
+    )["next_action"]=="RECOVER_V3_LAUNCHER_PENDING"
+    assert classify(
         "v2_exact","pending_exact",
         "v2","no",
     )["next_action"]=="RESUME_V3_LAUNCHER_PUBLICATION"
@@ -579,11 +635,15 @@ def self_test()->None:
         'loaded_exec_generation(',
         'loaded_generation=="v2"',
         'V3_LAUNCHER_PENDING_PATH=',
+        'launcher_pending_incomplete',
         'launcher_pending',
         'launcher_linked_pending',
+        'RECOVER_V3_LAUNCHER_PENDING',
         'RESUME_V3_LAUNCHER_PUBLICATION',
         'FINALIZE_V3_LAUNCHER_PUBLICATION',
-        'launcher_publication_file(',
+        'launcher_destination_file(',
+        'launcher_pending_file(',
+        'v3_launcher_pending_collision',
         'install_or_resume_launcher(',
         'service_effective_execstart_invalid',
         'service_effective_execstoppost_invalid',
@@ -601,6 +661,7 @@ def self_test()->None:
     print("v3_launcher_create_only=true")
     print("v3_launcher_crash_resumable_publication=true")
     print("v3_launcher_pending_inode_bound=true")
+    print("v3_launcher_partial_pending_recovery=true")
     print("service_unit_atomic_replace=true")
     print("daemon_reload_only_systemd_mutation=true")
     print("service_action=false")
