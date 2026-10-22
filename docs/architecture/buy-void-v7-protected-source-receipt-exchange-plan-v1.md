@@ -73,6 +73,54 @@ moved, fsync both parents, and revalidate the exact original V4 pair.
 The old V4 source and receipt must **not** be deleted in the same operation even
 after a successful V5 exchange. Retirement is a later explicit gate.
 
+
+## Durable interruption recovery and admission fence
+
+A two-path exchange cannot rely on in-process exception handling for rollback.
+SIGKILL, OOM, power loss, or reboot may occur after either rename or parent
+fsync. The future implementation must therefore establish a **root-custodied,
+durable transition journal before the first exchange**.
+
+The journal must bind one operation ID to the exact old and new source and
+receipt generations. It must durably advance through:
+
+1. `prepared`;
+2. `source_exchanged`;
+3. `source_parent_fsynced`;
+4. `receipt_exchanged`;
+5. `receipt_parent_fsynced`;
+6. `terminal_verified`, or `rollback_restored`.
+
+The prepare record must be fsynced before the first rename. Every phase change
+that follows an exchange or parent fsync must itself be durability-ordered.
+On process start and after reboot, a first-instruction reconciler must inspect
+the retained old/new objects and journal and refuse all protected consumer
+admission until it proves either the exact V4 pair restored or the exact V5
+pair terminally verified. Unknown or contradictory evidence is HOLD.
+
+A point-in-time census is not exclusion. The implementation must hold an
+effective inter-process writer/consumer admission fence across preflight, both
+exchanges, both parent fsyncs, terminal verification, and recovery. Disposable
+fault-injection qualification must cover interruption after each exchange and
+each parent fsync and prove the sole authenticated predecessor is never
+destroyed during rollback.
+
+## Source-proof byte authentication
+
+The source-only plan proof must authenticate the **same bytes it inspects**.
+A Git tree entry alone is not authority for a mutable checkout pathname.
+
+Every bound source/plan read must use a bounded retained descriptor opened with
+`O_RDONLY|O_NOFOLLOW|O_NONBLOCK`, require a single-link regular file, compare
+pre/open/post/visible generations, reject growth/short reads, and recompute the
+Git blob hash of the bytes actually read. Those bytes must match both the
+expected reviewed blob and `HEAD:<path>`, and all token/JSON assertions must
+consume that already-authenticated buffer without reopening the pathname.
+
+The proof must exercise disposable negatives for same-length replacement,
+symlink substitution, FIFO substitution at the actual open boundary, oversized
+input, and in-place growth.
+
 ## Stage authority remains separate
 
 This plan does not authorize creation of either V5 stage.
@@ -113,7 +161,7 @@ funds_movement=false
 
 Plan ID:
 
-`voidv7srcrecexchange1_bc6417cd5a3d40961ce49f45a38943732b9e7e401dc731724fb86821fdfed2c8`
+`voidv7srcrecexchange1_ddc23a6acfe11a8ce0e486d6848c43f6eb0e0dd6942c8c3f1240bdd1cd7fc9d0`
 
 Next gate:
 

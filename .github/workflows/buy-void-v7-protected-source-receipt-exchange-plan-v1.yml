@@ -66,9 +66,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/security/buy-void-v7-protected-source-receipt-exchange-plan-v1.json)" = "22b94916ab3e93c8f594c3d25b70ee6f9a483375"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs)" = "d299e3a1b166f46a1bdd1e46c5bdf316e6ea024b"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-protected-source-receipt-exchange-plan-v1.md)" = "d73c9604530e6e7676a87e17c92598e32f7b8ced"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-protected-source-receipt-exchange-plan-v1.json)" = "191a8015e438bc1cebf9fadfcbc23c68f0d2d4ad"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs)" = "1f4b93963fd135a79e8ad2aed8021bca4695f6ea"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-protected-source-receipt-exchange-plan-v1.md)" = "75b49b1126ed229e8513e5aaca0339642abd560d"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5.json)" = "46e3774ca442cf593d25b6062ab5538d5ac43611"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = "bc1b2f4095315861db7a257d4cc3c80a9f112530"
 
@@ -76,4 +76,23 @@ jobs:
         run: node --check scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs
 
       - name: Prove exchange plan
-        run: node scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/exchange-plan-v1.log"
+          node scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_V7_PROTECTED_SOURCE_RECEIPT_EXCHANGE_PLAN_V1_PROOF_GREEN' "$out"
+          grep -Fx 'source_reads_descriptor_bound=true' "$out"
+          grep -Fx 'source_read_git_blob_bytes_authenticated=true' "$out"
+          grep -Fx 'fifo_substitution_nonblocking_rejected=true' "$out"
+          grep -Fx 'same_length_swap_rejected=true' "$out"
+          grep -Fx 'symlink_substitution_rejected=true' "$out"
+          grep -Fx 'oversized_and_growth_reads_rejected=true' "$out"
+          grep -Fx 'durable_transition_journal_required=true' "$out"
+          grep -Fx 'startup_reconciliation_required=true' "$out"
+          grep -Fx 'exclusive_consumer_fence_required=true' "$out"
+          grep -Fx 'crash_fault_injection_contract_required=true' "$out"
+          grep -Fx 'host_write=false' "$out"
+          grep -Fx 'root_execution=false' "$out"
+          grep -Fx 'runtime_cutover_authority=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
