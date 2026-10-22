@@ -143,8 +143,16 @@ try {
   console.log("wallet_or_signer_access=false");
   console.log(MARKER);
 } finally {
-  try { client?.stop(); } catch {}
-  try { healthy?.stop(); } catch {}
+  try {
+    client?.stop();
+  } catch (error) {
+    console.warn("VOID_P2P_RETIRED_PEER_V1_CLIENT_CLEANUP_FAILURE_VISIBLE", error);
+  }
+  try {
+    healthy?.stop();
+  } catch (error) {
+    console.warn("VOID_P2P_RETIRED_PEER_V1_HEALTHY_CLEANUP_FAILURE_VISIBLE", error);
+  }
   if (legacyListener) await new Promise<void>((resolve) => legacyListener!.close(() => resolve()));
   fs.rmSync(root, { recursive: true, force: true });
 }
