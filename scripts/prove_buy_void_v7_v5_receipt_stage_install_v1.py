@@ -15,9 +15,10 @@ for token in (
  'FIXED_V4_SHA256="da43b974970fdfee00f914d61064bee86d192ad9b67769f52696e1fbd05bfa87"',
  'RENAME_NOREPLACE=1',
  'fixed_receipt_exchange_authority=false',
+ 'fixed_v4_receipt_parent_device_mismatch',
 ):
     assert token in text,token
-cp=subprocess.run([sys.executable,"-I","-B",str(TARGET),"--self-test"],
+assert "expected_git_identity_invalid" not in text\nassert "--expected-head" not in text\nassert "--expected-tree" not in text\ncp=subprocess.run([sys.executable,"-I","-B",str(TARGET),"--self-test"],
  stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=30,check=False)
 assert cp.returncode==0 and cp.stderr=="",cp.stdout+cp.stderr
 assert "VOID_BUY_VOID_V7_V5_RECEIPT_STAGE_INSTALL_V1_SELF_TEST_GREEN" in cp.stdout.splitlines()

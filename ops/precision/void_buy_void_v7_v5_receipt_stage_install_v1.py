@@ -116,9 +116,7 @@ def stage_state()->str:
     except Exception:
         return "HOLD_TARGET_CONFLICT"
 
-def collect_plan(expected_head:str,expected_tree:str):
-    if not SHA40.fullmatch(expected_head) or not SHA40.fullmatch(expected_tree):
-        raise InstallError("expected_git_identity_invalid")
+def collect_plan():
     # Bind source checkout without invoking Git during privileged apply.
     stage_plan=repo_blob(STAGE_PLAN_REL,STAGE_PLAN_BLOB)
     json.loads(stage_plan)
@@ -130,11 +128,11 @@ def collect_plan(expected_head:str,expected_tree:str):
         not stat.S_ISDIR(pst.st_mode) or stat.S_ISLNK(pst.st_mode)
         or pst.st_uid!=0 or pst.st_gid!=0 or stat.S_IMODE(pst.st_mode)&0o022
     ): raise InstallError("receipt_parent_custody_invalid")
+    if fixed["dev"]!=pst.st_dev:
+        raise InstallError("fixed_v4_receipt_parent_device_mismatch")
     body={
       "schema":"void_buy_void_v7_v5_receipt_stage_install_plan_v1",
       "version":1,
-      "expected_head":expected_head,
-      "expected_tree":expected_tree,
       "stage_plan_blob":STAGE_PLAN_BLOB,
       "source_receipt_blob":SOURCE_RECEIPT_BLOB,
       "source_receipt_sha256":SOURCE_RECEIPT_SHA256,
@@ -155,8 +153,8 @@ def collect_plan(expected_head:str,expected_tree:str):
     }
     return {"body":body,"plan_id":PLAN_PREFIX+sha256(canonical(body))}
 
-def plan(expected_head,expected_tree):
-    result=collect_plan(expected_head,expected_tree)
+def plan():
+    result=collect_plan()
     print(MARKER); print("mode=plan"); print("read_only=true")
     print("plan_id="+result["plan_id"])
     print("stage_state="+result["body"]["stage_state"])
@@ -184,7 +182,7 @@ def require_root_source():
         if cur==cur.parent: break
         cur=cur.parent
 
-def apply(expected_head,expected_tree,expected_plan_id,confirm):
+def apply(expected_plan_id,confirm):
     global WRITE_BOUNDARY,PUBLICATION
     print(MARKER); print("mode=apply"); print("authority_boundary=PRE_MUTATION")
     print("receipt_stage_mutation_possible=true")
@@ -193,7 +191,7 @@ def apply(expected_head,expected_tree,expected_plan_id,confirm):
     sys.stdout.flush()
     if confirm!=CONFIRM_TOKEN: raise InstallError("explicit_create_only_confirmation_required")
     require_root_source()
-    planned=collect_plan(expected_head,expected_tree)
+    planned=collect_plan()
     if planned["plan_id"]!=expected_plan_id: raise InstallError("expected_plan_id_mismatch")
     if planned["body"]["stage_state"]=="GREEN":
         print(MARKER); print("status=ALREADY_GREEN"); print("filesystem_mutation=false"); return
@@ -262,16 +260,13 @@ def main():
     g.add_argument("--self-test",action="store_true")
     g.add_argument("--plan",action="store_true")
     g.add_argument("--apply",action="store_true")
-    p.add_argument("--expected-head",default="")
-    p.add_argument("--expected-tree",default="")
     p.add_argument("--expected-plan-id",default="")
     p.add_argument("--confirm",default="")
     a=p.parse_args()
     if a.self_test: self_test(); return
-    if not a.expected_head or not a.expected_tree: raise InstallError("expected_head_tree_required")
-    if a.plan: plan(a.expected_head,a.expected_tree); return
+    if a.plan: plan(); return
     if not a.expected_plan_id: raise InstallError("expected_plan_id_required")
-    apply(a.expected_head,a.expected_tree,a.expected_plan_id,a.confirm)
+    apply(a.expected_plan_id,a.confirm)
 
 if __name__=="__main__":
     try: main()
