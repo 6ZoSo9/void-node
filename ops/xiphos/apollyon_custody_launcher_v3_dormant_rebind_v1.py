@@ -150,7 +150,8 @@ def require_dormant()->dict[str,dict[str,str]]:
     ):
         hold("target_not_exactly_dormant")
     if (
-        service["LoadState"]!="loaded" or service["ActiveState"]!="inactive" or
+        service["LoadState"]!="loaded" or
+        service["ActiveState"] not in ("inactive","failed") or
         service["UnitFileState"]!="static" or service["MainPID"] not in ("","0") or
         service["NeedDaemonReload"] not in ("no","yes") or
         service["FragmentPath"]!=os.fspath(SERVICE_PATH) or
@@ -389,6 +390,7 @@ def self_test()->None:
     for required in (
         'run(["/usr/bin/systemctl","daemon-reload"])',
         'require_dormant()',
+        'service["ActiveState"] not in ("inactive","failed")',
         'require_trusted_ancestor_chain(',
         'trusted_ancestor_invalid:',
         'rebind_material_changed_before_daemon_reload',
