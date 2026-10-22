@@ -588,7 +588,7 @@ int main(int argc,char **argv){
     require_ancestors(FIXED_ROOT);require_ancestors(FIXED_SELF);require_ancestors(FIXED_POLICY);require_ancestors(FIXED_RECEIPT);require_ancestors(FIXED_PYTHON);require_ancestors(FIXED_STDLIB_ZIP);require_ancestors(FIXED_INSTALLER);
     require_dir(FIXED_ROOT,0555,true);require_dir(FIXED_BIN,0555,true);require_dir(FIXED_RUNTIME_ROOT,0555,true);require_dir(FIXED_PYTHON_BIN,0555,true);require_dir(FIXED_PYTHON_LIB,0555,true);require_dir(FIXED_SOURCE_ROOT,0555,true);require_dir(FIXED_SOURCE_GIT,0555,true);require_dir(FIXED_SOURCE_GIT_INFO,0555,true);require_dir(FIXED_SOURCE_GIT_OBJECTS,0555,true);require_dir(FIXED_SOURCE_GIT_OBJECTS_INFO,0555,true);require_dir(FIXED_SOURCE_GIT_REFS,0555,true);require_dir(FIXED_SOURCE_GIT_HEADS,0555,true);require_dir(FIXED_SOURCE_OPS,0555,true);require_dir(FIXED_SOURCE_PRECISION,0555,true);
     require_closed_tree_root_entries();
-    require_exact_dir_entries(FIXED_BIN,"void_buy_void_v7_protected_substrate_root_launcher_v3",NULL);
+    require_exact_dir_entries(FIXED_BIN,"void_v7_full_history_protected_replica_root_launcher_v2",NULL);
     require_exact_dir_entries(FIXED_RUNTIME_ROOT,"bin","lib");
     require_exact_dir_entries(FIXED_PYTHON_BIN,"python3.12-static",NULL);
     require_exact_dir_entries(FIXED_PYTHON_LIB,"python312.zip",NULL);
