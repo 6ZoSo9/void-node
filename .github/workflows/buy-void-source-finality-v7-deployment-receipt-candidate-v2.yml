@@ -62,7 +62,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts)" = "7fbb37e663d3fe2932eb6810349ca97b2672a896"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts)" = "d91bb18cda82655ae1bb089382169d1c99e3b7cd"
           test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-candidate-v2.md)" = "36c6da7e2bf8aab2e9392529cd95dfe88d0aec8b"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e0a682ea4038ca22e3a3b97da2cac29874096c46"
           test "$(git rev-parse HEAD:src/economic/buy_void_source_finality_generation_provenance_v7.ts)" = "390ff1a2ff0437cd8c8693e7807c12275df42573"
