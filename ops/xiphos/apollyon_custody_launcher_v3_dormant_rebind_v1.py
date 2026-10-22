@@ -377,7 +377,7 @@ def require_no_role_processes()->None:
 
 def require_dormant()->dict[str,dict[str,str]]:
     target=unit_props(TARGET_UNIT,(
-        "LoadState","ActiveState","UnitFileState","MainPID","NeedDaemonReload",
+        "LoadState","ActiveState","UnitFileState","NeedDaemonReload",
         "FragmentPath","DropInPaths","Wants","PropagatesStopTo",
     ))
     service=unit_props(SERVICE_UNIT,(
@@ -393,7 +393,6 @@ def require_dormant()->dict[str,dict[str,str]]:
     if (
         target["LoadState"]!="loaded" or target["ActiveState"]!="inactive" or
         target["UnitFileState"]!="disabled" or
-        target["MainPID"] not in ("","0") or
         target["NeedDaemonReload"]!="no" or
         target["FragmentPath"]!=os.fspath(TARGET_PATH) or
         target["DropInPaths"]!="" or
@@ -887,6 +886,7 @@ def self_test()->None:
         'run(["/usr/bin/systemctl","daemon-reload"])',
         'require_dormant()',
         'service["ActiveState"] not in ("inactive","failed")',
+        '"LoadState","ActiveState","UnitFileState","NeedDaemonReload"',
         'require_trusted_ancestor_chain(',
         'trusted_ancestor_invalid:',
         'require_apply_source_custody()',
@@ -926,6 +926,7 @@ def self_test()->None:
     ):
         assert required in own,required
     print(MARKER+"_SELF_TEST_GREEN")
+    print("processless_target_mainpid_not_required=true")
     print("v2_launcher_preserved=true")
     print("v3_launcher_create_only=true")
     print("apply_root_custodied_source_required=true")
