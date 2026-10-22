@@ -611,7 +611,7 @@ def proc_status(
 def no_training_uid_processes(
     training_uid:int,proc_root:Path=Path("/proc")
 )->bool:
-    return not uid_process_generations(training_uid,proc_root)
+    return not uid_thread_process_map(training_uid,proc_root)
 
 def parse_uid_slots(status:dict[str,str])->tuple[int,int,int,int]:
     raw=status.get("Uid")
@@ -658,13 +658,161 @@ def uid_process_generations(
         observed[pid]=start_ticks
     return observed
 
+def proc_thread_status(
+    pid:int,tid:int,proc_root:Path=Path("/proc")
+)->dict[str,str]:
+    out={}
+    for line in (proc_root/str(pid)/"task"/str(tid)/"status").read_text(
+        encoding="utf-8",errors="strict"
+    ).splitlines():
+        if ":" in line:
+            key,value=line.split(":",1);out[key]=value.strip()
+    return out
+
+def process_thread_ids(
+    pid:int,proc_root:Path=Path("/proc")
+)->list[int]:
+    task=proc_root/str(pid)/"task"
+    try:
+        entries=list(task.iterdir())
+    except OSError as exc:
+        raise Hold("custody_thread_inventory_unavailable:"+str(pid)) from exc
+    tids=sorted(int(entry.name) for entry in entries if entry.name.isdigit())
+    if not tids or pid not in tids:
+        hold("custody_thread_inventory_invalid:"+str(pid))
+    return tids
+
+def uid_thread_process_map(
+    uid:int,proc_root:Path=Path("/proc")
+)->dict[int,tuple[int,...]]:
+    try:
+        processes=sorted(
+            (entry for entry in proc_root.iterdir() if entry.name.isdigit()),
+            key=lambda entry:int(entry.name,10),
+        )
+    except OSError as exc:
+        raise Hold("custody_thread_process_census_unavailable") from exc
+    observed={}
+    for process in processes:
+        pid=int(process.name,10)
+        task=process/"task"
+        try:
+            entries=sorted(
+                (entry for entry in task.iterdir() if entry.name.isdigit()),
+                key=lambda entry:int(entry.name,10),
+            )
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            if not process.exists():continue
+            raise Hold(
+                "custody_thread_inventory_unavailable:"+process.name
+            ) from exc
+        tids=[int(entry.name,10) for entry in entries]
+        if not tids:
+            if process.exists():
+                hold("custody_thread_inventory_empty:"+process.name)
+            continue
+        if pid not in tids:
+            if process.exists():
+                hold("custody_thread_leader_missing:"+process.name)
+            continue
+        matched=[]
+        for tid in tids:
+            thread=task/str(tid)
+            try:
+                status=proc_thread_status(pid,tid,proc_root)
+            except (FileNotFoundError,ProcessLookupError):
+                continue
+            except (PermissionError,OSError,UnicodeError) as exc:
+                if not thread.exists():continue
+                raise Hold(
+                    "custody_thread_status_unreadable:"
+                    +str(pid)+":"+str(tid)
+                ) from exc
+            try:
+                slots=parse_uid_slots(status)
+            except Hold:
+                if not thread.exists():continue
+                raise
+            if uid in slots:
+                matched.append(tid)
+        if matched:
+            observed[pid]=tuple(matched)
+    return observed
+
+def custody_thread_subject(
+    pid:int,tid:int,ids:dict[str,int],proc_root:Path=Path("/proc")
+)->dict[str,object]:
+    status=proc_thread_status(pid,tid,proc_root)
+    uid_slots=parse_uid_slots(status)
+    if uid_slots!=(ids["custody_uid"],)*4:
+        hold("custody_thread_uid_slots_invalid:"+str(tid))
+    raw_gid=status.get("Gid")
+    if raw_gid is None:hold("custody_thread_gid_slots_missing:"+str(tid))
+    gid_slots=raw_gid.split()
+    if (
+        len(gid_slots)!=4 or any(not value.isdigit() for value in gid_slots) or
+        tuple(int(value,10) for value in gid_slots)!=(ids["custody_gid"],)*4
+    ):
+        hold("custody_thread_gid_slots_invalid:"+str(tid))
+    raw_groups=status.get("Groups","").split()
+    if not raw_groups or any(not value.isdigit() for value in raw_groups):
+        hold("custody_thread_groups_invalid:"+str(tid))
+    groups=[int(value,10) for value in raw_groups]
+    expected_groups=exact_group_closure(ids)
+    if not exact_runtime_supplementary_groups(
+        groups,expected_groups,ids["custody_gid"]
+    ):
+        hold("custody_thread_groups_unreviewed:"+str(tid))
+    capabilities={}
+    for cap in ("CapInh","CapPrm","CapEff","CapAmb"):
+        raw=status.get(cap)
+        if raw is None:
+            hold("custody_thread_capability_missing:"+str(tid)+":"+cap)
+        try:value=int(raw,16)
+        except ValueError:
+            hold("custody_thread_capability_invalid:"+str(tid)+":"+cap)
+        if value!=0:
+            hold("custody_thread_capability_nonzero:"+str(tid)+":"+cap)
+        capabilities[cap]=raw
+    if status.get("NoNewPrivs")!="1":
+        hold("custody_thread_no_new_privileges_missing:"+str(tid))
+    return {
+        "tid":tid,
+        "uid_slots":uid_slots,
+        "gid_slots":tuple(int(value,10) for value in gid_slots),
+        "groups":tuple(groups),
+        "capabilities":capabilities,
+        "no_new_privileges":True,
+    }
+
+def custody_thread_inventory(
+    pid:int,ids:dict[str,int],proc_root:Path=Path("/proc")
+)->list[dict[str,object]]:
+    first_ids=process_thread_ids(pid,proc_root)
+    first=[
+        custody_thread_subject(pid,tid,ids,proc_root)
+        for tid in first_ids
+    ]
+    second_ids=process_thread_ids(pid,proc_root)
+    if first_ids!=second_ids:
+        hold("custody_thread_inventory_changed")
+    second=[
+        custody_thread_subject(pid,tid,ids,proc_root)
+        for tid in second_ids
+    ]
+    if first!=second:
+        hold("custody_thread_credentials_changed")
+    return second
+
 def exact_live_custody_process_set(
-    observed:dict[int,str],pid:int,start_ticks:str
+    observed:dict[int,tuple[int,...]],pid:int
 )->bool:
-    return observed=={pid:start_ticks}
+    return set(observed)=={pid} and bool(observed.get(pid))
 
 def require_no_custody_uid_processes(uid:int,reason:str)->None:
-    if uid_process_generations(uid):hold(reason)
+    if uid_thread_process_map(uid):hold(reason)
 
 def consumed_snapshot(ids:dict[str,int])->dict[str,object]:
     root=exact_directory(
@@ -860,15 +1008,18 @@ def live_observation(ids:dict[str,int])->dict[str,object]:
     finally:
         probe.close()
 
+    thread_inventory=custody_thread_inventory(pid,ids)
     if not no_training_uid_processes(ids["training_uid"]):
         hold("training_uid_process_observed")
-    custody_processes=uid_process_generations(ids["custody_uid"])
-    if not exact_live_custody_process_set(custody_processes,pid,start_ticks):
+    custody_processes=uid_thread_process_map(ids["custody_uid"])
+    if not exact_live_custody_process_set(custody_processes,pid):
         hold("custody_uid_process_exclusivity_failed")
 
     return {
         "pid":pid,"start_ticks":start_ticks,
         "custody_uid_process_count":len(custody_processes),
+        "custody_thread_count":len(thread_inventory),
+        "custody_thread_credentials_exact":True,
         "custody_uid_process_exclusivity_proven":True,
         "exact_runtime_argv_bound":True,
         "socket_dev":st.st_dev,"socket_ino":st.st_ino,
@@ -1500,6 +1651,9 @@ def self_test()->None:
     print("custody_uid_process_exclusivity_required=true")
     print("custody_uid_zero_one_zero_each_cycle=true")
     print("child_process_census_executed=true")
+    print("all_tid_custody_exclusivity_required=true")
+    print("all_tid_training_absence_required=true")
+    print("custody_thread_credentials_exact_required=true")
     print("second_custody_uid_process_rejected=true")
     print("saved_fs_uid_slots_counted=true")
     print("malformed_live_process_status_rejected=true")
