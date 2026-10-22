@@ -55,7 +55,10 @@ fully rebound.
 3. `systemctl daemon-reload`.
 
 Dormancy is rechecked before publication/replacement and immediately before
-daemon reload. The updater contains no systemctl start/stop action.
+daemon reload. Before any destination write, the updater also revalidates the
+complete root-owned, symlink-free, non-group/world-writable ancestor chains for
+the canonical systemd unit and reviewed launcher paths. The updater contains no
+systemctl start/stop action.
 
 It does not mutate custody state, consumed records or sockets and does not
 create a durable attempt claim, start training, access keys, sign, transact or
