@@ -117,8 +117,12 @@ for forbidden in (
 ):
     assert forbidden not in source, forbidden
 
-# Exactly one exported Python-callable operation.
-assert source.count('{"rename_noreplace",') == 1
+# Exactly one exported Python-callable operation in the method table.
+method_start = source.index("static PyMethodDef voidfs_methods[] = {")
+method_end = source.index("static struct PyModuleDef voidfs_module", method_start)
+method_block = source[method_start:method_end]
+assert method_block.count('"rename_noreplace"') == 1
+assert method_block.count("voidfs_rename_noreplace") == 1
 assert source.count("PyMethodDef voidfs_methods") == 1
 
 embedder = r'''
