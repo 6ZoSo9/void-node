@@ -1,0 +1,121 @@
+name: Buy VOID V2 protected source-generation successor (unmounted)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
+      - "docs/architecture/buy-void-verified-payment-v2-source-generation-acceptance-v1.md"
+      - ".github/workflows/buy-void-verified-payment-v2-source-generation-acceptance-v1.yml"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
+      - ".github/workflows/buy-void-verified-payment-transport-v2.yml"
+      - "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs"
+      - "src/economic/buy_void_verified_payment_transport_v2.ts"
+      - "src/economic/buy_void_verified_payment_v2_allocation_stage.ts"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"
+      - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+      - ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"
+      - ".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: source successor / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Exact checkout and build
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+      - name: Prove strict versioned source-only successor
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs
+          receipt="$RUNNER_TEMP/source-successor-${{ matrix.node }}.json"
+          out="$RUNNER_TEMP/source-successor-${{ matrix.node }}.log"
+          timeout 120s node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test | tee "$out"
+          timeout 120s node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --receipt > "$receipt"
+          grep -Fx "VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2_GREEN" "$out"
+          grep -Fx "v2_seven_add_only_paths_exact=true" "$out"
+          grep -Fx "v2_three_new_economic_sources_pinned=true" "$out"
+          grep -Fx "historical_v1_source_proof_preserved=true" "$out"
+          node --input-type=module - "$receipt" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const p=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(p.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2");
+          assert.equal(p.version,2);
+          assert.equal(p.protected_path_count,49);
+          assert.equal(p.nonprotected_economic_drift_count,6);
+          assert.equal(p.added_v2_economic_source_count,3);
+          assert.equal(p.verified_payment_v2_add_only_source_paths_verified,true);
+          assert.equal(p.current_built_census_identity_matches_frozen_v4,true);
+          assert.equal(p.provider_source_identity_preserved,true);
+          assert.equal(p.previous_source_dispatch_proof_unchanged,true);
+          assert.equal(p.frozen_candidate_rederived_on_current_head,false);
+          assert.equal(p.verified_payment_v2_route_mounted,false);
+          assert.equal(p.payment_allocation_custody_authority,false);
+          assert.equal(p.source_finality_authentication_verified,false);
+          assert.equal(p.independent_source_acceptance_complete,false);
+          assert.equal(p.successor_runtime_generation_accepted,false);
+          assert.equal(p.public_presale_activation,false);
+          assert.equal(p.funds_movement,false);
+          NODE
+      - name: Preserve historical V1 refusal
+        run: |
+          set -euo pipefail
+          set +e
+          timeout 120s node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --self-test             > "$RUNNER_TEMP/historical-v1.stdout" 2> "$RUNNER_TEMP/historical-v1.stderr"
+          result=$?
+          set -e
+          test "$result" -ne 0
+          grep -Fq "unexpected_post_census_economic_drift" "$RUNNER_TEMP/historical-v1.stderr"
+          echo "historical_v1_proof_still_refuses_new_generation=true"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: buy-void-v2-source-successor-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/source-successor-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: buy-void-v2-source-successor-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: proof
+      - name: Exact Node 22/24/26 receipt equality
+        run: |
+          set -euo pipefail
+          for version in 22 24 26; do
+            test -s "proof/source-successor-$version.json"
+          done
+          cmp proof/source-successor-22.json proof/source-successor-24.json
+          cmp proof/source-successor-22.json proof/source-successor-26.json
+          echo "VOID_BUY_VOID_V2_SOURCE_SUCCESSOR_CROSS_NODE_GREEN"
