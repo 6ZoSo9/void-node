@@ -44,7 +44,7 @@ MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
 COPY_CHUNK = 1024 * 1024
 
 V6_INSTALLER_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v6.py"
-V6_INSTALLER_BLOB = "2ae608c43906d19f857ebcba110465cec92272ef"
+V6_INSTALLER_BLOB = "bff71178f3771a04d96d4f4a9aabe88e050eb683"
 
 
 class QualifyError(RuntimeError):
