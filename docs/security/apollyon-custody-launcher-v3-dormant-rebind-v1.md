@@ -101,7 +101,7 @@ blobs. A direct root invocation from a user-writable checkout or
 A host operator must first stage the exact reviewed closure into a root-custodied
 directory and execute the absolute staged updater path. Before execution, the
 root-owned staged updater must have exact Git blob
-`1fcc51a134ac6aca6d645c78d2294c60a3cabd4a`; the staged launcher and service payloads remain
+`4cd7e2368237cd7dd44d03c55d0de4529b535bbd`; the staged launcher and service payloads remain
 bound to their exact blobs by the updater itself. This requirement binds root
 execution to the reviewed generation rather than trusting the transport copy.
 
