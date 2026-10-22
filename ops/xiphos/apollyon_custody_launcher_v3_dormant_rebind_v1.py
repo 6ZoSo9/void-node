@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import os
 from pathlib import Path
+import pwd
 import socket
 import stat
 import shlex
@@ -205,6 +206,75 @@ def unit_props(unit:str,names:tuple[str,...])->dict[str,str]:
         hold("unit_probe_incomplete:"+unit)
     return out
 
+def proc_start_ticks(pid:int,proc_root:Path=Path("/proc"))->str:
+    text=(proc_root/str(pid)/"stat").read_text(
+        encoding="ascii",errors="strict"
+    )
+    close=text.rfind(")")
+    fields=text[close+2:].split()
+    if len(fields)<20 or not fields[19].isdigit():
+        hold("proc_stat_invalid")
+    return fields[19]
+
+def proc_status(pid:int,proc_root:Path=Path("/proc"))->dict[str,str]:
+    out={}
+    for line in (proc_root/str(pid)/"status").read_text(
+        encoding="utf-8",errors="strict"
+    ).splitlines():
+        if ":" in line:
+            key,value=line.split(":",1);out[key]=value.strip()
+    return out
+
+def uid_process_generations(
+    uid:int,proc_root:Path=Path("/proc")
+)->dict[int,str]:
+    try:
+        entries=sorted(
+            (entry for entry in proc_root.iterdir() if entry.name.isdigit()),
+            key=lambda entry:int(entry.name,10),
+        )
+    except OSError as exc:
+        raise Hold("uid_process_census_unavailable") from exc
+    observed={}
+    for entry in entries:
+        pid=int(entry.name,10)
+        try:
+            status=proc_status(pid,proc_root)
+        except (FileNotFoundError,ProcessLookupError):
+            continue
+        except (PermissionError,OSError,UnicodeError) as exc:
+            if not entry.exists():continue
+            raise Hold("uid_process_status_unreadable:"+entry.name) from exc
+        raw=status.get("Uid")
+        if raw is None:
+            if not entry.exists():continue
+            hold("process_uid_slots_missing")
+        slots=raw.split()
+        if len(slots)!=4 or any(not value.isdigit() for value in slots):
+            if not entry.exists():continue
+            hold("process_uid_slots_invalid")
+        if uid not in tuple(int(value,10) for value in slots):
+            continue
+        try:
+            start_ticks=proc_start_ticks(pid,proc_root)
+        except (FileNotFoundError,ProcessLookupError):
+            continue
+        except (PermissionError,OSError,UnicodeError) as exc:
+            if not entry.exists():continue
+            raise Hold("uid_process_generation_unreadable:"+entry.name) from exc
+        observed[pid]=start_ticks
+    return observed
+
+def require_no_role_processes()->None:
+    custody_uid=pwd.getpwnam("voidapollyoncustody").pw_uid
+    training_uid=pwd.getpwnam("voidapollyontrain").pw_uid
+    custody=uid_process_generations(custody_uid)
+    training=uid_process_generations(training_uid)
+    if custody:
+        hold("custody_uid_process_present:"+",".join(str(pid) for pid in custody))
+    if training:
+        hold("training_uid_process_present:"+",".join(str(pid) for pid in training))
+
 def require_dormant()->dict[str,dict[str,str]]:
     target=unit_props(TARGET_UNIT,(
         "LoadState","ActiveState","UnitFileState","MainPID","NeedDaemonReload",
@@ -259,6 +329,7 @@ def require_dormant()->dict[str,dict[str,str]]:
         training["MainPID"] not in ("","0")
     ):
         hold("training_not_dormant")
+    require_no_role_processes()
     return {"target":target,"service":service,"training":training}
 
 def launcher_destination_file()->os.stat_result|None:
@@ -674,6 +745,10 @@ def self_test()->None:
         'service_unexpected_exec_command:',
         'service["NoNewPrivileges"]!="yes"',
         'service["RestrictAddressFamilies"]!="AF_UNIX"',
+        'uid_process_generations(',
+        'custody_uid_process_present:',
+        'training_uid_process_present:',
+        'require_no_role_processes()',
         'rebind_material_changed_before_daemon_reload',
         'V3_LAUNCHER_BLOB="8d8561c08db7e500a818d269580dad15adca9f58"',
         'NEW_SERVICE_BLOB="51354b10da89413eb6991514496798c7a1b5d1e8"',
@@ -688,6 +763,9 @@ def self_test()->None:
     print("v3_launcher_partial_pending_recovery=true")
     print("v3_launcher_resumed_pending_fsync=true")
     print("loaded_v2_forces_reload_even_without_need_reload_flag=true")
+    print("custody_uid_process_absence_required=true")
+    print("training_uid_process_absence_required=true")
+    print("saved_fs_uid_slots_counted=true")
     print("service_unit_atomic_replace=true")
     print("daemon_reload_only_systemd_mutation=true")
     print("service_action=false")
