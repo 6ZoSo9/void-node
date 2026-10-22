@@ -27,10 +27,10 @@ The reviewed V3 candidate:
 3. re-reads active unit state after socket publication, so a transient pre-`execve` process cannot pass or cause an instant false executable mismatch;
 4. uses `os.readlink("/proc/<pid>/exe")` instead of `os.path.realpath` so a vanished process is a distinct fail-closed `HOLD`, never treated as an observed alternate executable;
 5. requires the exact expected executable pathname **and** matching device/inode for the pinned Node executable;
-6. re-verifies process start ticks and the systemd `MainPID` before the live observation is accepted;
+6. re-verifies process start ticks and the systemd `MainPID` before the live observation is accepted, then **re-attests the exact executable path and device/inode after the final `MainPID` check** because `execve` preserves PID/start ticks; rechecks start ticks again after that executable read;
 7. keeps the 8-second socket timeout, exact argv/credentials, global role thread census, socket metadata and connection, two-cycle cleanup and final dormancy requirements.
 
-The V3 self-test exercises the exact match, unexpected executable, missing executable and inode-identity checks. The read-only `scripts/prove_apollyon_live_custody_dormant_qualification_v3.py` runs the self-test and checks the production boundaries.
+The V3 self-test exercises the exact match, unexpected executable, missing executable and inode-identity checks. It injects an inode mismatch *after a matching observed executable pathname* and requires `exact_custody_node_executable` itself to emit `HOLD=custody_node_executable_inode_mismatch`; a standalone helper test alone is insufficient. The source proof also requires two executable-identity attestations, with the second after the final systemd `MainPID` check. The read-only `scripts/prove_apollyon_live_custody_dormant_qualification_v3.py` runs the self-test and checks the production boundaries.
 
 **Important:** Socket publication is only a readiness barrier. It does **not** replace the executable, credential, argv, socket, and process-exclusivity attestations. Socket absence, early main-process exit, tampering or unexpected executable still HOLD and trigger guarded cleanup.
 
