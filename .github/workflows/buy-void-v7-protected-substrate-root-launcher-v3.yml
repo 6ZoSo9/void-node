@@ -53,9 +53,9 @@ jobs:
             git diff --check "$EXPECTED_HEAD^" "$EXPECTED_HEAD" --
           fi
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v3.c)" = "b62a8168d7647f71a920300f88a2bedef9527955"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_root_launcher_v3.py)" = "11f8233d726336955086da97b3426590e21e9f4f"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-root-launcher-v3.md)" = "bd66c75c034941442e22d67cce37c409f8c8cfb7"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v3.c)" = "48d8f4502670413f9a7d4aa83325e0362d6733e8"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_root_launcher_v3.py)" = "b1c03d94054313fc38168bf1e17992f9b528c018"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-root-launcher-v3.md)" = "e85a6b4a02239db117a6cdd0ccc42e95c01636df"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c)" = "0aa8d3a990de662b8c3c9928d4c31452d8299ca7"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json)" = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
