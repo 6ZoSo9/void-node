@@ -45,7 +45,8 @@ The expected launcher path is:
 
 The live `--run` mode retains the v1 lifecycle semantics:
 
-1. prove target/service dormant and training dormant;
+1. prove target dormant, training dormant, and custody service safely dead
+   (`inactive` or pre-existing `failed`, always with no MainPID);
 2. prove exact static install and effective systemd boundary;
 3. start only the custody activation target;
 4. observe the dependency-started custody service generation;
@@ -55,6 +56,12 @@ The live `--run` mode retains the v1 lifecycle semantics:
 7. prove service/target dormant and socket/process cleanup;
 8. repeat once with a distinct process generation;
 9. require consumed-state metadata unchanged across both cycles.
+
+A pre-existing or failure-cleanup custody state may be `failed` only when the
+unit is dead, the socket is absent and no custody process remains. That
+fail-closed state is accepted for recovery without `reset-failed`. By contrast,
+every **successful normal cycle stop** must reach `inactive`; a v3 exit-status
+regression therefore still fails the qualification.
 
 No direct custody-service start/stop is authorized.
 
