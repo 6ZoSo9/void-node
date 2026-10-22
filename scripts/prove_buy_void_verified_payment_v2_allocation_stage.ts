@@ -173,6 +173,49 @@ try {
   assert.equal(result.event_snapshot_sha256, stage(serverInput()).result?.event_snapshot_sha256);
   cases++;
 
+  // The real public request handler stores a NUMBER; the private fixture uses
+  // decimal text. Positive canonical quotes in either format must still stage.
+  for (const canonicalQuote of [6, 0.000001, "0.000001"]) {
+    const allowed = serverInput();
+    allowed.event.quoted_void = canonicalQuote;
+    allowed.request.quoted_void = canonicalQuote;
+    const admitted = stage(allowed).result;
+    assert.equal(admitted?.status, "staged_unmounted");
+    assert.equal(admitted?.payment_acceptance, false);
+    cases++;
+  }
+
+  // Plain equality was insufficient: two omitted or equal invalid values
+  // must never authorize even an unmounted allocation preflight.
+  const missingQuotes = serverInput();
+  delete missingQuotes.event.quoted_void;
+  delete missingQuotes.request.quoted_void;
+  negative(missingQuotes, "event_request_original_identity_mismatch");
+  const badQuotePairs: [unknown, unknown][] = [
+    [null, null],
+    ["", ""],
+    ["0", "0"],
+    [0, 0],
+    ["-6", "-6"],
+    ["06", "06"],
+    ["6 ", "6 "],
+    ["6e0", "6e0"],
+    ["6.0000001", "6.0000001"],
+    ["10000001", "10000001"],
+    [10000001, 10000001],
+    [0.0000001, 0.0000001],
+    [true, true],
+    ["6", 6],
+    [6, "6"],
+    ["6", "7"],
+  ];
+  for (const [eventQuote, requestQuote] of badQuotePairs) {
+    const invalid = serverInput();
+    invalid.event.quoted_void = eventQuote;
+    invalid.request.quoted_void = requestQuote;
+    negative(invalid, "event_request_original_identity_mismatch");
+  }
+
   negative({ ...serverInput(), event: { ...serverInput().event, request_id: "buyvoid_forged_ffffffff" } },
     "request_event_identity_status_or_server_callbacks_invalid");
   negative({ ...serverInput(), event: { ...serverInput().event, operator_status: "reviewed" } },
@@ -261,6 +304,8 @@ console.log("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_PROOF_GREEN");
 console.log("adversarial_cases=" + String(cases));
 console.log("real_private_bearer_and_canonical_allocation_planner_used=true");
 console.log("server_only_event_and_request_snapshotted=true");
+console.log("numeric_and_text_canonical_void_quotes_supported=true");
+console.log("equal_missing_zero_or_invalid_void_quotes_rejected=true");
 console.log("auth_denial_precedes_untrusted_planning=true");
 console.log("payment_only_writer_unreachable=true");
 console.log("callback_and_protected_root_access=false");

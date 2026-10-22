@@ -38,6 +38,27 @@ const stringify = JSON.stringify;
 const REQUEST_ID = /^buyvoid_[a-z0-9]+_[0-9a-f]{8}$/u;
 const TX_HASH = /^0x[0-9a-fA-F]{64}$/u;
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/u;
+const DECIMAL_VOID = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,6}))?$/u;
+const MICRO_VOID = 1_000_000n;
+const MAX_PRESALE_VOID_MICRO = 10_000_000n * MICRO_VOID;
+
+// The request-first public checkout records numeric quotes. Some reviewed
+// private event formats use decimal text. Preserve both primitive types but
+// never coerce missing/null/objects, whitespace or exponent notation.
+function canonicalPositiveQuoteMicro(value: unknown): bigint | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  if (typeof value === "number" &&
+      (!Number.isFinite(value) || value <= 0 || Object.is(value, -0))) {
+    return null;
+  }
+  const raw = typeof value === "number" ? String(value) : value;
+  if (raw.length < 1 || raw.length > 24) return null;
+  const parsed = DECIMAL_VOID.exec(raw);
+  if (!parsed) return null;
+  const micro = BigInt(parsed[1]) * MICRO_VOID +
+    BigInt((parsed[2] || "").padEnd(6, "0") || "0");
+  return micro > 0n && micro <= MAX_PRESALE_VOID_MICRO ? micro : null;
+}
 function hold(reason: string): never {
   throw new Error("buy_void_verified_payment_v2_allocation_stage_" + reason);
 }
@@ -80,6 +101,8 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
   const event = plan.event;
   const original = plan.request;
   const verifier = event.payment_verifier;
+  const eventQuoteMicro = canonicalPositiveQuoteMicro(event.quoted_void);
+  const originalQuoteMicro = canonicalPositiveQuoteMicro(original.quoted_void);
   if (
     event.schema !== "void_buy_void_verified_payment_event_v2" ||
     event.marker !== "VOID_BUY_VOID_VERIFIED_PAYMENT_V2" ||
@@ -96,6 +119,9 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
     typeof verifier.log_index !== "string" ||
     !/^(?:0|[1-9][0-9]{0,9})$/u.test(verifier.log_index) ||
     Number(verifier.log_index) > 0xffffffff ||
+    eventQuoteMicro === null ||
+    originalQuoteMicro === null ||
+    eventQuoteMicro !== originalQuoteMicro ||
     event.quoted_void !== original.quoted_void ||
     !sameHex(event.tx_hash, original.tx_hash, TX_HASH) ||
     !sameHex(verifier.transaction_hash, original.tx_hash, TX_HASH) ||

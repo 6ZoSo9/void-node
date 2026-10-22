@@ -5,6 +5,10 @@ on:
     paths:
       - "src/economic/buy_void_verified_payment_transport_v2.ts"
       - "scripts/prove_buy_void_verified_payment_transport_v2.ts"
+      - "src/economic/buy_void_verified_payment_v2_allocation_stage.ts"
+      - "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts"
+      - "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs"
+      - "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs"
       - ".github/workflows/buy-void-verified-payment-transport-v2.yml"
   workflow_dispatch:
 
@@ -50,6 +54,75 @@ jobs:
             | sort > "$RUNNER_TEMP/expected"
           git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual"
           diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/actual"
+      - name: Verify all seven protected-domain paths trigger the security matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import re
+          from pathlib import Path
+
+          body = Path(".github/workflows/buy-void-verified-payment-transport-v2.yml").read_text(encoding="utf-8")
+          block = body.split("  workflow_dispatch:", 1)[0]
+          observed = re.findall(r'^      - "([^"]+)"        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+          out="$RUNNER_TEMP/verified-payment-transport-v2.log"
+          timeout 90s npx tsx scripts/prove_buy_void_verified_payment_transport_v2.ts | tee "$out"
+          stage_out="$RUNNER_TEMP/verified-payment-v2-allocation-stage.log"
+          timeout 90s npx tsx scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts | tee "$stage_out"
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_PROOF_GREEN' "$stage_out"
+          # Compose the private bearer + staged payment with the real
+          # custody-V2 Unix inspect protocol on a disposable same-UID fixture.
+          custody_out="$RUNNER_TEMP/verified-payment-v2-custody-inspect.log"
+          timeout 120s node scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs | tee "$custody_out"
+          grep -Fx 'VOID_BUY_VOID_V2_CUSTODY_INSPECT_BRIDGE_REAL_UNIX_PROOF_GREEN' "$custody_out"
+          grep -Fx 'real_custody_v2_unix_socket_and_existing_client_exercised=true' "$custody_out"
+          grep -Fx 'authentication_precedes_socket_config_access=true' "$custody_out"
+          grep -Fx 'custody_inspect_never_promotes_reservation_authority=true' "$custody_out"
+          grep -Fx 'canonical_payment_and_allocation_journals_unchanged=true' "$custody_out"
+          grep -Fx 'real_private_bearer_and_canonical_allocation_planner_used=true' "$stage_out"
+          grep -Fx 'payment_only_writer_unreachable=true' "$stage_out"
+          grep -Fx 'callback_and_protected_root_access=false' "$stage_out"
+          # Independently rerun existing real-temp-filesystem payment+allocation
+          # durability proof. Its synthetic writes are only under os.tmpdir().
+          handoff_out="$RUNNER_TEMP/verified-payment-allocation-handoff.log"
+          timeout 120s npx tsx scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts | tee "$handoff_out"
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_V1_PROOF_GREEN' "$handoff_out"
+          grep -Fx 'payment_fsync_crash_recovery_exactly_once=true' "$handoff_out"
+          grep -Fx 'allocation_before_sidecar_crash_replay_exactly_once=true' "$handoff_out"
+          grep -Fx 'runtime_integration=false' "$handoff_out"
+          for marker in \
+            'VOID_BUY_VOID_VERIFIED_PAYMENT_TRANSPORT_V2_PROOF_GREEN' \
+            'old_payment_only_route_remains_503=true' \
+            'new_v2_route_transport_credential_bound=true' \
+            'source_only_unmounted=true' \
+            'operator_principal_authenticated_for_allocation=false' \
+            'mounted_verified_allocation_dispatch=false' \
+            'custody_service_composed=false' \
+            'payment_acceptance=false' \
+            'presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+, block, flags=re.MULTILINE)
+          required = {
+              ".github/workflows/buy-void-verified-payment-transport-v2.yml",
+              "scripts/prove_buy_void_verified_payment_transport_v2.ts",
+              "src/economic/buy_void_verified_payment_transport_v2.ts",
+              "src/economic/buy_void_verified_payment_v2_allocation_stage.ts",
+              "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts",
+              "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs",
+              "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs",
+          }
+          assert len(observed) == len(required) and set(observed) == required, "V2 security trigger closure mismatch"
+          print("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_TRIGGER_CLOSURE_GREEN")
+          PY
+
       - name: Prove inert V2 private transport
         shell: bash
         run: |
