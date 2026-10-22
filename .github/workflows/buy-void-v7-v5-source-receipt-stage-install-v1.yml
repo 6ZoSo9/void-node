@@ -119,6 +119,7 @@ jobs:
               "ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py",
               run_name="v5_receipt_stage_fixture",
           )
+          g=m["collect_plan"].__globals__
           with tempfile.TemporaryDirectory(prefix="v5-receipt-stage-fixture-") as td:
               parent=pathlib.Path(td)
               fixed=parent/"fixed-v4.json"
@@ -127,27 +128,27 @@ jobs:
               os.chown(fixed,0,0)
               os.chmod(fixed,0o444)
 
-              m["PARENT"]=parent
-              m["TARGET"]=parent/".deployment-receipt.json.stage-v5"
-              m["FIXED_RECEIPT"]=fixed
-              m["FIXED_V4_SHA256"]=hashlib.sha256(fixed_raw).hexdigest()
-              m["FIXED_V4_BYTES"]=len(fixed_raw)
-              m["require_root_source"]=lambda: None
+              g["PARENT"]=parent
+              g["TARGET"]=parent/".deployment-receipt.json.stage-v5"
+              g["FIXED_RECEIPT"]=fixed
+              g["FIXED_V4_SHA256"]=hashlib.sha256(fixed_raw).hexdigest()
+              g["FIXED_V4_BYTES"]=len(fixed_raw)
+              g["require_root_source"]=lambda: None
 
-              planned=m["collect_plan"]()
+              planned=g["collect_plan"]()
               if planned["body"]["stage_state"]!="READY":
                   raise SystemExit("fixture_not_ready")
 
               out=io.StringIO()
               with contextlib.redirect_stdout(out):
-                  m["apply"](
+                  g["apply"](
                       planned["plan_id"],
-                      m["CONFIRM_TOKEN"],
+                      g["CONFIRM_TOKEN"],
                   )
               if "status=V5_RECEIPT_STAGE_V1_GREEN" not in out.getvalue().splitlines():
                   raise SystemExit("fixture_apply_not_green")
 
-              target=m["TARGET"]
+              target=g["TARGET"]
               st=target.lstat()
               if (
                   not stat.S_ISREG(st.st_mode)
@@ -162,12 +163,12 @@ jobs:
               if fixed.read_bytes()!=fixed_raw:
                   raise SystemExit("fixture_fixed_receipt_changed")
 
-              again=m["collect_plan"]()
+              again=g["collect_plan"]()
               if again["body"]["stage_state"]!="GREEN":
                   raise SystemExit("fixture_reapply_not_green")
               again_out=io.StringIO()
               with contextlib.redirect_stdout(again_out):
-                  m["apply"](again["plan_id"],m["CONFIRM_TOKEN"])
+                  g["apply"](again["plan_id"],g["CONFIRM_TOKEN"])
               if "status=ALREADY_GREEN" not in again_out.getvalue().splitlines():
                   raise SystemExit("fixture_reapply_not_idempotent")
 
