@@ -342,6 +342,15 @@ async function receiptsPersistMetricsRoute(req, res) {
   }
 }
 
+const EXPRESS4_ROUTER_GETTER_ERROR =
+  "'app.router' is deprecated!\\n" +
+  "Please see the 3.x to 4.x migration guide for details on how to update your app.";
+
+function isExpectedExpress4RouterGetterError(key, error) {
+  if (key !== "router") return false;
+  return String(error?.message || error || "") === EXPRESS4_ROUTER_GETTER_ERROR;
+}
+
 function retainedRouteState(app, routePath, handler) {
   let observedUnretained = false;
   let unreadableAlias = false;
@@ -368,12 +377,13 @@ function retainedRouteState(app, routePath, handler) {
       }
       if (!stackIndeterminate) observedUnretained = true;
     } catch (error) {
-      unreadableAlias = true;
-      void error;
+      if (!isExpectedExpress4RouterGetterError(key, error)) {
+        unreadableAlias = true;
+      }
     }
   }
+  if (unreadableAlias) return null;
   if (observedUnretained) return false;
-  void unreadableAlias;
   return null;
 }
 
