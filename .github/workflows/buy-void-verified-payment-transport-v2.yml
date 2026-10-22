@@ -43,6 +43,8 @@ jobs:
             'A\t.github/workflows/buy-void-verified-payment-transport-v2.yml' \
             'A\tscripts/prove_buy_void_verified_payment_transport_v2.ts' \
             'A\tsrc/economic/buy_void_verified_payment_transport_v2.ts' \
+            'A\tsrc/economic/buy_void_verified_payment_v2_allocation_stage.ts' \
+            'A\tscripts/prove_buy_void_verified_payment_v2_allocation_stage.ts' \
             | sort > "$RUNNER_TEMP/expected"
           git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual"
           diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/actual"
@@ -55,6 +57,20 @@ jobs:
           npm run build
           out="$RUNNER_TEMP/verified-payment-transport-v2.log"
           timeout 90s npx tsx scripts/prove_buy_void_verified_payment_transport_v2.ts | tee "$out"
+          stage_out="$RUNNER_TEMP/verified-payment-v2-allocation-stage.log"
+          timeout 90s npx tsx scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts | tee "$stage_out"
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_PROOF_GREEN' "$stage_out"
+          grep -Fx 'real_private_bearer_and_canonical_allocation_planner_used=true' "$stage_out"
+          grep -Fx 'payment_only_writer_unreachable=true' "$stage_out"
+          grep -Fx 'callback_and_protected_root_access=false' "$stage_out"
+          # Independently rerun existing real-temp-filesystem payment+allocation
+          # durability proof. Its synthetic writes are only under os.tmpdir().
+          handoff_out="$RUNNER_TEMP/verified-payment-allocation-handoff.log"
+          timeout 120s npx tsx scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts | tee "$handoff_out"
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_V1_PROOF_GREEN' "$handoff_out"
+          grep -Fx 'payment_fsync_crash_recovery_exactly_once=true' "$handoff_out"
+          grep -Fx 'allocation_before_sidecar_crash_replay_exactly_once=true' "$handoff_out"
+          grep -Fx 'runtime_integration=false' "$handoff_out"
           for marker in \
             'VOID_BUY_VOID_VERIFIED_PAYMENT_TRANSPORT_V2_PROOF_GREEN' \
             'old_payment_only_route_remains_503=true' \
