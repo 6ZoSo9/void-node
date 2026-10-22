@@ -430,10 +430,8 @@ def apply()->dict[str,object]:
     file_state=service_state()
     if file_state=="v3_exact":
         loaded=unit_props(SERVICE_UNIT,("ExecStart","NeedDaemonReload"))
-        if (
-            os.fspath(V2_LAUNCHER_PATH) in loaded["ExecStart"] or
-            loaded["NeedDaemonReload"]=="yes"
-        ):
+        loaded_generation=loaded_exec_generation(loaded)
+        if loaded_generation=="v2" or loaded["NeedDaemonReload"]=="yes":
             daemon_reload()
             daemon_reload_performed=True
 
@@ -483,6 +481,7 @@ def self_test()->None:
         'trusted_ancestor_invalid:',
         'parse_exec_property(',
         'loaded_exec_generation(',
+        'loaded_generation=="v2"',
         'service_effective_execstart_invalid',
         'service_effective_execstoppost_invalid',
         'service_unexpected_exec_command:',
