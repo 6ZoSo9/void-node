@@ -1246,9 +1246,7 @@ def self_test()->None:
         'prestart_custody_uid_process',
         '"prestart_cycle_"+str(cycle)',
         'allow_service_failed=(cycle==1)',
-        'exact_dormant(
-        TRAINING_UNIT,allow_failed=True,expected_unit_file_state="static"
-    )',
+        'TRAINING_UNIT,allow_failed=True,expected_unit_file_state="static"',
         'custody_uid_process_after_stop',
         'custody_argv_exact_mismatch',
         'target_dropins_present',
