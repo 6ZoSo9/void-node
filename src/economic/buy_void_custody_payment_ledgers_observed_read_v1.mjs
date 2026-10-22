@@ -9,6 +9,7 @@ export const VOID_BUY_VOID_CUSTODY_PAYMENT_LEDGERS_OBSERVED_READ_POLICY_V1 =
   Object.freeze({
     source_only_descriptor_reader:true,
     linux_procfs_dirfd_required:true,
+    fifo_leaf_substitution_nonblocking:true,
     fixed_ledger_names:true,
     caller_selected_leaf_names:false,
     caller_selected_write_path:false,
@@ -61,7 +62,9 @@ function openDirectoryChain(absolute){
   if(process.platform!=="linux"||
      !Number.isInteger(fs.constants.O_NOFOLLOW)||
      !Number.isInteger(fs.constants.O_DIRECTORY)||
-     fs.constants.O_NOFOLLOW<=0){
+     !Number.isInteger(fs.constants.O_NONBLOCK)||
+     fs.constants.O_NOFOLLOW<=0||
+     fs.constants.O_NONBLOCK<=0){
     fail("linux_dirfd_unavailable");
   }
   const flags=fs.constants.O_RDONLY|fs.constants.O_DIRECTORY|
@@ -112,7 +115,7 @@ function openLeaf(directoryFd,absolute,name,maximum){
   }
   const fd=fs.openSync(
     "/proc/self/fd/"+directoryFd+"/"+name,
-    fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW,
+    fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK,
   );
   try{
     const stat=fs.fstatSync(fd,{bigint:true});

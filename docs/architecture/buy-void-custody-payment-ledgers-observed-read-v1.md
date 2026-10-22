@@ -4,9 +4,9 @@ Marker: `VOID_BUY_VOID_CUSTODY_PAYMENT_LEDGERS_OBSERVED_READ_V1`
 
 Status: **source-only read capability / production HOLD**.
 
-Exact source Git blob: `79eb8c39529583fffdb083173fb37b1f32075a14`.
+Exact source Git blob: `e6fbd5b54891ee25daaeb8ae4e6f26073ed71420`.
 
-Focused proof Git blob: `4c51d29b681d433fc3733f738f8c1a36fae9e8e1`.
+Focused proof Git blob: `aaf0f1bb77687e56757a98d24397c9ebf4e879b3`.
 
 ## Purpose
 
@@ -31,7 +31,8 @@ On Linux the reader:
 1. walks every directory component through retained directory descriptors using
    `/proc/self/fd`, `O_DIRECTORY` and `O_NOFOLLOW`;
 2. opens the fixed leaves `requests.jsonl` and `operator-events.jsonl`
-   before reading either file;
+   with `O_RDONLY|O_NOFOLLOW|O_NONBLOCK` before reading either file, so a
+   regular-to-FIFO substitution cannot block before descriptor type rejection;
 3. pins device, inode, ownership, mode, link count, size and timestamps;
 4. reads at most the opened size plus one byte so post-open growth cannot cause
    unbounded allocation;
@@ -92,6 +93,7 @@ The proof uses disposable temp files only. It requires:
 - a present stable zero-byte operator history returning an empty Buffer;
 - continued rejection of empty requests and missing operator paths;
 - hard-link and symlink rejection;
+- a real lstat→open operator regular-to-FIFO substitution rejected without blocking;
 - zero-to-one-byte operator growth rejection;
 - zero Proxy/accessor execution;
 - fixed leaf names;
