@@ -41,6 +41,7 @@ Run in an unprivileged, disposable checkout of the *stacked* head:
 npm ci --ignore-scripts --no-audit --no-fund
 npm run typecheck
 npm run build
+node scripts/prove_buy_void_verified_payment_v2_trigger_closure_v1.mjs
 node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test
 node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --receipt
 ```
@@ -62,6 +63,27 @@ V2 itself fails closed when a workflow does not invoke V2 or lacks a V2
 source trigger. The historical V1 proof remains unchanged and still rejects
 the new generation directly. Source CI GREEN is not independent acceptance,
 deployment authority, payment acceptance, or a public launch approval.
+
+## Trigger-closure contract
+
+The dedicated V2 source-generation workflow is the canonical compulsory
+source-acceptance trigger. Its `pull_request.paths` set covers every key derived
+from the committed `V2_SOURCE_FILES` inventory: the parent transport workflow,
+all three focused proof programs, and all three added economic modules. It also
+covers the V1/V2 dispatch proofs, its own trigger-closure proof, this document,
+its own workflow definition, and all five protected consumer workflow files.
+
+The five protected consumers still trigger on their own workflow and V2 dispatch
+proof changes and invoke the exact V2 self-test when they run. They do not need
+to duplicate all seven source-input filters because any change to those inputs
+must schedule the dedicated source-acceptance gate. The trigger-closure proof
+extracts the inventory keys from the V2 proof source, parses the dedicated
+`pull_request.paths` block, and verifies the consumer definitions and V2
+invocations. A manually repeated seven-path list is not the source of truth.
+
+This alternative compulsory trigger closes only CI scheduling and source
+acceptance. It does not make the inherited frozen enforcement identities current,
+mount a route, authenticate payment finality, or authorize allocation/delivery.
 
 ## Runtime and customer-safety boundaries
 
