@@ -33,7 +33,9 @@ Expected layout:
 - `runtime/lib/python312.zip`;
 - complete `source/` snapshot.
 
-Exact current V5 staging installers:
+Installer generation currently pinned in this draft (older than the updated
+#3712 installer generation; a new accepted manifest and source rebind are **not**
+implied by this source repair):
 
 - source installer blob
   `a3cb44b02606b49be2c678f4fb28e258cf765e3b`,
@@ -102,7 +104,13 @@ The launcher still retains the predecessor security model:
 - static Python and stdlib content hashes;
 - runtime UID non-writability audit;
 - retained-descriptor revalidation;
-- `fexecve` of the retained Python descriptor;
+- selection of exactly one verified source/receipt installer descriptor;
+- explicit close of the unselected installer descriptor;
+- clearing `FD_CLOEXEC` **only** for the selected verified installer;
+- descriptor-backed script argument `/proc/self/fd/<fd>`, not a separately
+  reopened installer pathname, after final descriptor/path identity validation;
+- `fexecve` of the retained Python descriptor with that selected installer
+  descriptor inherited across process exec;
 - `-I -B -S`;
 - fixed minimal environment;
 - stdin `/dev/null`.
@@ -178,7 +186,13 @@ Focused CI:
 - runs launcher `--self-test`;
 - proves a normal launcher operation fails closed on the unbound manifest lock;
 - compiles the qualifier;
-- runs qualifier `--self-test` only.
+- runs qualifier `--self-test` only;
+- self-tests the selected installer FD inheritance and procfd identity
+  without opening a protected host path;
+- runs a disposable, non-root Python path-substitution regression: a script
+  renamed away after its descriptor was opened must still execute its originally
+  verified bytes through `/proc/self/fd/<fd>`; a new file at the old pathname
+  must not affect those bytes.
 
 CI does **not**:
 
@@ -217,8 +231,17 @@ treasury_liquidity_action=false
 funds_movement=false
 ```
 
-Next gate after exact-head CI:
+Next gates after exact-head CI:
 
-`REVIEW_STATIC_LAUNCHER_AND_QUALIFIER_THEN_DERIVE_EXTERNAL_CLOSED_TREE_MANIFEST_CANDIDATE`
+1. Independently review this exact descriptor-inheritance and path-substitution
+   correction and all root-launcher file-descriptor lifetime invariants.
+2. Rebind the trusted-admission and static-launcher stack to the latest reviewed
+   #3712 source/receipt installer generation with exact blob, byte length, and
+   SHA-256 identities. The pinned older stage installer identities above are not
+   current. Revalidate the parent ancestry and five-add-only scope.
+3. Rerun complete fresh exact-head CI and only then consider a separate external
+   closed-tree manifest candidate review. Source CI is **not** root authorization.
+
+`REVIEW_DESCRIPTOR_EXEC_THEN_REBIND_V5_STAGE_STACK_THEN_DERIVE_EXTERNAL_MANIFEST`
 
 PROTECT THE CORE.
