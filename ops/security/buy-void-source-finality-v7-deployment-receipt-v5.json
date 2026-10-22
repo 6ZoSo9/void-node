@@ -1,0 +1,18 @@
+{
+  "accepted_enforcement_lock_git_blob_sha1": "bc1b2f4095315861db7a257d4cc3c80a9f112530",
+  "accepted_enforcement_lock_id": "voidbenfl1_562f6f5b48364b7c7af3817f0d26d11c50c318d831d0f40905a283eaadf07637",
+  "accepted_enforcement_lock_sha256": "a0b334530db1c55c2e1be651f1ce8504c90c8e6a50722c2a0b0b2c6e440f0c4d",
+  "accepted_enforcement_set_sha256": "e72f512b0006eef7cec7325f39c56823eb3c878d7f8452a08c717478b7c8ac45",
+  "candidate_enforcement_identity_accepted": true,
+  "complete_executable_closure_verified": true,
+  "marker": "VOID_BUY_VOID_SOURCE_FINALITY_DEPLOYMENT_RECEIPT_V1",
+  "process_source_branch": "main",
+  "process_source_commit": "be2fbe41aaba291d3f874b9de52bcb87336307f5",
+  "process_source_marker": "VOID_NODE_PROCESS_SOURCE_IDENTITY_V1",
+  "process_source_tree": "749877d2320ecee9d659720b32e4726a0c42d697",
+  "reviewed_source_file_count": "10",
+  "reviewed_source_files_sha256": "18d63ea70fc3a7a4d0ce3d427205717e2c72c40eb145fe677eb4ab6e869acb24",
+  "status": "DEPLOYED_SOURCE_FINALITY_GENERATION_ACCEPTED",
+  "version": 1,
+  "receipt_id": "voidbsfdep1_c936b6fad9623418aa3d34756226bb5f26411117dc9d3f77cbb874a98db84b37"
+}
