@@ -101,6 +101,36 @@ def require_trusted_ancestor_chain(path:Path,*,include_leaf:bool)->None:
         ):
             hold("trusted_ancestor_invalid:"+os.fspath(current))
 
+def require_root_custodied_source_file(
+    path:Path,expected_blob:str|None=None,
+)->None:
+    raw=os.fspath(path)
+    if not path.is_absolute() or os.path.normpath(raw)!=raw:
+        hold("apply_source_path_invalid:"+raw)
+    require_trusted_ancestor_chain(path,include_leaf=False)
+    st=os.lstat(path)
+    if (
+        not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or
+        st.st_uid!=0 or st.st_gid!=0 or st.st_nlink!=1 or
+        (stat.S_IMODE(st.st_mode)&0o022)!=0
+    ):
+        hold("apply_source_not_root_custodied:"+raw)
+    data=path.read_bytes()
+    if len(data)!=st.st_size:
+        hold("apply_source_read_invalid:"+raw)
+    if expected_blob is not None and git_blob(data)!=expected_blob:
+        hold("apply_source_blob_invalid:"+raw)
+
+def require_apply_source_custody()->None:
+    source=Path(__file__)
+    require_root_custodied_source_file(source)
+    require_root_custodied_source_file(
+        ROOT/V3_LAUNCHER_REL,V3_LAUNCHER_BLOB
+    )
+    require_root_custodied_source_file(
+        ROOT/V3_SERVICE_REL,NEW_SERVICE_BLOB
+    )
+
 def exact_regular(
     path:Path,mode:int,uid:int,gid:int,expected_blob:str|None=None,
 )->str:
@@ -711,6 +741,7 @@ def daemon_reload()->None:
 
 def apply()->dict[str,object]:
     if os.geteuid()!=0:hold("apply_requires_root")
+    require_apply_source_custody()
     before=plan()
     launcher_data=read_source(V3_LAUNCHER_REL,V3_LAUNCHER_BLOB)
     service_data=read_source(V3_SERVICE_REL,NEW_SERVICE_BLOB)
@@ -854,6 +885,9 @@ def self_test()->None:
         'service["ActiveState"] not in ("inactive","failed")',
         'require_trusted_ancestor_chain(',
         'trusted_ancestor_invalid:',
+        'require_apply_source_custody()',
+        'apply_source_not_root_custodied:',
+        'apply_source_blob_invalid:',
         'parse_exec_property(',
         'loaded_exec_generation(',
         'loaded_generation=="v2"',
@@ -890,6 +924,8 @@ def self_test()->None:
     print(MARKER+"_SELF_TEST_GREEN")
     print("v2_launcher_preserved=true")
     print("v3_launcher_create_only=true")
+    print("apply_root_custodied_source_required=true")
+    print("apply_payload_root_custody_required=true")
     print("v3_launcher_crash_resumable_publication=true")
     print("v3_launcher_pending_inode_bound=true")
     print("v3_launcher_partial_pending_recovery=true")
