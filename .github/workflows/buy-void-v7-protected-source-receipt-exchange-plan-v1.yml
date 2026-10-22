@@ -67,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-protected-source-receipt-exchange-plan-v1.json)" = "191a8015e438bc1cebf9fadfcbc23c68f0d2d4ad"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs)" = "1f4b93963fd135a79e8ad2aed8021bca4695f6ea"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs)" = "f3d1fdcd44a817dfffa35d59d7b7c2a3bc505912"
           test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-protected-source-receipt-exchange-plan-v1.md)" = "75b49b1126ed229e8513e5aaca0339642abd560d"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5.json)" = "46e3774ca442cf593d25b6062ab5538d5ac43611"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = "bc1b2f4095315861db7a257d4cc3c80a9f112530"

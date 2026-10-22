@@ -129,7 +129,7 @@ function selfTestPinnedReads(){
     "void-v7-exchange-plan-pinned-read-"));
   const file=path.join(dir,"bound");
   const backup=path.join(dir,"backup");
-  const attacker=Buffer.from("ATTACKER","utf8");
+  const attacker=Buffer.from("ATTACKER!","utf8");
   const accepted=Buffer.from("REVIEWED!","utf8");
   assert.equal(attacker.length,accepted.length);
   try{
