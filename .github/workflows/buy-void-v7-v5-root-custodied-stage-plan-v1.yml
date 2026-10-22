@@ -1,0 +1,97 @@
+name: VOID V7 V5 root-custodied staging plan v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-v7-v5-root-custodied-stage-plan-v1.yml"
+      - "docs/architecture/buy-void-v7-v5-root-custodied-stage-plan-v1.md"
+      - "ops/security/buy-void-v7-v5-root-custodied-stage-plan-v1.json"
+      - "scripts/prove_buy_void_v7_v5_root_custodied_stage_plan_v1.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v5.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json"
+      - "ops/security/buy-void-v7-protected-source-receipt-exchange-plan-v1.json"
+      - "scripts/prove_buy_void_v7_protected_source_receipt_exchange_plan_v1.mjs"
+      - "ops/precision/void_v7_source_release_full_history_reseal_v2.py"
+      - "scripts/prove_void_v7_source_release_full_history_reseal_v2.py"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts"
+      - ".github/workflows/buy-void-source-finality-v7-deployment-receipt-candidate-v2.yml"
+      - "ops/precision/void_buy_void_v7_protected_substrate_install_v4.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact staging-plan head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact parent and four-add scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PARENT=242aa1054e1c9ee36a06047ea350f92976870038
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+          mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-v7-v5-root-custodied-stage-plan-v1.yml'
+            $'A\tdocs/architecture/buy-void-v7-v5-root-custodied-stage-plan-v1.md'
+            $'A\tops/security/buy-void-v7-v5-root-custodied-stage-plan-v1.json'
+            $'A\tscripts/prove_buy_void_v7_v5_root_custodied_stage_plan_v1.mjs'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "$PARENT" HEAD
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Bind exact staging-plan surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-root-custodied-stage-plan-v1.json)" = "4863118468b350aca53f1a7b8c6ce227de803924"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_root_custodied_stage_plan_v1.mjs)" = "be2480a31310fb105a86c6e08eac0fb55eb838f0"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-v5-root-custodied-stage-plan-v1.md)" = "5b550d2f44b92e80a9c271b28f7bb6a8c746a9c5"
+
+      - name: Syntax
+        run: node --check scripts/prove_buy_void_v7_v5_root_custodied_stage_plan_v1.mjs
+
+      - name: Prove staging plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/v5-stage-plan.log"
+          node scripts/prove_buy_void_v7_v5_root_custodied_stage_plan_v1.mjs | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_V7_V5_ROOT_CUSTODIED_STAGE_PLAN_V1_PROOF_GREEN' "$out"
+          grep -Fx 'source_stage_create_only=true' "$out"
+          grep -Fx 'receipt_stage_create_only=true' "$out"
+          grep -Fx 'partial_exact_stage_resumable=true' "$out"
+          grep -Fx 'mismatched_stage_holds=true' "$out"
+          grep -Fx 'fixed_v4_pair_must_remain_exact=true' "$out"
+          grep -Fx 'fresh_host_recensus_required=true' "$out"
+          grep -Fx 'host_write=false' "$out"
+          grep -Fx 'root_execution=false' "$out"
+          grep -Fx 'protected_filesystem_mutation=false' "$out"
+          grep -Fx 'fixed_source_exchange=false' "$out"
+          grep -Fx 'fixed_receipt_exchange=false' "$out"
+          grep -Fx 'service_mutation=false' "$out"
+          grep -Fx 'runtime_cutover=false' "$out"
+          grep -Fx 'public_presale_activation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
