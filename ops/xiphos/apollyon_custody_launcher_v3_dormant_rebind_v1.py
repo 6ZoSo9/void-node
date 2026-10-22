@@ -876,8 +876,10 @@ def self_test()->None:
     forbidden_patterns=(
         'systemctl",'+'"start',
         'systemctl",'+'"stop',
-        '"training_execution":True','"durable_attempt_claim":True',
-        "eth_sendRawTransaction","PRIVATE KEY-----",
+        '"training_execution":'+"True",
+        '"durable_attempt_claim":'+"True",
+        "eth_sendRaw"+"Transaction",
+        "PRIVATE "+"KEY-----",
     )
     for forbidden in forbidden_patterns:
         assert forbidden not in own,forbidden
