@@ -384,8 +384,8 @@ def classify(
     ):
         return {"lifecycle_state":"launcher_staged","next_action":"REPLACE_SERVICE_UNIT"}
     if (
-        service_file=="v3_exact" and launcher=="exact" and
-        old_loaded and need_reload=="yes"
+        service_file=="v3_exact" and launcher=="exact" and old_loaded and
+        need_reload in ("no","yes")
     ):
         return {"lifecycle_state":"service_file_pending_reload","next_action":"DAEMON_RELOAD"}
     if (
@@ -487,6 +487,24 @@ def install_or_resume_launcher(data:bytes)->bool:
             hold("launcher_pending_publication_invalid")
 
     if state=="pending_exact":
+        require_dormant()
+        fd=os.open(
+            pending,os.O_RDWR|getattr(os,"O_NOFOLLOW",0)|
+            getattr(os,"O_CLOEXEC",0),
+        )
+        try:
+            staged=os.fstat(fd)
+            if (
+                not stat.S_ISREG(staged.st_mode) or staged.st_nlink!=1 or
+                staged.st_uid!=0 or staged.st_gid!=0 or
+                stat.S_IMODE(staged.st_mode)!=0o444
+            ):
+                hold("launcher_pending_resume_metadata_invalid")
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        if launcher_state()!="pending_exact":
+            hold("launcher_pending_changed_after_fsync")
         require_dormant()
         try:
             os.link(pending,path,follow_symlinks=False)
@@ -616,6 +634,10 @@ def self_test()->None:
     )["next_action"]=="DAEMON_RELOAD"
     assert classify(
         "v3_exact","exact",
+        "v2","no",
+    )["next_action"]=="DAEMON_RELOAD"
+    assert classify(
+        "v3_exact","exact",
         "v3","no",
     )["lifecycle_state"]=="complete"
     own=Path(__file__).read_text(encoding="utf-8")
@@ -644,6 +666,8 @@ def self_test()->None:
         'launcher_destination_file(',
         'launcher_pending_file(',
         'v3_launcher_pending_collision',
+        'launcher_pending_resume_metadata_invalid',
+        'launcher_pending_changed_after_fsync',
         'install_or_resume_launcher(',
         'service_effective_execstart_invalid',
         'service_effective_execstoppost_invalid',
@@ -662,6 +686,8 @@ def self_test()->None:
     print("v3_launcher_crash_resumable_publication=true")
     print("v3_launcher_pending_inode_bound=true")
     print("v3_launcher_partial_pending_recovery=true")
+    print("v3_launcher_resumed_pending_fsync=true")
+    print("loaded_v2_forces_reload_even_without_need_reload_flag=true")
     print("service_unit_atomic_replace=true")
     print("daemon_reload_only_systemd_mutation=true")
     print("service_action=false")
