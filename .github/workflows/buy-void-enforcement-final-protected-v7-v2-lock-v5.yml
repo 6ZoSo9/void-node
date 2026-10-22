@@ -31,14 +31,14 @@ jobs:
       - name: Checkout exact lock head
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Verify exact parent and five-add scope
         shell: bash
         env:
-          EXPECTED_HEAD: \${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -52,14 +52,14 @@ jobs:
             $'A\tops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json'
             $'A\tscripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v5.mjs'
           )
-          test "\${#actual[@]}" -eq "\${#expected[@]}"
-          for i in "\${!expected[@]}"; do test "\${actual[$i]}" = "\${expected[$i]}"; done
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
           git diff --check "$PARENT" HEAD
 
       - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
-          node-version: \${{ matrix.node }}
+          node-version: ${{ matrix.node }}
 
       - name: Bind exact V5 candidate and lock sources
         shell: bash
@@ -84,8 +84,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          OUT="$RUNNER_TEMP/lock-v5-node-\${{ matrix.node }}.json"
-          AGAIN="$RUNNER_TEMP/lock-v5-node-\${{ matrix.node }}.again.json"
+          OUT="$RUNNER_TEMP/lock-v5-node-${{ matrix.node }}.json"
+          AGAIN="$RUNNER_TEMP/lock-v5-node-${{ matrix.node }}.again.json"
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v5.mjs --derive > "$OUT"
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v5.mjs --derive > "$AGAIN"
           cmp "$OUT" "$AGAIN"
@@ -96,8 +96,8 @@ jobs:
       - name: Upload exact V5 lock
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-protected-v5-lock-\${{ github.event.pull_request.head.sha || github.sha }}-node-\${{ matrix.node }}
-          path: \${{ runner.temp }}/lock-v5-node-\${{ matrix.node }}.json
+          name: buy-void-protected-v5-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/lock-v5-node-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 7
 
@@ -109,7 +109,7 @@ jobs:
       - name: Checkout exact lock head
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: \${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -121,7 +121,7 @@ jobs:
       - name: Download Node-major locks
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-protected-v5-lock-\${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: buy-void-protected-v5-lock-${{ github.event.pull_request.head.sha || github.sha }}-node-*
           merge-multiple: true
           path: receipts
 
