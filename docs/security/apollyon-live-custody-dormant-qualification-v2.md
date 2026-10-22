@@ -48,14 +48,18 @@ The live `--run` mode retains the v1 lifecycle semantics:
 1. prove target dormant, training dormant, and custody service safely dead
    (`inactive` or pre-existing `failed`, always with no MainPID);
 2. prove exact static install and effective systemd boundary;
-3. start only the custody activation target;
-4. observe the dependency-started custody service generation;
-5. prove exact executable, argv, credentials, reviewed groups, zero
+3. immediately before each start, re-attest target/service/training unit
+   dormancy, socket absence, socket-parent emptiness and custody/training
+   process absence; only cycle 1 may admit the pre-existing failed/dead custody
+   state, while cycle 2 requires the clean inactive state proven by cycle 1;
+4. start only the custody activation target;
+5. observe the dependency-started custody service generation;
+6. prove exact executable, argv, credentials, reviewed groups, zero
    capabilities, NNP, socket and custody-UID exclusivity;
-6. stop only the custody activation target;
-7. prove service/target dormant and socket/process cleanup;
-8. repeat once with a distinct process generation;
-9. require consumed-state metadata unchanged across both cycles.
+7. stop only the custody activation target;
+8. prove service/target dormant and socket/process cleanup;
+9. repeat once with a distinct process generation;
+10. require consumed-state metadata unchanged across both cycles.
 
 A pre-existing or failure-cleanup custody state may be `failed` only when the
 unit is dead, the socket is absent and no custody process remains. That
