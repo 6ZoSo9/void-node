@@ -76,7 +76,8 @@ for required in (
     'allow_service_failed:bool=False',
     'wait_unit_safely_dormant(',
     'unit_safe_dormant_timeout:',
-    '_attest_fn(ids,"emergency",allow_service_failed=True)',
+    'safely_dormant_unit_props(',
+    '_attest_fn(ids,"emergency",True)',
     'ids,"failure_recheck",allow_service_failed=True',
     'allow_failed=True,expected_unit_file_state="static"',
     'attest_dormant_boundary(ids,"final")',
@@ -132,6 +133,8 @@ for line in (
     "failed_stop_cleanup_reported=true",
     "wait_timeout_cleanup_reported=true",
     "socket_timeout_cleanup_reported=true",
+    "failed_dead_dormant_wait_failure_reported=true",
+    "failed_dead_dormant_predicate_tested=true",
     "alternate_runtime_config_rejected_by_exact_argv=true",
     "failure_final_dormant_recheck_required=true",
     "failure_preserves_original_reason=true",
@@ -175,6 +178,8 @@ print("emergency_cleanup_adversaries_executed=true")
 print("failed_stop_cleanup_reported=true")
 print("wait_timeout_cleanup_reported=true")
 print("socket_timeout_cleanup_reported=true")
+print("failed_dead_dormant_wait_failure_reported=true")
+print("failed_dead_dormant_predicate_tested=true")
 print("alternate_runtime_config_rejected_by_exact_argv=true")
 print("failure_final_dormant_recheck_required=true")
 print("failure_preserves_original_reason=true")
