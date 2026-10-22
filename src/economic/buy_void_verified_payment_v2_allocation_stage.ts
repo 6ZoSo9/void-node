@@ -1,0 +1,124 @@
+// Unmounted staging connector: authenticate the exact private V2 transport,
+// then classify a SERVER-SUPPLIED verified-payment event through the canonical
+// allocation-required dispatcher planner. No writer, IPC, RPC or funds access.
+import { createHash } from "node:crypto";
+import {
+  planBuyVoidOperatorAllocationDispatchV1,
+  VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1,
+  VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1,
+  type BuyVoidOperatorAllocationDispatchInputV1,
+} from "./buy_void_operator_verified_allocation_dispatch_v1.js";
+import {
+  authorizeBuyVoidVerifiedPaymentTransportV2,
+} from "./buy_void_verified_payment_transport_v2.js";
+
+export const VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE =
+  "VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE";
+
+export const VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_AUTHORITY =
+  Object.freeze({
+    transport_authenticated_before_planner: true,
+    server_supplied_inputs_only: true,
+    canonical_allocation_required_planner_reused: true,
+    legacy_payment_only_path_forbidden: true,
+    allocation_roots_canonical: true,
+    event_and_request_immutable_snapshot: true,
+    source_only_unmounted: true,
+    source_finality_authentication_verified: false,
+    cross_uid_service_authenticated: false,
+    mounted_verified_allocation_dispatch: false,
+    payment_capacity_lock_verified: false,
+    payment_acceptance: false,
+    presale_activation: false,
+    funds_movement: false,
+  });
+
+const stringify = JSON.stringify;
+const REQUEST_ID = /^buyvoid_[a-z0-9]+_[0-9a-f]{8}$/u;
+const TX_HASH = /^0x[0-9a-fA-F]{64}$/u;
+const ADDRESS = /^0x[0-9a-fA-F]{40}$/u;
+function hold(reason: string): never {
+  throw new Error("buy_void_verified_payment_v2_allocation_stage_" + reason);
+}
+function sameHex(a: unknown, b: unknown, shape: RegExp): boolean {
+  return typeof a === "string" && typeof b === "string" &&
+    shape.test(a) && shape.test(b) &&
+    a.toLowerCase() === b.toLowerCase();
+}
+
+// This is an internal source preflight, not an HTTP response payload.
+// rawServerInput MUST be constructed from the qualified server-side request
+// ledger, source-finality verifier and fixed callbacks, never from req.body.
+// The function cannot authenticate a payment or obtain custody authority.
+export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
+  req: unknown,
+  res: any,
+  rawServerInput: BuyVoidOperatorAllocationDispatchInputV1,
+) {
+  if (!authorizeBuyVoidVerifiedPaymentTransportV2(req, res)) return null;
+  // Canonical planner first snapshots all caller state, validates event/status
+  // and normalizes the private roots to its two exact reviewed constants.
+  const plan = planBuyVoidOperatorAllocationDispatchV1(rawServerInput);
+  if (plan.kind !== "verified_payment_allocation_handoff") {
+    hold("legacy_payment_only_writer_forbidden");
+  }
+  if (
+    plan.allocation_ledger_root !== VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1 ||
+    plan.allocation_high_water_root !==
+      VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1
+  ) hold("private_roots_not_canonical");
+
+  const event = plan.event;
+  const original = plan.request;
+  const verifier = event.payment_verifier;
+  if (
+    event.schema !== "void_buy_void_verified_payment_event_v2" ||
+    event.marker !== "VOID_BUY_VOID_VERIFIED_PAYMENT_V2" ||
+    event.operator_status !== "payment_verified" ||
+    event.payment_verified !== true ||
+    event.payment_identity_input_complete !== true ||
+    typeof event.request_id !== "string" ||
+    !REQUEST_ID.test(event.request_id) ||
+    event.request_id !== original.request_id ||
+    (original.source_chain !== "base" &&
+      original.source_chain !== "ethereum") ||
+    !verifier || typeof verifier !== "object" ||
+    verifier.chain !== original.source_chain ||
+    !sameHex(event.tx_hash, original.tx_hash, TX_HASH) ||
+    !sameHex(verifier.transaction_hash, original.tx_hash, TX_HASH) ||
+    !sameHex(verifier.from_address, original.delivery_address, ADDRESS) ||
+    !sameHex(verifier.delivery_address, original.delivery_address, ADDRESS) ||
+    !sameHex(verifier.receive_address, original.receive_address, ADDRESS)
+  ) hold("event_request_original_identity_mismatch");
+
+  const eventJson = stringify(event);
+  const requestJson = stringify(original);
+  if (typeof eventJson !== "string" || typeof requestJson !== "string") {
+    hold("canonical_snapshot_unavailable");
+  }
+  const sha = (text: string) =>
+    createHash("sha256").update(text, "utf8").digest("hex");
+
+  // Return frozen *internal* snapshots. Never expose their contents to HTTP
+  // clients or treat a staging hash as finality, a signature or write authority.
+  return Object.freeze({
+    marker: VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE,
+    status: "staged_unmounted" as const,
+    kind: plan.kind,
+    event: plan.event,
+    request: plan.request,
+    request_dir: plan.request_dir,
+    allocation_ledger_root: plan.allocation_ledger_root,
+    allocation_high_water_root: plan.allocation_high_water_root,
+    with_launch_authority_mutation: plan.with_launch_authority_mutation,
+    read_sale_state: plan.read_sale_state,
+    event_snapshot_sha256: sha(eventJson),
+    request_snapshot_sha256: sha(requestJson),
+    source_finality_authentication_verified: false as const,
+    cross_uid_service_authenticated: false as const,
+    payment_capacity_lock_verified: false as const,
+    payment_acceptance: false as const,
+    presale_activation: false as const,
+    funds_movement: false as const,
+  });
+}
