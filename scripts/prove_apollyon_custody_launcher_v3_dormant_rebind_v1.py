@@ -22,7 +22,7 @@ def git_blob(path:Path)->str:
 source=UPDATER.read_text(encoding="utf-8")
 ast.parse(source)
 
-assert git_blob(UPDATER)=="1fcc51a134ac6aca6d645c78d2294c60a3cabd4a"
+assert git_blob(UPDATER)=="4cd7e2368237cd7dd44d03c55d0de4529b535bbd"
 assert git_blob(V3)=="8d8561c08db7e500a818d269580dad15adca9f58"
 assert git_blob(SERVICE)=="51354b10da89413eb6991514496798c7a1b5d1e8"
 
