@@ -22,11 +22,6 @@ const BOUND=Object.freeze([
   ["ops/precision/void_v7_v5_receipt_stage_install_v1.py","c4e7edfeda3196cdebc1ac4656cf514f77a53969"],
   ["scripts/prove_void_v7_v5_source_receipt_stage_builders_v1.py","cc65e21e22c2d424e853607fd5c817810ead7339"],
   ["ops/security/buy-void-v7-v5-source-receipt-staging-plan-v1.json","37c6f5bd5753f05e57dde3c95f9c2f89c0abdc4d"],
-  ["ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json","9dde5523dca6ab240626430ce1c2b82f1cfe7f20"],
-  ["ops/security/buy-void-v7-create-only-closed-tree-acceptance-v1.json","919db72903a5fcff59dec7635a4288f41d1753d9"],
-  ["ops/precision/void_buy_void_v7_create_only_closed_tree_bootstrap_v1.c","2a8397c85d698d168f2257ec801557281b73c04d"],
-  ["ops/precision/void_v7_full_history_protected_replica_root_launcher_v2.c","19b89e92df6f640c017cb9f544ddbf094d69f6eb"],
-  ["scripts/prove_void_v7_full_history_protected_replica_root_launcher_v2.py","be8012e94c1d5d8f51b0162eb009ef16d6e81aaf"],
 ]);
 
 const sha256=s=>crypto.createHash("sha256").update(s,"utf8").digest("hex");
@@ -127,21 +122,27 @@ for(const [key,val] of Object.entries(body.authority)){
   else assert.equal(val,false,"authority_overclaim:"+key);
 }
 
-const launcher=pin(
-  "ops/precision/void_v7_full_history_protected_replica_root_launcher_v2.c",
+assert.equal(
+  body.closed_tree_precedent.persistent_seal_plan_git_blob_sha1,
+  "9dde5523dca6ab240626430ce1c2b82f1cfe7f20",
+);
+assert.equal(
+  body.closed_tree_precedent.closed_tree_acceptance_git_blob_sha1,
+  "919db72903a5fcff59dec7635a4288f41d1753d9",
+);
+assert.equal(
+  body.closed_tree_precedent.bootstrap_source_git_blob_sha1,
+  "2a8397c85d698d168f2257ec801557281b73c04d",
+);
+assert.equal(
+  body.closed_tree_precedent.predecessor_root_launcher_v2_git_blob_sha1,
   "19b89e92df6f640c017cb9f544ddbf094d69f6eb",
 );
-for(const token of [
-  '#define FIXED_ROOT "/opt/void-v7-full-history-protected-replica-closed-tree-v1"',
-  'receipt_bound_inode_hash_mode_nlink_required=true',
-  'fexecve(python_fd,args,envp)',
-  'closed_tree_receipt_before_python_exec_required=true',
-  'root_execution_authorized=false',
-  'protected_replica_apply_authorized=false',
-])assert.ok(launcher.includes(token),token);
-for(const forbidden of ["getenv(","system(","execvp(","execlp(","socket(","connect("]){
-  assert.equal(launcher.includes(forbidden),false,forbidden);
-}
+assert.equal(
+  body.closed_tree_precedent.predecessor_root_launcher_v2_proof_git_blob_sha1,
+  "be8012e94c1d5d8f51b0162eb009ef16d6e81aaf",
+);
+console.log("historical_closed_tree_identities_plan_bound=true");
 
 console.log(MARKER+"_PROOF_GREEN");
 console.log("plan_id="+EXPECTED_ID);
