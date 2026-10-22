@@ -12,6 +12,9 @@ import {
 import {
   authorizeBuyVoidVerifiedPaymentTransportV2,
 } from "./buy_void_verified_payment_transport_v2.js";
+import {
+  VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1,
+} from "./buy_void_crash_consistent_saga_server_policy_v1.js";
 
 export const VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE =
   "VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE";
@@ -40,7 +43,13 @@ const TX_HASH = /^0x[0-9a-fA-F]{64}$/u;
 const ADDRESS = /^0x[0-9a-fA-F]{40}$/u;
 const DECIMAL_VOID = /^(0|[1-9][0-9]*)(?:\.([0-9]{1,6}))?$/u;
 const MICRO_VOID = 1_000_000n;
-const MAX_PRESALE_VOID_MICRO = 10_000_000n * MICRO_VOID;
+const ECON = VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1;
+const MAX_PRESALE_VOID_MICRO = BigInt(ECON.canonical_presale_max_void) *
+  MICRO_VOID;
+const NATIVE_USDC_BY_CHAIN: Readonly<Record<string, string>> = Object.freeze({
+  base: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+  ethereum: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+});
 
 // The request-first public checkout records numeric quotes. Some reviewed
 // private event formats use decimal text. Preserve both primitive types but
@@ -58,6 +67,15 @@ function canonicalPositiveQuoteMicro(value: unknown): bigint | null {
   const micro = BigInt(parsed[1]) * MICRO_VOID +
     BigInt((parsed[2] || "").padEnd(6, "0") || "0");
   return micro > 0n && micro <= MAX_PRESALE_VOID_MICRO ? micro : null;
+}
+function canonicalPositiveUnitText(value: unknown): bigint | null {
+  if (typeof value !== "string" ||
+      value.length < 1 || value.length > 20 ||
+      !/^[1-9][0-9]*$/u.test(value)) {
+    return null;
+  }
+  const units = BigInt(value);
+  return units > 0n && units <= MAX_PRESALE_VOID_MICRO ? units : null;
 }
 function hold(reason: string): never {
   throw new Error("buy_void_verified_payment_v2_allocation_stage_" + reason);
@@ -101,8 +119,26 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
   const event = plan.event;
   const original = plan.request;
   const verifier = event.payment_verifier;
-  const eventQuoteMicro = canonicalPositiveQuoteMicro(event.quoted_void);
+  // The real canonical verifier deliberately does NOT emit quoted_void.
+  // The quote belongs to the original server-held request and must be
+  // independently recomputed from its USDC amount and fixed presale rate.
+  // Never fabricate a quote inside the verifier's event to make staging pass.
   const originalQuoteMicro = canonicalPositiveQuoteMicro(original.quoted_void);
+  const originalUsdcMicro = canonicalPositiveQuoteMicro(original.usdc_amount);
+  const verifiedUsdcMicro = canonicalPositiveUnitText(verifier?.amount_units);
+  const verifiedRequestMicro =
+    canonicalPositiveUnitText(verifier?.requested_units);
+  const canonicalRateNumerator = BigInt(ECON.rate_void_units_numerator);
+  const canonicalRateDenominator = BigInt(ECON.rate_void_units_denominator);
+  const expectedQuoteMicro = originalUsdcMicro !== null &&
+      canonicalRateDenominator > 0n &&
+      (originalUsdcMicro * canonicalRateNumerator) %
+        canonicalRateDenominator === 0n
+    ? originalUsdcMicro * canonicalRateNumerator /
+      canonicalRateDenominator
+    : null;
+  const nativeUsdc = typeof original.source_chain === "string"
+    ? NATIVE_USDC_BY_CHAIN[original.source_chain] : undefined;
   if (
     event.schema !== "void_buy_void_verified_payment_event_v2" ||
     event.marker !== "VOID_BUY_VOID_VERIFIED_PAYMENT_V2" ||
@@ -119,10 +155,20 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
     typeof verifier.log_index !== "string" ||
     !/^(?:0|[1-9][0-9]{0,9})$/u.test(verifier.log_index) ||
     Number(verifier.log_index) > 0xffffffff ||
-    eventQuoteMicro === null ||
+    Object.hasOwn(event, "quoted_void") ||
     originalQuoteMicro === null ||
-    eventQuoteMicro !== originalQuoteMicro ||
-    event.quoted_void !== original.quoted_void ||
+    originalUsdcMicro === null ||
+    verifiedUsdcMicro === null ||
+    verifiedRequestMicro === null ||
+    verifiedUsdcMicro !== originalUsdcMicro ||
+    verifiedRequestMicro !== originalUsdcMicro ||
+    expectedQuoteMicro === null ||
+    expectedQuoteMicro !== originalQuoteMicro ||
+    original.rate_void_per_usdc !== ECON.rate_void_units_numerator ||
+    original.price_usdc_per_void !== "0.50" ||
+    typeof nativeUsdc !== "string" ||
+    !sameHex(verifier.usdc_contract, nativeUsdc, ADDRESS) ||
+    !sameHex(original.usdc_contract, nativeUsdc, ADDRESS) ||
     !sameHex(event.tx_hash, original.tx_hash, TX_HASH) ||
     !sameHex(verifier.transaction_hash, original.tx_hash, TX_HASH) ||
     !sameHex(verifier.from_address, original.delivery_address, ADDRESS) ||

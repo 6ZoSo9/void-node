@@ -3,8 +3,8 @@
 Status: **candidate / source and hosted CI only**. This is not an approved
 replacement for the historical protected enforcement lock. Target dependency:
 [PR #3692](https://github.com/6ZoSo9/void-node/pull/3692) at exact head
-`56a382ab3cfba742e29b928357922dcdb15422a3` with tree
-`f87f021a743af46a6a60c27983c3df3f30f3ce06`.
+`be0fc9a2663312e636171e856e958962b7fc5b36` with tree
+`0440b0ed6b5f6706106da26f7e380330aff50724`.
 
 ## Problem and authority
 
@@ -86,3 +86,23 @@ The custody service/socket is not installed; an unprivileged web UID must never
 receive implicit custody access. No protected V7 release or process is changed.
 
 **PROTECT THE CORE.**
+
+## Canonical verifier-event integration correction
+
+The predecessor #3692 additionally fixed a source-level availability gap:
+the real V2 USDC receipt verifier **does not emit a VOID quote field**, and
+the earlier artificial staging fixture invented one. The updated staging
+contract now requires the original server-held request's positive VOID quote,
+checks exact micro-VOID quantity against canonical fixed economics and USDC
+amount, and binds the actual verifier's `amount_units` and
+`requested_units` to that original USDC amount. Native USDC contract,
+original rate and price commitments are also required; fabricated event quotes
+are rejected. The focused regression invokes the actual canonical V2 verifier
+on disposable synthetic ERC-20 Transfer receipts and checks the unmodified
+event's ability to reach **staged_unmounted** with all payment/custody authority
+false.
+
+The accepted source HEAD, tree, and three changed dependency blob IDs in this
+version are pinned to that correction. The branch integrates the dependency by
+an **additive two-parent merge**, preserving the earlier successor history and
+the corrected #3692 parent; no force push or historical evidence repinning.

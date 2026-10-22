@@ -53,21 +53,21 @@ const V2_ADDED_ECONOMIC_SOURCE_BLOBS=Object.freeze({
   "src/economic/buy_void_verified_payment_transport_v2.ts":
     "61dc219117538f2894b170ac98bb56806f69f430",
   "src/economic/buy_void_verified_payment_v2_allocation_stage.ts":
-    "e9fdd0ffa0a775ee41ff2a7fd169774c3abb1747",
+    "ef397b7377a87326187f5e2e9882d6e4bdc0a4f8",
 });
 const V2_SOURCE_BASE="1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c";
-const V2_ACCEPTED_ADDITION_HEAD="56a382ab3cfba742e29b928357922dcdb15422a3";
-const V2_ACCEPTED_ADDITION_TREE="f87f021a743af46a6a60c27983c3df3f30f3ce06";
+const V2_ACCEPTED_ADDITION_HEAD="be0fc9a2663312e636171e856e958962b7fc5b36";
+const V2_ACCEPTED_ADDITION_TREE="0440b0ed6b5f6706106da26f7e380330aff50724";
 const V2_FROZEN_V1_PROOF_BLOB="4e123302d25dd0a83923032d2dc0f40c8937e77f";
 const V2_SOURCE_FILES=Object.freeze({
   ".github/workflows/buy-void-verified-payment-transport-v2.yml":
-    "e4303e8f6d99e3d30d7b0fecd9378f56f92231f6",
+    "650360be459bd04083c0fceaf42696ac985abe22",
   "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs":
     "1d90706e2d407ca0005e9d8ee727035394dc0770",
   "scripts/prove_buy_void_verified_payment_transport_v2.ts":
     "2714988acfbcded3d4779ef79a141cd3e39b1426",
   "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts":
-    "0c7e729fe38cfad65aa3eab639de29f7b3534299",
+    "e5b85ab7d89fb92ef5660aa20186d2c736e9f727",
   ...V2_ADDED_ECONOMIC_SOURCE_BLOBS,
 });
 const NONPROTECTED_ECONOMIC_DRIFT=Object.freeze([
