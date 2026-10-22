@@ -35,15 +35,27 @@ parent_head=d44a2a57abf80d41eac605cbe8518f0dc7b673b7
 binder_js_blob=d2d648b144d3b406ff845a597fa4b9f54167b6bc
 binder_js_sha256=c447151d7bc4d1b3ffc5e9c8d58b92e8f041e3aa6c0c5747d6da621471e28207
 binder_js_bytes=66650
-native_preentry_c_blob=704f3726600690605303d9083976225f4913b446
-binder_source_proof_blob=3321e8a0cf05ab2272951b34aef8185fef3caf0d
+native_preentry_c_blob=e5920575541001bff00abf894f0d62869d8f2452
+binder_source_proof_blob=63c7a41d6e6e40e109fb5baaba5539754d0d87b2
 installed_binder_terminal_fd_digest_checked=true
+native_policy_exact_physical_bytes_canonical=true
+native_policy_embedded_nul_blank_suffix_leading_zero_rejected=true
 privileged_live_execution=false
 credential_access=false
 payment_acceptance=false
 public_presale_activation=false
 funds_movement=false
 ```
+
+The native policy reader now treats the policy as one exact bounded physical
+byte sequence rather than a NUL-terminated token stream. It requires exactly
+six nonempty visible-ASCII lines in fixed order, exactly one final LF, fixed
+lowercase-hex widths, and canonical positive decimal byte counts without
+leading zeros. Embedded NUL/CR/control bytes, blank or extra lines, hidden
+suffixes, a missing final LF, and leading-zero decimal aliases are rejected by
+the same `parse_policy_bytes()` routine used by production. The compiled
+unprivileged C `--self-test` exercises that exact parser with a canonical
+positive and malformed physical-byte negatives before emitting GREEN.
 
 This changes the **native preentry source** and therefore invalidates the
 prior compiled preentry ELF generation; a new content-addressed
