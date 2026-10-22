@@ -58,6 +58,24 @@
 #define COPY_CHUNK 65536U
 #define EXPECTED_PAYLOAD_COUNT 12U
 
+#ifndef VOID_V7_CLOSED_TREE_ACCEPTED_MANIFEST_SHA256
+#define VOID_V7_CLOSED_TREE_ACCEPTED_MANIFEST_SHA256 ""
+#endif
+#ifndef VOID_V7_CLOSED_TREE_ACCEPTED_MANIFEST_BYTES
+#define VOID_V7_CLOSED_TREE_ACCEPTED_MANIFEST_BYTES 0U
+#endif
+#ifndef VOID_V7_CLOSED_TREE_ACCEPTED_SOURCE_GENERATION
+#define VOID_V7_CLOSED_TREE_ACCEPTED_SOURCE_GENERATION ""
+#endif
+#ifndef VOID_V7_CLOSED_TREE_ACCEPTED_BOOTSTRAP_SHA256
+#define VOID_V7_CLOSED_TREE_ACCEPTED_BOOTSTRAP_SHA256 ""
+#endif
+
+#define ACCEPTED_MANIFEST_SHA256 VOID_V7_CLOSED_TREE_ACCEPTED_MANIFEST_SHA256
+#define ACCEPTED_MANIFEST_BYTES VOID_V7_CLOSED_TREE_ACCEPTED_MANIFEST_BYTES
+#define ACCEPTED_SOURCE_GENERATION VOID_V7_CLOSED_TREE_ACCEPTED_SOURCE_GENERATION
+#define ACCEPTED_BOOTSTRAP_SHA256 VOID_V7_CLOSED_TREE_ACCEPTED_BOOTSTRAP_SHA256
+
 struct file_id {
     dev_t dev;
     ino_t ino;
@@ -344,6 +362,21 @@ static receipt_v1 parse_receipt(char *raw,size_t size){
     for(size_t i=0;i<EXPECTED_PAYLOAD_COUNT;i++){bool found=false;for(size_t j=0;j<out.count;j++)if(!strcmp(EXPECTED_RECEIPT[i].path,out.entries[j].path))found=true;if(!found)hold("receipt_expected_entry_missing");}
     return out;
 }
+static bool production_manifest_lock_bound(void){
+    return hexn(ACCEPTED_MANIFEST_SHA256,64)
+        && ACCEPTED_MANIFEST_BYTES>0U
+        && ACCEPTED_MANIFEST_BYTES<=MAX_MANIFEST_BYTES
+        && hexn(ACCEPTED_SOURCE_GENERATION,64)
+        && hexn(ACCEPTED_BOOTSTRAP_SHA256,64);
+}
+static void require_production_manifest_lock(const receipt_v1 *r){
+    if(!production_manifest_lock_bound())hold("production_payload_manifest_lock_not_bound");
+    if(strcmp(r->manifest_sha256,ACCEPTED_MANIFEST_SHA256)
+       ||r->manifest_bytes!=(size_t)ACCEPTED_MANIFEST_BYTES
+       ||strcmp(r->source_generation,ACCEPTED_SOURCE_GENERATION)
+       ||strcmp(r->bootstrap_sha256,ACCEPTED_BOOTSTRAP_SHA256))
+        hold("production_payload_manifest_lock_mismatch");
+}
 static const receipt_entry_v1 *receipt_find(const receipt_v1 *r,const char *path){
     for(size_t i=0;i<r->count;i++)if(!strcmp(r->entries[i].path,path))return &r->entries[i];
     hold("receipt_bound_entry_missing");return NULL;
@@ -505,6 +538,7 @@ static int selftest(void){
     puts("fresh_operation_bound_plan_confirmation_required=true");
     puts("v5_expected_head_tree_full_history_digest_required=true");
     puts("duplicate_request_arguments_rejected=true");
+    puts("production_payload_manifest_lock_bound=false");
     puts("production_payload_manifest_accepted=false");
     puts("launcher_install_authorized=false");
     puts("root_execution_authorized=false");
@@ -521,6 +555,7 @@ int main(int argc,char **argv){
     if(argc==2&&!strcmp(argv[1],"--self-test"))return selftest();
     if(getuid()!=0||geteuid()!=0)hold("root_required");
     request_v3 req=parse_request(argc,argv);
+    if(!production_manifest_lock_bound())hold("production_payload_manifest_lock_not_bound");
     require_ancestors(FIXED_ROOT);require_ancestors(FIXED_SELF);require_ancestors(FIXED_POLICY);require_ancestors(FIXED_RECEIPT);require_ancestors(FIXED_PYTHON);require_ancestors(FIXED_STDLIB_ZIP);require_ancestors(FIXED_INSTALLER);
     require_dir(FIXED_ROOT,0555,true);require_dir(FIXED_BIN,0555,true);require_dir(FIXED_RUNTIME_ROOT,0555,true);require_dir(FIXED_PYTHON_BIN,0555,true);require_dir(FIXED_PYTHON_LIB,0555,true);require_dir(FIXED_SOURCE_ROOT,0555,true);require_dir(FIXED_SOURCE_OPS,0555,true);require_dir(FIXED_SOURCE_PRECISION,0555,true);
     require_closed_tree_root_entries();
@@ -537,6 +572,7 @@ int main(int argc,char **argv){
     if(receipt_id.size<=0)hold("receipt_empty");
     char *receipt_raw=read_policy_bytes(receipt_fd,(size_t)receipt_id.size);
     receipt_v1 receipt=parse_receipt(receipt_raw,(size_t)receipt_id.size);free(receipt_raw);
+    require_production_manifest_lock(&receipt);
     char receipt_hash[65];hash_exact_fd(receipt_fd,(size_t)receipt_id.size,receipt_hash);revalidate_file(FIXED_RECEIPT,receipt_fd,receipt_id);
     bind_receipt_root(&receipt);bind_receipt_directories(&receipt);
 
