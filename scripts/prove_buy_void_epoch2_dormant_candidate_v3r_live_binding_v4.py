@@ -26,7 +26,7 @@ PREENTRY = ROOT / "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_bind
 BINDER_BLOB = "d2d648b144d3b406ff845a597fa4b9f54167b6bc"
 BINDER_SHA256 = "c447151d7bc4d1b3ffc5e9c8d58b92e8f041e3aa6c0c5747d6da621471e28207"
 BINDER_BYTES = 66650
-PREENTRY_BLOB = "704f3726600690605303d9083976225f4913b446"
+PREENTRY_BLOB = "e5920575541001bff00abf894f0d62869d8f2452"
 NATIVE_LOCK_V6R2_REL = "ops/security/buy-void-epoch2-live-composition-native-candidate-lock-v6r2.json"
 NATIVE_LOCK_V6R2_BLOB = "bc3cb6d7843447ed1f0f769c2d298bb76dac8b1b"
 RUNTIME_HEAD = "4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb"
@@ -242,6 +242,11 @@ for required in (
     'O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK',
     'self_test_fifo_replacement_nonblocking()',
     'trusted_fifo_swap_open_nonblocking=true',
+    'parse_policy_bytes(',
+    'self_test_policy_parser()',
+    'binder_preentry_policy_canonical_invalid',
+    'policy_exact_physical_bytes_canonical=true',
+    'policy_embedded_nul_blank_suffix_leading_zero_rejected=true',
     'binder_parent_proof_contains_accepted_source_digest=true',
     'binder_hex[64]=',
     'binder_bytes',
@@ -250,6 +255,8 @@ for required in (
     '(char*)"--runtime-head",policy.expected_head',
 ):
     assert required in preentry, required
+assert 'strtok_r(buf,"\\n"' not in preentry
+assert "static bool decimal_size(const char*" not in preentry
 
 node = shutil.which("node")
 gcc = shutil.which("gcc")
@@ -390,6 +397,8 @@ with tempfile.TemporaryDirectory(prefix="void-dormant-binding-v4-proof-") as td:
         "binder_verified_sealed_memfd_source=true",
         "binder_same_inode_mutation_streams_only_accepted_bytes=true",
         "trusted_fifo_swap_open_nonblocking=true",
+        "policy_exact_physical_bytes_canonical=true",
+        "policy_embedded_nul_blank_suffix_leading_zero_rejected=true",
         "source_runtime_two_head_contract=true",
         "runtime_policy_head_separate_from_source_head=true",
         "credential_content_access=false",
@@ -500,6 +509,8 @@ print("native_preentry_binds_exact_binder_bytes=true")
 print("binder_sealed_memfd_source_verified_before_root_fork=true")
 print("binder_inplace_mutation_cannot_change_streamed_js=true")
 print("binder_native_trusted_open_fifo_swap_nonblocking=true")
+print("native_policy_exact_physical_bytes_canonical=true")
+print("native_policy_embedded_nul_blank_suffix_leading_zero_rejected=true")
 print("binder_terminal_installed_source_digest_proven=true")
 print("binder_same_inode_size_mutation_receipt_rejection_proven=true")
 print("binder_parent_private_proof_accepted_digest_bound=true")
