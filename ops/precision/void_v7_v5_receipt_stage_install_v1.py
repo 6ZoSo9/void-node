@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+# Privileged apply must fail before importing any source-tree-shadowable module
+# unless Python was entered through the reviewed isolated/safe-path boundary.
+import sys as _bootstrap_sys
+
+_BOOTSTRAP_MARKER="VOID_V7_V5_RECEIPT_STAGE_INSTALL_V1"
+if (
+    _bootstrap_sys.flags.isolated != 1
+    or not getattr(_bootstrap_sys.flags, "safe_path", False)
+    or _bootstrap_sys.flags.optimize != 0
+    or not __debug__
+):
+    if __name__ == "__main__":
+        print(_BOOTSTRAP_MARKER)
+        print("status=HOLD")
+        print("reason=python_isolated_unoptimized_mode_required")
+        print("filesystem_write=false")
+        print("fixed_receipt_mutation=false")
+        raise SystemExit(2)
+    raise RuntimeError("python_isolated_unoptimized_mode_required")
 
 import argparse
 import hashlib
@@ -8,10 +26,9 @@ import os
 import pathlib
 import re
 import stat
-import sys
 from typing import Any
 
-MARKER="VOID_V7_V5_RECEIPT_STAGE_INSTALL_V1"
+MARKER=_BOOTSTRAP_MARKER
 PLAN_SCHEMA="void_v7_v5_receipt_stage_install_plan_v1"
 PLAN_PREFIX="voidv7v5receiptstageinstall1_"
 CONFIRM_TOKEN="INSTALL_VOID_V7_V5_RECEIPT_STAGE_V1_CREATE_ONLY"
@@ -448,6 +465,8 @@ def self_test()->None:
     if value.get("candidate_enforcement_identity_accepted") is not True:
         raise AssertionError("v5_receipt_acceptance")
     print(MARKER+"_SELF_TEST_GREEN")
+    print("isolated_python_entry_required=true")
+    print("pre_guard_sibling_import_poison_rejected=true")
     print("exact_v5_receipt_bytes_bound=true")
     print("create_or_exact_match_only=true")
     print("trusted_root_launcher_required=true")

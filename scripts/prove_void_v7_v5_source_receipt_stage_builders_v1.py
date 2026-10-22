@@ -5,6 +5,7 @@ import hashlib
 import pathlib
 import subprocess
 import sys
+import tempfile
 
 MARKER="VOID_V7_V5_SOURCE_RECEIPT_STAGE_BUILDERS_V1_PROOF"
 ROOT=pathlib.Path(__file__).resolve().parents[1]
@@ -12,7 +13,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 SOURCE_REL="ops/precision/void_v7_v5_source_stage_install_v1.py"
 SOURCE_BLOB="1f251a8489e0b2a69683d991785cb4f46fa6dff5"
 RECEIPT_REL="ops/precision/void_v7_v5_receipt_stage_install_v1.py"
-RECEIPT_BLOB="c4e7edfeda3196cdebc1ac4656cf514f77a53969"
+RECEIPT_BLOB="d719de6e8c4974a9356577ee16a9e68fa02b7ca0"
 STAGING_PLAN_REL="ops/security/buy-void-v7-v5-source-receipt-staging-plan-v1.json"
 STAGING_PLAN_BLOB="37c6f5bd5753f05e57dde3c95f9c2f89c0abdc4d"
 
@@ -92,7 +93,21 @@ for forbidden in (
 ):
     assert forbidden not in source,forbidden
 
+assert receipt.startswith(
+    "#!/usr/bin/env python3\n"
+    "# Privileged apply must fail before importing any source-tree-shadowable module\n"
+    "# unless Python was entered through the reviewed isolated/safe-path boundary.\n"
+    "import sys as _bootstrap_sys\n"
+)
+assert "from __future__ import annotations" not in receipt
+
 for token in (
+    'MARKER=_BOOTSTRAP_MARKER',
+    'python_isolated_unoptimized_mode_required',
+    'safe_path',
+    'isolated',
+    'optimize != 0',
+    'filesystem_write=false',
     'MARKER="VOID_V7_V5_RECEIPT_STAGE_INSTALL_V1"',
     'TARGET=pathlib.Path(\n    "/var/lib/void-source-finality-v7/.deployment-receipt.json.stage-v5"\n)',
     'RESERVED_PREDECESSOR=pathlib.Path(',
@@ -122,6 +137,28 @@ assert 'root_required_for_apply' in receipt
 assert 'privileged_source_ancestor_custody_invalid:' in receipt
 assert 'explicit_create_only_confirmation_required' in receipt
 
+with tempfile.TemporaryDirectory(prefix="void-v7-v5-receipt-pre-guard-") as td:
+    td_path=pathlib.Path(td)
+    copied=td_path/"receipt_stage.py"
+    copied.write_text(receipt,encoding="utf-8")
+    (td_path/"argparse.py").write_text(
+        'print("HOSTILE_SIBLING_IMPORT_EXECUTED")\n'
+        'raise RuntimeError("hostile sibling import executed")\n',
+        encoding="utf-8",
+    )
+    cp=run([sys.executable,"-B",str(copied),"--self-test"],30)
+    assert cp.returncode==2,(cp.stdout,cp.stderr)
+    assert cp.stderr=="",cp.stderr
+    lines=cp.stdout.splitlines()
+    assert "HOSTILE_SIBLING_IMPORT_EXECUTED" not in lines,lines
+    assert lines==[
+        "VOID_V7_V5_RECEIPT_STAGE_INSTALL_V1",
+        "status=HOLD",
+        "reason=python_isolated_unoptimized_mode_required",
+        "filesystem_write=false",
+        "fixed_receipt_mutation=false",
+    ],lines
+
 for relative,expected_markers in (
     (SOURCE_REL,(
         "VOID_V7_V5_SOURCE_STAGE_INSTALL_V1_SELF_TEST_GREEN",
@@ -136,6 +173,8 @@ for relative,expected_markers in (
     )),
     (RECEIPT_REL,(
         "VOID_V7_V5_RECEIPT_STAGE_INSTALL_V1_SELF_TEST_GREEN",
+        "isolated_python_entry_required=true",
+        "pre_guard_sibling_import_poison_rejected=true",
         "exact_v5_receipt_bytes_bound=true",
         "create_or_exact_match_only=true",
         "trusted_root_launcher_required=true",
@@ -169,6 +208,8 @@ print("copy_source_fifo_swap_nonblocking=true")
 print("v5_generation_exact=true")
 print("hidden_source_stage_only=true")
 print("hidden_receipt_stage_only=true")
+print("receipt_pre_guard_sibling_import_poison_rejected=true")
+print("receipt_isolated_python_entry_required=true")
 print("fixed_v4_source_guard_required=true")
 print("fixed_v4_receipt_guard_required=true")
 print("create_only_publication_required=true")
