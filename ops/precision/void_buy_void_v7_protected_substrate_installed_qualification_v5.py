@@ -43,6 +43,9 @@ MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
 COPY_CHUNK = 1024 * 1024
 
+V6_INSTALLER_REL = "ops/precision/void_buy_void_v7_protected_substrate_install_v6.py"
+V6_INSTALLER_BLOB = "16879e45cbcfaaad603c41e5481ee89e6b721846"
+
 
 class QualifyError(RuntimeError):
     pass
@@ -464,6 +467,8 @@ def source_plan() -> None:
     print("live_shallow_release_cross_binding_required=true")
     print("protected_source_full_history_digest_equality_required=true")
     print("external_repository_observer=false")
+    print("v6_installer_source_path=" + V6_INSTALLER_REL)
+    print("v6_installer_git_blob_sha1=" + V6_INSTALLER_BLOB)
     print("host_read=false")
     print("host_write=false")
     print("funds_movement=false")
@@ -500,7 +505,10 @@ def self_test() -> None:
     print("acl_aware_whole_tree_nonwritability_required=true")
     print("digest_self_test_does_not_weaken_production_acl_gate=true")
     print("direct_worktree_tree_oid_required=true")
+    assert V6_INSTALLER_REL.endswith("_protected_substrate_install_v6.py")
+    assert len(V6_INSTALLER_BLOB) == 40
     print("external_repository_observer=false")
+    print("v6_installer_source_generation_bound=true")
     print("v6_installer_generation_coordination_required=true")
     print("funds_movement=false")
 
