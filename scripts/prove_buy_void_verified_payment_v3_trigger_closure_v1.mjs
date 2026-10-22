@@ -36,6 +36,7 @@ const COMPATIBILITY=Object.freeze([
   ".github/workflows/buy-void-request-root-runtime-topology-census-v2.yml",
   ".github/workflows/buy-void-runtime-integration-v1.yml",
   ".github/workflows/buy-void-stable-request-root-policy-v1.yml",
+  ".github/workflows/buy-void-verified-payment-v2-source-generation-acceptance-v1.yml",
 ]);
 const MARKER="VOID_BUY_VOID_VERIFIED_PAYMENT_V3_TRIGGER_CLOSURE_V1_GREEN";
 
