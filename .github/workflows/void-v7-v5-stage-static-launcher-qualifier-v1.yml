@@ -51,9 +51,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v1.c)" = "f1012d2ee8002d5ab9c2c60e1c889705b002a4a3"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v1.c)" = "8ea02553776cf71dceb5a647e9bf0e69d3e2c978"
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v1.py)" = "c3ec29996876aa5b0f712988c4595c946d51868b"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py)" = "c0844899cd19fab6d727169ac90559a124de7f33"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py)" = "a1ffd5fb702bf171935de822bbbbf89b6dc12927"
           test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v1.md)" = "cffd2543945ee2f45ca36b31c75b37a49a441537"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json)" = "3762b757a21048d6eb891245559e7c277716cf93"
 
