@@ -1,0 +1,96 @@
+name: VOID V7 V5 source receipt stage plan v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-v7-v5-source-receipt-stage-plan-v1.yml"
+      - "docs/architecture/buy-void-v7-v5-source-receipt-stage-plan-v1.md"
+      - "ops/security/buy-void-source-finality-v7-deployment-receipt-v5.json"
+      - "ops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json"
+      - "scripts/prove_buy_void_v7_v5_source_receipt_stage_plan_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact stage-plan head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact parent and five-add scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PARENT=242aa1054e1c9ee36a06047ea350f92976870038
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+          mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-v7-v5-source-receipt-stage-plan-v1.yml'
+            $'A\tdocs/architecture/buy-void-v7-v5-source-receipt-stage-plan-v1.md'
+            $'A\tops/security/buy-void-source-finality-v7-deployment-receipt-v5.json'
+            $'A\tops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json'
+            $'A\tscripts/prove_buy_void_v7_v5_source_receipt_stage_plan_v1.mjs'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "$PARENT" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Bind exact plan surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json)" = "fd63775747dae7b90a565686597d016a907bc313"
+          test "$(git rev-parse HEAD:ops/security/buy-void-source-finality-v7-deployment-receipt-v5.json)" = "eddd0b47263213ae8dd65ef72a5479c40ea6812e"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_source_receipt_stage_plan_v1.mjs)" = "3845bbf2be8c2edf5f744d9ee1a0c87df6adb0a5"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-v5-source-receipt-stage-plan-v1.md)" = "382ef403e0aab97d870449bfc918b1346203b24c"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v5.json)" = "bc1b2f4095315861db7a257d4cc3c80a9f112530"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-protected-source-receipt-exchange-plan-v1.json)" = "191a8015e438bc1cebf9fadfcbc23c68f0d2d4ad"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v2.py)" = "bb78c7d9f468baa20b580d052d934d9b97c05134"
+
+      - name: Syntax
+        run: node --check scripts/prove_buy_void_v7_v5_source_receipt_stage_plan_v1.mjs
+
+      - name: Prove create-only staging plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/v5-stage-plan.log"
+          node scripts/prove_buy_void_v7_v5_source_receipt_stage_plan_v1.mjs | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_V7_V5_SOURCE_RECEIPT_STAGE_PLAN_V1_PROOF_GREEN' "$out"
+          grep -Fx 'plan_id=voidv7stageplan1_7054f1774a723c62d5ea0c527c69084e76e0c47372b7602349b08c49138fc203' "$out"
+          grep -Fx 'exact_v5_lock_green=true' "$out"
+          grep -Fx 'hardened_exchange_plan_green=true' "$out"
+          grep -Fx 'full_history_source_provenance_green=true' "$out"
+          grep -Fx 'receipt_cross_node_provenance_green=true' "$out"
+          grep -Fx 'receipt_repository_blob_bound=true' "$out"
+          grep -Fx 'precision_exchange_host_census_green=true' "$out"
+          grep -Fx 'source_stage_create_only=true' "$out"
+          grep -Fx 'receipt_stage_create_only=true' "$out"
+          grep -Fx 'stage_pair_exchange_authority=false' "$out"
+          grep -Fx 'actual_installed_deployment_generation_verified=false' "$out"
+          grep -Fx 'host_write=false' "$out"
+          grep -Fx 'protected_filesystem_mutation=false' "$out"
+          grep -Fx 'service_mutation=false' "$out"
+          grep -Fx 'runtime_cutover_authority=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
