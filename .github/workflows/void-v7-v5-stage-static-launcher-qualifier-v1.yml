@@ -51,10 +51,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v1.c)" = "8ea02553776cf71dceb5a647e9bf0e69d3e2c978"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v1.c)" = "af16d2655359c6023bebdae25d8b0c35d9d1ae8a"
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v1.py)" = "c3ec29996876aa5b0f712988c4595c946d51868b"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py)" = "a1ffd5fb702bf171935de822bbbbf89b6dc12927"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v1.md)" = "cffd2543945ee2f45ca36b31c75b37a49a441537"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v1.py)" = "63291abd697d68dadefc97bcedf14ed188f78dbc"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v1.md)" = "62c4989bbe3b74a1bbe3ae808dd1a74f5ab7e6e7"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v1.json)" = "3762b757a21048d6eb891245559e7c277716cf93"
 
       - name: Python syntax
@@ -71,6 +71,7 @@ jobs:
           "$RUNNER_TEMP/v5-stage-launcher-static" --self-test | tee "$RUNNER_TEMP/static-self-test.log"
           grep -Fx 'VOID_V7_V5_SOURCE_RECEIPT_STAGE_ROOT_LAUNCHER_V1_SELF_TEST_GREEN' "$RUNNER_TEMP/static-self-test.log"
           grep -Fx 'production_payload_manifest_lock_embedded=false' "$RUNNER_TEMP/static-self-test.log"
+          grep -Fx 'python_selected_installer_descriptor_inheritance_required=true' "$RUNNER_TEMP/static-self-test.log"
           grep -Fx 'root_execution_authorized=false' "$RUNNER_TEMP/static-self-test.log"
           grep -Fx 'source_stage_apply_authorized=false' "$RUNNER_TEMP/static-self-test.log"
           grep -Fx 'receipt_stage_apply_authorized=false' "$RUNNER_TEMP/static-self-test.log"
@@ -84,6 +85,8 @@ jobs:
           grep -Fx 'VOID_V7_V5_STAGE_STATIC_LAUNCHER_QUALIFIER_V1_PROOF_GREEN' "$out"
           grep -Fx 'launcher_compiles_with_werror=true' "$out"
           grep -Fx 'launcher_self_test_green=true' "$out"
+          grep -Fx 'selected_installer_procfd_execution_bound=true' "$out"
+          grep -Fx 'path_substitution_cannot_change_executed_fd_bytes=true' "$out"
           grep -Fx 'production_manifest_lock_unbound=true' "$out"
           grep -Fx 'normal_launcher_operation_fail_closed=true' "$out"
           grep -Fx 'four_fixed_operations_only=true' "$out"
