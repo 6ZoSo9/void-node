@@ -22,14 +22,14 @@ def git_blob(path:Path)->str:
 source=UPDATER.read_text(encoding="utf-8")
 ast.parse(source)
 
-assert git_blob(V3)=="ec9e1d2c01581ebdc5323056939f846e67692fe6"
+assert git_blob(V3)=="8d8561c08db7e500a818d269580dad15adca9f58"
 assert git_blob(SERVICE)=="51354b10da89413eb6991514496798c7a1b5d1e8"
 
 qualifier=QUALIFIER.read_text(encoding="utf-8")
 for required in (
     'MARKER="VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V2"',
     'SERVICE_BLOB="51354b10da89413eb6991514496798c7a1b5d1e8"',
-    'LAUNCHER_BLOB="ec9e1d2c01581ebdc5323056939f846e67692fe6"',
+    'LAUNCHER_BLOB="8d8561c08db7e500a818d269580dad15adca9f58"',
     'apollyon-authorization-custody-launcher-v3.mjs',
     'required=expected-{primary_gid}',
     'required.issubset(actual) and actual.issubset(expected)',
@@ -41,7 +41,7 @@ for required in (
     'OLD_SERVICE_BLOB="30b7b7c62b6b7834ae91db1eb37df05286ca5764"',
     'NEW_SERVICE_BLOB="51354b10da89413eb6991514496798c7a1b5d1e8"',
     'V2_LAUNCHER_BLOB="d23ff045d8c355401fed499c6bcffd503ba4c7fd"',
-    'V3_LAUNCHER_BLOB="ec9e1d2c01581ebdc5323056939f846e67692fe6"',
+    'V3_LAUNCHER_BLOB="8d8561c08db7e500a818d269580dad15adca9f58"',
     'run(["/usr/bin/systemctl","daemon-reload"])',
     'create_exact(V3_LAUNCHER_PATH,launcher_data,0o444)',
     'service["ActiveState"] not in ("inactive","failed")',
