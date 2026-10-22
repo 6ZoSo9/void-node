@@ -34,6 +34,11 @@ const PROVENANCE_PATH="src/economic/buy_void_source_finality_generation_provenan
 const PROVENANCE_BLOB="390ff1a2ff0437cd8c8693e7807c12275df42573";
 const REVIEWED_SOURCE_SHA256="18d63ea70fc3a7a4d0ce3d427205717e2c72c40eb145fe677eb4ab6e869acb24";
 const REVIEWED_SOURCE_COUNT="10";
+const EXPECTED_LOCK_SHA256="a0b334530db1c55c2e1be651f1ce8504c90c8e6a50722c2a0b0b2c6e440f0c4d";
+const EXPECTED_LOCK_ID="voidbenfl1_562f6f5b48364b7c7af3817f0d26d11c50c318d831d0f40905a283eaadf07637";
+const EXPECTED_RECEIPT_ID="voidbsfdep1_c936b6fad9623418aa3d34756226bb5f26411117dc9d3f77cbb874a98db84b37";
+const EXPECTED_RECEIPT_SHA256="12d4028d317ce871a61c89c60fd36a1e31421401a39397974063677cb4ab8001";
+const EXPECTED_RECEIPT_BYTES=1136;
 
 const SELF="scripts/prove_buy_void_source_finality_v7_deployment_receipt_candidate_v2.ts";
 const DOC="docs/architecture/buy-void-source-finality-v7-deployment-receipt-candidate-v2.md";
@@ -105,6 +110,8 @@ function derive(){
   assert.equal(lock.path,LOCK_PATH);
   assert.equal(lock.accepted_enforcement_lock_git_blob_sha1,LOCK_BLOB);
   assert.equal(lock.accepted_enforcement_set_sha256,CANDIDATE_SET);
+  assert.equal(lock.accepted_enforcement_lock_sha256,EXPECTED_LOCK_SHA256);
+  assert.equal(lock.accepted_enforcement_lock_id,EXPECTED_LOCK_ID);
   assert.equal(lock.current_enforcement_tracked_source_inventory_verified,true);
 
   const sources=inspectBuyVoidSourceFinalityReviewedSourceFilesV7();
@@ -120,6 +127,9 @@ function derive(){
   assert.equal(built.reviewed_source_files_sha256,REVIEWED_SOURCE_SHA256);
   assert.match(built.receipt_id,/^voidbsfdep1_[0-9a-f]{64}$/u);
   assert.equal(built.receipt.receipt_id,built.receipt_id);
+  assert.equal(built.receipt_id,EXPECTED_RECEIPT_ID);
+  assert.equal(sha256(built.bytes),EXPECTED_RECEIPT_SHA256);
+  assert.equal(built.bytes.length,EXPECTED_RECEIPT_BYTES);
   assert.equal(built.receipt.process_source_commit,TARGET_COMMIT);
   assert.equal(built.receipt.process_source_tree,TARGET_TREE);
   assert.equal(built.receipt.process_source_branch,"main");
