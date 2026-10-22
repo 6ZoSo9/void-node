@@ -25,8 +25,8 @@ jobs:
       - name: Bind exact source generation and four-file scope
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_root_launcher_v2.c)" = "9e55b85b43f7ea6a28537f76d422c5641671beb5"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_root_launcher_v2.py)" = "882b61c1b31f65511aa180d93269b8d44256d592"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_root_launcher_v2.c)" = "19b89e92df6f640c017cb9f544ddbf094d69f6eb"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_root_launcher_v2.py)" = "be8012e94c1d5d8f51b0162eb009ef16d6e81aaf"
           test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-root-launcher-v2.md)" = "f2cc2da4cb0c69b33b4728d1c857a8a2ace4e2cd"
           git merge-base --is-ancestor "7ce37b04a45e835d260a8741b0f90827c7fc7a26" HEAD
           if [ "${{ github.event_name }}" = "pull_request" ]; then
