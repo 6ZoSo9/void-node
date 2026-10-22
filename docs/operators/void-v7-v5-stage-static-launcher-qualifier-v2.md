@@ -173,3 +173,51 @@ The production manifest remains unaccepted. No root execution or staging apply
 is authorized by this rebind.
 
 PROTECT THE CORE.
+
+
+## Staging-pair qualifier custody repair — October 22, 2026 (Draft successor)
+
+The canonical V2 launcher remains production-disabled. The read-only qualifier
+now additionally requires:
+
+- receipt bytes, digest, identity **and root custody metadata** to derive from
+  the same retained, no-follow file descriptor; a terminal pathname-generation
+  comparison rejects substitution after the read;
+- source-stage root and *every descendant* to be root:root, on the same
+  filesystem, with directories mode `0755`, data files mode `0444`,
+  executable files mode `0755`, single-linked regular files, no symlinks or
+  special files, no POSIX access/default ACLs or file capabilities;
+- descriptor-relative, bounded, no-follow, nonblocking directory traversal,
+  with visible generation identity and file/directory metadata revalidation;
+- equal source-tree metadata-generation fingerprints before and after the
+  Git commit/tree/index/full-history checks, rejecting path substitutions,
+  writable descendants, and generation drift.
+
+Disposable unprivileged negative fixtures test writable directories/files,
+source-generation substitution and receipt pathname replacement. These tests
+exercise production read-only validation helpers and never access protected
+host paths. The bounded source scan is a *point-in-time* qualification of a
+root-custodied tree; it cannot defend against a malicious root administrator
+changing a tree after successful qualification. A separate trusted-root
+launcher and accepted payload manifest remain mandatory.
+
+**Remaining independent gates:** a distinct-principal source security review,
+successful exact-head CI, separately resolving the #3712/#3715 shared staging
+destination collision, and repairing the separately reported #3721 pre-
+acceptance manifest trust-root gap. The #3724 manifest *candidate* authorization
+does not accept a manifest and grants no root/stage operation.
+
+```text
+production_payload_manifest_accepted=false
+launcher_install_authorized=false
+root_execution_authorized=false
+source_stage_apply_authorized=false
+receipt_stage_apply_authorized=false
+fixed_source_exchange_authority=false
+fixed_receipt_exchange_authority=false
+service_mutation=false
+public_presale_activation=false
+funds_movement=false
+```
+
+PROTECT THE CORE.

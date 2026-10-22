@@ -134,7 +134,7 @@ def same_generation(a:dict[str,Any],b:dict[str,Any],label:str)->None:
         if a.get(key)!=b.get(key):
             raise QualifyError(label+"_generation_changed:"+key)
 
-def read_regular(path:pathlib.Path,max_bytes:int,label:str)->bytes:
+def read_regular(path:pathlib.Path,max_bytes:int,label:str)->tuple[bytes,dict[str,Any]]:
     before=meta(path)
     if (
         not before.get("exists") or before.get("kind")!="regular"
@@ -170,7 +170,7 @@ def read_regular(path:pathlib.Path,max_bytes:int,label:str)->bytes:
         visible=meta(path)
         same_generation(opened_meta,after_meta,label+"_fd")
         same_generation(after_meta,visible,label+"_visible")
-        return bytes(raw)
+        return bytes(raw),after_meta
     finally:
         os.close(fd)
 
@@ -180,8 +180,11 @@ def verify_receipt(
     expected_sha256:str,
     expected_bytes:int,
     label:str,
+    *,
+    expected_uid:int=0,
+    expected_gid:int=0,
 )->dict[str,Any]:
-    raw=read_regular(path,64*1024,label)
+    raw,st=read_regular(path,64*1024,label)
     if len(raw)!=expected_bytes:
         raise QualifyError(label+"_bytes_mismatch")
     digest=hashlib.sha256(raw).hexdigest()
@@ -192,13 +195,167 @@ def verify_receipt(
         raise QualifyError(label+"_json_invalid") from exc
     if not isinstance(value,dict) or value.get("receipt_id")!=expected_id:
         raise QualifyError(label+"_id_mismatch")
-    st=meta(path)
     if (
-        st.get("uid")!=0 or st.get("gid")!=0
+        st.get("uid")!=expected_uid or st.get("gid")!=expected_gid
         or st.get("mode")!=0o444 or st.get("nlink")!=1
     ):
         raise QualifyError(label+"_custody_invalid")
+    # The root-owned metadata belongs to the *same FD generation* as the
+    # authenticated receipt bytes, never to a later pathname lookup. A final
+    # pathname check may reject a rename, but cannot supply authority.
+    visible=meta(path)
+    same_generation(st,visible,label+"_terminal")
     return {"receipt_id":expected_id,"sha256":digest,"bytes":len(raw),"metadata":st}
+
+
+# Source-stage custody is a separate trust requirement from Git object hashes.
+# Git does not authenticate filesystem ownership, mode, ACLs or inode identity.
+# Walk from retained no-follow directory FDs and verify all descendants twice
+# around the independently executed Git source checks. No source is modified.
+MAX_CUSTODY_NODES=250000
+MAX_CUSTODY_DEPTH=64
+
+def _fd_meta(fd:int)->dict[str,Any]:
+    st=os.fstat(fd)
+    return {
+        "exists":True,
+        "kind":("directory" if stat.S_ISDIR(st.st_mode)
+                else "regular" if stat.S_ISREG(st.st_mode) else "other"),
+        "dev":st.st_dev,"ino":st.st_ino,"uid":st.st_uid,"gid":st.st_gid,
+        "mode":stat.S_IMODE(st.st_mode),"nlink":st.st_nlink,
+        "size":st.st_size,"mtime_ns":st.st_mtime_ns,"ctime_ns":st.st_ctime_ns,
+    }
+
+def scan_staged_tree_custody(
+    root:pathlib.Path,
+    *,
+    expected_uid:int=0,
+    expected_gid:int=0,
+)->dict[str,Any]:
+    root_before=meta(root)
+    if root_before.get("kind")!="directory" or root.resolve(strict=True)!=root:
+        raise QualifyError("staged_tree_root_invalid")
+    root_fd=os.open(
+        root,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC
+    )
+    digest=hashlib.sha256()
+    count=0
+    root_device=_fd_meta(root_fd)["dev"]
+    try:
+        same_generation(root_before,_fd_meta(root_fd),"staged_tree_root_open")
+
+        def visit(fd:int,rel:str,depth:int)->None:
+            nonlocal count
+            if depth>MAX_CUSTODY_DEPTH:
+                raise QualifyError("staged_tree_depth_limit")
+            here_before=_fd_meta(fd)
+            if here_before["kind"]!="directory":
+                raise QualifyError("staged_tree_directory_kind_invalid")
+            if (here_before["uid"]!=expected_uid or
+                here_before["gid"]!=expected_gid or
+                here_before["mode"]!=0o755 or
+                here_before["dev"]!=root_device):
+                raise QualifyError("staged_tree_directory_custody_invalid:"+rel)
+            attrs=os.listxattr(fd)
+            if any(name in attrs for name in (
+                "system.posix_acl_access","system.posix_acl_default"
+            )):
+                raise QualifyError("staged_tree_directory_acl_forbidden:"+rel)
+            digest.update(
+                (json.dumps(["D",rel,*[here_before[k] for k in (
+                    "dev","ino","uid","gid","mode","nlink",
+                    "size","mtime_ns","ctime_ns"
+                )]],separators=(",",":"))+"\\n").encode("utf-8")
+            )
+            names:list[str]=[]
+            with os.scandir(fd) as iterator:
+                for entry in iterator:
+                    names.append(entry.name)
+                    if len(names)>MAX_CUSTODY_NODES-count:
+                        raise QualifyError("staged_tree_node_limit")
+            for name in sorted(names):
+                if (name in ("",".","..") or "/" in name or
+                    not name.isprintable() or
+                    len(name.encode("utf-8","strict"))>255):
+                    raise QualifyError("staged_tree_name_invalid")
+                count+=1
+                if count>MAX_CUSTODY_NODES:
+                    raise QualifyError("staged_tree_node_limit")
+                child_rel=name if not rel else rel+"/"+name
+                before=os.stat(name,dir_fd=fd,follow_symlinks=False)
+                if stat.S_ISLNK(before.st_mode):
+                    raise QualifyError("staged_tree_symlink_forbidden:"+child_rel)
+                is_dir=stat.S_ISDIR(before.st_mode)
+                is_file=stat.S_ISREG(before.st_mode)
+                if not (is_dir or is_file):
+                    raise QualifyError("staged_tree_kind_invalid:"+child_rel)
+                flags=(os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK|
+                       (os.O_DIRECTORY if is_dir else 0))
+                child_fd=os.open(name,flags,dir_fd=fd)
+                try:
+                    opened=_fd_meta(child_fd)
+                    # Compare the trusted open descriptor to the immediate
+                    # parent-directory lookup, not a second untrusted path.
+                    before_meta={
+                        "dev":before.st_dev,"ino":before.st_ino,
+                        "uid":before.st_uid,"gid":before.st_gid,
+                        "mode":stat.S_IMODE(before.st_mode),
+                        "nlink":before.st_nlink,"size":before.st_size,
+                        "mtime_ns":before.st_mtime_ns,"ctime_ns":before.st_ctime_ns,
+                    }
+                    same_generation(before_meta,opened,"staged_tree_open:"+child_rel)
+                    if (opened["uid"]!=expected_uid or
+                        opened["gid"]!=expected_gid or
+                        opened["dev"]!=root_device):
+                        raise QualifyError("staged_tree_owner_or_device_invalid:"+child_rel)
+                    child_attrs=os.listxattr(child_fd)
+                    if any(attr in child_attrs for attr in (
+                        "system.posix_acl_access","system.posix_acl_default",
+                        "security.capability"
+                    )):
+                        raise QualifyError("staged_tree_access_extension_forbidden:"+child_rel)
+                    if is_dir:
+                        if opened["kind"]!="directory" or opened["mode"]!=0o755:
+                            raise QualifyError("staged_tree_directory_mode_invalid:"+child_rel)
+                        visit(child_fd,child_rel,depth+1)
+                    else:
+                        if (opened["kind"]!="regular" or
+                            opened["mode"] not in (0o444,0o755) or
+                            opened["nlink"]!=1):
+                            raise QualifyError("staged_tree_file_mode_invalid:"+child_rel)
+                        digest.update(
+                            (json.dumps(["F",child_rel,*[opened[k] for k in (
+                                "dev","ino","uid","gid","mode","nlink",
+                                "size","mtime_ns","ctime_ns"
+                            )]],separators=(",",":"))+"\\n").encode("utf-8")
+                        )
+                    same_generation(opened,_fd_meta(child_fd),
+                                    "staged_tree_fd:"+child_rel)
+                    visible=os.stat(name,dir_fd=fd,follow_symlinks=False)
+                    visible_meta={
+                        "dev":visible.st_dev,"ino":visible.st_ino,
+                        "uid":visible.st_uid,"gid":visible.st_gid,
+                        "mode":stat.S_IMODE(visible.st_mode),
+                        "nlink":visible.st_nlink,"size":visible.st_size,
+                        "mtime_ns":visible.st_mtime_ns,"ctime_ns":visible.st_ctime_ns,
+                    }
+                    same_generation(opened,visible_meta,
+                                    "staged_tree_visible:"+child_rel)
+                finally:
+                    os.close(child_fd)
+            same_generation(here_before,_fd_meta(fd),
+                            "staged_tree_directory:"+rel)
+
+        visit(root_fd,"",0)
+        same_generation(root_before,_fd_meta(root_fd),"staged_tree_root_fd")
+        same_generation(_fd_meta(root_fd),meta(root),"staged_tree_root_visible")
+        return {
+            "generation_sha256":digest.hexdigest(),
+            "nodes":count,
+            "root_metadata":_fd_meta(root_fd),
+        }
+    finally:
+        os.close(root_fd)
 
 def verify_source(
     root:pathlib.Path,
@@ -223,6 +380,9 @@ def verify_source(
         raise QualifyError(label+"_root_custody_invalid")
     if root.resolve(strict=True)!=root:
         raise QualifyError(label+"_root_alias")
+    custody_before=None
+    if expected_root_mode==0o755 and expected_count is not None:
+        custody_before=scan_staged_tree_custody(root)
     head=git(root,"rev-parse","--verify","HEAD^{commit}")
     tree=git(root,"rev-parse","--verify","HEAD^{tree}")
     branch=git(root,"symbolic-ref","--quiet","--short","HEAD")
@@ -250,6 +410,13 @@ def verify_source(
         fsck=git(root,"fsck","--strict","--no-reflogs","--full",timeout=180)
         if fsck!="":
             raise QualifyError(label+"_fsck_output_nonempty")
+    if custody_before is not None:
+        custody_after=scan_staged_tree_custody(root)
+        if (custody_after["generation_sha256"]!=custody_before["generation_sha256"]
+            or custody_after["nodes"]!=custody_before["nodes"]):
+            raise QualifyError(label+"_custody_generation_changed")
+        same_generation(st,custody_after["root_metadata"],
+                        label+"_root_terminal")
     return {
         "path":str(root),"head":head,"tree":tree,"branch":branch,
         "clean":True,"shallow":shallow=="true",
@@ -275,7 +442,93 @@ def self_test()->None:
             pass
         else:
             raise AssertionError("bad_receipt_fixture_accepted")
+
+    # Disposable non-root fixtures exercise the *actual* descriptor and
+    # recursive-custody boundaries, never a privileged source or receipt.
+    with tempfile.TemporaryDirectory(prefix="void-v5-custody-negative-") as td:
+        base=pathlib.Path(td)
+        root=base/"source"
+        child=root/"nested"
+        child.mkdir(parents=True)
+        os.chmod(root,0o755)
+        os.chmod(child,0o755)
+        leaf=child/"regular.txt"
+        leaf.write_bytes(b"hello")
+        os.chmod(leaf,0o444)
+        scan=scan_staged_tree_custody(
+            root,expected_uid=os.getuid(),expected_gid=os.getgid()
+        )
+        assert scan["nodes"]==2
+        os.chmod(leaf,0o666)
+        try:
+            scan_staged_tree_custody(
+                root,expected_uid=os.getuid(),expected_gid=os.getgid()
+            )
+        except QualifyError as exc:
+            assert "staged_tree_file_mode_invalid" in str(exc)
+        else:
+            raise AssertionError("writable_descendant_file_accepted")
+        os.chmod(leaf,0o444)
+        os.chmod(child,0o777)
+        try:
+            scan_staged_tree_custody(
+                root,expected_uid=os.getuid(),expected_gid=os.getgid()
+            )
+        except QualifyError as exc:
+            assert "staged_tree_directory" in str(exc)
+        else:
+            raise AssertionError("writable_descendant_directory_accepted")
+        os.chmod(child,0o755)
+        old_fingerprint=scan_staged_tree_custody(
+            root,expected_uid=os.getuid(),expected_gid=os.getgid()
+        )["generation_sha256"]
+        moved=child/"displaced.txt"
+        leaf.rename(moved)
+        leaf.write_bytes(b"hello")
+        os.chmod(leaf,0o444)
+        assert scan_staged_tree_custody(
+            root,expected_uid=os.getuid(),expected_gid=os.getgid()
+        )["generation_sha256"]!=old_fingerprint
+        moved.unlink()
+        # Exact receipt bytes are taken from A, which is replaced with B
+        # before the caller can finish verification. Terminal generation
+        # comparison must reject it, never mix A's data and B's custody.
+        receipt=base/"receipt.json"
+        replacement=base/"replacement.json"
+        receipt_id="voidbsfdep1_"+"a"*64
+        raw=json.dumps({"receipt_id":receipt_id},separators=(",",":")).encode()
+        receipt.write_bytes(raw)
+        replacement.write_bytes(b"{}")
+        os.chmod(receipt,0o444)
+        os.chmod(replacement,0o444)
+        baseline=read_regular
+        def swap_after_read(
+            path:pathlib.Path,max_bytes:int,label:str
+        )->tuple[bytes,dict[str,Any]]:
+            result=baseline(path,max_bytes,label)
+            os.replace(replacement,receipt)
+            return result
+        globals()["read_regular"]=swap_after_read
+        try:
+            try:
+                verify_receipt(
+                    receipt,receipt_id,hashlib.sha256(raw).hexdigest(),
+                    len(raw),"fixture_receipt_swap",
+                    expected_uid=os.getuid(),expected_gid=os.getgid(),
+                )
+            except QualifyError as exc:
+                assert "fixture_receipt_swap_terminal_generation_changed" in str(exc)
+            else:
+                raise AssertionError("receipt_path_replacement_accepted")
+        finally:
+            globals()["read_regular"]=baseline
     print(MARKER+"_SELF_TEST_GREEN")
+    print("receipt_verified_fd_metadata_bound=true")
+    print("receipt_path_substitution_rejected=true")
+    print("recursive_source_custody_bound=true")
+    print("writable_descendant_file_rejected=true")
+    print("writable_descendant_directory_rejected=true")
+    print("staged_tree_generation_change_detected=true")
     print("fixed_paths_only=true")
     print("source_stage_exact_v5_generation_required=true")
     print("source_stage_root_mode_0755_required=true")
