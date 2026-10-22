@@ -1,0 +1,97 @@
+name: VOID V7 V5 create-only stage builders v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/void-v7-v5-source-receipt-stage-builders-v1.yml"
+      - "docs/operators/void-v7-v5-source-receipt-stage-builders-v1.md"
+      - "ops/precision/void_v7_v5_source_stage_install_v1.py"
+      - "ops/precision/void_v7_v5_receipt_stage_install_v1.py"
+      - "scripts/prove_void_v7_v5_source_receipt_stage_builders_v1.py"
+      - "ops/security/buy-void-v7-v5-source-receipt-staging-plan-v1.json"
+      - "ops/precision/void_v7_source_release_full_history_reseal_v2.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact implementation head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact parent and five-add scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PARENT=98d097e4ad9aa78fcad272234db9c38ef4ccde9f
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+          mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
+          expected=(
+            $'A\t.github/workflows/void-v7-v5-source-receipt-stage-builders-v1.yml'
+            $'A\tdocs/operators/void-v7-v5-source-receipt-stage-builders-v1.md'
+            $'A\tops/precision/void_v7_v5_receipt_stage_install_v1.py'
+            $'A\tops/precision/void_v7_v5_source_stage_install_v1.py'
+            $'A\tscripts/prove_void_v7_v5_source_receipt_stage_builders_v1.py'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "$PARENT" HEAD
+
+      - name: Bind exact implementation sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_stage_install_v1.py)" = "a3cb44b02606b49be2c678f4fb28e258cf765e3b"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_receipt_stage_install_v1.py)" = "c4e7edfeda3196cdebc1ac4656cf514f77a53969"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_source_receipt_stage_builders_v1.py)" = "cc65e21e22c2d424e853607fd5c817810ead7339"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-source-receipt-stage-builders-v1.md)" = "18bd6cedb33416229672bdd818a01b741e67bca6"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-source-receipt-staging-plan-v1.json)" = "37c6f5bd5753f05e57dde3c95f9c2f89c0abdc4d"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v2.py)" = "bb78c7d9f468baa20b580d052d934d9b97c05134"
+
+      - name: Python syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B -m py_compile             ops/precision/void_v7_v5_source_stage_install_v1.py             ops/precision/void_v7_v5_receipt_stage_install_v1.py             scripts/prove_void_v7_v5_source_receipt_stage_builders_v1.py
+
+      - name: Prove source-authored implementation boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/v5-stage-builders.log"
+          python3 -I -B scripts/prove_void_v7_v5_source_receipt_stage_builders_v1.py | tee "$out"
+          grep -Fx 'VOID_V7_V5_SOURCE_RECEIPT_STAGE_BUILDERS_V1_PROOF_GREEN' "$out"
+          grep -Fx 'reviewed_source_replica_mechanics_reused=true' "$out"
+          grep -Fx 'v5_generation_exact=true' "$out"
+          grep -Fx 'hidden_source_stage_only=true' "$out"
+          grep -Fx 'hidden_receipt_stage_only=true' "$out"
+          grep -Fx 'fixed_v4_source_guard_required=true' "$out"
+          grep -Fx 'fixed_v4_receipt_guard_required=true' "$out"
+          grep -Fx 'create_only_publication_required=true' "$out"
+          grep -Fx 'trusted_root_launcher_required=true' "$out"
+          grep -Fx 'root_apply_authorized=false' "$out"
+          grep -Fx 'fixed_source_exchange_authority=false' "$out"
+          grep -Fx 'fixed_receipt_exchange_authority=false' "$out"
+          grep -Fx 'transition_journal_mutation=false' "$out"
+          grep -Fx 'consumer_fence_mutation=false' "$out"
+          grep -Fx 'service_mutation=false' "$out"
+          grep -Fx 'public_presale_activation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+
+      - name: Assert CI never invokes apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -F -- '--apply' "$0" 2>/dev/null || true
+          grep -Fq 'root_apply_authorized=false' "$RUNNER_TEMP/v5-stage-builders.log"
