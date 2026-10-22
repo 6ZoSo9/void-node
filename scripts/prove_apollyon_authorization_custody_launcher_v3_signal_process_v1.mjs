@@ -16,9 +16,11 @@ async function runSignal(signal){
     import {
       waitForApollyonAuthorizationCustodyShutdownV3,
     } from ${JSON.stringify(launcherUrl)};
+    const serviceLifetimeHandle=setTimeout(()=>{},10_000);
     const service={
       async stop(){
         process.stdout.write("STOP_BEGIN\\n");
+        clearTimeout(serviceLifetimeHandle);
         await new Promise((resolve)=>setTimeout(resolve,100));
         process.stdout.write("STOP_SETTLED\\n");
       },
@@ -108,6 +110,7 @@ async function runSignal(signal){
   assert.equal(stdout.includes("TOP_LEVEL_AWAIT_SETTLED\n"),true,stdout);
   assert.equal(stderr.includes("unsettled top-level await"),false,stderr);
   assert.equal(stderr.includes("Warning:"),false,stderr);
+  assert.equal(stdout.includes("STOP_SETTLED\n"),true,stdout);
   return {signal,stdout,stderr};
 }
 
@@ -122,6 +125,7 @@ console.log("sigterm_child_exit_zero=true");
 console.log("sigint_child_exit_zero=true");
 console.log("duplicate_same_signal_child_survives=true");
 console.log("duplicate_same_signal_single_stop=true");
+console.log("service_lifetime_reference_modeled=true");
 console.log("service_stop_settled_before_exit=true");
 console.log("top_level_await_settled=true");
 console.log("unsettled_top_level_await_warning_absent=true");
