@@ -272,24 +272,30 @@ static bool receipt_clean_rel(const char *path){
         const char *e=strchr(p,'/');size_t n=e?(size_t)(e-p):strlen(p);
         if(!n||n>NAME_MAX||(n==1&&p[0]=='.')||(n==2&&p[0]=='.'&&p[1]=='.'))return false;
         for(size_t i=0;i<n;i++){unsigned char c=(unsigned char)p[i];if(c<0x20||c==0x7f||c=='|'||c=='\\')return false;}
-        if(!e)return true;p=e+1;if(!*p)return false;
+        if(!e)return true;
+        p=e+1;
+        if(!*p)return false;
     }
     return false;
 }
 static bool decu_receipt(const char *s,uintmax_t *out){
     if(!s||!*s||(s[0]=='0'&&s[1]))return false;
     errno=0;char *end=NULL;uintmax_t v=strtoumax(s,&end,10);
-    if(errno||!end||*end)return false;*out=v;return true;
+    if(errno||!end||*end)return false;
+    *out=v;
+    return true;
 }
 static bool mode4_receipt(const char *s,mode_t *out){
-    if(!s||strlen(s)!=4)return false;unsigned v=0;
+    if(!s||strlen(s)!=4)return false;
+    unsigned v=0;
     for(size_t i=0;i<4;i++){if(s[i]<'0'||s[i]>'7')return false;v=(v<<3)|(unsigned)(s[i]-'0');}
     *out=(mode_t)v;return true;
 }
 static char *receipt_line(char **cursor){
     char *p=*cursor;if(!p||!*p)hold("receipt_row_missing");
     char *e=strchr(p,'\n');if(!e)hold("receipt_final_lf_required");*e=0;*cursor=e+1;
-    if(!*p)hold("receipt_blank_row");return p;
+    if(!*p)hold("receipt_blank_row");
+    return p;
 }
 static char *receipt_value(char *line,const char *key){
     size_t n=strlen(key);if(strncmp(line,key,n)||line[n]!='=')hold("receipt_key_or_order_invalid");
@@ -325,7 +331,8 @@ static receipt_v1 parse_receipt(char *raw,size_t size){
         const expected_receipt_entry_v1 *expected=expected_receipt(fields[2]);
         if(!expected||expected->kind!=fields[0][0]||expected->mode!=mode)hold("receipt_entry_not_expected");
         receipt_entry_v1 *e=&out.entries[i];e->kind=fields[0][0];e->mode=mode;
-        if(strlen(fields[2])>=sizeof(e->path))hold("receipt_entry_path_too_long");strcpy(e->path,fields[2]);
+        if(strlen(fields[2])>=sizeof(e->path))hold("receipt_entry_path_too_long");
+        strcpy(e->path,fields[2]);
         uintmax_t size=0;if(!decu_receipt(fields[3],&size)||size>MAX_PYTHON_BYTES)hold("receipt_entry_size_invalid");e->size=(uint64_t)size;
         if(e->kind=='D'){if(e->size||strcmp(fields[4],"-"))hold("receipt_directory_payload_invalid");e->sha256[0]=0;}
         else{if(!e->size||!hexn(fields[4],64))hold("receipt_file_payload_invalid");strcpy(e->sha256,fields[4]);}
@@ -440,11 +447,13 @@ static int receipt_parser_selftest(void){
     int n=snprintf(raw+off,sizeof(raw)-off,
         "schema=%s\nseal_mode=%s\nplan_contract_id=%s\nplan_contract_blob=%s\nmanifest_sha256=%s\nmanifest_bytes=1\nsource_generation=%s\nbootstrap_sha256=%s\nroot_dev=1\nroot_ino=2\npayload_count=%u\n",
         RECEIPT_SCHEMA,SEAL_MODE,PLAN_CONTRACT_ID,PLAN_CONTRACT_BLOB,h,h,h,EXPECTED_PAYLOAD_COUNT);
-    if(n<0||(size_t)n>=sizeof(raw)-off)return selftest_fail("receipt_fixture_header_failed");off+=(size_t)n;
+    if(n<0||(size_t)n>=sizeof(raw)-off)return selftest_fail("receipt_fixture_header_failed");
+    off+=(size_t)n;
     for(size_t i=0;i<EXPECTED_PAYLOAD_COUNT;i++){
         const expected_receipt_entry_v1 *e=&EXPECTED_RECEIPT[i];const char *sha=e->kind=='F'?h:"-";unsigned long long size=e->kind=='F'?1ULL:0ULL;unsigned long long nl=e->kind=='F'?1ULL:2ULL;
         n=snprintf(raw+off,sizeof(raw)-off,"entry=%c|%04o|%s|%llu|%s|1|%llu|%llu\n",e->kind,e->mode,e->path,size,sha,(unsigned long long)(10+i),nl);
-        if(n<0||(size_t)n>=sizeof(raw)-off)return selftest_fail("receipt_fixture_entry_failed");off+=(size_t)n;
+        if(n<0||(size_t)n>=sizeof(raw)-off)return selftest_fail("receipt_fixture_entry_failed");
+        off+=(size_t)n;
     }
     receipt_v1 r=parse_receipt(raw,off);if(r.count!=EXPECTED_PAYLOAD_COUNT)return selftest_fail("receipt_fixture_count_mismatch");
     if(strcmp(receipt_find(&r,SELF_REL)->path,SELF_REL))return selftest_fail("receipt_fixture_self_missing");
@@ -535,11 +544,24 @@ int main(int argc,char **argv){
     int policy_fd=open_regular_mode(FIXED_POLICY,MAX_POLICY_BYTES,0444,false,&policy_id);bind_receipt_file(&receipt,POLICY_REL,policy_fd,policy_id);
     char *policy_raw=read_policy_bytes(policy_fd,(size_t)policy_id.size);policy_v3 policy=parse_policy(policy_raw,(size_t)policy_id.size);free(policy_raw);revalidate_file(FIXED_POLICY,policy_fd,policy_id);
     int installer_fd=open_regular_mode(FIXED_INSTALLER,INSTALLER_BYTES,0444,false,&installer_id);bind_receipt_file(&receipt,INSTALLER_REL,installer_fd,installer_id);
-    if((size_t)installer_id.size!=INSTALLER_BYTES)hold("installer_size_mismatch");char installer_hash[65];hash_exact_fd(installer_fd,INSTALLER_BYTES,installer_hash);if(strcmp(installer_hash,INSTALLER_SHA256))hold("installer_content_mismatch");revalidate_file(FIXED_INSTALLER,installer_fd,installer_id);
+    if((size_t)installer_id.size!=INSTALLER_BYTES)hold("installer_size_mismatch");
+    char installer_hash[65];
+    hash_exact_fd(installer_fd,INSTALLER_BYTES,installer_hash);
+    if(strcmp(installer_hash,INSTALLER_SHA256))hold("installer_content_mismatch");
+    revalidate_file(FIXED_INSTALLER,installer_fd,installer_id);
     int python_fd=open_regular_mode(FIXED_PYTHON,MAX_PYTHON_BYTES,0555,true,&python_id);bind_receipt_file(&receipt,PYTHON_REL,python_fd,python_id);
-    if((size_t)python_id.size!=policy.python_bytes)hold("python_size_mismatch");require_static_python_elf(python_fd,policy.python_bytes);char python_hash[65];hash_exact_fd(python_fd,policy.python_bytes,python_hash);if(strcmp(python_hash,policy.python_sha256))hold("python_content_mismatch");revalidate_file(FIXED_PYTHON,python_fd,python_id);
+    if((size_t)python_id.size!=policy.python_bytes)hold("python_size_mismatch");
+    require_static_python_elf(python_fd,policy.python_bytes);
+    char python_hash[65];
+    hash_exact_fd(python_fd,policy.python_bytes,python_hash);
+    if(strcmp(python_hash,policy.python_sha256))hold("python_content_mismatch");
+    revalidate_file(FIXED_PYTHON,python_fd,python_id);
     int stdlib_fd=open_regular_mode(FIXED_STDLIB_ZIP,MAX_STDLIB_BYTES,0444,false,&stdlib_id);bind_receipt_file(&receipt,STDLIB_REL,stdlib_fd,stdlib_id);
-    if((size_t)stdlib_id.size!=policy.stdlib_bytes)hold("stdlib_zip_size_mismatch");char stdlib_hash[65];hash_exact_fd(stdlib_fd,policy.stdlib_bytes,stdlib_hash);if(strcmp(stdlib_hash,policy.stdlib_sha256))hold("stdlib_zip_content_mismatch");revalidate_file(FIXED_STDLIB_ZIP,stdlib_fd,stdlib_id);
+    if((size_t)stdlib_id.size!=policy.stdlib_bytes)hold("stdlib_zip_size_mismatch");
+    char stdlib_hash[65];
+    hash_exact_fd(stdlib_fd,policy.stdlib_bytes,stdlib_hash);
+    if(strcmp(stdlib_hash,policy.stdlib_sha256))hold("stdlib_zip_content_mismatch");
+    revalidate_file(FIXED_STDLIB_ZIP,stdlib_fd,stdlib_id);
 
     char *audit_paths[]={(char*)FIXED_ROOT,(char*)FIXED_SELF,(char*)FIXED_POLICY,(char*)FIXED_RECEIPT,(char*)FIXED_RUNTIME_ROOT,(char*)FIXED_PYTHON,(char*)FIXED_STDLIB_ZIP,(char*)FIXED_SOURCE_ROOT,(char*)FIXED_INSTALLER};
     runtime_nonwritable(audit_paths,sizeof(audit_paths)/sizeof(audit_paths[0]));
