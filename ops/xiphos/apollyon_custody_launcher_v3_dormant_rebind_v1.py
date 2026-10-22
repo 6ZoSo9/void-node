@@ -292,16 +292,11 @@ def replace_service(data:bytes)->bool:
 
 def daemon_reload()->None:
     # File state may be new while the loaded manager state still points to v2.
-    target=unit_props(TARGET_UNIT,("ActiveState","MainPID"))
-    service=unit_props(SERVICE_UNIT,("ActiveState","MainPID"))
-    training=unit_props(TRAINING_UNIT,("ActiveState","MainPID"))
-    if (
-        target["ActiveState"]!="inactive" or target["MainPID"] not in ("","0") or
-        service["ActiveState"]!="inactive" or service["MainPID"] not in ("","0") or
-        training["ActiveState"] not in ("inactive","failed") or
-        training["MainPID"] not in ("","0")
-    ):
-        hold("dormancy_changed_before_daemon_reload")
+    # Re-run the complete dormant/effective-config boundary immediately before
+    # mutating PID 1's unit cache; NeedDaemonReload=yes is explicitly accepted.
+    require_dormant()
+    if launcher_state()!="exact" or service_state()!="v3_exact":
+        hold("rebind_material_changed_before_daemon_reload")
     run(["/usr/bin/systemctl","daemon-reload"])
 
 def apply()->dict[str,object]:
@@ -372,6 +367,7 @@ def self_test()->None:
     for required in (
         'run(["/usr/bin/systemctl","daemon-reload"])',
         'require_dormant()',
+        'rebind_material_changed_before_daemon_reload',
         'V3_LAUNCHER_BLOB="ec9e1d2c01581ebdc5323056939f846e67692fe6"',
         'NEW_SERVICE_BLOB="51354b10da89413eb6991514496798c7a1b5d1e8"',
         '"lifecycle_state":"complete"',
