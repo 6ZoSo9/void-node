@@ -66,7 +66,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "3c22bcf97f235db9c0a62146b338f7ed57ed572f"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py)" = "3ff41612a8a7aed926995e0892383e75fad99c7a"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_source_stage_install_v1.py)" = "666f06157f825600cb252ddea2993ec13d0d50f3"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py)" = "a82169202218daeb5c5f0866062a5c2e5567f0da"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py)" = "d192fc53d7b36e04e99b1de647d1e28ce301ac92"
           test "$(git rev-parse HEAD:docs/operators/buy-void-v7-v5-source-receipt-stage-install-v1.md)" = "afbb1762fb1b194a1954c22ee048f48eea6ecbf6"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json)" = "fd63775747dae7b90a565686597d016a907bc313"
           test "$(git rev-parse HEAD:ops/security/buy-void-source-finality-v7-deployment-receipt-v5.json)" = "eddd0b47263213ae8dd65ef72a5479c40ea6812e"

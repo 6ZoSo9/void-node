@@ -18,7 +18,10 @@ for token in (
  'fixed_v4_receipt_parent_device_mismatch',
 ):
     assert token in text,token
-assert "expected_git_identity_invalid" not in text\nassert "--expected-head" not in text\nassert "--expected-tree" not in text\ncp=subprocess.run([sys.executable,"-I","-B",str(TARGET),"--self-test"],
+assert "expected_git_identity_invalid" not in text
+assert "--expected-head" not in text
+assert "--expected-tree" not in text
+cp=subprocess.run([sys.executable,"-I","-B",str(TARGET),"--self-test"],
  stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=30,check=False)
 assert cp.returncode==0 and cp.stderr=="",cp.stdout+cp.stderr
 assert "VOID_BUY_VOID_V7_V5_RECEIPT_STAGE_INSTALL_V1_SELF_TEST_GREEN" in cp.stdout.splitlines()
