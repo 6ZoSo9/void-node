@@ -41,7 +41,7 @@ TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"
 OLD_SERVICE_BLOB="30b7b7c62b6b7834ae91db1eb37df05286ca5764"
 NEW_SERVICE_BLOB="51354b10da89413eb6991514496798c7a1b5d1e8"
 V2_LAUNCHER_BLOB="d23ff045d8c355401fed499c6bcffd503ba4c7fd"
-V3_LAUNCHER_BLOB="ec9e1d2c01581ebdc5323056939f846e67692fe6"
+V3_LAUNCHER_BLOB="8d8561c08db7e500a818d269580dad15adca9f58"
 EXPECTED_UNSET=(
     "GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",
     "NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",
@@ -488,7 +488,7 @@ def self_test()->None:
         'service["NoNewPrivileges"]!="yes"',
         'service["RestrictAddressFamilies"]!="AF_UNIX"',
         'rebind_material_changed_before_daemon_reload',
-        'V3_LAUNCHER_BLOB="ec9e1d2c01581ebdc5323056939f846e67692fe6"',
+        'V3_LAUNCHER_BLOB="8d8561c08db7e500a818d269580dad15adca9f58"',
         'NEW_SERVICE_BLOB="51354b10da89413eb6991514496798c7a1b5d1e8"',
         '"lifecycle_state":"complete"',
     ):
