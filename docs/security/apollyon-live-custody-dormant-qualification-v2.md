@@ -26,7 +26,11 @@ nonleader threads carries the custody UID, including saved/fs-UID-only cases.
 The same all-TID rule proves training-UID absence before, during and after both
 cycles. Global custody/training role maps are accepted only when two consecutive
 all-process/all-TID snapshots are identical; a changing role census HOLDs rather
-than being treated as absence or exclusivity.
+than being treated as absence or exclusivity. For the live custody service, the
+stable global custody-UID TID tuple must additionally equal the already
+double-read per-thread credential inventory. A newly appearing custody-UID
+thread therefore cannot be accepted without passing the full thread credential
+boundary.
 
 ## Exact source bindings
 
@@ -66,8 +70,10 @@ The live `--run` mode retains the v1 lifecycle semantics:
    group closure, zero inheritable/permitted/effective/ambient capabilities,
    and NoNewPrivileges;
 7. census every process/TID on the host twice, require the two global role-UID
-   maps to be identical, then require the custody UID to appear only inside that
-   exact service process and the training UID nowhere;
+   maps to be identical, require the custody UID to appear only inside that
+   exact service process, and require its global custody-UID TID tuple to equal
+   the exact TID set whose credentials were just validated; the training UID
+   must appear nowhere;
 8. prove exact executable, argv, socket and remaining runtime bindings;
 9. stop only the custody activation target;
 10. prove service/target dormant and socket/process cleanup using the all-TID
