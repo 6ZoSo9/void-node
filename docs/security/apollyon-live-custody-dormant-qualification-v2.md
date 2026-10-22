@@ -33,7 +33,7 @@ The qualifier binds:
 - v3-bound service source Git blob
   `51354b10da89413eb6991514496798c7a1b5d1e8`;
 - graceful launcher v3 Git blob
-  `ec9e1d2c01581ebdc5323056939f846e67692fe6`;
+  `8d8561c08db7e500a818d269580dad15adca9f58`;
 - the existing cleanup helper, Node runtime, environment, public key, state,
   consumed directory and socket-parent contracts.
 
