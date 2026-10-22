@@ -38,7 +38,7 @@ Installer:
 
 Git blob:
 
-`2ae608c43906d19f857ebcba110465cec92272ef`
+`bff71178f3771a04d96d4f4a9aabe88e050eb683`
 
 Installed qualifier successor:
 
@@ -46,7 +46,7 @@ Installed qualifier successor:
 
 Git blob:
 
-`5b49d8bd472f977c78bbb4e174212a84ffd74d6a`
+`e078cc69386f513c0bc4181ab12499d58356af61`
 
 Qualifier V5 embeds the exact V6 installer Git blob. V6 itself retains
 qualifier V4 only as a historical predecessor dependency and requires a
