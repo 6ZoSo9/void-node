@@ -87,8 +87,14 @@ for required in (
     'def emergency_cleanup(',
     ')=emergency_cleanup(ids)',
     'uid_process_generations(',
+    'uid_thread_process_map(',
+    'custody_thread_inventory(',
+    'validate_custody_thread_status(',
+    'custody_thread_credentials_changed',
+    'custody_thread_capability_nonzero:',
+    'custody_thread_no_new_privileges_missing:',
     'proc_root:Path=Path("/proc")',
-    'return not uid_process_generations(training_uid,proc_root)',
+    'return not uid_thread_process_map(training_uid,proc_root)',
     'custody_uid_process_status_unreadable:',
 ):
     assert required in source,required
@@ -109,8 +115,13 @@ for line in (
     "custody_uid_process_exclusivity_required=true",
     "custody_uid_zero_one_zero_each_cycle=true",
     "child_process_census_executed=true",
+    "all_tid_custody_exclusivity_required=true",
+    "all_tid_training_absence_required=true",
+    "custody_thread_credentials_exact_required=true",
+    "custody_thread_credential_adversaries_executed=true",
     "second_custody_uid_process_rejected=true",
     "saved_fs_uid_slots_counted=true",
+    "saved_fs_uid_only_thread_detected=true",
     "malformed_live_process_status_rejected=true",
     "unreadable_live_process_status_rejected=true",
     "training_uid_unreadable_status_rejected=true",
@@ -157,8 +168,13 @@ print("VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V2_PROOF_GREEN")
 print("custody_uid_process_exclusivity_required=true")
 print("custody_uid_zero_one_zero_each_cycle=true")
 print("child_process_census_executed=true")
+print("all_tid_custody_exclusivity_required=true")
+print("all_tid_training_absence_required=true")
+print("custody_thread_credentials_exact_required=true")
+print("custody_thread_credential_adversaries_executed=true")
 print("second_custody_uid_process_rejected=true")
 print("saved_fs_uid_slots_counted=true")
+print("saved_fs_uid_only_thread_detected=true")
 print("malformed_live_process_status_rejected=true")
 print("unreadable_live_process_status_rejected=true")
 print("training_uid_unreadable_status_rejected=true")
