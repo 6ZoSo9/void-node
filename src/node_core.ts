@@ -926,6 +926,13 @@ export class Node {
           });
           continue;
         }
+        if (isVoidRetiredP2PNodeIdV1(introduction.expected_node_id)) {
+          console.warn("VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_V1_RETIRED_SKIP", {
+            id: introduction.id,
+            node_id: introduction.expected_node_id,
+          });
+          continue;
+        }
 
         if (introduction.transport === "direct_ipv4_seed") {
           this.knownAddrs.add(introduction.address);
@@ -1138,7 +1145,11 @@ export class Node {
   private scheduleTorBootstrapReconnectV1(
     target: TorBootstrapReconnectV1,
   ): void {
-    if (this.stopping || target.expected_node_id === this.id) return;
+    if (
+      this.stopping ||
+      target.expected_node_id === this.id ||
+      isVoidRetiredP2PNodeIdV1(target.expected_node_id)
+    ) return;
     if (this.peers.has(target.expected_node_id)) return;
 
     const previous =
@@ -1171,6 +1182,7 @@ export class Node {
     if (
       this.stopping ||
       target.expected_node_id === this.id ||
+      isVoidRetiredP2PNodeIdV1(target.expected_node_id) ||
       this.peers.has(target.expected_node_id) ||
       this.torBootstrapDialing.has(target.endpoint)
     ) {
@@ -1231,6 +1243,7 @@ export class Node {
   private scheduleTorBootstrapPeerReconnectV1(peer: Peer): void {
     if (
       this.stopping ||
+      isVoidRetiredP2PNodeIdV1(peer.id) ||
       peer.suppressReconnect ||
       peer.transport !== "tor" ||
       !peer.torBootstrapReconnect
@@ -2563,6 +2576,7 @@ attachEphemeralDirectTransportV1(
       this.stopping ||
       !/^[0-9a-f]{32}$/.test(expectedNodeId) ||
       expectedNodeId === this.id ||
+      isVoidRetiredP2PNodeIdV1(expectedNodeId) ||
       typeof transportHint !== "string" ||
       transportHint.length < 1 ||
       transportHint.length > 256 ||

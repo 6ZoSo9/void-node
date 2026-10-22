@@ -70,6 +70,8 @@ let healthy: Node | undefined;
 let client: Node | undefined;
 let legacyListener: net.Server | undefined;
 let legacyTcpConnections = 0;
+let retiredTorSocksConnections = 0;
+let retiredTorSocksListener: net.Server | undefined;
 
 try {
   legacyListener = net.createServer((socket) => {
@@ -130,6 +132,54 @@ try {
   await new Promise((resolve) => setTimeout(resolve, 250));
   assert.equal(legacyTcpConnections, 0, "explicit pinned reconnect must refuse retired identity");
 
+  // A retired Tor target must never open a SOCKS connection, reserve a Tor dial
+  // slot, or seed a reconnection backoff even when a caller passes the target
+  // directly to the Tor-specific runtime functions. No actual Tor host is used.
+  retiredTorSocksListener = net.createServer((socket) => {
+    retiredTorSocksConnections += 1;
+    socket.destroy();
+  });
+  const socksPort = await listen(retiredTorSocksListener);
+  const onion = "a".repeat(56) + ".onion";
+  const retiredTorTarget = Object.freeze({
+    introduction_id: "test-retired-tor",
+    endpoint: `tor://${onion}:4700`,
+    onion_hostname: onion,
+    onion_port: 4700,
+    expected_node_id: LEGACY_RAILWAY_NODE_ID,
+    socks_host: "127.0.0.1",
+    socks_port: socksPort,
+    timeout_ms: 1000,
+  });
+  (client as any).scheduleTorBootstrapReconnectV1(retiredTorTarget);
+  await (client as any).connectTorBootstrapIntroductionV1(retiredTorTarget);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(retiredTorSocksConnections, 0, "retired Tor identity must not connect to SOCKS");
+  assert.equal(
+    (client as any).torBootstrapDialing.has(retiredTorTarget.endpoint),
+    false,
+    "retired Tor identity must not reserve a Tor dial slot",
+  );
+  assert.equal(
+    (client as any).torBootstrapBackoff.has(retiredTorTarget.endpoint),
+    false,
+    "retired Tor identity must not schedule a retry",
+  );
+
+  // Ephemeral socket mounts refuse a retired identity before any AUTH work.
+  // On rejection the unused socket remains owned by its caller.
+  const rejectedEphemeralSocket = new net.Socket();
+  assert.equal(
+    client.attachEphemeralDirectTransportV1(
+      rejectedEphemeralSocket,
+      LEGACY_RAILWAY_NODE_ID,
+      "retired:test-peer",
+    ),
+    false,
+  );
+  assert.equal(rejectedEphemeralSocket.destroyed, false);
+  rejectedEphemeralSocket.destroy();
+
   // The next normal authenticated cache write removes stale legacy entries,
   // preserving legitimate identities. No startup-time filesystem write occurs.
   const durableAfterAuth = JSON.parse(fs.readFileSync(cachePath, "utf8"));
@@ -138,6 +188,8 @@ try {
 
   console.log("retired_identity_authenticated_admission_policy=true");
   console.log("legacy_record_not_loaded_or_redialed=true");
+  console.log("retired_tor_pre_dial_and_reconnect_blocked=true");
+  console.log("retired_ephemeral_socket_admission_blocked=true");
   console.log("unrelated_peer_authentication_preserved=true");
   console.log("legacy_record_pruned_by_normal_cache_write=true");
   console.log("wallet_or_signer_access=false");
@@ -154,5 +206,8 @@ try {
     console.warn("VOID_P2P_RETIRED_PEER_V1_HEALTHY_CLEANUP_FAILURE_VISIBLE", error);
   }
   if (legacyListener) await new Promise<void>((resolve) => legacyListener!.close(() => resolve()));
+  if (retiredTorSocksListener) {
+    await new Promise<void>((resolve) => retiredTorSocksListener!.close(() => resolve()));
+  }
   fs.rmSync(root, { recursive: true, force: true });
 }
