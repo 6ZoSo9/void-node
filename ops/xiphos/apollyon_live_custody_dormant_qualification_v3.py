@@ -1127,6 +1127,11 @@ def live_observation(ids:dict[str,int])->dict[str,object]:
     latest=wait_unit(SERVICE_UNIT,"active")
     if latest.get("MainPID")!=raw:
         hold("custody_mainpid_changed")
+    # execve() preserves PID and process start ticks. Recheck the executable
+    # after the final systemd MainPID attestation, not only before census.
+    exact_custody_node_executable(pid)
+    if proc_start_ticks(pid)!=start_ticks:
+        hold("custody_mainpid_generation_changed_after_executable_recheck")
 
     return {
         "pid":pid,"start_ticks":start_ticks,
@@ -1578,6 +1583,11 @@ def self_test()->None:
     )
     assert "custody_mainpid_generation_changed" in live_source
     assert "custody_mainpid_changed" in live_source
+    assert live_source.count("exact_custody_node_executable(pid)")==2
+    assert live_source.rfind("exact_custody_node_executable(pid)")>live_source.index(
+        'if latest.get("MainPID")!=raw:'
+    )
+    assert "custody_mainpid_generation_changed_after_executable_recheck" in live_source
     with tempfile.TemporaryDirectory(prefix="apollyon-v3-exe-") as td:
         root=Path(td)
         expected=root/"node"
@@ -1592,6 +1602,23 @@ def self_test()->None:
         exact_custody_node_executable(4242,expected,proc_root)
         assert same_executable_inode(os.stat(exe_link),os.stat(expected))
         assert not same_executable_inode(os.stat(unexpected),os.stat(expected))
+        # Reach the checker’s inode-HOLD after the exact pathname succeeds.
+        # A direct helper assertion cannot prove the path is enforced.
+        from unittest import mock
+        original_stat=os.stat
+        def inode_drift_stat(path,*args,**kwargs):
+            result=original_stat(path,*args,**kwargs)
+            if os.fspath(path)==os.fspath(exe_link):
+                class SyntheticStat:
+                    st_dev=result.st_dev
+                    st_ino=result.st_ino+1
+                return SyntheticStat()
+            return result
+        with mock.patch.object(os,"stat",side_effect=inode_drift_stat):
+            expect_hold(
+                lambda:exact_custody_node_executable(4242,expected,proc_root),
+                "custody_node_executable_inode_mismatch",
+            )
         exe_link.unlink()
         exe_link.symlink_to(unexpected)
         expect_hold(
@@ -1973,6 +2000,8 @@ def self_test()->None:
     print("socket_ready_before_mainpid_inspection=true")
     print("raw_executable_path_and_inode_bound=true")
     print("mainpid_generation_rechecked=true")
+    print("final_executable_identity_reattested=true")
+    print("checker_inode_mismatch_adversary_executed=true")
     print("training_execution=false")
     print("durable_attempt_claim=false")
     print("funds_movement=false")
