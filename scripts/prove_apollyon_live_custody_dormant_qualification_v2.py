@@ -16,6 +16,8 @@ for required in (
     'st.st_nlink!=2',
     'wait_socket(False)',
     'unit!=TARGET_UNIT',
+    'normalize_show_properties(',
+    'optional_empty=(',
     'wait_unit(SERVICE_UNIT,"inactive")',
     'assert_socket_parent_empty(ids)',
     'target_maybe_started=True',
@@ -116,6 +118,8 @@ assert r.returncode==0,r.stderr
 for line in (
     "VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V2_SELF_TEST_GREEN",
     "processless_target_mainpid_not_required=true",
+    "omitted_empty_service_exec_properties_normalized=true",
+    "required_service_exec_properties_still_mandatory=true",
     "two_cycle_target_start_stop=true","direct_service_action=false",
     "socket_cleanup_required_each_cycle=true",
     "custody_uid_process_exclusivity_required=true",
@@ -174,6 +178,8 @@ for line in (
     assert line in r.stdout,line
 print("VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V2_PROOF_GREEN")
 print("processless_target_mainpid_not_required=true")
+print("omitted_empty_service_exec_properties_normalized=true")
+print("required_service_exec_properties_still_mandatory=true")
 print("custody_uid_process_exclusivity_required=true")
 print("custody_uid_zero_one_zero_each_cycle=true")
 print("child_process_census_executed=true")
