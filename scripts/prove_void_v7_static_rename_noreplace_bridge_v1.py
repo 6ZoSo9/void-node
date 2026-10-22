@@ -11,7 +11,7 @@ SOURCE = ROOT / "ops/precision/void_v7_static_rename_noreplace_bridge_v1.c"
 PLAN = ROOT / "ops/security/buy-void-v7-static-rename-noreplace-bridge-plan-v1.json"
 
 MARKER = "VOID_V7_STATIC_RENAME_NOREPLACE_BRIDGE_V1_PROOF"
-SOURCE_BLOB = "b9982e9890caf3a2d7544816b6d8ae90b1a82492"
+SOURCE_BLOB = "34e32a5b77e0bd82138aa47ad4f8645fc93c0b9c"
 PLAN_BLOB = "8dc063e54818ff9c5650ec9b34ba0102dab97656"
 PLAN_ID = "voidv7staticrenamenoreplacebridge1_651336b0d39ca60917fc03f441e7be835f6064574a99583bd0af3f3608a13598"
 SOURCE_BASE = "4596bc73ce3adc8a4e59396ca1ebdf206ba9496f"
@@ -95,6 +95,8 @@ for required in (
     assert required in source, required
 
 for forbidden in (
+    "Py_BEGIN_ALLOW_THREADS",
+    "Py_END_ALLOW_THREADS",
     "ctypes",
     "dlopen",
     "dlsym",
