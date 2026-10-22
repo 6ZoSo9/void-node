@@ -124,8 +124,7 @@ perform the no-replace publication primitive.
 The Python executable must remain static x86-64 `ET_EXEC` with neither
 `PT_INTERP` nor `PT_DYNAMIC`.
 
-The immutable-snapshot same-UID resistance gate and the persistent host
-content-seal gate remain separate and mandatory. Solving this bridge does not
+The immutable-snapshot same-UID resistance gate and the persistent host content-seal gate remain separate and mandatory. Solving this bridge does not
 solve either gate.
 
 ## Required successor generations
