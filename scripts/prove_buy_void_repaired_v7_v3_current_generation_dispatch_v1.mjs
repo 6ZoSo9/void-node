@@ -99,7 +99,7 @@ const V3_SELF="scripts/prove_buy_void_repaired_v7_v3_current_generation_dispatch
 const V3_TRIGGER="scripts/prove_buy_void_verified_payment_v3_trigger_closure_v1.mjs";
 const V3_DOC="docs/architecture/buy-void-verified-payment-v3-source-generation-acceptance-v1.md";
 const V3_DEDICATED=".github/workflows/buy-void-verified-payment-v3-source-generation-acceptance-v1.yml";
-const V3_TRIGGER_BLOB="d8282ff6bc403d7dacb6b902f80d21299ebc27f3";
+const V3_TRIGGER_BLOB="95198a897d3021cf4ffcb4e068ddd9d7fa574594";
 const V3_DOC_BLOB="812c02a2fdaa1a11aaaac75b74486ca473e0cb57";
 const V3_CONSUMER_WORKFLOW_BLOBS=Object.freeze({
   [PROVIDER_WORKFLOW]:"521096800aa980e48b093f3019cf2f0429aadc5a",
@@ -197,18 +197,144 @@ function git(args){return String(run("/usr/bin/git",["--no-replace-objects","-C"
 function names(a,b,...paths){
   return git(["diff","--name-only",a,b,"--",...paths]).split("\n").filter(Boolean).sort();
 }
-function read(relative,max=4*1024*1024){
-  assert.ok(!path.isAbsolute(relative)&&!relative.split("/").includes(".."),"unsafe_path:"+relative);
-  const p=path.join(ROOT,relative);
-  const before=fs.lstatSync(p);
-  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&before.size>0&&before.size<=max,
-    "invalid_file:"+relative);
-  const bytes=fs.readFileSync(p);
-  const after=fs.lstatSync(p);
-  for(const key of ["dev","ino","size","mtimeMs","ctimeMs","nlink"])assert.equal(after[key],before[key],"file_changed:"+relative+":"+key);
-  assert.equal(bytes.length,before.size,"short_read:"+relative);
-  return bytes;
+function sameReadGeneration(a,b,label){
+  for(const key of ["dev","ino","uid","gid","mode","nlink","size","mtimeMs","ctimeMs"]){
+    assert.equal(b[key],a[key],label+":"+key);
+  }
 }
+function readFromRoot(root,relative,max=4*1024*1024){
+  assert.ok(Number.isSafeInteger(max)&&max>0,"read_max_invalid");
+  assert.ok(!path.isAbsolute(relative),"absolute_path:"+relative);
+  const parts=relative.split("/");
+  assert.ok(parts.length>0&&parts.every(part=>
+    part!=="."&&part!==".."&&/^[A-Za-z0-9_.-]+$/u.test(part)
+  ),"unsafe_path:"+relative);
+  const visiblePath=path.join(root,...parts);
+  const before=fs.lstatSync(visiblePath);
+  assert.ok(
+    before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&
+    before.size>0&&before.size<=max,
+    "invalid_file:"+relative,
+  );
+
+  const directoryFlags=
+    fs.constants.O_RDONLY|fs.constants.O_CLOEXEC|
+    fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK|fs.constants.O_DIRECTORY;
+  const leafFlags=
+    fs.constants.O_RDONLY|fs.constants.O_CLOEXEC|
+    fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK;
+  const dirFds=[];
+  let leafFd=-1;
+  try{
+    let dirFd=fs.openSync(root,directoryFlags);
+    dirFds.push(dirFd);
+    assert.ok(fs.fstatSync(dirFd).isDirectory(),"root_not_directory");
+    for(const component of parts.slice(0,-1)){
+      const nextPath="/proc/self/fd/"+String(dirFd)+"/"+component;
+      const nextFd=fs.openSync(nextPath,directoryFlags);
+      assert.ok(
+        fs.fstatSync(nextFd).isDirectory(),
+        "path_component_not_directory:"+component,
+      );
+      dirFds.push(nextFd);
+      dirFd=nextFd;
+    }
+    const leafPath="/proc/self/fd/"+String(dirFd)+"/"+parts.at(-1);
+    leafFd=fs.openSync(leafPath,leafFlags);
+    const opened=fs.fstatSync(leafFd);
+    assert.ok(
+      opened.isFile()&&opened.nlink===1&&opened.size>0&&opened.size<=max,
+      "opened_file_invalid:"+relative,
+    );
+    sameReadGeneration(before,opened,"file_changed_before_open:"+relative);
+
+    const bytes=Buffer.alloc(opened.size);
+    let offset=0;
+    while(offset<bytes.length){
+      const got=fs.readSync(leafFd,bytes,offset,bytes.length-offset,null);
+      assert.ok(got>0,"short_read:"+relative);
+      offset+=got;
+    }
+    const extra=Buffer.alloc(1);
+    assert.equal(
+      fs.readSync(leafFd,extra,0,1,null),
+      0,
+      "file_grew_during_read:"+relative,
+    );
+
+    const after=fs.fstatSync(leafFd);
+    const visibleAfter=fs.lstatSync(visiblePath);
+    sameReadGeneration(opened,after,"file_changed_during_read:"+relative);
+    sameReadGeneration(after,visibleAfter,"visible_file_changed:"+relative);
+    return bytes;
+  }finally{
+    if(leafFd>=0)fs.closeSync(leafFd);
+    for(let i=dirFds.length-1;i>=0;i--)fs.closeSync(dirFds[i]);
+  }
+}
+function read(relative,max=4*1024*1024){
+  return readFromRoot(ROOT,relative,max);
+}
+function selfTestBoundedReader(){
+  const root=fs.mkdtempSync("/tmp/void-v3-source-bounded-reader-");
+  const nested=path.join(root,"nested");
+  const leaf=path.join(nested,"target");
+  const displaced=leaf+".regular";
+  fs.mkdirSync(nested,{mode:0o700});
+  fs.writeFileSync(leaf,Buffer.from("accepted","utf8"),{mode:0o600});
+  assert.equal(readFromRoot(root,"nested/target",1024).toString("utf8"),"accepted");
+
+  const originalOpen=fs.openSync;
+  let leafOpenObserved=false;
+  let fifoSubstituted=false;
+  try{
+    fs.openSync=function(target,flags,...rest){
+      const targetText=String(target);
+      if(
+        !fifoSubstituted&&
+        targetText.startsWith("/proc/self/fd/")&&
+        targetText.endsWith("/target")&&
+        (Number(flags)&fs.constants.O_DIRECTORY)===0
+      ){
+        leafOpenObserved=true;
+        assert.equal(
+          Number(flags)&fs.constants.O_NONBLOCK,
+          fs.constants.O_NONBLOCK,
+          "bounded_reader_nonblocking_flag_missing",
+        );
+        assert.equal(
+          Number(flags)&fs.constants.O_NOFOLLOW,
+          fs.constants.O_NOFOLLOW,
+          "bounded_reader_nofollow_flag_missing",
+        );
+        fs.renameSync(leaf,displaced);
+        const mk=spawnSync("/usr/bin/mkfifo",["-m","600",leaf],{
+          encoding:"utf8",
+          stdio:["ignore","pipe","pipe"],
+          timeout:5000,
+          env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC"},
+        });
+        assert.equal(mk.error,undefined,String(mk.error||""));
+        assert.equal(mk.status,0,String(mk.stderr||""));
+        fifoSubstituted=true;
+      }
+      return originalOpen.call(fs,target,flags,...rest);
+    };
+    let held=false;
+    try{readFromRoot(root,"nested/target",1024);}
+    catch{held=true;}
+    assert.equal(held,true,"fifo_substitution_not_rejected");
+  }finally{
+    fs.openSync=originalOpen;
+    if(fs.existsSync(displaced)){
+      assert.equal(fs.readFileSync(displaced,"utf8"),"accepted");
+    }
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+  assert.equal(leafOpenObserved,true,"bounded_reader_leaf_open_not_observed");
+  assert.equal(fifoSubstituted,true,"bounded_reader_fifo_fixture_not_exercised");
+}
+
 function pin(relative,blob,max=4*1024*1024){
   const bytes=read(relative,max);
   assert.equal(gitBlob(bytes),blob,"git_blob_drift:"+relative);
@@ -713,8 +839,11 @@ function verify(){
 
 const args=process.argv.slice(2);
 if(args.length===0||(args.length===1&&args[0]==="--self-test")){
+  selfTestBoundedReader();
   const receipt=verify();
   console.log("VOID_BUY_VOID_REPAIRED_V7_V3_CURRENT_GENERATION_DISPATCH_V1_GREEN");
+  console.log("v3_source_reader_descriptor_bound=true");
+  console.log("v3_source_reader_fifo_swap_rejected=true");
   console.log("v3_parent_exact=true");
   console.log("v2_source_proof_expected_capacity_refusal_preserved=true");
   console.log("capacity_fifo_safe_source_exact=true");
