@@ -1,0 +1,504 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import {fileURLToPath} from "node:url";
+
+import {
+  canonicalApollyonClaimContractJsonV1,
+} from "../tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs";
+import {
+  qualifyApollyonDurableAttemptClaimStorePolicyV2,
+} from "../tools/apollyon-durable-attempt-claim-store-contract-v2.mjs";
+import {
+  qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1,
+} from "../tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs";
+import {
+  qualifyApollyonTrainingStartConsumptionContractV1,
+} from "../tools/apollyon-training-start-consumption-contract-v1.mjs";
+import {
+  APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_MATERIAL_KEYS_V2,
+  APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_PARENT_V2,
+  VOID_APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_AUTHORITY_V2,
+  buildApollyonTrainingStartProtectedStoreRevalidatorCandidateV2,
+  encodeApollyonTrainingStartProtectedStoreRevalidatorCandidateV2,
+  qualifyApollyonTrainingStartProtectedStoreRevalidatorAgainstRequestV2,
+  qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2,
+} from "../tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs";
+
+const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
+const SOURCE_REL=
+  "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs";
+const PINS=Object.freeze({
+  [SOURCE_REL]:"4ed37732debf446a7d2e9c32784f2bbdaf84ad05",
+  "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
+    "079576db7f880872f2d4dea8e7759bd536161516",
+  "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
+    "76f5a6bcbc9854a1133cd1324eb862cb50102c0e",
+  "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py":
+    "ed6eb47c2f83b35b489d0e9034a4b87c2d10b9dd",
+});
+
+function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
+function gitBlob(bytes){
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob "+bytes.length+"\0","ascii"))
+    .update(bytes).digest("hex");
+}
+for(const [relative,expected] of Object.entries(PINS)){
+  assert.equal(
+    gitBlob(fs.readFileSync(path.join(ROOT,relative))),
+    expected,
+    relative,
+  );
+}
+
+const policy=qualifyApollyonDurableAttemptClaimStorePolicyV2();
+
+function claimRecord(overrides={}){
+  const material={
+    marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RECORD_V2",
+    version:2,
+    status:"durable_candidate_training_attempt_claim_record_v2",
+    store_contract_id:"apollyon_claim_store_contract_v2:"+"1".repeat(64),
+    store_policy_id:policy.store_policy_id,
+    store_generation_id:"apollyon_claim_store_generation_v2:"+"2".repeat(64),
+    terminal_receipt_id:"apollyon_terminal_receipt_v2:"+"3".repeat(64),
+    terminal_runner_receipt_sha256:"4".repeat(64),
+    authorization_id:"apollyon_authz_v1:"+"5".repeat(64),
+    custody_generation_id:"apollyon_custody_generation_v1:"+"6".repeat(64),
+    custody_record_sha256:"7".repeat(64),
+    request_sha256:"8".repeat(64),
+    canonical_main:"9".repeat(40),
+    canonical_tree:"a".repeat(40),
+    corpus_sha256:"b".repeat(64),
+    parent_adapter_sha256:"c".repeat(64),
+    operator_public_key_raw_sha256:"d".repeat(64),
+    attempt_limit:1,
+    automatic_retry_authorized:false,
+    ...overrides,
+  };
+  return {
+    ...material,
+    claim_record_id:"apollyon_attempt_claim_record_v2:"+
+      sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(material),"utf8")),
+  };
+}
+function success(record,publishRequestSha){
+  return {
+    marker:"VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_RESPONSE_V2",
+    version:2,
+    status:"durable_claim_success_v2",
+    outcome:"created_durable",
+    store_contract_id:record.store_contract_id,
+    store_policy_id:record.store_policy_id,
+    store_generation_id:record.store_generation_id,
+    terminal_receipt_id:record.terminal_receipt_id,
+    authorization_id:record.authorization_id,
+    custody_generation_id:record.custody_generation_id,
+    claim_record_id:record.claim_record_id,
+    claim_record_sha256:sha256(Buffer.from(
+      canonicalApollyonClaimContractJsonV1(record)+"\n","utf8"
+    )),
+    publish_request_sha256:publishRequestSha,
+    durability_proven:true,
+    final_visible_record_revalidated:true,
+    training_start_admission:false,
+    training_start_consumption_required:true,
+    training_start_consumption_performed:false,
+    next_gate:"apollyon_training_start_consumption_v1",
+  };
+}
+function authorizationSlotRecord(record,publishRequestSha){
+  return qualifyApollyonDurableAttemptClaimAuthorizationSlotRecordV1({
+    store_policy_id:record.store_policy_id,
+    authorization_id:record.authorization_id,
+    store_contract_id:record.store_contract_id,
+    store_generation_id:record.store_generation_id,
+    terminal_receipt_id:record.terminal_receipt_id,
+    claim_record_id:record.claim_record_id,
+    claim_record_sha256:sha256(Buffer.from(
+      canonicalApollyonClaimContractJsonV1(record)+"\n","utf8"
+    )),
+    publish_request_sha256:publishRequestSha,
+    attempt_limit:1,
+    automatic_retry_authorized:false,
+  });
+}
+function trainer(overrides={}){
+  const material={
+    marker:"VOID_APOLLYON_PRETRAINING_ADMISSION_GENERATION_V1",
+    version:1,
+    boot_id_sha256:"f".repeat(64),
+    pid:4242,
+    process_start_time_ticks:"123456",
+    uid:997,
+    gid:984,
+    source_identity_sha256:"0".repeat(64),
+    admission_blocked:true,
+    training_execution_performed:false,
+    candidate_weight_mutation_performed:false,
+    automatic_retry_authorized:false,
+    ...overrides,
+  };
+  return {
+    ...material,
+    trainer_generation_id:"apollyon_pretraining_generation_v1:"+
+      sha256(Buffer.from(canonicalApollyonClaimContractJsonV1(material),"utf8")),
+  };
+}
+function consumptionRecord(overrides={}){
+  const record=overrides.claim_record??claimRecord();
+  const publishRequestSha=overrides.publish_request_sha256??"e".repeat(64);
+  const trainerGeneration=overrides.trainer_generation??trainer();
+  return qualifyApollyonTrainingStartConsumptionContractV1({
+    authorization_slot_record:
+      overrides.authorization_slot_record??
+      authorizationSlotRecord(record,publishRequestSha),
+    claim_record:record,
+    publish_request_sha256:publishRequestSha,
+    success_response:
+      overrides.success_response??success(record,publishRequestSha),
+    trainer_generation:trainerGeneration,
+  }).consumption_record;
+}
+
+const record=consumptionRecord();
+const requestInput=Object.freeze({consumption_record:record});
+const candidate=
+  buildApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(requestInput);
+const candidateAgain=
+  buildApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(requestInput);
+assert.deepEqual(candidateAgain,candidate);
+assert(Object.isFrozen(candidate));
+assert.match(
+  candidate.revalidator_candidate_id,
+  /^apollyon_training_start_protected_store_revalidator_v2:[0-9a-f]{64}$/u,
+);
+assert.equal(
+  candidate.parent_head,
+  "550020518c2e4d7392b42d79cb83a3aee99f8c1e",
+);
+assert.equal(
+  candidate.parent_revalidation_request_blob_sha1,
+  "079576db7f880872f2d4dea8e7759bd536161516",
+);
+assert.equal(
+  candidate.parent_protected_writer_blob_sha1,
+  "76f5a6bcbc9854a1133cd1324eb862cb50102c0e",
+);
+assert.equal(
+  candidate.parent_directory_custody_source_blob_sha1,
+  "ed6eb47c2f83b35b489d0e9034a4b87c2d10b9dd",
+);
+assert.equal(
+  candidate.reviewed_canonicalizer_v2_head,
+  "4306d608fbf5b13a8e20b02d8d416b9f55726b8f",
+);
+assert.equal(
+  candidate.reviewed_canonicalizer_v2_blob_sha1,
+  "6e8056287ae4ac8c73b9230679a6a4b570d8eac8",
+);
+assert.equal(
+  candidate.fixed_claim_state_root,
+  "/var/lib/void-apollyon-attempt-claim-v2",
+);
+assert.equal(
+  candidate.fixed_training_start_consumption_directory,
+  "/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1",
+);
+for(const key of [
+  "store_policy_id","store_contract_id","store_generation_id",
+  "terminal_receipt_id","authorization_id","authorization_slot_id",
+  "authorization_slot_record_id","custody_generation_id",
+  "custody_record_sha256","claim_record_id","claim_record_sha256",
+  "publish_request_sha256","training_start_consumption_slot_id",
+  "training_start_consumption_id","trainer_generation_id",
+  "trainer_boot_id_sha256","trainer_pid","trainer_process_start_time_ticks",
+  "trainer_uid","trainer_gid","trainer_source_identity_sha256",
+]){
+  assert.equal(candidate[key],record[key],key);
+}
+assert.equal(
+  qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(candidate)
+    .revalidator_candidate_id,
+  candidate.revalidator_candidate_id,
+);
+assert.equal(
+  qualifyApollyonTrainingStartProtectedStoreRevalidatorAgainstRequestV2(
+    requestInput,candidate,
+  ).revalidator_candidate_id,
+  candidate.revalidator_candidate_id,
+);
+
+for(const key of [
+  "source_contract_only","flat_primitive_content_address_required",
+  "candidate_content_address_json_independent",
+  "reviewed_canonicalizer_v2_required_for_future_host",
+  "fixture_terminal_root_policy_revalidation_source_bound",
+  "fixture_custody_source_required",
+  "protected_store_origin_required",
+  "current_store_generation_revalidation_required",
+  "store_generation_record_reread_required",
+  "generation_lineage_revalidation_required",
+  "durable_claim_record_reread_required",
+  "authorization_winner_reread_required",
+  "consumption_slot_classification_required",
+  "writer_directory_capability_from_fixed_root_required",
+  "writer_directory_capability_exact_path_required",
+  "fixed_root_visible_generation_revalidation_required",
+  "fixed_consumption_directory_visible_generation_revalidation_required",
+  "same_store_generation_through_writer_required",
+  "protected_writer_invocation_required",
+]){
+  assert.equal(candidate[key],true,key);
+}
+for(const key of [
+  "reviewed_canonicalizer_v2_host_integration_proven",
+  "parent_revalidation_request_v1_host_realm_proven",
+  "fixture_custody_receipt_authoritative","protected_store_origin_proven",
+  "current_store_generation_revalidation_performed",
+  "store_generation_record_reread_performed",
+  "generation_lineage_revalidation_performed",
+  "durable_claim_record_reread_performed","authorization_winner_reread_performed",
+  "consumption_slot_classification_performed",
+  "writer_directory_capability_exact_path_proven",
+  "writer_directory_capability_origin_proven",
+  "fixed_root_visible_generation_revalidation_performed",
+  "fixed_consumption_directory_visible_generation_revalidation_performed",
+  "protected_writer_invocation_authorized","live_host_observation_performed",
+  "filesystem_read","filesystem_write","service_action","network_access",
+  "credential_access","private_key_access","signing","wallet_access",
+  "transaction","funds_movement","training_start_consumption_performed",
+  "trainer_release_authorized","trainer_release_performed",
+  "training_execution_authorized","training_execution_performed",
+  "candidate_weight_mutation_performed",
+]){
+  assert.equal(candidate[key],false,key);
+}
+for(const [key,expected] of Object.entries({
+  source_contract_only:true,
+  public_candidate_only:true,
+  candidate_is_bearer_authority:false,
+  flat_primitive_content_address_required:true,
+  candidate_content_address_json_independent:true,
+  reviewed_canonicalizer_v2_required_for_future_host:true,
+  reviewed_canonicalizer_v2_host_integration_proven:false,
+  parent_revalidation_request_v1_host_realm_proven:false,
+  fixture_terminal_root_policy_revalidation_source_bound:true,
+  fixture_custody_source_required:true,
+  fixture_custody_receipt_authoritative:false,
+  protected_store_origin_proven:false,
+  protected_writer_invocation_authorized:false,
+  live_host_observation_performed:false,
+  filesystem_read:false,
+  filesystem_write:false,
+  service_action:false,
+  network_access:false,
+  credential_access:false,
+  transaction:false,
+  funds_movement:false,
+  training_execution_authorized:false,
+})){
+  assert.equal(
+    VOID_APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_AUTHORITY_V2[key],
+    expected,key,
+  );
+}
+
+assert.equal(
+  APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_PARENT_V2.head,
+  "550020518c2e4d7392b42d79cb83a3aee99f8c1e",
+);
+assert.equal(
+  new Set(APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_MATERIAL_KEYS_V2)
+    .size,
+  APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_MATERIAL_KEYS_V2.length,
+);
+
+// Candidate input accessors and Proxies are rejected before caller code runs.
+{
+  let getterCalls=0;
+  const hostile={...candidate};
+  Object.defineProperty(hostile,"claim_record_id",{
+    enumerable:true,
+    get(){getterCalls+=1;return candidate.claim_record_id;},
+  });
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(hostile),
+    /v2_candidate_schema_invalid/u,
+  );
+  assert.equal(getterCalls,0);
+}
+{
+  let traps=0;
+  const proxy=new Proxy(candidate,{
+    get(){traps+=1;throw new Error("trap");},
+    getPrototypeOf(){traps+=1;throw new Error("trap");},
+    ownKeys(){traps+=1;throw new Error("trap");},
+    getOwnPropertyDescriptor(){traps+=1;throw new Error("trap");},
+  });
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(proxy),
+    /v2_candidate_schema_invalid/u,
+  );
+  assert.equal(traps,0);
+}
+{
+  const revoked=Proxy.revocable(candidate,{});
+  revoked.revoke();
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(
+      revoked.proxy,
+    ),
+    /v2_candidate_schema_invalid/u,
+  );
+}
+{
+  const before=Buffer.from(
+    encodeApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(candidate),
+  );
+  const originalStringify=JSON.stringify;
+  let toJSONGetterCalls=0;
+  Object.defineProperty(Object.prototype,"toJSON",{
+    configurable:true,
+    get(){
+      toJSONGetterCalls+=1;
+      return function(){return {spoofed:true};};
+    },
+  });
+  JSON.stringify=()=>{throw new Error("poisoned JSON.stringify");};
+  try{
+    const qualified=
+      qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(
+        candidate,
+      );
+    assert.equal(
+      qualified.revalidator_candidate_id,
+      candidate.revalidator_candidate_id,
+    );
+    const after=
+      encodeApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(candidate);
+    assert.equal(Buffer.compare(before,after),0);
+    assert.equal(toJSONGetterCalls,0);
+  }finally{
+    JSON.stringify=originalStringify;
+    delete Object.prototype.toJSON;
+  }
+}
+{
+  let getterCalls=0;
+  const hostile={};
+  Object.defineProperty(hostile,"consumption_record",{
+    enumerable:true,
+    get(){getterCalls+=1;return record;},
+  });
+  assert.throws(
+    ()=>buildApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(hostile),
+    /input_invalid/u,
+  );
+  assert.equal(getterCalls,0);
+}
+
+// A separately valid content-addressed candidate from a different, coherent
+// parent request is still not authority for this request.
+{
+  const otherClaim=claimRecord({
+    store_generation_id:"apollyon_claim_store_generation_v2:"+"f".repeat(64),
+  });
+  const otherRecord=consumptionRecord({claim_record:otherClaim});
+  const otherInput=Object.freeze({consumption_record:otherRecord});
+  const otherCandidate=
+    buildApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(otherInput);
+  assert.equal(
+    qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(
+      otherCandidate,
+    ).revalidator_candidate_id,
+    otherCandidate.revalidator_candidate_id,
+  );
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartProtectedStoreRevalidatorAgainstRequestV2(
+      requestInput,otherCandidate,
+    ),
+    /v2_parent_request_mismatch/u,
+  );
+}
+{
+  const tampered={...candidate,revalidator_candidate_id:
+    "apollyon_training_start_protected_store_revalidator_v2:"+"0".repeat(64)};
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(tampered),
+    /v2_candidate_id_invalid/u,
+  );
+}
+{
+  const unknown={...candidate,hidden:true};
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(unknown),
+    /v2_candidate_schema_invalid/u,
+  );
+}
+
+const source=fs.readFileSync(path.join(ROOT,SOURCE_REL),"utf8");
+for(const required of [
+  "qualifyApollyonTrainingStartStoreRevalidationRequestV1",
+  "flat_primitive_content_address_required:true",
+  "candidate_content_address_json_independent:true",
+  "reviewed_canonicalizer_v2_required_for_future_host:true",
+  "reviewed_canonicalizer_v2_host_integration_proven:false",
+  "parent_revalidation_request_v1_host_realm_proven:false",
+  "fixture_terminal_root_policy_revalidation_source_bound:true",
+  "fixture_custody_receipt_authoritative:false",
+  "protected_store_origin_proven:false",
+  "writer_directory_capability_origin_proven:false",
+  "protected_writer_invocation_authorized:false",
+  "live_host_observation_performed:false",
+  'next_gate:NEXT_GATE',
+]){
+  assert.equal(source.includes(required),true,required);
+}
+for(const forbidden of [
+  'from "node:fs"','from "node:net"','from "node:child_process"',
+  "JSON.stringify(",
+  "openSync(","readFileSync(","writeFileSync(","spawn(","execFile(","fetch(",
+  "process.env","createPrivateKey","crypto.sign(",
+  "protected_store_origin_proven:true",
+  "protected_writer_invocation_authorized:true",
+  "training_start_consumption_performed:true",
+  "trainer_release_authorized:true",
+  "training_execution_authorized:true",
+  "funds_movement:true",
+]){
+  assert.equal(source.includes(forbidden),false,forbidden);
+}
+
+console.log(
+  "VOID_APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_CONTRACT_V2_PROOF_GREEN"
+);
+console.log("exact_parent_revalidation_request_blob_bound=true");
+console.log("exact_parent_protected_writer_blob_bound=true");
+console.log("exact_fixture_custody_source_blob_bound=true");
+console.log("public_candidate_content_addressed=true");
+console.log("flat_primitive_content_address_json_independent=true");
+console.log("post_import_json_tojson_poisoning_does_not_change_candidate_bytes=true");
+console.log("revoked_proxy_candidate_rejected=true");
+console.log("reviewed_canonicalizer_v2_future_host_required=true");
+console.log("parent_v1_request_host_realm_proven=false");
+console.log("public_candidate_not_bearer_authority=true");
+console.log("parent_request_cross_binding_required=true");
+console.log("readdressed_public_candidate_rejected_against_parent=true");
+console.log("candidate_accessors_and_proxies_rejected_before_read=true");
+console.log("fixed_claim_state_root_bound=true");
+console.log("fixed_consumption_directory_bound=true");
+console.log("protected_store_origin_proven=false");
+console.log("current_store_generation_revalidation_performed=false");
+console.log("authorization_winner_reread_performed=false");
+console.log("writer_directory_capability_origin_proven=false");
+console.log("protected_writer_invocation_authorized=false");
+console.log("live_host_observation_performed=false");
+console.log("filesystem_read=false");
+console.log("filesystem_write=false");
+console.log("service_action=false");
+console.log("training_execution_authorized=false");
+console.log("funds_movement=false");
