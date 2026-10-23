@@ -48,6 +48,19 @@ function normalizeAttachBlockRangeBoundV1(
   return Number.isSafeInteger(value) ? value : null;
 }
 
+export function resolveAttachBlockRangeAliasV1(
+  primary: unknown,
+  alias: unknown,
+): { ok: true; value: unknown } | { ok: false; value: null } {
+  const primaryPresent = primary !== undefined;
+  const aliasPresent = alias !== undefined;
+  if (primaryPresent && aliasPresent) return { ok: false, value: null };
+  return {
+    ok: true,
+    value: primaryPresent ? primary : alias,
+  };
+}
+
 export function attachBlockRangeErrorV1(
   fromRaw: unknown,
   toRaw: unknown,
@@ -138,9 +151,20 @@ export function startAttachServer(opts?: { port?: number; dataDir?: string }) {
 
   app.get("/blocks/range", (req, res) => {
     const head = store.loadHeadNumber();
-    const fromRaw = req.query.from ?? req.query.start;
-    const toRaw = req.query.to ?? req.query.end;
-    const range = parseAttachBlockRange(fromRaw, toRaw, head);
+    const fromAlias = resolveAttachBlockRangeAliasV1(
+      req.query.from,
+      req.query.start,
+    );
+    const toAlias = resolveAttachBlockRangeAliasV1(
+      req.query.to,
+      req.query.end,
+    );
+    const fromRaw = fromAlias.ok ? fromAlias.value : null;
+    const toRaw = toAlias.ok ? toAlias.value : null;
+    const range =
+      fromAlias.ok && toAlias.ok
+        ? parseAttachBlockRange(fromRaw, toRaw, head)
+        : null;
     if (!range) {
       return res.status(400).json(
         attachBlockRangeErrorV1(fromRaw, toRaw, head),
