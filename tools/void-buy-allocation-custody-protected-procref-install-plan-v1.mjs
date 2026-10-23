@@ -31,6 +31,19 @@ export const INSTALL_CONTRACT = Object.freeze({
     "void_buy_allocation_custody_runtime_v3_" +
     "protected_all_process_reference_census_v1.py",
   stage_path: "/opt/.void-buy-allocation-custody-procref-v1.stage-v1",
+  stage_parent: "/opt",
+  stage_uid: 0,
+  stage_gid: 0,
+  stage_mode: "0700",
+  stage_nlink: 2,
+  stage_directory: true,
+  stage_symlink: false,
+  stage_same_mount_as_install_parent: true,
+  stage_descriptor_relative_creation_required: true,
+  stage_parent_descriptor_retained_through_publication_required: true,
+  stage_direct_child_of_install_parent_required: true,
+  stage_symlink_free_ancestry_required: true,
+  stage_revalidation_before_publication_required: true,
   install_parent_uid: 0,
   install_parent_gid: 0,
   install_parent_group_world_writable: false,
@@ -61,6 +74,12 @@ export const AUTHORITY = Object.freeze({
   renameat2_rename_noreplace_required: true,
   absence_precheck_is_not_publication_authority: true,
   root_owned_same_filesystem_staging_required: true,
+  stage_directory_exact_metadata_required: true,
+  stage_descriptor_relative_creation_required: true,
+  stage_parent_descriptor_retention_required: true,
+  stage_same_mount_revalidation_required: true,
+  stage_ancestry_revalidation_required: true,
+  stage_revalidation_before_publication_required: true,
   source_file_fsync_required: true,
   stage_directory_fsync_required: true,
   install_parent_fsync_required: true,
@@ -84,6 +103,73 @@ export const AUTHORITY = Object.freeze({
   replacement_apply_authorized: false,
   funds_movement: false,
 });
+
+function holdInstallContract(reason) {
+  return Object.freeze({
+    ok: false,
+    status: "HOLD",
+    reason,
+    install_authorized: false,
+    filesystem_write: false,
+    root_census_execution_authorized: false,
+    replacement_apply_authorized: false,
+  });
+}
+
+function exactInstallContractObject(value) {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    ![Object.prototype, null].includes(Object.getPrototypeOf(value))
+  ) {
+    return false;
+  }
+  const expectedKeys = Object.keys(INSTALL_CONTRACT).sort();
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const actualKeys = Reflect.ownKeys(descriptors);
+  if (
+    actualKeys.some((key) => typeof key !== "string") ||
+    actualKeys.length !== expectedKeys.length ||
+    actualKeys.slice().sort().some((key, index) => key !== expectedKeys[index])
+  ) {
+    return false;
+  }
+  for (const key of expectedKeys) {
+    const descriptor = descriptors[key];
+    if (
+      !descriptor ||
+      !descriptor.enumerable ||
+      !Object.hasOwn(descriptor, "value") ||
+      descriptor.value !== INSTALL_CONTRACT[key]
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function classifyVoidBuyVoidCustodyProtectedProcRefInstallContractV1(
+  candidate,
+) {
+  if (!exactInstallContractObject(candidate)) {
+    return holdInstallContract("custody_procref_install_contract_mismatch");
+  }
+  return Object.freeze({
+    ok: true,
+    status: "SOURCE_CONTRACT_GREEN_NOT_AUTHORIZED",
+    stage_directory_contract_complete: true,
+    stage_descriptor_relative_creation_required: true,
+    stage_parent_descriptor_retention_required: true,
+    stage_same_mount_revalidation_required: true,
+    stage_ancestry_revalidation_required: true,
+    stage_revalidation_before_publication_required: true,
+    install_authorized: false,
+    filesystem_write: false,
+    root_census_execution_authorized: false,
+    replacement_apply_authorized: false,
+  });
+}
 
 function canonicalJson(value) {
   if (value === null) return "null";
@@ -121,9 +207,11 @@ export function buildVoidBuyVoidCustodyProtectedProcRefInstallPlanV1() {
       "VERIFY_EXACT_REVIEWED_GIT_OBJECT_BYTES",
       "VERIFY_INSTALL_PARENT_ROOT_CUSTODY_AND_MOUNT",
       "REQUIRE_TARGET_AND_STAGE_NAMES_ABSENT",
+      "CREATE_STAGE_DIRECTORY_DESCRIPTOR_RELATIVE_ROOT_ROOT_MODE_0700",
+      "REVALIDATE_STAGE_DIRECTORY_TYPE_OWNER_MODE_NLINK_MOUNT_AND_ANCESTRY",
       "MATERIALIZE_EXACT_BYTES_IN_ROOT_OWNED_SAME_FILESYSTEM_STAGE",
       "FSYNC_SOURCE_AND_STAGE_DIRECTORY",
-      "REVERIFY_STAGED_BYTES_OWNER_MODE_NLINK_AND_ANCESTRY",
+      "REVERIFY_STAGE_DIRECTORY_AND_STAGED_BYTES_BEFORE_PUBLICATION",
       "PUBLISH_WITH_RENAMEAT2_RENAME_NOREPLACE",
       "FSYNC_INSTALL_PARENT",
       "REVERIFY_INSTALLED_BYTES_OWNER_MODE_NLINK_AND_ANCESTRY",
