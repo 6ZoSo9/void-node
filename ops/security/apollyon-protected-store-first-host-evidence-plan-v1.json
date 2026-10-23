@@ -6,22 +6,22 @@
   "issue": 3557,
   "parent": {
     "pr": 3743,
-    "head": "3706aecf2e258c9c7021137da05428187bbe6654",
+    "head": "981c2d7783173bcd0ff996966570a1deb3aa8426",
     "contract_path": "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs",
     "contract_git_blob_sha1": "4c78459826c25cab43870b0b322b566575d18667",
     "proof_path": "scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs",
-    "proof_git_blob_sha1": "2e919af52e44c6dcfec41dc47567a73f658874c3",
+    "proof_git_blob_sha1": "62ff7e94e57a6333cdcfc78f6f63d8ef67288a20",
     "document_path": "docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md",
-    "document_git_blob_sha1": "9f5a94967abd85d81d6f693bf6ff51d086623de9",
+    "document_git_blob_sha1": "16eb15388c6cc5d12097cbf69f1d04c9bc6c10d3",
     "workflow_path": ".github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml",
-    "workflow_git_blob_sha1": "2774c5f9c3d037cfbd32c15d4af05cb640199ae1"
+    "workflow_git_blob_sha1": "12ae0543cc714e3b9e5fe6e6fdf9d6b67b0fac9f"
   },
   "hosted_candidate": {
-    "workflow_run": 39963410577,
-    "node22_artifact_id": 12506463546,
-    "node24_artifact_id": 12506363765,
-    "node26_artifact_id": 12507375197,
-    "cross_node_compare_job_id": 120455735301,
+    "workflow_run": 39973909609,
+    "node22_artifact_id": 12511636373,
+    "node24_artifact_id": 12512036192,
+    "node26_artifact_id": 12511236866,
+    "cross_node_compare_job_id": 120490993474,
     "candidate_id": "apollyon_training_start_protected_store_revalidator_v2:20fb5bedf6db2b606fb9adb025f95786417d58458d6bc06444b8f03c756f3444",
     "candidate_frame_bytes": 9570,
     "candidate_frame_sha256": "e178d7150e90d0538fed1d6721d731b9bffe66546b960877ac6aa4e5c7b98626",
@@ -95,5 +95,5 @@
     "funds_movement": false
   },
   "next_gate": "BIND_AUTHENTICATED_XIPHOS_MACHINE_ID_THEN_SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS",
-  "plan_id": "voidapollyonfirsthostplan1_be2b83c33630bce1e9bc635cbdd90981f55df38ab0e929706acd4cd7798015ca"
+  "plan_id": "voidapollyonfirsthostplan1_c75bf9aaa019f82e2d73c80cb0c8bb3a1072bc462870a6d36b67a40fc59746be"
 }
