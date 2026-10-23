@@ -370,27 +370,54 @@ def _process_observation(pid_text: str) -> dict[str, Any] | None:
     start_before = parse_proc_stat_start_ticks(
         _read_bounded(stat_path, MAX_STAT_BYTES, "process_stat_before"), pid
     )
-    raw = _read_bounded(status_path, MAX_STATUS_BYTES, "process_status")
-    status = parse_status(raw)
+    status_before = parse_status(
+        _read_bounded(status_path, MAX_STATUS_BYTES, "process_status_before")
+    )
     try:
-        exe_target = os.readlink(exe_path)
-        exe_stat = os.stat(exe_path)
-        exe_link = os.lstat(exe_path)
+        exe_target_before = os.readlink(exe_path)
+        exe_stat_before = os.stat(exe_path)
+        exe_link_before = os.lstat(exe_path)
     except OSError as exc:
         raise Hold("process_executable_identity_unavailable") from exc
-    if not stat.S_ISLNK(exe_link.st_mode) or not stat.S_ISREG(exe_stat.st_mode):
+    if (
+        not stat.S_ISLNK(exe_link_before.st_mode)
+        or not stat.S_ISREG(exe_stat_before.st_mode)
+    ):
         hold("process_executable_identity_invalid")
+
+    status_after = parse_status(
+        _read_bounded(status_path, MAX_STATUS_BYTES, "process_status_after")
+    )
+    try:
+        exe_target_after = os.readlink(exe_path)
+        exe_stat_after = os.stat(exe_path)
+        exe_link_after = os.lstat(exe_path)
+    except OSError as exc:
+        raise Hold("process_executable_identity_unavailable") from exc
+    if (
+        not stat.S_ISLNK(exe_link_after.st_mode)
+        or not stat.S_ISREG(exe_stat_after.st_mode)
+    ):
+        hold("process_executable_identity_invalid")
+
     start_after = parse_proc_stat_start_ticks(
         _read_bounded(stat_path, MAX_STAT_BYTES, "process_stat_after"), pid
     )
     if start_before != start_after:
         hold("process_generation_changed")
+    if status_before != status_after:
+        hold("process_status_changed")
+    if (
+        exe_target_before != exe_target_after
+        or not _same_generation(exe_stat_before, exe_stat_after)
+    ):
+        hold("process_executable_generation_changed")
     return {
         "pid": pid,
         "start_ticks": start_after,
-        "status": status,
-        "executable_path": exe_target,
-        "executable_metadata": _meta(exe_stat),
+        "status": status_after,
+        "executable_path": exe_target_after,
+        "executable_metadata": _meta(exe_stat_after),
     }
 
 def _decode_mount_path(text: str) -> str:
