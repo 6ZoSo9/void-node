@@ -186,7 +186,7 @@ No Xiphos host pass is performed by CI.
 
 Source blob: `36f77c85a2716989726af77679160de2b9e48f76`.
 
-Proof blob: `40d34dfa2a8bc36c7f11824fbbf93a623839035d`.
+Proof blob: `67a73d6da5018944bc79e5ed07460f7e6512e57e`.
 
 ## Next gate
 
