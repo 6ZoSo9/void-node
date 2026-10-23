@@ -16,7 +16,7 @@ const REVIEWED_REL =
   "protected_all_process_reference_census_v1.py";
 const REVIEWED = path.join(ROOT, REVIEWED_REL);
 
-const EXPECTED_PLAN_BLOB = "2a80e0107db0e7aa1ab80f5fdfbb318a61ff0aba";
+const EXPECTED_PLAN_BLOB = "e761f3636277dc578669b09788743d22cfa459ba";
 const EXPECTED_REVIEWED_BLOB =
   "25c0e32ae85da4569fb9521a0812e10ab0fcede3";
 const EXPECTED_REVIEWED_BYTES = 56180;
@@ -70,6 +70,19 @@ assert.deepEqual(planModule.INSTALL_CONTRACT, {
     "void_buy_allocation_custody_runtime_v3_" +
     "protected_all_process_reference_census_v1.py",
   stage_path: "/opt/.void-buy-allocation-custody-procref-v1.stage-v1",
+  stage_parent: "/opt",
+  stage_uid: 0,
+  stage_gid: 0,
+  stage_mode: "0700",
+  stage_nlink: 2,
+  stage_directory: true,
+  stage_symlink: false,
+  stage_same_mount_as_install_parent: true,
+  stage_descriptor_relative_creation_required: true,
+  stage_parent_descriptor_retained_through_publication_required: true,
+  stage_direct_child_of_install_parent_required: true,
+  stage_symlink_free_ancestry_required: true,
+  stage_revalidation_before_publication_required: true,
   install_parent_uid: 0,
   install_parent_gid: 0,
   install_parent_group_world_writable: false,
@@ -101,6 +114,12 @@ for (const [key, expected] of Object.entries({
   renameat2_rename_noreplace_required: true,
   absence_precheck_is_not_publication_authority: true,
   root_owned_same_filesystem_staging_required: true,
+  stage_directory_exact_metadata_required: true,
+  stage_descriptor_relative_creation_required: true,
+  stage_parent_descriptor_retention_required: true,
+  stage_same_mount_revalidation_required: true,
+  stage_ancestry_revalidation_required: true,
+  stage_revalidation_before_publication_required: true,
   source_file_fsync_required: true,
   stage_directory_fsync_required: true,
   install_parent_fsync_required: true,
@@ -146,15 +165,71 @@ assert.deepEqual(first.required_future_apply_sequence, [
   "VERIFY_EXACT_REVIEWED_GIT_OBJECT_BYTES",
   "VERIFY_INSTALL_PARENT_ROOT_CUSTODY_AND_MOUNT",
   "REQUIRE_TARGET_AND_STAGE_NAMES_ABSENT",
+  "CREATE_STAGE_DIRECTORY_DESCRIPTOR_RELATIVE_ROOT_ROOT_MODE_0700",
+  "REVALIDATE_STAGE_DIRECTORY_TYPE_OWNER_MODE_NLINK_MOUNT_AND_ANCESTRY",
   "MATERIALIZE_EXACT_BYTES_IN_ROOT_OWNED_SAME_FILESYSTEM_STAGE",
   "FSYNC_SOURCE_AND_STAGE_DIRECTORY",
-  "REVERIFY_STAGED_BYTES_OWNER_MODE_NLINK_AND_ANCESTRY",
+  "REVERIFY_STAGE_DIRECTORY_AND_STAGED_BYTES_BEFORE_PUBLICATION",
   "PUBLISH_WITH_RENAMEAT2_RENAME_NOREPLACE",
   "FSYNC_INSTALL_PARENT",
   "REVERIFY_INSTALLED_BYTES_OWNER_MODE_NLINK_AND_ANCESTRY",
   "EMIT_CONTENT_ADDRESSED_INSTALL_RECEIPT",
   "STOP_BEFORE_ROOT_CENSUS_EXECUTION",
 ]);
+const exactContract = planModule.classifyVoidBuyVoidCustodyProtectedProcRefInstallContractV1(
+  planModule.INSTALL_CONTRACT,
+);
+assert.equal(exactContract.ok, true);
+assert.equal(exactContract.status, "SOURCE_CONTRACT_GREEN_NOT_AUTHORIZED");
+assert.equal(exactContract.stage_directory_contract_complete, true);
+assert.equal(exactContract.install_authorized, false);
+assert.equal(exactContract.filesystem_write, false);
+assert.equal(exactContract.root_census_execution_authorized, false);
+assert.equal(exactContract.replacement_apply_authorized, false);
+
+for (const key of Object.keys(planModule.INSTALL_CONTRACT)) {
+  const missing = { ...planModule.INSTALL_CONTRACT };
+  delete missing[key];
+  const result =
+    planModule.classifyVoidBuyVoidCustodyProtectedProcRefInstallContractV1(
+      missing,
+    );
+  assert.equal(result.ok, false, "missing:" + key);
+  assert.equal(result.status, "HOLD", "missing:" + key);
+}
+
+for (const [key, bad] of Object.entries({
+  stage_parent: "/tmp",
+  stage_uid: 1,
+  stage_gid: 1,
+  stage_mode: "0755",
+  stage_nlink: 3,
+  stage_directory: false,
+  stage_symlink: true,
+  stage_same_mount_as_install_parent: false,
+  stage_descriptor_relative_creation_required: false,
+  stage_parent_descriptor_retained_through_publication_required: false,
+  stage_direct_child_of_install_parent_required: false,
+  stage_symlink_free_ancestry_required: false,
+  stage_revalidation_before_publication_required: false,
+})) {
+  const mutated = { ...planModule.INSTALL_CONTRACT, [key]: bad };
+  const result =
+    planModule.classifyVoidBuyVoidCustodyProtectedProcRefInstallContractV1(
+      mutated,
+    );
+  assert.equal(result.ok, false, key);
+  assert.equal(result.status, "HOLD", key);
+  assert.equal(result.install_authorized, false, key);
+}
+
+const extra = { ...planModule.INSTALL_CONTRACT, surprise: true };
+assert.equal(
+  planModule.classifyVoidBuyVoidCustodyProtectedProcRefInstallContractV1(extra)
+    .ok,
+  false,
+);
+
 assert(first.separate_later_gates.includes("PROTECTED_INSTALL_RECEIPT_EXTERNAL_REVIEW"));
 assert(first.separate_later_gates.includes("LIVE_ROOT_ALL_PROCESS_CENSUS"));
 assert(first.separate_later_gates.includes("EXPLICIT_REPLACEMENT_APPLY_AUTHORIZATION"));
@@ -185,6 +260,16 @@ assert(sourceText.includes("valid mode is --plan"));
 assert(sourceText.includes('publication_syscall: "renameat2"'));
 assert(sourceText.includes('publication_flag: "RENAME_NOREPLACE"'));
 assert(sourceText.includes("absence_precheck_is_not_publication_authority: true"));
+assert(sourceText.includes('stage_mode: "0700"'));
+assert(sourceText.includes("stage_directory: true"));
+assert(sourceText.includes("stage_symlink: false"));
+assert(sourceText.includes("stage_nlink: 2"));
+assert(sourceText.includes("stage_same_mount_as_install_parent: true"));
+assert(sourceText.includes("stage_descriptor_relative_creation_required: true"));
+assert(sourceText.includes("stage_parent_descriptor_retained_through_publication_required: true"));
+assert(sourceText.includes("stage_direct_child_of_install_parent_required: true"));
+assert(sourceText.includes("stage_symlink_free_ancestry_required: true"));
+assert(sourceText.includes("stage_revalidation_before_publication_required: true"));
 
 const node = process.execPath;
 function run(args) {
@@ -234,6 +319,17 @@ console.log("create_only_no_clobber_contract=true");
 console.log("atomic_renameat2_noreplace_publication_required=true");
 console.log("absence_precheck_not_publication_authority=true");
 console.log("same_filesystem_root_staging_required=true");
+console.log("stage_directory_exact_metadata_bound=true");
+console.log("stage_root_root_mode_0700_bound=true");
+console.log("stage_nlink_2_bound=true");
+console.log("stage_descriptor_relative_creation_required=true");
+console.log("stage_parent_descriptor_retention_required=true");
+console.log("stage_same_mount_revalidation_required=true");
+console.log("stage_direct_ancestry_required=true");
+console.log("stage_symlink_free_ancestry_required=true");
+console.log("stage_revalidation_before_publication_required=true");
+console.log("stage_contract_missing_field_rejected=true");
+console.log("stage_contract_mutation_adversaries_rejected=true");
 console.log("fsync_and_postinstall_reverification_required=true");
 console.log("content_addressed_install_receipt_required=true");
 console.log("install_receipt_external_review_required=true");
