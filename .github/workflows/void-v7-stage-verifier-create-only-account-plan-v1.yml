@@ -40,9 +40,9 @@ jobs:
           git merge-base --is-ancestor "$BASE" "$EXPECTED_HEAD"
           test "$(git rev-parse HEAD:ops/security/void_v7_v5_stage_role_separation_contract_v1.json)" = "1dccc0f7fd1c74005b519113b0728ebd25477ad5"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b"
-          test "$(git rev-parse HEAD:ops/security/void_v7_stage_verifier_create_only_account_plan_v1.json)" = "e2e052fa0fa1858e842063f994ddd3e611772949"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_stage_verifier_create_only_account_plan_v1.py)" = "060c9842a760d4df11677d7e8dab1e04ccc6b2b7"
-          test "$(git rev-parse HEAD:docs/security/void-v7-stage-verifier-create-only-account-plan-v1.md)" = "ea2f901a270d60f4719c8fd52799f688f0197c25"
+          test "$(git rev-parse HEAD:ops/security/void_v7_stage_verifier_create_only_account_plan_v1.json)" = "d48634d76ca277794090423d98da978a791d0e28"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_stage_verifier_create_only_account_plan_v1.py)" = "2dd6f1c9507b1c2c00778372084d6b2deaf92f60"
+          test "$(git rev-parse HEAD:docs/security/void-v7-stage-verifier-create-only-account-plan-v1.md)" = "1d94aa2bb2b3e7cf9647e89e67ff9febc47d28c0"
           cat > /tmp/v7-expected-scope <<'SCOPE'
           A	.github/workflows/void-v7-stage-verifier-create-only-account-plan-v1.yml
           A	docs/security/void-v7-stage-verifier-create-only-account-plan-v1.md
