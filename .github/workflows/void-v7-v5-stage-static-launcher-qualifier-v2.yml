@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PARENT=c087c9a921a35ab3b9eb5211ef740fdc07e6a027
+          PARENT=a672d6be15815a008bbf664ba099fc9ce72bfc92
           test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
           mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
           expected=(
@@ -51,9 +51,9 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c)" = "2337466b713b6572cc5ec832817899bbcb4e2ac2"
-          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py)" = "661fa682fab32704f9596d7984b8899f968d5649"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py)" = "89b7e89a69a08e0218a2bfa4a8bc0a1e6df44d60"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md)" = "a1e5844d23216ff75dfc049f81c1ad5e676d1a2c"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py)" = "41de808d986393e5c5cf21705acc875cf3187a13"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py)" = "aa9fbf9898183a81c673e67f79bb25ac0284b347"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md)" = "b46da0bdd8c71d50cde5b81bc0bdb5f2e56cb7d6"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json)" = "c7ff1128ff04f3ce5f995206af52f844564c6b39"
 
       - name: Python syntax
@@ -98,6 +98,10 @@ jobs:
           grep -Fx 'receipt_verified_fd_metadata_bound=true' "$out"
           grep -Fx 'receipt_path_substitution_rejected=true' "$out"
           grep -Fx 'recursive_source_custody_bound=true' "$out"
+          grep -Fx 'whole_tree_node_limit_includes_root=true' "$out"
+          grep -Fx 'whole_tree_node_cap_boundary_tested=true' "$out"
+          grep -Fx 'all_child_types_depth_limited=true' "$out"
+          grep -Fx 'regular_file_depth_cap_plus_one_rejected=true' "$out"
           grep -Fx 'writable_descendant_file_rejected=true' "$out"
           grep -Fx 'writable_descendant_directory_rejected=true' "$out"
           grep -Fx 'staged_tree_generation_change_detected=true' "$out"
