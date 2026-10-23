@@ -94,7 +94,7 @@ GREEN means V1 directly observed all of its conservative ext4 requirements:
 - canonical non-symlink `/opt` target with stable inode generation;
 - unambiguous visible mount row bound to the target directory's `st_dev`;
 - writable `/opt` mount;
-- no DAX request;
+- explicit ext4 `dax=never`, proving DAX is disabled for candidate verity files;
 - observed kernel `CONFIG_FS_VERITY` support from a bounded kernel-config read/decompression path;
 - mounted ext4 driver present;
 - readable underlying block device;
@@ -105,6 +105,8 @@ GREEN means V1 directly observed all of its conservative ext4 requirements:
 - terminal `/opt` mount generation remained unchanged.
 
 GREEN is capability evidence only. It is not installation or apply authority.
+
+DAX handling is intentionally fail-closed. On ext4, no DAX mount option means the kernel default `dax=inode`, which follows the persistent per-inode `FS_XFLAG_DAX` policy. This V1 census does not issue `FS_IOC_FSGETXATTR` or any other ioctl, so it cannot prove that inherited inode DAX is disabled. Therefore both the default/no-option case and explicit `dax=inode` HOLD. Legacy `dax` and `dax=always` also HOLD because they force DAX. Only explicit `dax=never` proves the no-DAX prerequisite required by this census.
 
 ### HOLD
 
