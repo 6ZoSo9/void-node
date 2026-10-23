@@ -5,7 +5,7 @@ Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS
 Status: **source/CI candidate only; protected source not installed; live privileged census not authorized**.
 
 This successor follows the current host-scoped current-UID process-reference census at
-`2f58b776c4ba5b4c1b309d122122bd3355e2abc9`.
+`5bfd56c850513c7b416fe0b2f854ee9b12e764e4`.
 
 Its purpose is to define the missing all-process observation boundary required
 by the existing custody replacement plan without making the mutable repository
@@ -41,8 +41,8 @@ This generation does not install that protected path.
 The source records:
 
 ```text
-parent_current_uid_head=2f58b776c4ba5b4c1b309d122122bd3355e2abc9
-parent_current_uid_source_git_blob_sha1=a5fa6ff22cc21df555e8a70c32500f07251dc4a8
+parent_current_uid_head=5bfd56c850513c7b416fe0b2f854ee9b12e764e4
+parent_current_uid_source_git_blob_sha1=ded737a228a627a241a84131113db6d3521f635c
 prestate_head=836f5e704a603f67b77b2406aeec9174f640497e
 prestate_source_git_blob_sha1=4d9c6e5809a5cc64454626760f71e60ed99354bc
 archive_lock_git_blob_sha1=edb4ea2b833373ab387762e45ba7da4032c860f3
@@ -140,6 +140,12 @@ requires, through that retained view:
 - `self/ns/pid == 1/ns/pid == expected PID lease`;
 - `self/ns/mnt == 1/ns/mnt == expected mount lease`;
 - `self/root == 1/root` by kernel dev/inode identity;
+- `/proc/1/root` is opened once to a retained host-root directory descriptor;
+- the fixed `/opt/void-buy-allocation-custody-runtime-v1` path is walked
+  descriptor-relative from that retained host-root FD rather than from the
+  scanner's own `/`;
+- the retained host-root dev/inode/mount identity is revalidated against
+  `/proc/1/root` after the process scan;
 - the retained mount is procfs;
 - `hidepid` is absent or exactly `hidepid=0`;
 - all PID/TID/stat/cwd/root/exe/fd/maps observations are descriptor-relative
@@ -188,6 +194,9 @@ host_mount_namespace_external_lease_required=true
 host_mount_namespace_lease_verified=true
 host_filesystem_root_matches_pid1=true
 host_filesystem_root_revalidated_after_census=true
+retained_host_root_used=true
+retained_host_root_revalidated_after_census=true
+target_resolved_via_retained_host_root=true
 complete_proc_visibility_verified=true
 retained_procfs_view_used=true
 retained_procfs_view_revalidated_after_census=true
@@ -220,6 +229,8 @@ Synthetic tests cover:
   rather than being classified as dead;
 - bounded task-set/start-generation churn detection;
 - PID-1 filesystem-root mismatch rejection for chroot/private-root execution;
+- retained host-root target resolution, proving absolute `/opt/...` is
+  resolved through the retained PID-1 root rather than the caller root;
 - private PID-namespace and PID-lease mismatch rejection;
 - private mount-namespace and mount-lease mismatch rejection;
 - restricted `hidepid` procfs rejection;
@@ -253,6 +264,9 @@ task_inventory_generation_stability_required=true
 per_thread_files_fs_reference_scan_required=true
 zombie_leader_live_worker_rejected=true
 host_filesystem_root_matches_pid1=true
+retained_host_root_used=true
+retained_host_root_revalidated_after_census=true
+target_resolved_via_retained_host_root=true
 process_reference_snapshot_race_free=false
 live_at_use_reverification_required=true
 python_runtime_closure_verified=false

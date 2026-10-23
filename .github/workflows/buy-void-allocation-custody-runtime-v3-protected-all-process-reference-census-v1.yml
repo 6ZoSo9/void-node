@@ -32,7 +32,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          BASE="2f58b776c4ba5b4c1b309d122122bd3355e2abc9"
+          BASE="5bfd56c850513c7b416fe0b2f854ee9b12e764e4"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
@@ -47,13 +47,13 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "8700195245baa12e2bcd4bdc50593cb87d387518"
+            "71ae96955f95c0e8096128b0f443cda9213572d3"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "f519e0b1617befa37e6f4c3dd5254edbce998885"
+            "fe4b2dc1b6317c4a80c82050753ef4d25306a3c7"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" = \
-            "b6b2dc6073c547726bda577f18f06411d5169ef5"
+            "8f7139a03f843e005671ab2d1ca4224b62d2b534"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "a5fa6ff22cc21df555e8a70c32500f07251dc4a8"
+            "ded737a228a627a241a84131113db6d3521f635c"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
             "4d9c6e5809a5cc64454626760f71e60ed99354bc"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
@@ -94,6 +94,9 @@ jobs:
             'private_mount_namespace_rejected=true' \
             'host_mount_namespace_lease_mismatch_rejected=true' \
             'host_filesystem_root_matches_pid1=true' \
+            'target_resolved_via_retained_host_root=true' \
+            'retained_host_root_used=true' \
+            'retained_host_root_revalidated_after_census=true' \
             'chroot_filesystem_root_mismatch_rejected=true' \
             'complete_proc_visibility_required=true' \
             'hidepid_restricted_proc_holds=true' \
@@ -156,6 +159,10 @@ jobs:
             'private_mount_namespace_rejected=true' \
             'host_mount_namespace_lease_mismatch_rejected=true' \
             'host_filesystem_root_matches_pid1=true' \
+            'retained_host_root_target_resolution_tested=true' \
+            'target_resolved_via_retained_host_root=true' \
+            'retained_host_root_used=true' \
+            'retained_host_root_revalidated_after_census=true' \
             'chroot_filesystem_root_mismatch_rejected=true' \
             'complete_proc_visibility_required=true' \
             'hidepid_restricted_proc_holds=true' \

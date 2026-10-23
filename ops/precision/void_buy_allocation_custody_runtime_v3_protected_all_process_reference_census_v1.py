@@ -40,8 +40,8 @@ SCHEMA = (
 )
 VERSION = 1
 
-PARENT_CURRENT_UID_HEAD = "2f58b776c4ba5b4c1b309d122122bd3355e2abc9"
-PARENT_CURRENT_UID_SOURCE_BLOB = "a5fa6ff22cc21df555e8a70c32500f07251dc4a8"
+PARENT_CURRENT_UID_HEAD = "5bfd56c850513c7b416fe0b2f854ee9b12e764e4"
+PARENT_CURRENT_UID_SOURCE_BLOB = "ded737a228a627a241a84131113db6d3521f635c"
 PRESTATE_HEAD = "836f5e704a603f67b77b2406aeec9174f640497e"
 PRESTATE_SOURCE_BLOB = "4d9c6e5809a5cc64454626760f71e60ed99354bc"
 ARCHIVE_LOCK_BLOB = "edb4ea2b833373ab387762e45ba7da4032c860f3"
@@ -134,6 +134,19 @@ def _leaf_flags() -> int:
     if any(type(value) is not int for value in required):
         hold("descriptor_capability_invalid")
     return os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+
+
+def _host_root_flags() -> int:
+    required = (
+        getattr(os, "O_RDONLY", None),
+        getattr(os, "O_DIRECTORY", None),
+        getattr(os, "O_NONBLOCK", None),
+    )
+    if any(type(value) is not int for value in required):
+        hold("descriptor_capability_invalid")
+    # /proc/1/root is a kernel-owned magic symlink. This open intentionally
+    # follows that single procfs link, then all target traversal is NOFOLLOW.
+    return os.O_RDONLY | os.O_DIRECTORY | os.O_NONBLOCK
 
 
 def _root_custodied(st: os.stat_result, *, directory: bool) -> bool:
@@ -406,6 +419,59 @@ def open_pinned_proc_view(
         raise
 
 
+def open_retained_host_root(
+    proc_fd: int,
+    proc_scope: dict[str, Any],
+) -> tuple[int, dict[str, Any]]:
+    try:
+        before = os.stat("1/root", dir_fd=proc_fd, follow_symlinks=True)
+    except OSError as exc:
+        hold("pid1_root_unreadable:" + str(exc.errno))
+    fd = os.open("1/root", _host_root_flags(), dir_fd=proc_fd)
+    try:
+        opened = os.fstat(fd)
+        if (
+            not stat.S_ISDIR(opened.st_mode)
+            or _identity(before) != _identity(opened)
+            or str(opened.st_dev) != proc_scope["host_filesystem_root_dev"]
+            or str(opened.st_ino) != proc_scope["host_filesystem_root_ino"]
+        ):
+            hold("pid1_root_descriptor_mismatch")
+        return fd, {
+            "host_root_dev": opened.st_dev,
+            "host_root_ino": opened.st_ino,
+            "host_root_mount_id": _fd_mount_id(fd, proc_fd),
+            "retained_host_root_used": True,
+            "target_resolution_root": "retained_proc_pid1_root",
+        }
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def revalidate_retained_host_root(
+    host_root_fd: int,
+    proc_fd: int,
+    initial: dict[str, Any],
+) -> dict[str, bool]:
+    opened = os.fstat(host_root_fd)
+    try:
+        visible = os.stat("1/root", dir_fd=proc_fd, follow_symlinks=True)
+    except OSError as exc:
+        hold("pid1_root_unreadable:" + str(exc.errno))
+    if (
+        opened.st_dev != initial["host_root_dev"]
+        or opened.st_ino != initial["host_root_ino"]
+        or _identity(opened) != _identity(visible)
+        or _fd_mount_id(host_root_fd, proc_fd) != initial["host_root_mount_id"]
+    ):
+        hold("retained_host_root_changed")
+    return {
+        "retained_host_root_revalidated_after_census": True,
+        "pid1_root_matches_retained_at_terminal": True,
+    }
+
+
 def revalidate_pinned_proc_view(
     fd: int,
     expected_host_pid_namespace_dev_ino: str,
@@ -504,6 +570,46 @@ def _open_bound_directory(path: Path) -> tuple[int, os.stat_result]:
         opened = os.fstat(fd)
         visible = os.stat(str(absolute), follow_symlinks=False)
         if _identity(opened) != _identity(visible):
+            hold("directory_terminal_rebound")
+        return fd, opened
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _open_bound_directory_from_root(
+    root_fd: int,
+    path: Path,
+) -> tuple[int, os.stat_result]:
+    absolute = Path(os.path.abspath(os.fspath(path)))
+    parts = absolute.parts
+    if (
+        not absolute.is_absolute()
+        or not parts
+        or parts[0] != "/"
+        or any(part in ("", ".", "..") for part in parts[1:])
+        or "\x00" in str(absolute)
+    ):
+        hold("directory_path_invalid")
+    fd = os.dup(root_fd)
+    try:
+        root_opened = os.fstat(fd)
+        if not stat.S_ISDIR(root_opened.st_mode):
+            hold("host_root_descriptor_invalid")
+        for component in parts[1:]:
+            before = os.stat(component, dir_fd=fd, follow_symlinks=False)
+            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                hold("directory_component_invalid:" + component)
+            next_fd = os.open(component, _directory_flags(), dir_fd=fd)
+            opened = os.fstat(next_fd)
+            if _identity(before) != _identity(opened):
+                os.close(next_fd)
+                hold("directory_component_rebound:" + component)
+            os.close(fd)
+            fd = next_fd
+        opened = os.fstat(fd)
+        local = os.stat(".", dir_fd=fd, follow_symlinks=False)
+        if _identity(opened) != _identity(local):
             hold("directory_terminal_rebound")
         return fd, opened
     except BaseException:
@@ -739,8 +845,14 @@ def _target_records(
 def target_snapshot(
     path: Path = TARGET,
     proc_fd: int | None = None,
+    host_root_fd: int | None = None,
 ) -> dict[str, Any]:
-    parent_fd, parent_st = _open_bound_directory(path.parent)
+    if host_root_fd is None:
+        parent_fd, parent_st = _open_bound_directory(path.parent)
+    else:
+        parent_fd, parent_st = _open_bound_directory_from_root(
+            host_root_fd, path.parent
+        )
     target_fd = -1
     try:
         before = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
@@ -1280,14 +1392,20 @@ def all_process_census(
     expected_host_mount_namespace_dev_ino: str,
 ) -> dict[str, Any]:
     proc_fd = -1
+    host_root_fd = -1
     try:
         proc_fd, proc_scope = open_pinned_proc_view(
             expected_host_pid_namespace_dev_ino,
             expected_host_mount_namespace_dev_ino,
         )
+        host_root_fd, host_root_scope = open_retained_host_root(
+            proc_fd, proc_scope
+        )
         attempts: list[dict[str, Any]] = []
         for attempt in range(1, MAX_SCAN_ATTEMPTS + 1):
-            target_before = target_snapshot(TARGET, proc_fd)
+            target_before = target_snapshot(
+                TARGET, proc_fd, host_root_fd
+            )
             identities = target_before["identities"]
             start_pids = _all_pids(proc_fd)
             rows: list[dict[str, Any]] = []
@@ -1299,7 +1417,9 @@ def all_process_census(
                     hold("proc_total_task_limit_exceeded")
                 rows.append(row)
             end_pids = _all_pids(proc_fd)
-            target_after = target_snapshot(TARGET, proc_fd)
+            target_after = target_snapshot(
+                TARGET, proc_fd, host_root_fd
+            )
             stable = (
                 target_before["root_dev"] == target_after["root_dev"]
                 and target_before["root_ino"] == target_after["root_ino"]
@@ -1314,6 +1434,9 @@ def all_process_census(
             if classified["host_scoped_target_reference_absent_candidate"]:
                 break
 
+        terminal_host_root = revalidate_retained_host_root(
+            host_root_fd, proc_fd, host_root_scope
+        )
         terminal_scope = revalidate_pinned_proc_view(
             proc_fd,
             expected_host_pid_namespace_dev_ino,
@@ -1323,10 +1446,14 @@ def all_process_census(
         selected = attempts[-1]
         return {
             "proc_scope": proc_scope,
+            "host_root_scope": host_root_scope,
+            **terminal_host_root,
             **terminal_scope,
             "host_namespace_lease_provenance_authenticated_by_census": False,
             "separately_reviewed_host_namespace_lease_required": True,
             "target_resolved_in_host_mount_namespace": True,
+            "target_resolved_via_retained_host_root": True,
+            "retained_host_root_used": True,
             "host_filesystem_root_matches_pid1": True,
             "attempt_count": len(attempts),
             "attempts": attempts,
@@ -1343,6 +1470,8 @@ def all_process_census(
             "live_at_use_reverification_required": True,
         }
     finally:
+        if host_root_fd >= 0:
+            os.close(host_root_fd)
         if proc_fd >= 0:
             os.close(proc_fd)
 
@@ -1378,6 +1507,9 @@ def census(
         "host_mount_namespace_external_lease_required": True,
         "host_mount_namespace_lease_verified": True,
         "target_resolved_in_host_mount_namespace": True,
+        "target_resolved_via_retained_host_root": True,
+        "retained_host_root_used": True,
+        "retained_host_root_revalidated_after_census": True,
         "host_filesystem_root_matches_pid1": True,
         "complete_proc_visibility_verified": True,
         "retained_procfs_view_used": True,
@@ -1580,6 +1712,9 @@ def self_test() -> None:
     print("retained_procfs_view_descriptor_relative=true")
     print("retained_procfs_view_revalidated_after_census=true")
     print("target_resolved_in_host_mount_namespace=true")
+    print("target_resolved_via_retained_host_root=true")
+    print("retained_host_root_used=true")
+    print("retained_host_root_revalidated_after_census=true")
     print("host_namespace_lease_provenance_authenticated_by_census=false")
     print("separately_reviewed_host_namespace_lease_required=true")
     print("host_scoped_target_reference_absent_candidate_only=true")
@@ -1655,6 +1790,8 @@ if __name__ == "__main__":
         print("host_namespace_lease_provenance_authenticated_by_census=false")
         print("separately_reviewed_host_namespace_lease_required=true")
         print("retained_procfs_view_used=false")
+        print("retained_host_root_used=false")
+        print("target_resolved_via_retained_host_root=false")
         print("production_filesystem_write=false")
         print("all_process_reference_absence_proven=false")
         print("fd_table_stability_proven=false")

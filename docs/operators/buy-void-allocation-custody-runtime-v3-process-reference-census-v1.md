@@ -58,20 +58,26 @@ status makes that process observation non-clean.
 A clean current-UID candidate requires two externally reviewed namespace
 `dev:ino` leases: the host PID namespace and the host mount namespace. The
 census opens canonical `/proc` once and retains that directory descriptor for
-the complete attempt. Through that retained descriptor it requires both
-`self/ns/pid == 1/ns/pid == expected PID lease` and
-`self/ns/mnt == 1/ns/mnt == expected mount lease` before resolving the fixed
-`/opt` target. This rejects a private PID namespace and also a container or
-other mount namespace that shares the host PID namespace but resolves a
-different `/opt` tree.
+the complete attempt. Through that retained descriptor it reads only
+`self/ns/pid` and `self/ns/mnt`, and requires those identities to match the
+supplied PID- and mount-namespace leases before resolving the fixed `/opt`
+target.
+
+The census intentionally does **not** dereference `/proc/1/ns/pid` or
+`/proc/1/ns/mnt`: those links are ptrace-gated on ordinary Linux hosts and an
+unprivileged diagnostic must not require PID-1 ptrace authority. The provenance
+that the supplied leases are truly host namespace identities is therefore a
+separate trusted operator/reviewer input and is not authenticated by this
+census itself. A private PID or mount namespace still fails closed when its
+self namespace identity differs from the supplied host lease.
 
 The same retained procfs view identifies the procfs mount, rejects restricted
 `hidepid` views, and performs PID enumeration plus all process observations
-descriptor-relatively. It revalidates both namespace leases, the retained
-procfs descriptor, visibility contract, and terminal visible `/proc` identity
-after the process scan. A clean receipt therefore binds the target snapshot to
-the verified host mount namespace rather than merely to the caller's pathname
-view.
+descriptor-relatively. It revalidates both self-namespace identities against
+the supplied leases, the retained procfs descriptor, visibility contract, and
+terminal visible `/proc` identity after the process scan. A clean receipt
+therefore binds the target snapshot to the supplied host-mount lease while
+keeping lease provenance outside this unprivileged source.
 
 It never reads:
 
@@ -171,9 +177,12 @@ process_uid_slots_stable_during_reference_scan=true
 host_pid_namespace_external_lease_required=true
 host_pid_namespace_lease_verified=true
 host_pid_namespace_lease_revalidated_after_census=true
+pid1_namespace_direct_read=false
 host_mount_namespace_external_lease_required=true
 host_mount_namespace_lease_verified=true
 host_mount_namespace_lease_revalidated_after_census=true
+pid1_mount_namespace_direct_read=false
+host_namespace_lease_provenance_authenticated_by_census=false
 target_resolved_in_host_mount_namespace=true
 complete_proc_visibility_verified=true
 proc_visibility_revalidated_after_census=true

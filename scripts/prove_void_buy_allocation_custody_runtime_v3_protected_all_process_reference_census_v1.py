@@ -14,7 +14,7 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "8700195245baa12e2bcd4bdc50593cb87d387518"
+EXPECTED_SOURCE_BLOB = "71ae96955f95c0e8096128b0f443cda9213572d3"
 
 
 def git_blob(raw: bytes) -> str:
@@ -36,10 +36,10 @@ assert module.MARKER == (
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS_V1"
 )
 assert module.PARENT_CURRENT_UID_HEAD == (
-    "2f58b776c4ba5b4c1b309d122122bd3355e2abc9"
+    "5bfd56c850513c7b416fe0b2f854ee9b12e764e4"
 )
 assert module.PARENT_CURRENT_UID_SOURCE_BLOB == (
-    "a5fa6ff22cc21df555e8a70c32500f07251dc4a8"
+    "ded737a228a627a241a84131113db6d3521f635c"
 )
 assert module.PRESTATE_HEAD == (
     "836f5e704a603f67b77b2406aeec9174f640497e"
@@ -223,6 +223,27 @@ with tempfile.TemporaryDirectory(
 # The protected all-process scan must detect it even though the TGID leader
 # has a clean fd/fs view.
 with tempfile.TemporaryDirectory(
+    prefix="void-custody-protected-hostroot-proof-"
+) as tmp:
+    base = Path(tmp)
+    retained_root = base / "retained-host-root"
+    host_target = retained_root / "opt" / module.TARGET.name
+    host_target.mkdir(parents=True, mode=0o700)
+    (host_target / "host-only").write_bytes(b"host")
+    root_fd = os.open(retained_root, module._directory_flags())
+    try:
+        snap = module.target_snapshot(
+            module.TARGET,
+            host_root_fd=root_fd,
+        )
+        host_st = host_target.stat()
+        assert snap["root_dev"] == host_st.st_dev
+        assert snap["root_ino"] == host_st.st_ino
+        assert snap["entry_count"] == 1
+    finally:
+        os.close(root_fd)
+
+with tempfile.TemporaryDirectory(
     prefix="void-custody-protected-threadref-proof-"
 ) as tmp:
     base = Path(tmp)
@@ -341,7 +362,12 @@ for required in (
     "host_mount_namespace_external_lease_required",
     "host_mount_namespace_lease_verified",
     "verify_host_filesystem_root_stats",
+    "open_retained_host_root",
+    "revalidate_retained_host_root",
+    "_open_bound_directory_from_root",
     "host_filesystem_root_matches_pid1",
+    "target_resolved_via_retained_host_root",
+    "retained_host_root_used",
     "complete_proc_visibility_verified",
     "retained_procfs_view_used",
     "retained_procfs_view_revalidated_after_census",
@@ -398,6 +424,10 @@ print("host_mount_namespace_external_lease_required=true")
 print("private_mount_namespace_rejected=true")
 print("host_mount_namespace_lease_mismatch_rejected=true")
 print("host_filesystem_root_matches_pid1=true")
+print("retained_host_root_target_resolution_tested=true")
+print("target_resolved_via_retained_host_root=true")
+print("retained_host_root_used=true")
+print("retained_host_root_revalidated_after_census=true")
 print("chroot_filesystem_root_mismatch_rejected=true")
 print("complete_proc_visibility_required=true")
 print("hidepid_restricted_proc_holds=true")

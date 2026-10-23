@@ -15,7 +15,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "a5fa6ff22cc21df555e8a70c32500f07251dc4a8"
+EXPECTED_SOURCE_BLOB = "ded737a228a627a241a84131113db6d3521f635c"
 
 
 def git_blob(raw: bytes) -> str:
@@ -86,50 +86,42 @@ for bad in ("", "0:34", "12:0", "12", "12:34:56", "x:y"):
         raise AssertionError("invalid host mount namespace lease accepted: " + bad)
 
 fake_self = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
-fake_init = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
 assert module.verify_pid_namespace_lease_stats(
-    fake_self, fake_init, (12, 34)
+    fake_self, (12, 34)
 ) == (12, 34)
 try:
     module.verify_pid_namespace_lease_stats(
-        fake_self,
         type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
         (12, 34),
-    )
-except module.CensusHold as exc:
-    assert "not_in_pid1_namespace" in str(exc)
-else:
-    raise AssertionError("private PID namespace relationship accepted")
-try:
-    module.verify_pid_namespace_lease_stats(
-        fake_self, fake_init, (12, 35)
     )
 except module.CensusHold as exc:
     assert "host_pid_namespace_lease_mismatch" in str(exc)
 else:
-    raise AssertionError("mismatched host PID namespace lease accepted")
+    raise AssertionError("private PID namespace lease mismatch accepted")
 
 assert module.verify_mount_namespace_lease_stats(
-    fake_self, fake_init, (12, 34)
+    fake_self, (12, 34)
 ) == (12, 34)
 try:
     module.verify_mount_namespace_lease_stats(
-        fake_self,
         type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
         (12, 34),
     )
 except module.CensusHold as exc:
-    assert "not_in_pid1_mount_namespace" in str(exc)
-else:
-    raise AssertionError("private mount namespace relationship accepted")
-try:
-    module.verify_mount_namespace_lease_stats(
-        fake_self, fake_init, (12, 35)
-    )
-except module.CensusHold as exc:
     assert "host_mount_namespace_lease_mismatch" in str(exc)
 else:
-    raise AssertionError("mismatched host mount namespace lease accepted")
+    raise AssertionError("private mount namespace lease mismatch accepted")
+
+live_pid_ns = os.stat("/proc/self/ns/pid")
+assert module.verify_pid_namespace_lease_stats(
+    live_pid_ns,
+    (int(live_pid_ns.st_dev), int(live_pid_ns.st_ino)),
+) == (int(live_pid_ns.st_dev), int(live_pid_ns.st_ino))
+live_mount_ns = os.stat("/proc/self/ns/mnt")
+assert module.verify_mount_namespace_lease_stats(
+    live_mount_ns,
+    (int(live_mount_ns.st_dev), int(live_mount_ns.st_ino)),
+) == (int(live_mount_ns.st_dev), int(live_mount_ns.st_ino))
 
 visible_mountinfo = (
     b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
@@ -414,7 +406,10 @@ for required in (
     "revalidate_pinned_proc_view",
     "_read_bounded_at",
     "host_pid_namespace_external_lease_required",
+    "pid1_namespace_direct_read",
     "host_mount_namespace_external_lease_required",
+    "pid1_mount_namespace_direct_read",
+    "host_namespace_lease_provenance_authenticated_by_census",
     "host_mount_namespace_lease_verified",
     "host_mount_namespace_lease_revalidated_after_census",
     "target_resolved_in_host_mount_namespace",
@@ -447,6 +442,8 @@ assert "_proc_uid_slots(" in proc_scan_source
 assert "st.st_uid == uid" not in proc_scan_source
 assert "uid_slots_after != uid_slots_before" in proc_scan_source
 assert "_pinned_proc_root(" not in pre_self_test
+assert '"1/ns/pid"' not in pre_self_test
+assert '"1/ns/mnt"' not in pre_self_test
 
 print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V1_PROOF_GREEN")
 print("exact_source_blob_asserted=true")
@@ -459,8 +456,11 @@ print("process_uid_slots_stable_during_reference_scan=true")
 print("host_pid_namespace_external_lease_required=true")
 print("private_pid_namespace_rejected=true")
 print("host_pid_namespace_lease_mismatch_rejected=true")
+print("pid1_namespace_direct_read=false")
 print("host_mount_namespace_external_lease_required=true")
 print("private_mount_namespace_rejected=true")
+print("pid1_mount_namespace_direct_read=false")
+print("host_namespace_lease_provenance_authenticated_by_census=false")
 print("host_mount_namespace_lease_mismatch_rejected=true")
 print("target_resolved_in_host_mount_namespace=true")
 print("complete_proc_visibility_required=true")
