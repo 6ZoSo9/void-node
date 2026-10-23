@@ -189,7 +189,7 @@ The proof:
 - executes **100 semantic adversaries**; and
 - performs no network or host access.
 
-Plan blob: `77acc1248b9c13a570f3840ff85846dcba00d2f7`.
+Plan blob: `1dd4f5a6fdf1781ce1986e17ce1edb1074bb8d63`.
 
 Proof blob: `e3cdd5754d82c2fc1d3a704829b7997b62e49b62`.
 
