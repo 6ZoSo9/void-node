@@ -492,6 +492,32 @@ for(const forbidden of [
   assert.equal(source.includes(forbidden),false,forbidden);
 }
 
+const candidateFrame=
+  encodeApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(candidate);
+const candidateFrameSha256=sha256(candidateFrame);
+const proofReceipt={
+  marker:"VOID_APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_CONTRACT_V2_RECEIPT",
+  version:2,
+  parent_head:candidate.parent_head,
+  revalidator_candidate_id:candidate.revalidator_candidate_id,
+  candidate_frame_bytes:candidateFrame.length,
+  candidate_frame_sha256:candidateFrameSha256,
+  protected_store_origin_proven:false,
+  protected_writer_invocation_authorized:false,
+  training_execution_authorized:false,
+  funds_movement:false,
+};
+const args=process.argv.slice(2);
+if(args.length===2&&args[0]==="--emit"){
+  fs.writeFileSync(
+    args[1],
+    Buffer.from(JSON.stringify(proofReceipt)+"\n","utf8"),
+    {flag:"wx",mode:0o600},
+  );
+}else if(args.length!==0){
+  throw new Error("usage: proof [--emit <path>]");
+}
+
 console.log(
   "VOID_APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_CONTRACT_V2_PROOF_GREEN"
 );
@@ -510,6 +536,9 @@ console.log("parent_request_cross_binding_required=true");
 console.log("readdressed_public_candidate_rejected_against_parent=true");
 console.log("candidate_accessors_and_proxies_rejected_before_read=true");
 console.log("fixed_claim_state_root_bound=true");
+console.log("revalidator_candidate_id="+candidate.revalidator_candidate_id);
+console.log("candidate_frame_bytes="+candidateFrame.length);
+console.log("candidate_frame_sha256="+candidateFrameSha256);
 console.log("fixed_consumption_directory_bound=true");
 console.log("protected_store_origin_proven=false");
 console.log("current_store_generation_revalidation_performed=false");
