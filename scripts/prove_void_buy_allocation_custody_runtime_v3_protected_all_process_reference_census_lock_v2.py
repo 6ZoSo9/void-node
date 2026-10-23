@@ -37,7 +37,7 @@ SOURCE_WORKFLOW = (
       "protected-all-process-reference-census-v1.yml"
 )
 
-LOCK_BLOB = "ebf23705c6e40865bafea6087cc8f83dffb8ff46"
+LOCK_BLOB = "5e53aa44bbd1f983dacea2c072fc6abf01031caf"
 SOURCE_BLOB = "25a0913606baa3303743f36a8c79f3c7a14ea159"
 SOURCE_BYTES = 70661
 SOURCE_PROOF_BLOB = "3f9e30ddd89f36b37f6d7f9754f95f7d190d4da3"
@@ -202,6 +202,7 @@ def main() -> None:
         "retained_host_root_required": True,
         "zombie_leader_live_worker_rejected": True,
         "host_namespace_lease_provenance_authenticated_by_census": False,
+        "separately_reviewed_host_namespace_lease_required": True,
         "mount_namespace_reference_scan_performed": False,
         "mount_namespace_reference_absence_proven": False,
         "all_process_target_reference_absent_observed": False,
@@ -267,6 +268,7 @@ def main() -> None:
         "retained_procfs_view_required",
         "retained_host_root_used",
         '"host_namespace_lease_provenance_authenticated_by_census": False',
+        '"separately_reviewed_host_namespace_lease_required": True',
         '"mount_namespace_reference_scan_performed": False',
         '"mount_namespace_reference_absence_proven": False',
         '"all_process_target_reference_absent_observed": False',
@@ -308,6 +310,7 @@ def main() -> None:
     print("private_task_mount_namespace_rejected=true")
     print("task_mount_namespace_generation_stability_required=true")
     print("host_namespace_lease_provenance_authenticated_by_census=false")
+    print("separately_reviewed_host_namespace_lease_required=true")
     print("mount_namespace_reference_scan_performed=false")
     print("mount_namespace_reference_absence_proven=false")
     print("all_process_target_reference_absent_observed=false")
