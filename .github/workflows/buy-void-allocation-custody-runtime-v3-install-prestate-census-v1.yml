@@ -84,7 +84,6 @@ jobs:
             'special_file_rejection=true' \
             'stage_and_rollback_collision_observed=true' \
             'production_census_read_only=true' \
-            'production_receipt_scoped_authority_keys=true' \
             'python_no_bytecode_mode_required=true' \
             'production_census_filesystem_write=false' \
             'self_test_temporary_filesystem_write=true' \
@@ -130,6 +129,7 @@ jobs:
             'exact_source_blob_asserted=true' \
             'host_census_not_executed_in_ci=true' \
             'production_census_read_only=true' \
+            'production_receipt_scoped_authority_keys=true' \
             'python_no_bytecode_mode_required=true' \
             'without_dash_b_bootstrap_hold=true' \
             'production_census_filesystem_write=false' \
