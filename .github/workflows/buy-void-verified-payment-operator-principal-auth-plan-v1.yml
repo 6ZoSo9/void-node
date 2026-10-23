@@ -56,7 +56,7 @@ jobs:
           log="$RUNNER_TEMP/operator-principal-auth-plan-v1.log"
           node scripts/prove_buy_void_verified_payment_operator_principal_auth_plan_v1.mjs | tee "$log"
           grep -Fx 'VOID_BUY_VOID_VERIFIED_PAYMENT_OPERATOR_PRINCIPAL_AUTH_PLAN_V1_GREEN' "$log"
-          grep -Fx 'plan_id=voidbuyopauth1_c5f0e1ac8d0dff89df7458877f2cb814f5166cf1edd138595835c5ada603471f' "$log"
+          grep -Fx 'plan_id=voidbuyopauth1_35d73623a820ffb06acd4bf49769237ad13cf2db0ad7f40f2613229d92f2c2d1' "$log"
           grep -Fx 'source_binding_count=7' "$log"
           grep -Fx 'future_requirement_count=17' "$log"
           grep -Fx 'exact_base_tree_and_four_add_scope=true' "$log"
@@ -74,4 +74,4 @@ jobs:
 
       - name: Diff hygiene
         shell: bash
-        run: git diff --check e83b1df4bc3b52d08d5e38e076fa6c80085f7e01 HEAD
+        run: git diff --check a3e0fdc4a9ee3c39c84f5783064c2e38f9481f97 HEAD
