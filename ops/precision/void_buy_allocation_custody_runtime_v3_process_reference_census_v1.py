@@ -6,18 +6,19 @@ _BOOTSTRAP_MARKER = "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V
 if (
     _bootstrap_sys.flags.isolated != 1
     or not getattr(_bootstrap_sys.flags, "safe_path", False)
+    or _bootstrap_sys.flags.dont_write_bytecode != 1
     or _bootstrap_sys.flags.optimize != 0
     or not __debug__
 ):
     if __name__ == "__main__":
         print(_BOOTSTRAP_MARKER)
         print("status=HOLD")
-        print("reason=python_isolated_unoptimized_mode_required")
+        print("reason=python_isolated_unoptimized_nobytecode_mode_required")
         print("production_filesystem_write=false")
         print("service_mutation=false")
         print("funds_movement=false")
         raise SystemExit(2)
-    raise RuntimeError("python_isolated_unoptimized_mode_required")
+    raise RuntimeError("python_isolated_unoptimized_nobytecode_mode_required")
 
 import argparse
 import errno
@@ -38,7 +39,7 @@ PRESTATE_SOURCE_REL = (
     "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-PRESTATE_SOURCE_BLOB = "caaf668b25879b5bbcddbf865e574a7b5162143e"
+PRESTATE_SOURCE_BLOB = "c2e0c53336665578e4ab26204f7d67908c66ad3f"
 ARCHIVE_LOCK_REL = (
     "ops/security/"
     "buy-void-allocation-custody-runtime-install-archive-lock-v3.json"
@@ -919,6 +920,7 @@ def self_test() -> None:
     print("regular_file_mount_id_checked=true")
     print("receipt_target_bound_to_selected_attempt=true")
     print("legacy_tree_entry_limit=32768")
+    print("python_no_bytecode_mode_required=true")
     print("root_execution_forbidden=true")
     print("current_uid_target_reference_absent_candidate_tested=true")
     print("all_process_reference_absence_proven=false")
