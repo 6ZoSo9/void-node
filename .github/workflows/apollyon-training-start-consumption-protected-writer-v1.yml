@@ -1,0 +1,161 @@
+name: Apollyon training-start protected consumption writer v1
+
+# Flattened direct-base qualification under #3548; source semantics unchanged.
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
+      - "scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs"
+      - "docs/security/apollyon-training-start-consumption-protected-writer-v1.md"
+      - ".github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml"
+      - "tools/apollyon-training-start-consumption-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+      - ".github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml"
+      - "docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md"
+      - "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs"
+      - "scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs"
+      - "docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md"
+      - ".github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
+      - "scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs"
+      - "docs/security/apollyon-training-start-consumption-protected-writer-v1.md"
+      - ".github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml"
+      - "tools/apollyon-training-start-consumption-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+      - ".github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml"
+      - "docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md"
+      - "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs"
+      - "scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs"
+      - "docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md"
+      - ".github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prove protected consumption writer
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-training-start-consumption-protected-writer-v1.mjs
+          node --check scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs
+          out="$RUNNER_TEMP/apollyon-consumption-writer-v1-proof.log"
+          node scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs | tee "$out"
+          grep -Fx 'caller_accessors_proxies_and_nested_objects_rejected_before_clone=true' "$out"
+          grep -Fx 'caller_input_preflight_prevents_untrusted_writer_mutation=true' "$out"
+          grep -Fx 'existing_slot_held_inode_admission=true' "$out"
+          grep -Fx 'existing_slot_fifo_substitution_nonblocking=true' "$out"
+          grep -Fx 'existing_slot_bounded_fd_read=true' "$out"
+          grep -Fx 'existing_slot_growth_beyond_max_rejected=true' "$out"
+          grep -Fx 'owned_directory_rejection_close_uncertainty_safe=true' "$out"
+          grep -Fx 'terminal_owned_directory_close_uncertainty_safe=true' "$out"
+          grep -Fx 'created_record_terminal_close_uncertainty_safe=true' "$out"
+          grep -Fx 'dual_terminal_close_errors_preserved=true' "$out"
+          grep -Fx 'terminal_close_provenance_not_spoofable=true' "$out"
+          grep -Fx 'existing_slot_dual_fd_close_fault_safe=true' "$out"
+          grep -Fx 'existing_slot_visible_path_race_fixture_exercised=true' "$out"
+          grep -Fx 'training_execution=false' "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          # Fresh direct-base qualification after #3548 flattening.
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          case "$EVENT_NAME" in
+            pull_request)
+              { test "$PR_BASE" = "caf363e7ab1e7de21f6ba44e4eaa8c7cdb5980e1" || \
+                test "$PR_BASE" = "8ff987b7fe14630107a0a32a1d0831d271a78330"; }
+              BASE="$PR_BASE"
+              expected="$RUNNER_TEMP/expected.txt"
+              actual="$RUNNER_TEMP/actual.txt"
+              printf '%s\n' \
+                '.github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml' \
+                '.github/workflows/apollyon-training-start-store-revalidation-request-v1.yml' \
+                'docs/security/apollyon-training-start-consumption-protected-writer-v1.md' \
+                'docs/security/apollyon-training-start-store-revalidation-request-v1.md' \
+                'scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs' \
+                'scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs' \
+                'tools/apollyon-training-start-consumption-protected-writer-v1.mjs' \
+                'tools/apollyon-training-start-store-revalidation-request-v1.mjs' \
+                '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
+                'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
+                'ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
+                'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
+                'tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs' \
+                'scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs' \
+                'docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md' \
+                '.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml' \
+                | LC_ALL=C sort > "$expected"
+              if [ "$PR_BASE" = "8ff987b7fe14630107a0a32a1d0831d271a78330" ]; then
+                printf '%s\n' \
+                  '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
+                  '.github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml' \
+                  '.github/workflows/apollyon-training-start-store-revalidation-request-v1.yml' \
+                  'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
+                  'docs/security/apollyon-training-start-consumption-protected-writer-v1.md' \
+                  'docs/security/apollyon-training-start-store-revalidation-request-v1.md' \
+                  'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
+                  'scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs' \
+                  'scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs' \
+                  'tools/apollyon-training-start-consumption-protected-writer-v1.mjs' \
+                  'tools/apollyon-training-start-store-revalidation-request-v1.mjs' \
+                  'tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs' \
+                'scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs' \
+                'docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md' \
+                '.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml' \
+                | LC_ALL=C sort > "$expected"
+              fi
+              git diff --no-renames --name-only "$BASE" "$HEAD" -- | LC_ALL=C sort > "$actual"
+              diff -u "$expected" "$actual"
+              ;;
+            push)
+              test "$PUSH_BEFORE" != "0000000000000000000000000000000000000000"
+              BASE="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              BASE="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 4c78459826c25cab43870b0b322b566575d18667
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 62ff7e94e57a6333cdcfc78f6f63d8ef67288a20
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 16eb15388c6cc5d12097cbf69f1d04c9bc6c10d3
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml)" = 868130bfe5a9e9b40fa26549380e024e7f3aee35
+
+          git diff --check "$BASE" "$HEAD"
