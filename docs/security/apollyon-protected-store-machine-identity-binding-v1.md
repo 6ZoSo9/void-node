@@ -36,7 +36,16 @@ The raw machine ID is intentionally absent from repository evidence.
 - parent document blob: `4b055837dd4e150fb2573947ff11f0b2f455622e`
 - parent workflow blob: `f533256a7b2b2a75b1f9aa8298ac43692b5af9d7`
 
-This child does not rewrite the green unbound #3749 plan. It is a separate content-addressed acceptance of exactly one machine identity for the future host pass.
+This child does not rewrite the historical green unbound #3749 generation at
+`4bb11c7469b47b25810390b762709bd93a7184e3`. The cumulative PR branch may
+subsequently update the first-host **workflow** so that it watches and pins this
+binding successor, but that current worktree workflow is not allowed to replace
+the historical parent identity.
+
+The binding proof therefore authenticates all four parent blobs from the exact
+`4bb11c...` Git tree. It does **not** require the current worktree copy of the
+first-host workflow to retain the historical blob. This keeps parent evidence
+immutable while permitting a one-way cumulative successor workflow.
 
 ## Binding semantics
 
