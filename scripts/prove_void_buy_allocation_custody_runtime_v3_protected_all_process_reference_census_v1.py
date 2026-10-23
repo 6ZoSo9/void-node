@@ -14,7 +14,7 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "71ae96955f95c0e8096128b0f443cda9213572d3"
+EXPECTED_SOURCE_BLOB = "20b0a1bae77ba5002cd07463c723e6bcd59ad57b"
 
 
 def git_blob(raw: bytes) -> str:
@@ -387,6 +387,8 @@ for required in (
     "all_process_reference_absence_proven",
     "fd_table_stability_proven",
     "mapping_set_stability_proven",
+    "mount_namespace_reference_scan_performed",
+    "mount_namespace_reference_absence_proven",
     "process_reference_snapshot_race_free",
     "live_at_use_reverification_required",
     "python_runtime_closure_verified",
@@ -454,6 +456,8 @@ print("proc_maps_path_text_retained=false")
 print("all_process_reference_absence_proven=false")
 print("fd_table_stability_proven=false")
 print("mapping_set_stability_proven=false")
+print("mount_namespace_reference_scan_performed=false")
+print("mount_namespace_reference_absence_proven=false")
 print("process_reference_snapshot_race_free=false")
 print("live_at_use_reverification_required=true")
 print("protected_source_installed_in_ci=false")
