@@ -342,12 +342,15 @@ def _scan_dir(
     records: list[dict[str, Any]],
     totals: dict[str, int],
     depth: int,
+    expected_dev: int,
 ) -> None:
     if depth > MAX_DEPTH:
         hold("target_tree_depth_exceeded")
     before = os.fstat(fd)
     if not stat.S_ISDIR(before.st_mode):
         hold("target_directory_not_directory")
+    if before.st_dev != expected_dev:
+        hold("target_tree_cross_device_directory_forbidden:" + relative_prefix)
 
     try:
         names = sorted(os.listdir(fd))
@@ -359,6 +362,8 @@ def _scan_dir(
             hold("target_tree_name_invalid")
         relative = name if not relative_prefix else relative_prefix + "/" + name
         st = os.stat(name, dir_fd=fd, follow_symlinks=False)
+        if st.st_dev != expected_dev:
+            hold("target_tree_cross_device_entry_forbidden:" + relative)
 
         if stat.S_ISDIR(st.st_mode):
             child_fd = os.open(name, _directory_flags(), dir_fd=fd)
@@ -377,6 +382,7 @@ def _scan_dir(
                     records,
                     totals,
                     depth + 1,
+                    expected_dev,
                 )
                 terminal = os.fstat(child_fd)
                 visible_terminal = os.stat(
@@ -435,7 +441,7 @@ def scan_target_at(
 
         records: list[dict[str, Any]] = []
         totals = {"entries": 0, "directories": 0, "files": 0, "bytes": 0}
-        _scan_dir(target_fd, "", records, totals, 0)
+        _scan_dir(target_fd, "", records, totals, 0, opened.st_dev)
 
         final_opened = os.fstat(target_fd)
         final_visible = os.stat(
@@ -693,6 +699,7 @@ def self_test() -> None:
     print("archive_lock_exact=true")
     print("descriptor_bound_tree_scan=true")
     print("target_tree_content_metadata_digest=true")
+    print("nested_mount_rejection_bound=true")
     print("symlink_and_special_file_rejection=true")
     print("stage_and_rollback_collision_observed=true")
     print("read_only=true")
