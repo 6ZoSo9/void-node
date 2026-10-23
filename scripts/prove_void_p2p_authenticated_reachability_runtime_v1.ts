@@ -228,6 +228,33 @@ assert.equal(
   1,
 );
 
+assert.throws(
+  () =>
+    classifyVoidP2PReachabilityRuntimeV1(
+      [runtimeObservationA, runtimeObservationB],
+      {
+        nowMs: now + 5,
+        domainConsistencyObservations: [
+          runtimeObservationA,
+          runtimeObservationA,
+          runtimeObservationB,
+        ],
+      },
+    ),
+  /domain-consistency evidence contains duplicate evidence/u,
+);
+assert.throws(
+  () =>
+    classifyVoidP2PReachabilityRuntimeV1(
+      [runtimeObservationA, runtimeObservationB],
+      {
+        nowMs: now + 5,
+        domainConsistencyObservations: [runtimeObservationA],
+      },
+    ),
+  /domain-consistency scope omits classified evidence/u,
+);
+
 const sourceContract: any = await import(
   "./lib/void_p2p_reachability_classification_contract_v1.mjs"
 );
@@ -580,6 +607,8 @@ try {
   console.log("outbound_domain_rotation_withholds_independence=true");
   console.log("cross_candidate_domain_rotation_withholds_independence=true");
   console.log("runtime_snapshot_global_domain_consistency_bound=true");
+  console.log("domain_consistency_duplicate_evidence_rejected=true");
+  console.log("domain_consistency_incomplete_scope_rejected=true");
   console.log("nat_type_inferred=false");
   console.log("relay_requirement_inferred=false");
   console.log("runtime_network_probe_exercised=true");
