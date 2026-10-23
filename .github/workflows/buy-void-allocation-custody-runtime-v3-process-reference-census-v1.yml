@@ -32,6 +32,8 @@ jobs:
           BASE_REF: ren/custody-runtime-v3-install-prestate-census-v1-20261023
         run: |
           set -euo pipefail
+          git fetch --no-tags origin \
+            "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
           BASE="$(git rev-parse "refs/remotes/origin/$BASE_REF")"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
