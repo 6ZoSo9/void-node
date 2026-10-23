@@ -162,6 +162,8 @@ def _read_direct_regular(path: Path, maximum: int) -> bytes:
         if _generation(before) != _generation(opened):
             hold("input_file_rebound:" + path.name)
         raw = _read_fd(fd, maximum)
+        if len(raw) != opened.st_size:
+            hold("input_file_size_read_mismatch:" + path.name)
         after = os.fstat(fd)
         visible = os.stat(path, follow_symlinks=False)
         if (
@@ -172,6 +174,54 @@ def _read_direct_regular(path: Path, maximum: int) -> bytes:
         return raw
     finally:
         os.close(fd)
+
+
+def _read_exact_candidate(path: Path) -> bytes:
+    absolute = Path(os.path.abspath(os.fspath(path)))
+    if (
+        not absolute.is_absolute()
+        or "\x00" in str(absolute)
+        or os.path.normpath(str(absolute)) != str(absolute)
+    ):
+        hold("candidate_path_invalid")
+    raw = _read_direct_regular(absolute, MAX_SOURCE_BYTES)
+    verify_source_bytes(raw)
+    return raw
+
+
+def _open_production_parent() -> tuple[int, dict[str, int]]:
+    root_fd = os.open("/", _directory_flags())
+    parent_fd = -1
+    try:
+        before = os.stat("opt", dir_fd=root_fd, follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(before.st_mode)
+            or stat.S_ISLNK(before.st_mode)
+            or before.st_uid != 0
+            or before.st_gid != 0
+            or stat.S_IMODE(before.st_mode) & 0o022
+        ):
+            hold("production_install_parent_invalid")
+        parent_fd = os.open("opt", _directory_flags(), dir_fd=root_fd)
+        opened = os.fstat(parent_fd)
+        if _identity(before) != _identity(opened):
+            hold("production_install_parent_rebound")
+        root_after = os.fstat(root_fd)
+        root_visible = os.stat("/", follow_symlinks=False)
+        if _identity(root_after) != _identity(root_visible):
+            hold("filesystem_root_changed_during_parent_open")
+        record = _parent_record(
+            parent_fd,
+            expected_uid=0,
+            expected_gid=0,
+        )
+        result_fd = parent_fd
+        parent_fd = -1
+        return result_fd, record
+    finally:
+        if parent_fd >= 0:
+            os.close(parent_fd)
+        os.close(root_fd)
 
 
 def verify_inputs() -> dict[str, Any]:
@@ -676,11 +726,25 @@ def source_plan() -> None:
     print("funds_movement=false")
 
 
-def apply_production() -> None:
-    # This check is deliberately first. This generation cannot touch /opt.
+def apply_production(source_path: Path | None) -> None:
+    # This check is deliberately first. This generation cannot read or write /opt.
     if PRODUCTION_APPLY_AUTHORIZED is not True:
         hold("protected_install_apply_not_authorized")
-    hold("unreachable_apply_generation")
+    if source_path is None:
+        hold("protected_install_source_path_required")
+    if os.geteuid() != 0 or os.getuid() != 0:
+        hold("protected_install_root_required")
+    raw = _read_exact_candidate(source_path)
+    parent_fd, _parent = _open_production_parent()
+    try:
+        _publish_into_parent(
+            parent_fd,
+            raw,
+            expected_uid=0,
+            expected_gid=0,
+        )
+    finally:
+        os.close(parent_fd)
 
 
 def self_test() -> None:
@@ -834,6 +898,7 @@ def main(argv: list[str]) -> int:
     group.add_argument("--self-test", action="store_true")
     group.add_argument("--source-plan", action="store_true")
     group.add_argument("--apply", action="store_true")
+    parser.add_argument("--source-file", type=Path)
     args = parser.parse_args(argv)
     if args.self_test:
         self_test()
@@ -842,7 +907,7 @@ def main(argv: list[str]) -> int:
         source_plan()
         return 0
     if args.apply:
-        apply_production()
+        apply_production(args.source_file)
         return 0
     return 2
 
