@@ -614,26 +614,56 @@ def open_bound_private_directory(path: Path) -> tuple[int, os.stat_result]:
         raise
 
 
-def write_create_only(path: Path, raw: bytes) -> None:
+def _cleanup_bound_leaf(path: Path, expected: os.stat_result) -> None:
+    absolute = path.absolute()
+    parent_fd, parent_generation = open_bound_private_directory(absolute.parent)
+    try:
+        leaf = absolute.name
+        leaf_path = f"/proc/self/fd/{parent_fd}/{leaf}"
+        try:
+            visible = os.stat(leaf_path, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        if (
+            not stat.S_ISREG(visible.st_mode)
+            or not _same_file_generation(expected, visible)
+        ):
+            hold("output_cleanup_generation_invalid")
+        os.unlink(leaf, dir_fd=parent_fd)
+        os.fsync(parent_fd)
+        parent_after = os.fstat(parent_fd)
+        parent_visible_after = os.stat(str(absolute.parent), follow_symlinks=False)
+        if (
+            not _same_identity(parent_generation, parent_after)
+            or not _same_identity(parent_after, parent_visible_after)
+        ):
+            hold("output_cleanup_parent_generation_invalid")
+    finally:
+        os.close(parent_fd)
+
+
+def write_create_only(path: Path, raw: bytes) -> os.stat_result:
     absolute = path.absolute()
     leaf = absolute.name
     if (
         not leaf
         or leaf in (".", "..")
         or "/" in leaf
-        or "\\x00" in leaf
+        or "\x00" in leaf
         or absolute.parent == absolute
     ):
         hold("output_leaf_invalid")
     parent_fd, parent_generation = open_bound_private_directory(absolute.parent)
     fd = -1
+    created = False
+    leaf_path = f"/proc/self/fd/{parent_fd}/{leaf}"
     try:
-        leaf_path = f"/proc/self/fd/{parent_fd}/{leaf}"
         fd = os.open(
             leaf_path,
             os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
             0o600,
         )
+        created = True
         total = 0
         while total < len(raw):
             written = os.write(fd, raw[total:])
@@ -652,19 +682,161 @@ def write_create_only(path: Path, raw: bytes) -> None:
             or not _same_identity(parent_after, parent_visible_after)
         ):
             hold("archive_output_or_parent_generation_invalid")
+        return opened
+    except BaseException:
+        if created:
+            cleanup_error: BaseException | None = None
+            try:
+                opened_now = os.fstat(fd)
+                visible_now = os.stat(leaf_path, follow_symlinks=False)
+                if (
+                    not stat.S_ISREG(visible_now.st_mode)
+                    or opened_now.st_dev != visible_now.st_dev
+                    or opened_now.st_ino != visible_now.st_ino
+                ):
+                    hold("partial_output_cleanup_identity_invalid")
+                os.unlink(leaf, dir_fd=parent_fd)
+                os.fsync(parent_fd)
+            except FileNotFoundError:
+                pass
+            except BaseException as exc:
+                cleanup_error = exc
+            if cleanup_error is not None:
+                raise ArchiveHold(
+                    "custody_runtime_install_archive_v3_partial_output_cleanup_failed"
+                ) from cleanup_error
+        raise
     finally:
         if fd >= 0:
             os.close(fd)
         os.close(parent_fd)
 
 
+def publish_validated_create_only(
+    staging: Path,
+    final: Path,
+    expected: os.stat_result,
+) -> None:
+    staging_absolute = staging.absolute()
+    final_absolute = final.absolute()
+    if (
+        staging_absolute.parent != final_absolute.parent
+        or staging_absolute.name == final_absolute.name
+    ):
+        hold("publish_staging_parent_invalid")
+
+    parent_fd, parent_generation = open_bound_private_directory(final_absolute.parent)
+    linked = False
+    try:
+        staging_leaf = staging_absolute.name
+        final_leaf = final_absolute.name
+        staging_path = f"/proc/self/fd/{parent_fd}/{staging_leaf}"
+        final_path = f"/proc/self/fd/{parent_fd}/{final_leaf}"
+
+        staging_visible = os.stat(staging_path, follow_symlinks=False)
+        if (
+            not stat.S_ISREG(staging_visible.st_mode)
+            or staging_visible.st_nlink != 1
+            or stat.S_IMODE(staging_visible.st_mode) & 0o077
+            or not _same_file_generation(expected, staging_visible)
+        ):
+            hold("publish_staging_generation_invalid")
+
+        try:
+            os.stat(final_path, follow_symlinks=False)
+        except FileNotFoundError:
+            pass
+        else:
+            raise FileExistsError(str(final_absolute))
+
+        os.link(
+            staging_leaf,
+            final_leaf,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        linked = True
+
+        staged_after = os.stat(staging_path, follow_symlinks=False)
+        final_after = os.stat(final_path, follow_symlinks=False)
+        if (
+            staged_after.st_dev != expected.st_dev
+            or staged_after.st_ino != expected.st_ino
+            or final_after.st_dev != expected.st_dev
+            or final_after.st_ino != expected.st_ino
+            or staged_after.st_size != expected.st_size
+            or final_after.st_size != expected.st_size
+            or staged_after.st_nlink != 2
+            or final_after.st_nlink != 2
+            or stat.S_IMODE(final_after.st_mode) & 0o077
+        ):
+            hold("published_archive_identity_invalid")
+
+        os.fsync(parent_fd)
+        os.unlink(staging_leaf, dir_fd=parent_fd)
+        os.fsync(parent_fd)
+
+        final_only = os.stat(final_path, follow_symlinks=False)
+        parent_after = os.fstat(parent_fd)
+        parent_visible_after = os.stat(
+            str(final_absolute.parent),
+            follow_symlinks=False,
+        )
+        if (
+            final_only.st_dev != expected.st_dev
+            or final_only.st_ino != expected.st_ino
+            or final_only.st_size != expected.st_size
+            or final_only.st_nlink != 1
+            or not _same_identity(parent_generation, parent_after)
+            or not _same_identity(parent_after, parent_visible_after)
+        ):
+            hold("published_archive_or_parent_generation_invalid")
+    except BaseException:
+        if linked:
+            try:
+                visible = os.stat(
+                    f"/proc/self/fd/{parent_fd}/{final_absolute.name}",
+                    follow_symlinks=False,
+                )
+                if visible.st_dev != expected.st_dev or visible.st_ino != expected.st_ino:
+                    hold("published_archive_cleanup_identity_invalid")
+                os.unlink(final_absolute.name, dir_fd=parent_fd)
+                os.fsync(parent_fd)
+            except FileNotFoundError:
+                pass
+        raise
+    finally:
+        os.close(parent_fd)
+
+
 def package(path: Path) -> dict[str, Any]:
     raw, record = source_archive()
-    write_create_only(path, raw)
-    inspected = inspect_archive(path)
-    if inspected["archive_candidate_id"] != record["archive_candidate_id"]:
-        hold("archive_postwrite_identity_mismatch")
-    return inspected
+    staging: Path | None = None
+    staging_generation: os.stat_result | None = None
+    for _attempt in range(8):
+        candidate = path.absolute().with_name(
+            "." + path.absolute().name + ".staging-" + os.urandom(12).hex()
+        )
+        try:
+            staging_generation = write_create_only(candidate, raw)
+        except FileExistsError:
+            continue
+        staging = candidate
+        break
+    if staging is None or staging_generation is None:
+        hold("archive_staging_name_exhausted")
+
+    try:
+        inspected = inspect_archive(staging)
+        if inspected["archive_candidate_id"] != record["archive_candidate_id"]:
+            hold("archive_staging_identity_mismatch")
+        publish_validated_create_only(staging, path, staging_generation)
+        staging = None
+        return inspected
+    finally:
+        if staging is not None and staging_generation is not None:
+            _cleanup_bound_leaf(staging, staging_generation)
 
 
 def self_test() -> None:
@@ -693,6 +865,66 @@ def self_test() -> None:
             pass
         else:
             hold("self_test_create_only_overwrite_allowed")
+
+        partial = parent / "partial-write.tar"
+        original_write = os.write
+        write_calls = 0
+
+        def fail_after_partial_write(fd: int, data: bytes) -> int:
+            nonlocal write_calls
+            if write_calls == 0:
+                write_calls += 1
+                return original_write(fd, data[: min(64, len(data))])
+            raise OSError("synthetic_partial_archive_write_failure")
+
+        os.write = fail_after_partial_write
+        try:
+            try:
+                write_create_only(partial, raw)
+            except OSError:
+                pass
+            else:
+                hold("self_test_partial_write_failure_not_raised")
+        finally:
+            os.write = original_write
+        if partial.exists():
+            hold("self_test_partial_write_left_final_path")
+
+        failed_publish = parent / "failed-validation.tar"
+        original_inspect = inspect_archive
+
+        def fail_staging_inspection(_path: Path) -> dict[str, Any]:
+            hold("self_test_forced_staging_validation_failure")
+
+        globals()["inspect_archive"] = fail_staging_inspection
+        try:
+            try:
+                package(failed_publish)
+            except ArchiveHold:
+                pass
+            else:
+                hold("self_test_failed_validation_published")
+        finally:
+            globals()["inspect_archive"] = original_inspect
+        if failed_publish.exists():
+            hold("self_test_failed_validation_left_final_path")
+        if any(
+            entry.name.startswith("." + failed_publish.name + ".staging-")
+            for entry in parent.iterdir()
+        ):
+            hold("self_test_failed_validation_left_staging_path")
+
+        published = parent / "published-v3.tar"
+        packaged = package(published)
+        if (
+            not published.is_file()
+            or packaged["archive_candidate_id"] != record["archive_candidate_id"]
+            or any(
+                entry.name.startswith("." + published.name + ".staging-")
+                for entry in parent.iterdir()
+            )
+        ):
+            hold("self_test_validated_publication_invalid")
 
         real_parent = parent / "real-output-parent"
         real_parent.mkdir(mode=0o700)
@@ -781,6 +1013,10 @@ def main(argv: list[str]) -> int:
         print("deterministic_ustar=true")
         print("descriptor_bound_source_reads=true")
         print("descriptor_bound_create_only_output=true")
+        print("partial_output_cleanup_on_failure=true")
+        print("validated_staging_before_final_publication=true")
+        print("failed_validation_final_path_absent=true")
+        print("atomic_create_only_final_publication=true")
         print("symlink_output_parent_rejected=true")
         print("fifo_substitution_rejected_without_blocking=true")
         print("archive_candidate_accepted=false")
