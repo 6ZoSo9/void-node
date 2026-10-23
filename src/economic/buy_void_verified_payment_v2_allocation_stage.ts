@@ -66,7 +66,6 @@ const LINEAGE_TYPED_ARRAY_BUFFER_GETTER =
   Object.getOwnPropertyDescriptor(LINEAGE_TYPED_ARRAY_PROTO, "buffer")?.get;
 const LINEAGE_REFLECT_APPLY_NATIVE = Reflect.apply;
 const LINEAGE_IS_SHARED_BACKING_NATIVE = utilTypes.isSharedArrayBuffer;
-const LINEAGE_ARRAY_BUFFER_SLICE_NATIVE = ArrayBuffer.prototype.slice;
 const LINEAGE_TYPED_ARRAY_SET_NATIVE = Uint8Array.prototype.set;
 
 function detachLineageHistoryBuffer(
@@ -114,12 +113,10 @@ function detachLineageHistoryBuffer(
   }
 
   try {
-    // A detached backing store must not silently become empty history.
-    LINEAGE_REFLECT_APPLY_NATIVE(
-      LINEAGE_ARRAY_BUFFER_SLICE_NATIVE,
-      backing,
-      [0, 0],
-    );
+    // Intrinsic TypedArray#set validates the source typed array's backing
+    // store and throws on detachment, including a detached zero-length Buffer.
+    // Unlike ArrayBuffer#slice it does not perform SpeciesConstructor lookup
+    // on caller-controlled backing-object properties.
     const detached = Buffer.alloc(count);
     LINEAGE_REFLECT_APPLY_NATIVE(
       LINEAGE_TYPED_ARRAY_SET_NATIVE,
