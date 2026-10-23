@@ -298,6 +298,30 @@ function validateQuiescence(raw) {
     false,
     "quiescence_live_process_overclaim",
   );
+  for (const key of [
+    "service_quiescence_candidate",
+    "service_inactive_observed",
+    "socket_absent_observed",
+    "runtime_directory_absent_observed",
+    "daemon_reload_clear_observed",
+    "unit_state_safe_observed",
+  ]) {
+    if (typeof observed[key] !== "boolean") {
+      throw new Error("quiescence_observation_boolean_invalid:" + key);
+    }
+  }
+  if (
+    observed.service_quiescence_candidate === true &&
+    (
+      observed.service_inactive_observed !== true ||
+      observed.socket_absent_observed !== true ||
+      observed.runtime_directory_absent_observed !== true ||
+      observed.daemon_reload_clear_observed !== true ||
+      observed.unit_state_safe_observed !== true
+    )
+  ) {
+    throw new Error("quiescence_candidate_support_invalid");
+  }
 
   return Object.freeze({
     id: value.census_id,
@@ -432,6 +456,16 @@ function validateProcess(raw) {
     mapping_set_stability_proven: false,
     live_at_use_reverification_required: true,
   });
+  natural(process.selected_target_root_dev, "process_selected_target_dev_invalid");
+  natural(process.selected_target_root_ino, "process_selected_target_ino_invalid");
+  natural(process.selected_target_mount_id, "process_selected_target_mount_id_invalid");
+  if (
+    process.selected_target_root_dev !== target.root_dev ||
+    process.selected_target_root_ino !== target.root_ino ||
+    process.selected_target_mount_id !== target.mount_id
+  ) {
+    throw new Error("process_selected_target_identity_mismatch");
+  }
   bool(
     process.all_process_reference_absence_proven,
     false,
