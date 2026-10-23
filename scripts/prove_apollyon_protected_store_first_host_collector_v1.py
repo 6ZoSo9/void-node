@@ -33,7 +33,7 @@ PINS = {
     ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml":
         "c8737fe68f15894bd15af0e775fc79cb2b50d9bb",
     SOURCE_REL:
-        "7a5380491c31eb4967547c7f1f3c84ba28161230",
+        "012f1b007c82b0b529e55ce1911dc2375d7a6894",
 }
 SELF = "scripts/prove_apollyon_protected_store_first_host_collector_v1.py"
 DOC = "docs/security/apollyon-protected-store-first-host-collector-v1.md"
@@ -119,6 +119,7 @@ for required in (
     'hold("fixed_path_metadata_changed_during_pass")',
     'hold("mount_metadata_changed_during_pass")',
     'hold("service_state_changed_during_pass")',
+    'hold("service_process_subject_changed_during_pass")',
 ):
     need(required in source_text, "required_source_boundary_missing:" + required)
 
