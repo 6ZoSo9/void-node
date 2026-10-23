@@ -5,6 +5,44 @@ import fs from "node:fs";
 const target = "public/demo/index.html";
 const source = fs.readFileSync(target, "utf8");
 
+const voidElements = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input",
+  "link", "meta", "param", "source", "track", "wbr",
+]);
+
+function requireResultPayloadOutsideLiveAncestors(html) {
+  const needle = '<pre id="resultBox">';
+  const resultIndex = html.indexOf(needle);
+  assert.notEqual(resultIndex, -1, "full result payload element must exist");
+
+  const stack = [];
+  const tagPattern = /<\/?([a-z][a-z0-9:-]*)(?:\s[^<>]*?)?>/giu;
+  for (const match of html.matchAll(tagPattern)) {
+    if (match.index >= resultIndex) break;
+    const tag = match[0];
+    const name = match[1].toLowerCase();
+    if (tag.startsWith("</")) {
+      for (let index = stack.length - 1; index >= 0; index -= 1) {
+        if (stack[index].name === name) {
+          stack.splice(index, 1);
+          break;
+        }
+      }
+      continue;
+    }
+    if (tag.endsWith("/>") || voidElements.has(name)) continue;
+    stack.push({ name, tag });
+  }
+
+  for (const ancestor of stack) {
+    assert.doesNotMatch(
+      ancestor.tag,
+      /\b(?:role\s*=\s*(?:"(?:status|alert|log|marquee|timer|progressbar)"|'(?:status|alert|log|marquee|timer|progressbar)'|(?:status|alert|log|marquee|timer|progressbar)(?=[\s>]))|aria-live\s*=\s*(?:"(?:polite|assertive)"|'(?:polite|assertive)'|(?:polite|assertive)(?=[\s>])))/iu,
+      "full result payload must not be nested inside a live region",
+    );
+  }
+}
+
 function requireDemoAccessibility(html) {
   assert.match(
     html,
@@ -33,8 +71,39 @@ function requireDemoAccessibility(html) {
   );
   assert.match(
     html,
-    /<pre id="resultBox" role="status" aria-live="polite" aria-atomic="true">No result yet\.<\/pre>/u,
-    "result and error text must be exposed as an atomic polite status",
+    /<div id="resultStatus" class="pill mb" role="status" aria-live="polite" aria-atomic="true"><span class="sr-only">Job result: <\/span><span id="resultStatusLabel">No result yet\.<\/span><\/div>/u,
+    "result changes must use a dedicated atomic polite status with an explicit subject",
+  );
+  assert.match(
+    html,
+    /<pre id="resultBox">No result yet\.<\/pre>/u,
+    "full result payload must remain outside live regions",
+  );
+  requireResultPayloadOutsideLiveAncestors(html);
+  assert.match(
+    html,
+    /\$\("resultBox"\)\.textContent = JSON\.stringify\(j, null, 2\);\s*\$\("resultStatusLabel"\)\.textContent = "Result ready\.";/u,
+    "successful payloads must use a concise result-ready announcement",
+  );
+  assert.match(
+    html,
+    /\$\("resultBox"\)\.textContent = "Timed out waiting for result\.";\s*\$\("resultStatusLabel"\)\.textContent = "Timed out waiting for result\.";\s*return false;/u,
+    "timeout announcement must remain bound to the polling-expiry result update",
+  );
+  assert.match(
+    html,
+    /\$\("resultBox"\)\.textContent = "Submitting\.\.\.";\s*\$\("resultStatusLabel"\)\.textContent = "Submitting job\.";/u,
+    "submission announcement must remain bound to the submitting result update",
+  );
+  assert.match(
+    html,
+    /\$\("resultBox"\)\.textContent = String\(e\);\s*\$\("resultStatusLabel"\)\.textContent = "Job failed\.";/u,
+    "error details must use a concise failure announcement",
+  );
+  assert.doesNotMatch(
+    html,
+    /\$\("resultStatusLabel"\)\.textContent = (?:JSON\.stringify\(|String\()/u,
+    "live result status must not receive unbounded payload or error text",
   );
   assert.match(
     html,
@@ -65,12 +134,94 @@ const negativeMutations = [
     error: /submission changes/u,
   },
   {
-    name: "missing_result_live_region",
+    name: "missing_result_status_live_region",
     html: source.replace(
-      'id="resultBox" role="status" aria-live="polite"',
-      'id="resultBox" role="status"',
+      'id="resultStatus" class="pill mb" role="status" aria-live="polite"',
+      'id="resultStatus" class="pill mb" role="status"',
     ),
-    error: /result and error text/u,
+    error: /dedicated atomic polite status/u,
+  },
+  {
+    name: "result_payload_made_live",
+    html: source.replace(
+      '<pre id="resultBox">',
+      '<pre id="resultBox" role="status" aria-live="polite" aria-atomic="true">',
+    ),
+    error: /outside live regions/u,
+  },
+  {
+    name: "result_payload_live_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" role="status" aria-live="polite">\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_unquoted_live_ancestor",
+    html: source.replace(
+      '<div class="wrap">',
+      '<div class="wrap" aria-live=polite>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "unbounded_result_payload_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Result ready.";',
+      '$("resultStatusLabel").textContent = JSON.stringify(j, null, 2);',
+    ),
+    error: /concise result-ready announcement|must not receive unbounded/u,
+  },
+  {
+    name: "unbounded_result_error_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Job failed.";',
+      '$("resultStatusLabel").textContent = String(e);',
+    ),
+    error: /concise failure announcement|must not receive unbounded/u,
+  },
+  {
+    name: "missing_timeout_result_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Timed out waiting for result.";',
+      "",
+    ),
+    error: /timeout announcement must remain bound/u,
+  },
+  {
+    name: "moved_timeout_result_announcement",
+    html: source
+      .replace(
+        '$("resultStatusLabel").textContent = "Timed out waiting for result.";',
+        "",
+      )
+      .replace(
+        "async function pollResult(id) {",
+        'async function pollResult(id) {\n      $("resultStatusLabel").textContent = "Timed out waiting for result.";',
+      ),
+    error: /timeout announcement must remain bound/u,
+  },
+  {
+    name: "missing_submitting_result_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Submitting job.";',
+      "",
+    ),
+    error: /submission announcement must remain bound/u,
+  },
+  {
+    name: "moved_submitting_result_announcement",
+    html: source
+      .replace(
+        '$("resultStatusLabel").textContent = "Submitting job.";',
+        "",
+      )
+      .replace(
+        "async function submitJob() {",
+        'async function submitJob() {\n      $("resultStatusLabel").textContent = "Submitting job.";',
+      ),
+    error: /submission announcement must remain bound/u,
   },
   {
     name: "missing_health_subject",
@@ -81,6 +232,11 @@ const negativeMutations = [
     name: "missing_submission_subject",
     html: source.replace('<span class="sr-only">Job submission: </span>', ""),
     error: /submission changes must include an explicit accessible subject/u,
+  },
+  {
+    name: "missing_result_subject",
+    html: source.replace('<span class="sr-only">Job result: </span>', ""),
+    error: /explicit subject/u,
   },
   {
     name: "missing_focus_indicator",
@@ -101,6 +257,10 @@ console.log("VOID_PUBLIC_DEMO_ACCESSIBILITY_V1_GREEN");
 console.log("visible_job_message_label=true");
 console.log("health_status_live=true");
 console.log("submit_status_live=true");
-console.log("result_error_status_live=true");
+console.log("result_status_live=true");
+console.log("result_payload_live=false");
+console.log("result_payload_live_ancestor=false");
+console.log("result_status_bounded=true");
+console.log("result_submission_timeout_status_bounded=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=7");
+console.log("negative_mutations=17");
