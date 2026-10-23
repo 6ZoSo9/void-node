@@ -30,11 +30,11 @@ historical V1 hashes.
 - V2 serializer path:
   `tools/apollyon-claim-contract-canonical-json-v2.mjs`
 - V2 serializer Git blob:
-  `5580cf87064deba12dc6191465db4ce9824828fc`
+  `c131e29a35543d7f9dc1d02b37a9a9dbfd086e79`
 - V2 proof path:
   `scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs`
 - V2 proof Git blob:
-  `b4d36417fbbe0ce4532375f432e31c6f488debbb`
+  `b113f5f9868e8f0bbda8ee0c00ff2e82caf51bed`
 
 The branch is four ADD-only paths. V1 and all current consumers remain byte
 unchanged.
@@ -66,6 +66,9 @@ The serializer rejects:
 - non-enumerable object properties;
 - sparse arrays and arrays with extra own properties;
 - custom-prototype objects;
+- an own enumerable `__proto__` key, because frozen V1's ordinary-object
+  rebuild gives that key special prototype-setter semantics instead of a normal
+  data-property byte contract;
 - cycles;
 - excessive nesting/array/object/string/output sizes; and
 - noncanonical numbers or unsupported JS values.
@@ -73,7 +76,9 @@ The serializer rejects:
 Metadata primitives used by the module are captured during module
 initialization. Object/array values are never handed to a live
 `JSON.stringify` operation, so later inherited `toJSON` hooks cannot affect
-serialization.
+serialization. Cycle tracking uses an internal linked frame rather than an
+array stack, and the proof also installs a post-import numeric setter on
+`Array.prototype["0"]`; V2 must emit the same bytes with zero setter calls.
 
 This is **not** proof against a realm that was already compromised before module
 initialization. A future installed runtime must still prove trusted module
@@ -96,9 +101,10 @@ After importing V2, the proof separately poisons:
 Each poison must demonstrably change or intercept V1 while V2 returns the exact
 pre-poison bytes.
 
-Additional adversaries require zero executed Proxy traps and zero executed
-accessor getters while rejecting Proxy/accessor/symbol/non-enumerable/sparse/
-extra-array/custom-prototype/cyclic/deep/noncanonical-value surfaces.
+Additional adversaries require zero executed Proxy traps, zero executed
+accessor getters, and zero post-import Array-prototype numeric-setter calls while
+rejecting Proxy/accessor/symbol/non-enumerable/sparse/extra-array/
+custom-prototype/`__proto__`/cyclic/deep/noncanonical-value surfaces.
 
 Node 22, 24 and 26 each execute the proof. The focused workflow extracts the
 fixture-vector SHA-256 from every Node job and requires cross-node equality.
