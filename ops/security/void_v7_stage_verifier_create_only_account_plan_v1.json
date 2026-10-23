@@ -94,6 +94,8 @@
     "exclude_all_four_live_uid_gid_slots_and_supplementary_groups",
     "exclude_deleted_account_live_process_ids_and_userns_collisions",
     "exclude_systemd_dynamic_user_or_service_id_reservations",
+    "authenticated_approved_persistent_local_filesystem_mount_scope_and_generation",
+    "exclude_preexisting_uid_gid_file_ownership_and_numeric_posix_acl_references",
     "repeat_complete_nss_and_live_process_census_immediately_before_each_creation",
     "create_only_group_then_create_only_user_no_modify_existing_entries",
     "bind_account_and_group_creation_to_exact_root_owned_host_receipt",
