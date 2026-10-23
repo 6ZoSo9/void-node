@@ -45,7 +45,97 @@ jobs:
             $'A\t.github/workflows/buy-void-allocation-custody-protected-procref-install-candidate-lock-v1.yml'
             $'A\tdocs/operators/buy-void-allocation-custody-protected-procref-install-candidate-lock-v1.md'
             $'A\tops/security/buy-void-allocation-custody-protected-procref-install-candidate-lock-v1.json'
-            $'A\tscripts/prove_void_buy_allocation_custody_protected_procref-install-candidate-lock-v1.py'
+            
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_protected_procref_install_candidate_v1.py)" = \
+            "467bed6ef835bc84eb5b6f8cb53b0fbfb1b1f686"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_protected_procref_install_candidate_v1.py)" = \
+            "3faa229d3235c20536ba98b8461fff346d111f89"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-protected-procref-install-candidate-v1.md)" = \
+            "0aa1454fcb876fab303f286b548e1814d298afe5"
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-protected-procref-install-candidate-v1.yml)" = \
+            "522e25ff52897da99300ec324087a09844dc433e"
+
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs)" = \
+            "a2431fffbee7be4de2ee1152b70e5fcccafd40c9"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v4.json)" = \
+            "29a5d9325468897c9b99d22d4a0376547a5e865e"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-protected-procref-install-candidate-lock-v1.json)" = \
+            "c5a72c36d4825c89c3332b75c938508f93ee01e4"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_protected_procref_install_candidate_lock_v1.py)" = \
+            "8cd3dc3bbb387284f16d75a145d6ace3f0a94ece"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-protected-procref-install-candidate-lock-v1.md)" = \
+            "e330fd11725e10ac6baca8abf09ddaa4aab991b9"
+
+          printf '%s  %s\n' \
+            "0b84ae0abeb1e791ec41b2a4c5fe46f10bf20ccad4fb214cc6c51fd8cd89bee1" \
+            "ops/precision/void_buy_allocation_custody_protected_procref_install_candidate_v1.py" \
+            | sha256sum -c -
+          test "$(wc -c < ops/precision/void_buy_allocation_custody_protected_procref_install_candidate_v1.py)" -eq 41900
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile acceptance proof
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_protected_procref_install_candidate_lock_v1.py
+
+      - name: Prove disabled-installer acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/procref-installer-lock-v1.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_protected_procref_install_candidate_lock_v1.py \
+            | tee "$out"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_PROTECTED_PROCREF_INSTALL_CANDIDATE_LOCK_V1_GREEN' "$out"
+          for marker in \
+            'installer_source_git_blob_exact=true' \
+            'installer_source_bytes_exact=true' \
+            'installer_source_ascii_only=true' \
+            'installer_source_sha256_exact=true' \
+            'installer_companion_blobs_exact=true' \
+            'focused_installer_run_bound=true' \
+            'exact_head_review_bound=true' \
+            'current_install_plan_lineage_bound=true' \
+            'accepted_protected_source_lock_bound=true' \
+            'installer_candidate_accepted=true' \
+            'production_apply_cli_present=true' \
+            'production_apply_reachable=false' \
+            'production_apply_authorized=false' \
+            'stage_descriptor_retained_through_publication=true' \
+            'stage_path_revalidated_before_publication=true' \
+            'stage_substitution_rejected=true' \
+            'foreign_stage_cleanup_refused=true' \
+            'truthful_host_write_failure_classification=true' \
+            'protected_install_authorized=false' \
+            'protected_source_installed=false' \
+            'root_census_execution_authorized=false' \
+            'live_privileged_census_authorized=false' \
+            'live_privileged_census_executed=false' \
+            'replacement_apply_authorized=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'production_gate_ready=false' \
+            'funds_movement=false' \
+            'next_gate=DISTINCT_PROTECTED_INSTALL_APPLY_AUTHORIZATION_REQUIRES_EXPLICIT_SEPARATE_OPERATOR_AUTHORITY'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
+A\tscripts/prove_void_buy_allocation_custody_protected_procref_install_candidate_lock_v1.py'
           )
           mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
