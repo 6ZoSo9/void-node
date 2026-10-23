@@ -43,13 +43,18 @@ stage_path=/opt/.void-buy-allocation-custody-procref-v1.stage-v1
 
 stage_parent=/opt
 stage uid/gid=0/0
-stage mode=0700
+stage mode=0755
+stage group/world writable=false
 stage nlink=2
+stage expected entry count=1
+stage source name=void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py
+stage unexpected entries forbidden=true
 stage directory=true
 stage symlink=false
 stage same mount as install parent=true
 stage descriptor-relative creation required=true
 stage parent descriptor retained through publication=true
+stage descriptor retained through publication=true
 stage direct child of install parent required=true
 stage symlink-free ancestry required=true
 stage revalidation before publication required=true
@@ -59,6 +64,8 @@ install_parent group/world writable=false
 
 protected_root uid/gid=0/0
 protected_root mode=0755
+protected_root expected entry count=1
+protected_root unexpected entries forbidden=true
 
 protected_source uid/gid=0/0
 protected_source mode=0444
@@ -72,12 +79,14 @@ ordinary_rename_publication_forbidden=true
 ```
 
 These are future apply requirements, not observed host facts. The stage is
-deliberately stricter than the final protected root: it is an exact root-owned
-mode-0700 direct child of /opt with nlink=2, no symlink identity, and the same
-mount as the retained install-parent descriptor. A future installer must create
-it descriptor-relative to that retained parent, retain/revalidate the parent and
-stage identities through publication, and reject any ancestry/type/owner/mode/
-link/mount drift.
+an exact root-owned mode-0755 direct child of /opt with nlink=2, no symlink
+identity, the same mount as the retained install-parent descriptor, and exactly
+one reviewed source entry. Mode 0755 is intentionally identical to the final
+protected-root mode, so atomic directory publication does not require a
+post-publication chmod. A future installer must create the stage
+descriptor-relative to the retained parent, retain both parent and stage
+descriptors through publication, and reject any ancestry/type/owner/mode/link/
+mount or entry-set drift.
 
 The initial target-absence check is not publication authority: a competing creator may win
 after that check. The final publication must therefore use kernel-atomic
@@ -92,17 +101,18 @@ A separately reviewed installer must perform this order:
 2. verify `/opt` root custody and mount identity;
 3. require both protected target and stage names absent;
 4. create the stage directory descriptor-relative to the retained /opt
-   descriptor and require exact root:root, mode 0700, nlink 2, direct-directory,
+   descriptor and require exact root:root, mode 0755, nlink 2, direct-directory,
    non-symlink, same-mount and symlink-free-direct-ancestry identity;
-5. revalidate the retained install-parent and stage identities;
-6. materialize the exact bytes into that stage;
+5. retain and revalidate both the install-parent and stage descriptors;
+6. materialize the exact reviewed source bytes as the stage's only entry;
 7. fsync the staged source and stage directory;
-8. reverify both stage-directory identity and staged source bytes/metadata/
-   ancestry before publication;
+8. reverify stage-directory identity, the exact single-entry set, and staged
+   source bytes/metadata/ancestry before publication;
 9. publish with `renameat2(RENAME_NOREPLACE)`; the earlier absence check alone
    is not authority and an existing destination must make publication fail;
 10. fsync the install parent;
-11. reverify installed bytes, metadata, and ancestry;
+11. reverify the installed root's exact single-entry set plus source bytes,
+    metadata, and ancestry;
 12. emit a content-addressed install receipt;
 13. **stop before root census execution**.
 
@@ -159,6 +169,8 @@ root_owned_same_filesystem_staging_required=true
 stage_directory_exact_metadata_required=true
 stage_descriptor_relative_creation_required=true
 stage_parent_descriptor_retention_required=true
+stage_descriptor_retention_required=true
+stage_exact_entry_set_required=true
 stage_same_mount_revalidation_required=true
 stage_ancestry_revalidation_required=true
 stage_revalidation_before_publication_required=true
@@ -166,6 +178,7 @@ source_file_fsync_required=true
 stage_directory_fsync_required=true
 install_parent_fsync_required=true
 post_install_exact_byte_reverification_required=true
+post_install_exact_entry_set_required=true
 post_install_ancestry_reverification_required=true
 install_receipt_required=true
 install_receipt_external_review_required=true
