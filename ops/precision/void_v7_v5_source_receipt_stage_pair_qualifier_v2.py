@@ -183,8 +183,6 @@ def verify_receipt(
     *,
     expected_uid:int=0,
     expected_gid:int=0,
-    max_nodes:int=MAX_CUSTODY_NODES,
-    max_depth:int=MAX_CUSTODY_DEPTH,
 )->dict[str,Any]:
     raw,st=read_regular(path,64*1024,label)
     if len(raw)!=expected_bytes:
@@ -254,6 +252,8 @@ def scan_staged_tree_custody(
     *,
     expected_uid:int=0,
     expected_gid:int=0,
+    max_nodes:int=MAX_CUSTODY_NODES,
+    max_depth:int=MAX_CUSTODY_DEPTH,
 )->dict[str,Any]:
     root_before=meta(root)
     if root_before.get("kind")!="directory" or root.resolve(strict=True)!=root:
