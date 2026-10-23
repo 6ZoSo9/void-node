@@ -7,6 +7,7 @@ import {
   ATTACH_BLOCK_RANGE_MAX_SPAN,
   attachBlockRangeErrorV1,
   parseAttachBlockRange,
+  resolveAttachBlockRangeAliasV1,
 } from "../src/http/api_attach.ts";
 
 const tsSource = readFileSync("src/http/api_attach.ts", "utf8");
@@ -24,6 +25,7 @@ for (const source of [tsSource, jsSource]) {
     /boundedTo - from >= .*ATTACH_BLOCK_RANGE_MAX_SPAN/,
   );
   assert.match(source, /parseAttachBlockRange\(/);
+  assert.match(source, /resolveAttachBlockRangeAliasV1/);
 }
 assert.doesNotMatch(
   tsSource,
@@ -37,6 +39,35 @@ assert.doesNotMatch(
 );
 
 assert.equal(ATTACH_BLOCK_RANGE_MAX_SPAN, 250);
+assert.deepEqual(
+  resolveAttachBlockRangeAliasV1("10", undefined),
+  { ok: true, value: "10" },
+);
+assert.deepEqual(
+  resolveAttachBlockRangeAliasV1(undefined, "10"),
+  { ok: true, value: "10" },
+);
+assert.deepEqual(
+  resolveAttachBlockRangeAliasV1(undefined, undefined),
+  { ok: true, value: undefined },
+);
+for (const [primary, alias] of [["10", "10"], ["10", "11"]]) {
+  assert.deepEqual(
+    resolveAttachBlockRangeAliasV1(primary, alias),
+    { ok: false, value: null },
+    "dual alias definitions must fail closed",
+  );
+}
+for (const source of [tsSource, jsSource]) {
+  assert.match(
+    source,
+    /resolveAttachBlockRangeAliasV1\(\s*req\.query\.from,\s*req\.query\.start/s,
+  );
+  assert.match(
+    source,
+    /resolveAttachBlockRangeAliasV1\(\s*req\.query\.to,\s*req\.query\.end/s,
+  );
+}
 assert.deepEqual(
   parseAttachBlockRange(undefined, undefined, 7),
   { from: 0, to: 7 },
