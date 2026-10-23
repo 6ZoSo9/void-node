@@ -33,8 +33,28 @@ function requireDemoAccessibility(html) {
   );
   assert.match(
     html,
-    /<pre id="resultBox" role="status" aria-live="polite" aria-atomic="true">No result yet\.<\/pre>/u,
-    "result and error text must be exposed as an atomic polite status",
+    /<div id="resultStatus" class="pill mb" role="status" aria-live="polite" aria-atomic="true"><span class="sr-only">Job result: <\/span><span id="resultStatusLabel">No result yet\.<\/span><\/div>/u,
+    "result changes must use a dedicated atomic polite status with an explicit subject",
+  );
+  assert.match(
+    html,
+    /<pre id="resultBox">No result yet\.<\/pre>/u,
+    "full result payload must remain outside live regions",
+  );
+  assert.match(
+    html,
+    /\$\("resultBox"\)\.textContent = JSON\.stringify\(j, null, 2\);\s*\$\("resultStatusLabel"\)\.textContent = "Result ready\.";/u,
+    "successful payloads must use a concise result-ready announcement",
+  );
+  assert.match(
+    html,
+    /\$\("resultBox"\)\.textContent = String\(e\);\s*\$\("resultStatusLabel"\)\.textContent = "Job failed\.";/u,
+    "error details must use a concise failure announcement",
+  );
+  assert.doesNotMatch(
+    html,
+    /\$\("resultStatusLabel"\)\.textContent = (?:JSON\.stringify\(|String\()/u,
+    "live result status must not receive unbounded payload or error text",
   );
   assert.match(
     html,
@@ -65,12 +85,36 @@ const negativeMutations = [
     error: /submission changes/u,
   },
   {
-    name: "missing_result_live_region",
+    name: "missing_result_status_live_region",
     html: source.replace(
-      'id="resultBox" role="status" aria-live="polite"',
-      'id="resultBox" role="status"',
+      'id="resultStatus" class="pill mb" role="status" aria-live="polite"',
+      'id="resultStatus" class="pill mb" role="status"',
     ),
-    error: /result and error text/u,
+    error: /dedicated atomic polite status/u,
+  },
+  {
+    name: "result_payload_made_live",
+    html: source.replace(
+      '<pre id="resultBox">',
+      '<pre id="resultBox" role="status" aria-live="polite" aria-atomic="true">',
+    ),
+    error: /outside live regions/u,
+  },
+  {
+    name: "unbounded_result_payload_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Result ready.";',
+      '$("resultStatusLabel").textContent = JSON.stringify(j, null, 2);',
+    ),
+    error: /concise result-ready announcement|must not receive unbounded/u,
+  },
+  {
+    name: "unbounded_result_error_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Job failed.";',
+      '$("resultStatusLabel").textContent = String(e);',
+    ),
+    error: /concise failure announcement|must not receive unbounded/u,
   },
   {
     name: "missing_health_subject",
@@ -81,6 +125,11 @@ const negativeMutations = [
     name: "missing_submission_subject",
     html: source.replace('<span class="sr-only">Job submission: </span>', ""),
     error: /submission changes must include an explicit accessible subject/u,
+  },
+  {
+    name: "missing_result_subject",
+    html: source.replace('<span class="sr-only">Job result: </span>', ""),
+    error: /explicit subject/u,
   },
   {
     name: "missing_focus_indicator",
@@ -101,6 +150,8 @@ console.log("VOID_PUBLIC_DEMO_ACCESSIBILITY_V1_GREEN");
 console.log("visible_job_message_label=true");
 console.log("health_status_live=true");
 console.log("submit_status_live=true");
-console.log("result_error_status_live=true");
+console.log("result_status_live=true");
+console.log("result_payload_live=false");
+console.log("result_status_bounded=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=7");
+console.log("negative_mutations=11");
