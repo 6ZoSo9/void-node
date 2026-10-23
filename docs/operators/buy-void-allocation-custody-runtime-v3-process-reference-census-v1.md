@@ -49,8 +49,11 @@ unbound target rescan.
 
 This generation is deliberately **unprivileged**.
 
-It refuses UID 0 execution from a user-owned diagnostic source and scans only
-processes whose procfs directory is owned by the caller's effective UID.
+It refuses UID 0 execution from a user-owned diagnostic source and classifies
+the current-UID process set from the **effective UID slot** in bounded
+`/proc/<pid>/status`, not from proc-directory ownership. The four UID slots are
+re-read after each process reference scan; a credential change or vanished
+status makes that process observation non-clean.
 
 A clean current-UID candidate also requires an externally reviewed host
 PID-namespace `dev:ino` lease. The census does not derive or mint that lease
@@ -85,6 +88,8 @@ It also never reads the pathname text behind `/proc/<pid>/fd/*`.
 
 For each current-UID process it observes only:
 
+- four UID slots from bounded `/proc/<pid>/status`, with the effective slot
+  selecting the current-UID set;
 - process generation from bounded `/proc/<pid>/stat`;
 - `cwd`, `root` and `exe` by kernel dev/inode identity;
 - open descriptors by kernel dev/inode identity;
@@ -166,6 +171,8 @@ Do not run this source with sudo. Root execution intentionally HOLDs.
 
 ```text
 read_only=true
+proc_status_effective_uid_classification=true
+process_uid_slots_stable_during_reference_scan=true
 host_pid_namespace_external_lease_required=true
 host_pid_namespace_lease_verified=true
 host_pid_namespace_lease_revalidated_after_census=true
