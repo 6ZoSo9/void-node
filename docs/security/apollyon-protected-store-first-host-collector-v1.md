@@ -56,7 +56,11 @@ Therefore the first pass cannot expose:
 - credentials, keys, wallets, or signer material.
 
 Absence or inactivity is evidence only and is never converted into publication,
-writer, release, or training authority.
+writer, release, or training authority. The receipt also keeps
+`installed_source_generation_metadata_observed`,
+`installed_package_runtime_metadata_observed`, and
+`installed_service_process_identity_observed` false unless the corresponding
+fixed objects/process were actually present and observed.
 
 ## Descriptor and metadata rules
 
@@ -151,9 +155,9 @@ source. It verifies:
 
 No Xiphos host pass is performed by CI.
 
-Source blob: `012f1b007c82b0b529e55ce1911dc2375d7a6894`.
+Source blob: `493945e73b7f718c728e17a4f14e04dc4a32edf4`.
 
-Proof blob: `c002dfe3c03ef80729077c1fbe9b743f650c340c`.
+Proof blob: `44e454a6e49629d0a2b8e6562c3e97e73c6afb86`.
 
 ## Next gate
 
