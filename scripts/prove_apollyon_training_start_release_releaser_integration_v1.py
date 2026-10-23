@@ -14,7 +14,7 @@ SOURCE = ROOT / "ops/xiphos/apollyon_training_start_release_releaser_integration
 TRAINER = ROOT / "ops/xiphos/apollyon_training_start_release_native_candidate_v1.c"
 PIPE_PAIR = ROOT / "ops/xiphos/apollyon_release_pipe_pair_generation_v1.c"
 
-SOURCE_BLOB = "afd2d6b78c89fda568fe25d885368c0f36a86fe7"
+SOURCE_BLOB = "24e2d1c94cac03f7370eb0133ba0fc4ca7fd23f7"
 TRAINER_BLOB = "098276fc92c247fa1465c11c6403c2c50a61629a"
 PIPE_PAIR_BLOB = "93390eefd1e72e70af7206e9982c8eaa5e042149"
 
@@ -106,6 +106,10 @@ for required in (
     "SYS_execve",
     "SYS_execveat",
     "sendmsg(1,&denied_message,0)",
+    "standard_fd_set_safe",
+    "fd_link_exact_at",
+    "IORING_SETUP_SQPOLL",
+    '"/dev/null"',
     "CASE_EXTRA_RELEASER_THREAD",
     "CASE_CHILD_RETAINS_WRITER",
     "CASE_WRONG_TRAINER_PIPE",
@@ -217,6 +221,8 @@ with tempfile.TemporaryDirectory(
         MARKER + "_SELF_TEST_GREEN",
         "parent_pipe_pair_blob_bound=" + PIPE_PAIR_BLOB,
         "trainer_native_blob_bound=" + TRAINER_BLOB,
+        "standard_descriptors_exactly_classified=true",
+        "inherited_sqpoll_standard_fd_rejected=true",
         "extra_releaser_thread_rejected=true",
         "child_retained_writer_rejected=true",
         "wrong_trainer_pipe_rejected=true",
@@ -294,6 +300,8 @@ print(MARKER + "_PROOF_GREEN")
 print("source_blob_pinned=true")
 print("parent_pipe_pair_blob_pinned=true")
 print("trainer_native_blob_pinned=true")
+print("standard_descriptors_exactly_classified=true")
+print("inherited_sqpoll_standard_fd_rejected=true")
 print("three_static_integration_builds_identical=true")
 print("integration_sha256=" + integration_sha256)
 print("actual_trainer_run_composed=true")
