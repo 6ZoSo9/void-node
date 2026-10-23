@@ -46,11 +46,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "ca6ccc75a2e3a3d9c1ecb968f06ddc50e98bc899"
+            "86c493d7acbe539fe898024474ed3c8815760603"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "2d48c531f62e5c2b0d44384f1fb05825786433e4"
+            "3c4e18bd2797f9e63aa7b1a1195eea1b1eac87bc"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.md)" = \
-            "e171b77cb2cef791caafa3a99dd216e7f5a22f31"
+            "5ca3e3264ed8278866c94e5cfa5befd4f8413ef4"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
             "feb6508133a1feda9bda793646a5c949f1fdc7f0"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
@@ -91,6 +91,9 @@ jobs:
             'root_execution_forbidden=true' \
             'all_process_reference_absence_proven=false' \
             'privileged_all_process_scan=false' \
+            'fd_table_stability_proven=false' \
+            'mapping_set_stability_proven=false' \
+            'live_at_use_reverification_required=true' \
             'production_filesystem_write=false' \
             'self_test_temporary_filesystem_write=true' \
             'replacement_apply_authorized=false' \
@@ -126,6 +129,9 @@ jobs:
             'root_execution_forbidden=true' \
             'all_process_reference_absence_proven=false' \
             'privileged_all_process_scan=false' \
+            'fd_table_stability_proven=false' \
+            'mapping_set_stability_proven=false' \
+            'live_at_use_reverification_required=true' \
             'host_census_not_executed_in_ci=true' \
             'production_filesystem_write=false' \
             'test_fixture_filesystem_write=true' \
