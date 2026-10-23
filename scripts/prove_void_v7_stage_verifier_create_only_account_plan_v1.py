@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN_REL = "ops/security/void_v7_stage_verifier_create_only_account_plan_v1.json"
 ROLE_REL = "ops/security/void_v7_v5_stage_role_separation_contract_v1.json"
 SOURCE_REL = "ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
-PLAN_BLOB = "e2e052fa0fa1858e842063f994ddd3e611772949"
+PLAN_BLOB = "d48634d76ca277794090423d98da978a791d0e28"
 ROLE_BLOB = "1dccc0f7fd1c74005b519113b0728ebd25477ad5"
 SOURCE_BLOB = "b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b"
 UPSTREAM_HEAD = "eca1b2313f7c384b619151998613d9374fde1bc2"
@@ -86,6 +86,10 @@ def classify_synthetic(snapshot):
         return "HOLD_LIVE_PROCESS_COLLISION"
     if not snapshot["system_ranges_match"] or not snapshot["local_slot_empty"]:
         return "HOLD_SYSTEM_SLOT_COLLISION"
+    if not snapshot["persistent_mount_scope_authenticated"]:
+        return "HOLD_FILESYSTEM_SCOPE"
+    if not snapshot["numeric_file_ownership_acl_collision_absent"]:
+        return "HOLD_ORPHANED_FILESYSTEM_AUTHORITY"
     if snapshot["nss_profile"] != "PASSWD_FILES_GROUP_FILES":
         return "HOLD_NONLOCAL_NSS"
     if not snapshot["host_pid_initial_user_namespace_leases"]:
@@ -207,6 +211,8 @@ expected_host_gates = (
     "exclude_all_four_live_uid_gid_slots_and_supplementary_groups",
     "exclude_deleted_account_live_process_ids_and_userns_collisions",
     "exclude_systemd_dynamic_user_or_service_id_reservations",
+    "authenticated_approved_persistent_local_filesystem_mount_scope_and_generation",
+    "exclude_preexisting_uid_gid_file_ownership_and_numeric_posix_acl_references",
     "repeat_complete_nss_and_live_process_census_immediately_before_each_creation",
     "create_only_group_then_create_only_user_no_modify_existing_entries",
     "bind_account_and_group_creation_to_exact_root_owned_host_receipt",
@@ -244,6 +250,8 @@ candidate = {
     "uid": 65000, "gid": 65001,  # Synthetic only, NEVER a host selection.
     "live_uid_slots": set(), "live_gid_slots": set(),
     "system_ranges_match": True, "local_slot_empty": True,
+    "persistent_mount_scope_authenticated": True,
+    "numeric_file_ownership_acl_collision_absent": True,
     "nss_profile": "PASSWD_FILES_GROUP_FILES",
     "host_pid_initial_user_namespace_leases": True,
     "complete_full_procfs_census": True,
@@ -277,6 +285,8 @@ negatives = (
     ({"live_gid_slots": {65001}}, "HOLD_LIVE_PROCESS_COLLISION"),
     ({"system_ranges_match": False}, "HOLD_SYSTEM_SLOT_COLLISION"),
     ({"local_slot_empty": False}, "HOLD_SYSTEM_SLOT_COLLISION"),
+    ({"persistent_mount_scope_authenticated": False}, "HOLD_FILESYSTEM_SCOPE"),
+    ({"numeric_file_ownership_acl_collision_absent": False}, "HOLD_ORPHANED_FILESYSTEM_AUTHORITY"),
     ({"nss_profile": "passwd:sss"}, "HOLD_NONLOCAL_NSS"),
     ({"host_pid_initial_user_namespace_leases": False}, "HOLD_NAMESPACE_LEASE"),
     ({"complete_full_procfs_census": False}, "HOLD_PROCFS_CENSUS"),
