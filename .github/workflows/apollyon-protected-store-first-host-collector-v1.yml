@@ -48,9 +48,9 @@ jobs:
             | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_protected_store_first_host_collector_v1.py)" = 9cca0579810e91a7e55293041ab52bcc632823c2
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = 79e269468b74f783889d22acdfb697af0402001d
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = 547ae2e2ebd9a0d03d75449476564745f107c3a0
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_protected_store_first_host_collector_v1.py)" = 7a5380491c31eb4967547c7f1f3c84ba28161230
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = 379dc89bccc127fcaedd728a34cd392c34b134da
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = d6662d288a07df3443f33f39e76ac3a5cbc9e917
 
           test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26
           test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 45ab6a6cbfea05d61617de294d18ed7dec07fae9
@@ -106,6 +106,7 @@ jobs:
             'directory_enumeration_not_required=true' \
             'acl_adversary_rejected=true' \
             'terminal_metadata_drift_rejected=true' \
+            'ambiguous_stacked_mount_rejected=true' \
             'systemctl_show_only_contract=true' \
             'host_pass_performed=false' \
             'filesystem_mutation=false' \
