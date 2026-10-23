@@ -31,7 +31,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE_REL=
   "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs";
 const PINS=Object.freeze({
-  [SOURCE_REL]:"4ed37732debf446a7d2e9c32784f2bbdaf84ad05",
+  [SOURCE_REL]:"cf934d43324370a05bb2790bfa5fad0f482121cc",
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
     "079576db7f880872f2d4dea8e7759bd536161516",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
@@ -172,6 +172,7 @@ const candidateAgain=
   buildApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(requestInput);
 assert.deepEqual(candidateAgain,candidate);
 assert(Object.isFrozen(candidate));
+assert.equal(candidate.version,2);
 assert.match(
   candidate.revalidator_candidate_id,
   /^apollyon_training_start_protected_store_revalidator_v2:[0-9a-f]{64}$/u,
@@ -360,6 +361,12 @@ assert.equal(
     encodeApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(candidate),
   );
   const originalStringify=JSON.stringify;
+  const originalGetPrototypeOf=Object.getPrototypeOf;
+  const originalGetOwnPropertyDescriptor=Object.getOwnPropertyDescriptor;
+  const originalHasOwn=Object.hasOwn;
+  const originalOwnKeys=Reflect.ownKeys;
+  const originalIsSafeInteger=Number.isSafeInteger;
+  const originalIsArray=Array.isArray;
   let toJSONGetterCalls=0;
   Object.defineProperty(Object.prototype,"toJSON",{
     configurable:true,
@@ -369,6 +376,12 @@ assert.equal(
     },
   });
   JSON.stringify=()=>{throw new Error("poisoned JSON.stringify");};
+  Object.getPrototypeOf=()=>{throw new Error("poisoned Object.getPrototypeOf");};
+  Object.getOwnPropertyDescriptor=()=>{throw new Error("poisoned descriptor");};
+  Object.hasOwn=()=>{throw new Error("poisoned hasOwn");};
+  Reflect.ownKeys=()=>{throw new Error("poisoned ownKeys");};
+  Number.isSafeInteger=()=>{throw new Error("poisoned isSafeInteger");};
+  Array.isArray=()=>{throw new Error("poisoned isArray");};
   try{
     const qualified=
       qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(
@@ -384,6 +397,12 @@ assert.equal(
     assert.equal(toJSONGetterCalls,0);
   }finally{
     JSON.stringify=originalStringify;
+    Object.getPrototypeOf=originalGetPrototypeOf;
+    Object.getOwnPropertyDescriptor=originalGetOwnPropertyDescriptor;
+    Object.hasOwn=originalHasOwn;
+    Reflect.ownKeys=originalOwnKeys;
+    Number.isSafeInteger=originalIsSafeInteger;
+    Array.isArray=originalIsArray;
     delete Object.prototype.toJSON;
   }
 }
@@ -482,6 +501,7 @@ console.log("exact_fixture_custody_source_blob_bound=true");
 console.log("public_candidate_content_addressed=true");
 console.log("flat_primitive_content_address_json_independent=true");
 console.log("post_import_json_tojson_poisoning_does_not_change_candidate_bytes=true");
+console.log("captured_reflection_primordials_bound=true");
 console.log("revoked_proxy_candidate_rejected=true");
 console.log("reviewed_canonicalizer_v2_future_host_required=true");
 console.log("parent_v1_request_host_realm_proven=false");
