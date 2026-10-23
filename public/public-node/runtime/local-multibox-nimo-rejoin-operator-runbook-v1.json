@@ -5,6 +5,7 @@
   "updated_utc": "2026-07-04T12:29:35Z",
   "summary": {
     "documents_manual_rejoin_after_precision_restart": true,
+    "manual_dial_may_update_local_peer_state": true,
     "automatic_peer_dial_enabled": false,
     "nimo_http_observed_from_precision": false,
     "nimo_ssh_observed_from_precision": false,
@@ -24,9 +25,14 @@
     }
   },
   "operator_commands": {
-    "manual_dial": "curl -fsS -X POST -H 'content-type: application/json' --data '{\"addr\":\"192.168.1.99:4701\"}' http://127.0.0.1:4100/p2p/dial | jq .",
+    "manual_dial": "curl --fail-with-body --silent --show-error -X POST -H 'content-type: application/json' --data '{\"addr\":\"192.168.1.99:4701\"}' http://127.0.0.1:4100/p2p/dial | jq .",
     "verify_health": "curl -fsS http://127.0.0.1:4100/health | jq .",
-    "verify_peers": "curl -fsS http://127.0.0.1:4100/peers | jq ."
+    "verify_peers": "curl -fsS http://127.0.0.1:4100/p2p/peers | jq ."
+  },
+  "dial_outcomes": {
+    "accepted_response": "{\"ok\":true,\"dialing\":\"...\"} means the HTTP handler accepted the address for handoff; it does not prove that canonical address parsing succeeded, a socket was opened, or the peer connected.",
+    "rejected_response": "{\"ok\":false,\"error\":\"...\"} reports an immediate rejection; keep the response body and correct the address or local-node problem before retrying.",
+    "connection_verification": "Confirm the expected peer id appears in the local /p2p/peers snapshot."
   },
   "expected_after_rejoin": {
     "peer_id": "042c8b22f14cf343139e9bc806937bf3",
@@ -41,11 +47,11 @@
     "runbook_html": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html"
   },
   "boundary": {
-    "read_only": true,
+    "read_only": false,
     "public_routes_only": true,
     "operator_guidance_only": true,
     "automatic_peer_dial_enabled_by_this_runbook": false,
-    "mutation_route_enabled": false,
+    "mutation_route_enabled": true,
     "wallet_send_enabled": false,
     "money_movement_enabled": false,
     "buy_void_fulfillment_enabled": false,
