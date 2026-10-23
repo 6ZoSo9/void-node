@@ -14,7 +14,7 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "25a0913606baa3303743f36a8c79f3c7a14ea159"
+EXPECTED_SOURCE_BLOB = "9738f14111fc03dffe9afb04f7bede73ceb13087"
 
 
 def git_blob(raw: bytes) -> str:
@@ -36,16 +36,16 @@ assert module.MARKER == (
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS_V1"
 )
 assert module.PARENT_CURRENT_UID_HEAD == (
-    "5bfd56c850513c7b416fe0b2f854ee9b12e764e4"
+    "7736a3a5c53da37448c357a5d98e4dad09f3f617"
 )
 assert module.PARENT_CURRENT_UID_SOURCE_BLOB == (
-    "ded737a228a627a241a84131113db6d3521f635c"
+    "6bf476e3383b7b18966320df13b4041da9c8c11f"
 )
 assert module.PRESTATE_HEAD == (
-    "836f5e704a603f67b77b2406aeec9174f640497e"
+    "7736a3a5c53da37448c357a5d98e4dad09f3f617"
 )
 assert module.PRESTATE_SOURCE_BLOB == (
-    "4d9c6e5809a5cc64454626760f71e60ed99354bc"
+    "e32ebd94ad09cd80e03489079e74657aab159d7a"
 )
 assert module.ARCHIVE_LOCK_BLOB == (
     "edb4ea2b833373ab387762e45ba7da4032c860f3"
@@ -82,6 +82,9 @@ assert module.verify_pid_namespace_lease_stats(
 assert module.verify_mount_namespace_lease_stats(
     fake_self, fake_init, (12, 34)
 ) == (12, 34)
+assert module.verify_user_namespace_lease_stats(
+    fake_self, fake_init, (12, 34)
+) == (12, 34)
 for fn, wrong, marker in (
     (
         module.verify_pid_namespace_lease_stats,
@@ -93,6 +96,11 @@ for fn, wrong, marker in (
         type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
         "not_in_pid1_mount_namespace",
     ),
+    (
+        module.verify_user_namespace_lease_stats,
+        type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
+        "not_in_pid1_user_namespace",
+    ),
 ):
     try:
         fn(fake_self, wrong, (12, 34))
@@ -100,6 +108,15 @@ for fn, wrong, marker in (
         assert marker in str(exc)
     else:
         raise AssertionError("private namespace accepted: " + marker)
+
+try:
+    module.verify_user_namespace_lease_stats(
+        fake_self, fake_init, (12, 35)
+    )
+except module.CensusHold as exc:
+    assert "host_user_namespace_lease_mismatch" in str(exc)
+else:
+    raise AssertionError("host user namespace lease mismatch accepted")
 
 assert module.verify_host_filesystem_root_stats(
     fake_self, fake_init
@@ -430,6 +447,9 @@ for required in (
     "host_pid_namespace_lease_verified",
     "host_mount_namespace_external_lease_required",
     "host_mount_namespace_lease_verified",
+    "host_user_namespace_external_lease_required",
+    "host_user_namespace_lease_verified",
+    "verify_user_namespace_lease_stats",
     "verify_host_filesystem_root_stats",
     "open_retained_host_root",
     "revalidate_retained_host_root",
@@ -477,6 +497,7 @@ process_index = census_block.index("all_process_census(")
 assert protected_index < python_index < process_index
 assert "expected_host_pid_namespace_dev_ino" in census_block
 assert "expected_host_mount_namespace_dev_ino" in census_block
+assert "expected_host_user_namespace_dev_ino" in census_block
 
 print(
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_"
@@ -499,6 +520,9 @@ print("host_pid_namespace_lease_mismatch_rejected=true")
 print("host_mount_namespace_external_lease_required=true")
 print("private_mount_namespace_rejected=true")
 print("host_mount_namespace_lease_mismatch_rejected=true")
+print("host_user_namespace_external_lease_required=true")
+print("private_user_namespace_rejected=true")
+print("host_user_namespace_lease_mismatch_rejected=true")
 print("host_filesystem_root_matches_pid1=true")
 print("retained_host_root_target_resolution_tested=true")
 print("target_resolved_via_retained_host_root=true")

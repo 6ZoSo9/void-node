@@ -32,7 +32,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          BASE="5bfd56c850513c7b416fe0b2f854ee9b12e764e4"
+          BASE="7736a3a5c53da37448c357a5d98e4dad09f3f617"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
@@ -47,15 +47,15 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "25a0913606baa3303743f36a8c79f3c7a14ea159"
+            "9738f14111fc03dffe9afb04f7bede73ceb13087"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "3f9e30ddd89f36b37f6d7f9754f95f7d190d4da3"
+            "127340dbc839718ae40e216b9edf0ba9fcaf4435"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" = \
-            "6424b96d89a4109a42ed73b3dc8c88b78e9589d4"
+            "dacabdee63158c37f39d22489dc1cbf87752705d"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "ded737a228a627a241a84131113db6d3521f635c"
+            "6bf476e3383b7b18966320df13b4041da9c8c11f"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
+            "e32ebd94ad09cd80e03489079e74657aab159d7a"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
@@ -93,6 +93,9 @@ jobs:
             'host_mount_namespace_external_lease_required=true' \
             'private_mount_namespace_rejected=true' \
             'host_mount_namespace_lease_mismatch_rejected=true' \
+            'host_user_namespace_external_lease_required=true' \
+            'private_user_namespace_rejected=true' \
+            'host_user_namespace_lease_mismatch_rejected=true' \
             'host_filesystem_root_matches_pid1=true' \
             'target_resolved_via_retained_host_root=true' \
             'retained_host_root_used=true' \
@@ -163,6 +166,9 @@ jobs:
             'host_mount_namespace_external_lease_required=true' \
             'private_mount_namespace_rejected=true' \
             'host_mount_namespace_lease_mismatch_rejected=true' \
+            'host_user_namespace_external_lease_required=true' \
+            'private_user_namespace_rejected=true' \
+            'host_user_namespace_lease_mismatch_rejected=true' \
             'host_filesystem_root_matches_pid1=true' \
             'retained_host_root_target_resolution_tested=true' \
             'target_resolved_via_retained_host_root=true' \
