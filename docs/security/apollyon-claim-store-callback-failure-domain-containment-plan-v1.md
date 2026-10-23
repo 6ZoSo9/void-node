@@ -100,13 +100,18 @@ The **future** supervisor must therefore prove all thirteen additional propertie
     absence as evidence that its request had no effect.
 13. **Restart authority must be backed by durable, monotonic fencing.**
     A supervisor-owned process lock can disappear while a worker survives.
-    Persist exact in-flight request/epoch/mutation-UNKNOWN identity in a
-    separately authoritative store, or enforce an equivalent non-reusable
-    generation fence at every protected mutation. Restart/reacquire must HOLD
-    while any earlier worker generation can write. Only independently proven
-    worker-tree quiescence plus terminal store/winner/claim/source revalidation
-    may resolve the record. UNKNOWN effects remain indeterminate and cannot
-    authorize automatic retry or a second one-time consumption.
+    **Before the worker is launched or can execute callback/store mutation,**
+    the supervisor must atomically publish and durably fsync the exact in-flight
+    request/epoch with mutation state UNKNOWN in a separately authoritative
+    store (or establish an equivalent non-reusable durable generation fence).
+    Failure to prove that pre-launch durable commit is HOLD; a later intent
+    record cannot retroactively fence an already-running worker. Restart or
+    reacquire must HOLD while any earlier worker generation can write. The
+    durable UNKNOWN/in-flight fence may be cleared or terminally resolved only
+    after independently proven worker-tree quiescence **and** terminal
+    store/winner/claim/source revalidation under the current fencing authority.
+    UNKNOWN effects remain indeterminate and cannot authorize automatic retry
+    or a second one-time consumption.
 
 ### Exact reviewed resource ceilings
 
@@ -173,7 +178,7 @@ training or funds movement.
 
 Content-addressed plan ID (successor to historical `voidapollyonclaimcallbackcontain1_0e0794baead1aa6571c8f0820a32d5951e24dfefb164445c0591c1d94bc5166c`):
 
-`voidapollyonclaimcallbackcontain1_17848cb11147fb0284268258e784826daf75630687abec922c4dd5d972b7be68` (previous kernel-resource generation: `voidapollyonclaimcallbackcontain1_23da91144e3da950951f871aba23166aedd6acbf13db061f4623728a8d1d656a`)
+`voidapollyonclaimcallbackcontain1_7c0ed39e634dabcfa229b8e0cbca786b79eac85cfd587167c165fe7fe7df8c19` (previous exact-ceiling generation: `voidapollyonclaimcallbackcontain1_d5ede06832f2480774f989e95eadd2759ab7081a2adbab4bcc9dc575afbc965f`; previous supervisor-death generation: `voidapollyonclaimcallbackcontain1_17848cb11147fb0284268258e784826daf75630687abec922c4dd5d972b7be68`)
 
 ## October 20 — semantic negative-proof and source-role binding
 
@@ -192,7 +197,7 @@ cannot be substituted for `core`, `transaction_lease`, `native_bridge`
 or the two proofs. Two new negative cases swap core/lease roles and
 duplicate the bridge record under the core role; both must fail at
 `bound_source_role_invalid:core`, **not** at the final content hash.
-The earlier semantic-proof generation increased the source-only adversary count from 44 to **48**; the supervisor-death generation raised it to **50**. The current exact-ceiling generation adds two explicit enforcement requirements plus 18 per-resource adversaries for **70** total, with explicit
+The earlier semantic-proof generation increased the source-only adversary count from 44 to **48**; the supervisor-death generation raised it to **50**. The exact-ceiling generation added two enforcement requirements plus 18 per-resource adversaries for **70** total. The current durable pre-launch/terminal-clear fencing-order generation adds two more semantic requirements for **72** total, with explicit
 proof output `negative_cases_failed_at_semantic_gate=true` and
 `bound_source_role_identities_enforced=true`.
 
@@ -209,7 +214,8 @@ custody, inherited-FD allowlisting, minimal environment, a post-callback event-l
 checkpoint, clean-exit gating before success acknowledgement, abnormal-exit HOLD,
 **bounded canonical IPC receipt framing and independent stdout/stderr/log capture budgets**,
 pre-exec exact memory/swap/PID/CPU/FD/file-size/filesystem-capacity/I/O quotas and quota/OOM-event fencing,
-supervisor-crash old-worker quiescence and durable restart-era fencing,
+supervisor-crash old-worker quiescence, a durably committed UNKNOWN/in-flight epoch
+**before worker launch**, fence clearing only after quiescence plus terminal revalidation,
 post-mutation indeterminate handling without automatic replay, and terminal revalidation of
 store generation, peer identity, and callback source identity.
 
