@@ -4,6 +4,11 @@ Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_REPLACEMENT_READINESS_PLAN_V1`.
 
 Status: **source-only readiness classification; replacement remains unauthorized**.
 
+Current repair generation restacks these four plan files on current #3752
+`7736a3a5c53da37448c357a5d98e4dad09f3f617`, which already contains the
+repaired prestate source. The classifier cannot promote contradictory receipt
+claims into `diagnostic_inputs_complete=true`.
+
 This successor composes the current V3 diagnostic generations without turning
 their observations into replacement authority.
 
@@ -11,15 +16,16 @@ their observations into replacement authority.
 
 The classifier binds these source generations:
 
-- prestate census:
-  - head `836f5e704a603f67b77b2406aeec9174f640497e`
-  - Git blob `4d9c6e5809a5cc64454626760f71e60ed99354bc`
+- repaired prestate census carried by current #3752:
+  - head `7736a3a5c53da37448c357a5d98e4dad09f3f617`
+  - Git blob `e32ebd94ad09cd80e03489079e74657aab159d7a`
+  - symlink target text is not read, HOLD paths are redacted, and atime writes are reported as possible
 - service-quiescence census:
   - head `b52752700e44dea447c0fda76c61bcf32228416e`
   - Git blob `90358ef1df3ecfa3daeee39452ffd025e9a8d86e`
 - current-UID process-reference census:
-  - head `2f58b776c4ba5b4c1b309d122122bd3355e2abc9`
-  - Git blob `a5fa6ff22cc21df555e8a70c32500f07251dc4a8`
+  - head `7736a3a5c53da37448c357a5d98e4dad09f3f617`
+  - Git blob `6bf476e3383b7b18966320df13b4041da9c8c11f`
 - accepted V3 archive lock:
   - Git blob `edb4ea2b833373ab387762e45ba7da4032c860f3`
   - SHA-256
@@ -44,8 +50,27 @@ process
 No caller approval or apply field is accepted.
 
 Every receipt must match the current source schema/marker and the exact accepted
-archive lock. All mutation/economic authority fields carried by those receipt
-generations must remain false.
+archive lock. Every mutation, privacy-sensitive read, and economic-authority
+boolean carried by the pinned generation is validated at its exact expected
+value rather than ignored as caller-controlled decoration.
+
+The repaired prestate receipt is intentionally **not** described as write-free:
+it must report explicit filesystem writes false, filesystem-write-free false,
+and atime-write-possible true. Archive extraction, permission mutation, service
+mutation, process/env/argument reads, request/custody-data reads, credential or
+wallet access, target selection/replacement, runtime integration, payment,
+presale and funds authority must all remain false.
+
+The quiescence receipt must remain systemd-show-only with daemon reload,
+start/stop/restart, socket connect/unlink, filesystem/systemd mutation, private
+data/credential reads, target selection/replacement and all economic authority
+false.
+
+The process receipt must retain its exact no-direct-PID1-namespace-read,
+unauthenticated namespace-lease provenance, no process env/args/cmdline/environ
+or FD-target-text access, no service/systemd mutation, no target selection or
+replacement, and no runtime/payment/presale/funds authority. Any contradiction
+HOLDs before diagnostic completeness is considered.
 
 The prestate receipt may describe an absent or present legacy target. For an
 existing-target replacement candidate, it must show:
@@ -65,7 +90,9 @@ The process receipt may contribute only the current-UID absence candidate. It
 must carry reviewed external **PID- and mount-namespace** leases, require both
 leases to match PID 1 and the retained procfs view, prove the fixed target was
 resolved in that host mount namespace, retain unrestricted procfs visibility,
-and carry a stable selected target snapshot plus exact no-authority fields. Its
+terminally revalidate that visibility/retained procfs view, and carry a stable
+selected target snapshot plus the exact no-mutation/no-private-read/no-authority
+contract from the pinned source. Its
 own generation must still say:
 
 ```text
