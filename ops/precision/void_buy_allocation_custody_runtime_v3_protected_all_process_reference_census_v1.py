@@ -1210,7 +1210,8 @@ def classify_attempt(
             row.get("status") == "not_live" for row in rows
         ),
         "reference_count_by_kind": by_kind,
-        "all_process_target_reference_absent_observed": clean,
+        "host_scoped_target_reference_absent_candidate": clean,
+        "all_process_target_reference_absent_observed": False,
         "all_process_reference_absence_proven": False,
         "fd_table_stability_proven": False,
         "mapping_set_stability_proven": False,
@@ -1257,7 +1258,7 @@ def all_process_census(
             attempts.append({"attempt": attempt, **classified})
             if classified["referenced_process_count"] > 0:
                 break
-            if classified["all_process_target_reference_absent_observed"]:
+            if classified["host_scoped_target_reference_absent_candidate"]:
                 break
 
         terminal_scope = revalidate_pinned_proc_view(
@@ -1276,8 +1277,9 @@ def all_process_census(
             "attempt_count": len(attempts),
             "attempts": attempts,
             "selected_attempt": selected["attempt"],
-            "all_process_target_reference_absent_observed":
-                selected["all_process_target_reference_absent_observed"],
+            "host_scoped_target_reference_absent_candidate":
+                selected["host_scoped_target_reference_absent_candidate"],
+            "all_process_target_reference_absent_observed": False,
             "all_process_reference_absence_proven": False,
             "fd_table_stability_proven": False,
             "mapping_set_stability_proven": False,
@@ -1369,8 +1371,10 @@ def self_test() -> None:
         {"pid": 3, "status": "not_live"},
     ]
     clean = classify_attempt([1, 2, 3], [1, 2, 3], clean_rows, True)
-    if clean["all_process_target_reference_absent_observed"] is not True:
-        hold("self_test_clean_observation_rejected")
+    if clean["host_scoped_target_reference_absent_candidate"] is not True:
+        hold("self_test_clean_candidate_rejected")
+    if clean["host_scoped_target_reference_absent_candidate"] is not False:
+        hold("self_test_untrusted_lease_promoted")
     if (
         clean["all_process_reference_absence_proven"] is not False
         or clean["fd_table_stability_proven"] is not False
@@ -1494,6 +1498,8 @@ def self_test() -> None:
     print("target_resolved_in_host_mount_namespace=true")
     print("host_namespace_lease_provenance_authenticated_by_census=false")
     print("separately_reviewed_host_namespace_lease_required=true")
+    print("host_scoped_target_reference_absent_candidate_only=true")
+    print("all_process_target_reference_absent_observed=false")
     print("task_inventory_generation_stability_required=true")
     print("per_thread_files_fs_reference_scan_required=true")
     print("bounded_task_inventory_required=true")
