@@ -93,9 +93,12 @@ argv, environment, open file names, sockets, memory, or credentials.
 The collector also repeats the complete pass-level observations after the
 service/process sample: machine identity, trusted ancestors, every fixed path,
 mount metadata, and the closed systemd property set must compare exactly with
-their first samples. Any cross-pass drift is HOLD. This is not an atomic kernel
-snapshot, but it prevents a successful receipt from silently combining
-different before/after host generations.
+their first samples. After the second systemd sample it re-observes the service
+process subject and requires exact equality with the first process observation,
+so even a fast restart that reuses the same numeric PID cannot be silently
+combined. Any cross-pass drift is HOLD. This is not an atomic kernel snapshot,
+but it prevents a successful receipt from silently combining different
+before/after host generations.
 
 ## Authority semantics
 
@@ -146,9 +149,9 @@ source. It verifies:
 
 No Xiphos host pass is performed by CI.
 
-Source blob: `7a5380491c31eb4967547c7f1f3c84ba28161230`.
+Source blob: `012f1b007c82b0b529e55ce1911dc2375d7a6894`.
 
-Proof blob: `379dc89bccc127fcaedd728a34cd392c34b134da`.
+Proof blob: `38dca4c29c397c39dcc6b0fe26fc2486c7012fa4`.
 
 ## Next gate
 
