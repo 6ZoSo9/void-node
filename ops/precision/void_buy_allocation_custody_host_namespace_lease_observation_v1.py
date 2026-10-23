@@ -266,6 +266,28 @@ def _lease_string(value: tuple[int, int]) -> str:
     return str(value[0]) + ":" + str(value[1])
 
 
+def _verify_namespace_pair(
+    self_identity: tuple[int, int],
+    init_identity: tuple[int, int],
+    *,
+    mismatch_code: str,
+) -> tuple[int, int]:
+    if (
+        len(self_identity) != 2
+        or len(init_identity) != 2
+        or any(
+            not isinstance(value, int)
+            or isinstance(value, bool)
+            or value <= 0
+            for value in (*self_identity, *init_identity)
+        )
+    ):
+        hold("namespace_pair_identity_invalid")
+    if self_identity != init_identity:
+        hold(mismatch_code)
+    return self_identity
+
+
 def _verify_proc_mountinfo(raw: bytes, expected_mount_id: int) -> dict[str, Any]:
     try:
         text = raw.decode("utf-8", errors="strict")
@@ -362,10 +384,16 @@ def observe_host_namespace_candidates() -> dict[str, Any]:
         self_mnt = _namespace_identity_at(proc_fd, "self/ns/mnt")
         init_mnt = _namespace_identity_at(proc_fd, "1/ns/mnt")
 
-        if self_pid != init_pid:
-            hold("not_in_pid1_pid_namespace")
-        if self_mnt != init_mnt:
-            hold("not_in_pid1_mount_namespace")
+        self_pid = _verify_namespace_pair(
+            self_pid,
+            init_pid,
+            mismatch_code="not_in_pid1_pid_namespace",
+        )
+        self_mnt = _verify_namespace_pair(
+            self_mnt,
+            init_mnt,
+            mismatch_code="not_in_pid1_mount_namespace",
+        )
 
         terminal_pid = _namespace_identity_at(proc_fd, "self/ns/pid")
         terminal_init_pid = _namespace_identity_at(proc_fd, "1/ns/pid")
@@ -442,12 +470,25 @@ def observe_host_namespace_candidates() -> dict[str, Any]:
 def self_test() -> None:
     verify_process_census_source()
 
-    fake_a = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
-    fake_b = type("FakeStat", (), {"st_dev": 12, "st_ino": 35})()
     if _lease_string((12, 34)) != "12:34":
         hold("self_test_lease_format_invalid")
-    if (fake_a.st_dev, fake_a.st_ino) == (fake_b.st_dev, fake_b.st_ino):
-        hold("self_test_namespace_difference_invalid")
+    if _verify_namespace_pair(
+        (12, 34),
+        (12, 34),
+        mismatch_code="synthetic_namespace_mismatch",
+    ) != (12, 34):
+        hold("self_test_namespace_pair_positive_invalid")
+    for code in (
+        "not_in_pid1_pid_namespace",
+        "not_in_pid1_mount_namespace",
+    ):
+        try:
+            _verify_namespace_pair((12, 34), (12, 35), mismatch_code=code)
+        except CensusHold as exc:
+            if code not in str(exc):
+                raise
+        else:
+            hold("self_test_namespace_pair_mismatch_accepted")
 
     visible = (
         b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
@@ -486,6 +527,8 @@ def self_test() -> None:
     print("mount_namespace_candidate_format=true")
     print("pid1_namespace_match_required=true")
     print("mount_namespace_match_required=true")
+    print("pid_namespace_mismatch_rejected=true")
+    print("mount_namespace_mismatch_rejected=true")
     print("complete_proc_visibility_required=true")
     print("hidepid_restricted_proc_holds=true")
     print("descriptor_relative_bounded_reader_tested=true")
