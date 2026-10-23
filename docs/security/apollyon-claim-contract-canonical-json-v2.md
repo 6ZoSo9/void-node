@@ -30,11 +30,11 @@ historical V1 hashes.
 - V2 serializer path:
   `tools/apollyon-claim-contract-canonical-json-v2.mjs`
 - V2 serializer Git blob:
-  `7880229ec73d22c51b176f9a07a64a54f3ac89ae`
+  `5580cf87064deba12dc6191465db4ce9824828fc`
 - V2 proof path:
   `scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs`
 - V2 proof Git blob:
-  `789f0717fdf9ef08da34576e526c9798cd8d139e`
+  `b4d36417fbbe0ce4532375f432e31c6f488debbb`
 
 The branch is four ADD-only paths. V1 and all current consumers remain byte
 unchanged.
