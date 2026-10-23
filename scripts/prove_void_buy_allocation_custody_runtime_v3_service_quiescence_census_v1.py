@@ -11,7 +11,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "7fc110cea870b3ec6aed4df84e5b7bb2ce2f635f"
+EXPECTED_SOURCE_BLOB = "b396aa65ce1b130eea9813819c1a240037b72106"
 
 def git_blob(raw: bytes) -> str:
     prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
@@ -99,6 +99,38 @@ loaded_result = module.classify(loaded, absent_runtime, absent_socket)
 assert loaded_result["service_inactive_observed"] is True
 assert loaded_result["service_quiescence_candidate"] is True
 assert loaded_result["service_quiescence_proven"] is False
+
+enabled = dict(loaded)
+enabled["UnitFileState"] = "enabled"
+assert module.classify(
+    enabled,
+    absent_runtime,
+    absent_socket,
+)["service_quiescence_candidate"] is False
+
+reload_pending = dict(loaded)
+reload_pending["NeedDaemonReload"] = "yes"
+assert module.classify(
+    reload_pending,
+    absent_runtime,
+    absent_socket,
+)["service_quiescence_candidate"] is False
+
+runtime_present = {
+    "path": "/run/void-allocation-custody-v1",
+    "state": "present",
+    "kind": "directory",
+    "uid": 994,
+    "gid": 981,
+    "mode": "0750",
+    "dev": 1,
+    "ino": 2,
+}
+assert module.classify(
+    loaded,
+    runtime_present,
+    absent_socket,
+)["service_quiescence_candidate"] is False
 
 active = dict(loaded)
 active["ActiveState"] = "active"
@@ -194,13 +226,17 @@ print("systemctl_show_only=true")
 print("systemctl_mutating_verbs_absent=true")
 print("exact_source_blob_asserted=true")
 print("inactive_service_candidate_classified=true")
+print("enabled_unit_rejected=true")
+print("pending_daemon_reload_rejected=true")
+print("lingering_runtime_directory_rejected=true")
 print("active_service_rejected=true")
 print("present_socket_rejected=true")
 print("service_quiescence_proven=false")
 print("live_process_binding_checked=false")
 print("host_census_not_executed_in_ci=true")
-print("read_only=true")
-print("filesystem_write=false")
+print("production_read_only=true")
+print("production_filesystem_write=false")
+print("test_fixture_filesystem_write=true")
 print("systemd_mutation=false")
 print("daemon_reload=false")
 print("service_start=false")
