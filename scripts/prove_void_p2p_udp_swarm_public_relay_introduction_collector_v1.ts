@@ -1057,6 +1057,9 @@ const intervalHandle = {
 let concurrentStartCollector:
   | VoidUdpSwarmPublicRelayIntroductionCollectorV1
   | undefined;
+let synchronousReentrantStart:
+  | ReturnType<VoidUdpSwarmPublicRelayIntroductionCollectorV1["start"]>
+  | undefined;
 try {
   globalThis.setInterval = ((callback: () => void) => {
     scheduledIntervals.push(callback);
@@ -1076,6 +1079,10 @@ try {
       intervalMs: 10_000,
       nowMs: () => NOW,
       async fetchIntroduction() {
+        if (!synchronousReentrantStart) {
+          assert(concurrentStartCollector);
+          synchronousReentrantStart = concurrentStartCollector.start();
+        }
         reportConcurrentStartFetchStarted();
         await concurrentStartFetchGate;
         return envelope();
@@ -1095,9 +1102,27 @@ try {
       },
     });
 
+  let firstStartSettled = false;
   const firstStart = concurrentStartCollector.start();
+  void firstStart.then(() => {
+    firstStartSettled = true;
+  });
+  const sameTurnManual = concurrentStartCollector.runOnce();
+
   await concurrentStartFetchStarted;
-  const secondStart = concurrentStartCollector.start();
+  assert(synchronousReentrantStart);
+  const secondStart = synchronousReentrantStart;
+  assert.equal(secondStart, firstStart,
+    "synchronous reentrant start must receive the published startup latch");
+
+  const manualOutcome = await sameTurnManual;
+  assert.equal(manualOutcome.reason, "run_already_in_progress",
+    "same-turn manual run cannot seize the startup run lock");
+  assert.equal(firstStartSettled, false,
+    "start must remain pending until the real initial sweep completes");
+  assert.equal(scheduledIntervals.length, 0,
+    "scheduler cannot install before the initial sweep completes");
+
   releaseConcurrentStartFetch();
   const [firstOutcome, secondOutcome] = await Promise.all([
     firstStart,
@@ -1140,5 +1165,8 @@ console.log("zero_progress_transport_stream_rejected=true");
 console.log("settled_transport_read_failure_releases_reader=true");
 console.log("signal_ignoring_transport_read_deadline_owned=true");
 console.log("concurrent_start_single_scheduler=true");
+console.log("synchronous_reentrant_start_single_scheduler=true");
+console.log("same_turn_run_once_cannot_steal_startup_lock=true");
+console.log("startup_scheduler_waits_for_initial_sweep=true");
 console.log("nonsettling_transport_cancel_does_not_extend_deadline=true");
 console.log(MARKER);
