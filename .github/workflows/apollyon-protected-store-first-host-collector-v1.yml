@@ -48,9 +48,9 @@ jobs:
             | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_protected_store_first_host_collector_v1.py)" = 012f1b007c82b0b529e55ce1911dc2375d7a6894
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = c002dfe3c03ef80729077c1fbe9b743f650c340c
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = a71dedf4f288f08d7011dfe103fc92683e292885
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_protected_store_first_host_collector_v1.py)" = 493945e73b7f718c728e17a4f14e04dc4a32edf4
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = 44e454a6e49629d0a2b8e6562c3e97e73c6afb86
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = a20dc26eb9ac16421b91290bcf149cbdef8a58d0
 
           test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26
           test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 45ab6a6cbfea05d61617de294d18ed7dec07fae9
@@ -110,6 +110,7 @@ jobs:
             'systemctl_show_only_contract=true' \
             'inert_full_pass_orchestration_executed=true' \
             'whole_pass_drift_adversaries_rejected=true' \
+            'absence_does_not_promote_installed_metadata=true' \
             'host_pass_performed=false' \
             'filesystem_mutation=false' \
             'service_mutation=false' \
