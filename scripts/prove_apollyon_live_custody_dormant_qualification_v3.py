@@ -35,6 +35,7 @@ new_functions=function_map(new_ast)
 assert set(old_functions).issubset(new_functions)
 assert set(new_functions)-set(old_functions)=={
     "same_executable_inode","exact_custody_node_executable",
+    "validated_custody_live_subject",
 }
 for name,production_ast in old_functions.items():
     if name not in {"live_observation","self_test"}:
@@ -83,14 +84,45 @@ for expected in (
 live=new.split("def live_observation(ids:",1)[1].split("def stop_and_attest(",1)[0]
 assert live.index("wait_socket(True)")<live.index('raw=service.get("MainPID","")')
 assert live.index('raw=service.get("MainPID","")')<live.index("exact_custody_node_executable(pid)")
-assert live.index("exact_custody_node_executable(pid)")<live.index("status=proc_status(pid)")
-assert 'if proc_start_ticks(pid)!=start_ticks:' in live
+subject=new.split("def validated_custody_live_subject(",1)[1].split(
+    "def live_observation(",1
+)[0]
+for expected in (
+    "status=proc_status(pid)",
+    "if argv!=expected_live_argv(ids):",
+    "thread_inventory=custody_thread_inventory(pid,ids)",
+    "stable_uid_thread_process_map(ids",
+    "no_training_uid_processes(ids",
+    '"cmdline_raw":cmd',
+    '"security_status":',
+    '"thread_inventory":thread_inventory',
+    '"custody_processes":custody_processes',
+):
+    assert expected in subject,expected
+assert live.index("exact_custody_node_executable(pid)")<live.index(
+    "initial_subject=validated_custody_live_subject(pid,ids)"
+)
+assert live.count("validated_custody_live_subject(pid,ids)")==2
+assert live.count("exact_custody_node_executable(pid)")==3
 assert 'if latest.get("MainPID")!=raw:' in live
-assert live.count("exact_custody_node_executable(pid)")==2
-assert live.rfind("exact_custody_node_executable(pid)")>live.index(
+assert live.index("final_subject=validated_custody_live_subject(pid,ids)")>live.index(
     'if latest.get("MainPID")!=raw:'
 )
+assert live.index("if final_subject!=initial_subject:")>live.index(
+    "final_subject=validated_custody_live_subject(pid,ids)"
+)
+assert live.rfind("exact_custody_node_executable(pid)")>live.index(
+    'if final_service.get("MainPID")!=raw:'
+)
+assert "custody_mainpid_live_snapshot_changed" in live
+assert "custody_mainpid_generation_changed_after_snapshot" in live
+assert "custody_mainpid_changed_after_snapshot" in live
+assert "custody_mainpid_generation_changed_final" in live
 assert "custody_mainpid_generation_changed_after_executable_recheck" in live
+# An inert adversary must exercise live_observation() itself, not a helper only.
+assert "([initial_subject,reexecuted_subject],True)" in new
+assert '"custody_mainpid_live_snapshot_changed",' in new
+assert '"same_node_reexec_adversary_executed=true"' in new
 assert "def exact_custody_node_executable(" in new
 assert 'observed=os.readlink(exe_link)' in new
 assert 'not same_executable_inode(live_st,expected_st)' in new
@@ -127,6 +159,8 @@ for required in (
     "mainpid_generation_rechecked=true",
     "final_executable_identity_reattested=true",
     "checker_inode_mismatch_adversary_executed=true",
+    "full_live_subject_snapshot_rechecked=true",
+    "same_node_reexec_adversary_executed=true",
     "custody_thread_credentials_exact_required=true",
     "custody_uid_process_exclusivity_required=true",
     "final_success_attestation_failure_receipt_truthful=true",
@@ -144,6 +178,8 @@ print("raw_executable_path_and_inode_bound=true")
 print("mainpid_generation_rechecked=true")
 print("final_executable_identity_reattested=true")
 print("checker_inode_mismatch_adversary_executed=true")
+print("full_live_subject_snapshot_rechecked=true")
+print("same_node_reexec_adversary_executed=true")
 print("systemd_service_source_unchanged=true")
 print("legacy_v2_source_preserved=true")
 print("unchanged_v2_production_ast_exact=true")
