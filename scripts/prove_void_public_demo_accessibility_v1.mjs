@@ -10,6 +10,41 @@ const voidElements = new Set([
   "link", "meta", "param", "source", "track", "wbr",
 ]);
 
+const liveRoles = new Set([
+  "status", "alert", "log", "marquee", "timer", "progressbar",
+]);
+
+function htmlAttributeValue(tag, name) {
+  const escaped = name.replace(/[.*+?^$\{\}()|[\]\\]/gu, "\\const voidElements = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input",
+  "link", "meta", "param", "source", "track", "wbr",
+]);
+
+");
+  const pattern = new RegExp(
+    "\\b" + escaped +
+      "\\s*=\\s*(?:\\\"([^\\\"]*)\\\"|'([^']*)'|([^\\s\\\"'<>]+))",
+    "iu",
+  );
+  const match = tag.match(pattern);
+  return match ? (match[1] ?? match[2] ?? match[3] ?? "") : null;
+}
+
+function tagCreatesLiveRegion(tag) {
+  const role = htmlAttributeValue(tag, "role");
+  if (role !== null) {
+    const tokens = role
+      .trim()
+      .toLowerCase()
+      .split(/[\\t\\n\\f\\r ]+/u)
+      .filter(Boolean);
+    if (tokens.some(token => liveRoles.has(token))) return true;
+  }
+  const ariaLive = htmlAttributeValue(tag, "aria-live");
+  return ariaLive !== null &&
+    ["polite", "assertive"].includes(ariaLive.trim().toLowerCase());
+}
+
 function requireResultPayloadOutsideLiveAncestors(html) {
   const needle = '<pre id="resultBox">';
   const resultIndex = html.indexOf(needle);
@@ -35,9 +70,9 @@ function requireResultPayloadOutsideLiveAncestors(html) {
   }
 
   for (const ancestor of stack) {
-    assert.doesNotMatch(
-      ancestor.tag,
-      /\b(?:role\s*=\s*(?:"(?:status|alert|log|marquee|timer|progressbar)"|'(?:status|alert|log|marquee|timer|progressbar)'|(?:status|alert|log|marquee|timer|progressbar)(?=[\s>]))|aria-live\s*=\s*(?:"(?:polite|assertive)"|'(?:polite|assertive)'|(?:polite|assertive)(?=[\s>])))/iu,
+    assert.equal(
+      tagCreatesLiveRegion(ancestor.tag),
+      false,
       "full result payload must not be nested inside a live region",
     );
   }
@@ -162,6 +197,22 @@ const negativeMutations = [
     html: source.replace(
       '<div class="wrap">',
       '<div class="wrap" aria-live=polite>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_multitoken_role_live_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" role="status presentation">\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_unknown_then_status_role_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" role="future-widget status">\n      <h2>Latest Result</h2>',
     ),
     error: /must not be nested inside a live region/u,
   },
