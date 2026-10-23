@@ -37,7 +37,7 @@ function requireResultPayloadOutsideLiveAncestors(html) {
   for (const ancestor of stack) {
     assert.doesNotMatch(
       ancestor.tag,
-      /\b(?:role\s*=\s*["'](?:status|alert|log|marquee|timer|progressbar)["']|aria-live\s*=\s*["'](?:polite|assertive)["'])/iu,
+      /\b(?:role\s*=\s*(?:"(?:status|alert|log|marquee|timer|progressbar)"|'(?:status|alert|log|marquee|timer|progressbar)'|(?:status|alert|log|marquee|timer|progressbar)(?=[\s>]))|aria-live\s*=\s*(?:"(?:polite|assertive)"|'(?:polite|assertive)'|(?:polite|assertive)(?=[\s>])))/iu,
       "full result payload must not be nested inside a live region",
     );
   }
@@ -87,13 +87,13 @@ function requireDemoAccessibility(html) {
   );
   assert.match(
     html,
-    /\$\("resultStatusLabel"\)\.textContent = "Timed out waiting for result\.";/u,
-    "timeout must use a bounded result-status announcement",
+    /\$\("resultBox"\)\.textContent = "Timed out waiting for result\."\;\s*\$\("resultStatusLabel"\)\.textContent = "Timed out waiting for result\."\;\s*return false;/u,
+    "timeout announcement must remain bound to the polling-expiry result update",
   );
   assert.match(
     html,
-    /\$\("resultStatusLabel"\)\.textContent = "Submitting job\.";/u,
-    "submission must use a bounded result-status announcement",
+    /\$\("resultBox"\)\.textContent = "Submitting\.\.\."\;\s*\$\("resultStatusLabel"\)\.textContent = "Submitting job\.";/u,
+    "submission announcement must remain bound to the submitting result update",
   );
   assert.match(
     html,
@@ -158,6 +158,14 @@ const negativeMutations = [
     error: /must not be nested inside a live region/u,
   },
   {
+    name: "result_payload_unquoted_live_ancestor",
+    html: source.replace(
+      '<div class="wrap">',
+      '<div class="wrap" aria-live=polite>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
     name: "unbounded_result_payload_announcement",
     html: source.replace(
       '$("resultStatusLabel").textContent = "Result ready.";',
@@ -179,7 +187,20 @@ const negativeMutations = [
       '$("resultStatusLabel").textContent = "Timed out waiting for result.";',
       "",
     ),
-    error: /timeout must use a bounded result-status announcement/u,
+    error: /timeout announcement must remain bound/u,
+  },
+  {
+    name: "moved_timeout_result_announcement",
+    html: source
+      .replace(
+        '$("resultStatusLabel").textContent = "Timed out waiting for result.";',
+        "",
+      )
+      .replace(
+        "async function pollResult(id) {",
+        'async function pollResult(id) {\n      $("resultStatusLabel").textContent = "Timed out waiting for result.";',
+      ),
+    error: /timeout announcement must remain bound/u,
   },
   {
     name: "missing_submitting_result_announcement",
@@ -187,7 +208,20 @@ const negativeMutations = [
       '$("resultStatusLabel").textContent = "Submitting job.";',
       "",
     ),
-    error: /submission must use a bounded result-status announcement/u,
+    error: /submission announcement must remain bound/u,
+  },
+  {
+    name: "moved_submitting_result_announcement",
+    html: source
+      .replace(
+        '$("resultStatusLabel").textContent = "Submitting job.";',
+        "",
+      )
+      .replace(
+        "async function submitJob() {",
+        'async function submitJob() {\n      $("resultStatusLabel").textContent = "Submitting job.";',
+      ),
+    error: /submission announcement must remain bound/u,
   },
   {
     name: "missing_health_subject",
@@ -229,4 +263,4 @@ console.log("result_payload_live_ancestor=false");
 console.log("result_status_bounded=true");
 console.log("result_submission_timeout_status_bounded=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=14");
+console.log("negative_mutations=17");
