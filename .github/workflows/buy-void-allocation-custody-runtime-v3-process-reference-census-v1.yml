@@ -1,0 +1,158 @@
+name: VOID Buy custody runtime V3 process reference census v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.yml"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
+      - "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact process-reference successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="ae207992cd291fbc3645320319fe08f39be05d51"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.md'
+            $'A\tops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
+            "fa517d708666b630b235d104402e1919bbd1079a"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
+            "53e9779a9f1be303bb31bc31845af6f61b1c2ebd"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.md)" = \
+            "20c39a1aee212c38de931c8e5ec730ee10962baf"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
+            "caaf668b25879b5bbcddbf865e574a7b5162143e"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
+            "edb4ea2b833373ab387762e45ba7da4032c860f3"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile Python sources
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py
+
+      - name: Self-test without host process census
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/custody-procref-selftest.txt"
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py \
+            --self-test | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V1_SELF_TEST_GREEN' "$out"
+          for marker in \
+            'prestate_source_exact=true' \
+            'archive_lock_exact=true' \
+            'target_identity_metadata_only=true' \
+            'current_uid_process_scope=true' \
+            'proc_cmdline_read=false' \
+            'proc_environ_read=false' \
+            'proc_fd_target_text_read=false' \
+            'proc_maps_path_text_retained=false' \
+            'fd_inode_reference_classification=true' \
+            'mapped_inode_reference_classification=true' \
+            'pid_generation_race_fail_closed=true' \
+            'pid_set_change_fail_closed=true' \
+            'target_snapshot_change_fail_closed=true' \
+            'target_rescan_each_attempt=true' \
+            'target_snapshot_stable_required=true' \
+            'legacy_tree_entry_limit=32768' \
+            'root_execution_forbidden=true' \
+            'all_process_reference_absence_proven=false' \
+            'privileged_all_process_scan=false' \
+            'fd_table_stability_proven=false' \
+            'mapping_set_stability_proven=false' \
+            'live_at_use_reverification_required=true' \
+            'production_filesystem_write=false' \
+            'self_test_temporary_filesystem_write=true' \
+            'replacement_apply_authorized=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove source boundary
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/custody-procref-proof.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py \
+            | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V1_PROOF_GREEN' "$proof"
+          for marker in \
+            'exact_source_blob_asserted=true' \
+            'prestate_source_exact=true' \
+            'archive_lock_exact=true' \
+            'target_identity_metadata_only=true' \
+            'current_uid_process_scope=true' \
+            'cwd_inode_reference_tested=true' \
+            'fd_inode_reference_tested=true' \
+            'mapped_inode_reference_tested=true' \
+            'clean_current_uid_fixture_tested=true' \
+            'pid_set_change_fail_closed=true' \
+            'target_snapshot_change_fail_closed=true' \
+            'target_replacement_race_regression=true' \
+            'target_rescan_each_attempt=true' \
+            'target_snapshot_stable_required=true' \
+            'legacy_tree_entry_limit=32768' \
+            'proc_cmdline_read=false' \
+            'proc_environ_read=false' \
+            'proc_fd_target_text_read=false' \
+            'proc_maps_path_text_retained=false' \
+            'root_execution_forbidden=true' \
+            'all_process_reference_absence_proven=false' \
+            'privileged_all_process_scan=false' \
+            'fd_table_stability_proven=false' \
+            'mapping_set_stability_proven=false' \
+            'live_at_use_reverification_required=true' \
+            'host_census_not_executed_in_ci=true' \
+            'production_filesystem_write=false' \
+            'test_fixture_filesystem_write=true' \
+            'replacement_apply_authorized=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
