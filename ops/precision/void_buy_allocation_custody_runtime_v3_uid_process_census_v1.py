@@ -576,7 +576,7 @@ def self_test() -> None:
             hold("self_test_stable_scan_invalid")
 
         malformed = proc / "106"
-        malformed.mkdir()
+        _write_status(malformed, (994, 994, 994, 994))
         (malformed / "task" / "106" / "status").write_text(
             "Name:\ttest\nUid:\t994\t994\t994\n",
             encoding="utf-8",
@@ -588,8 +588,10 @@ def self_test() -> None:
                 raise
         else:
             hold("self_test_malformed_status_accepted")
-        for child in malformed.iterdir():
-            child.unlink()
+        (malformed / "task" / "106" / "status").unlink()
+        (malformed / "task" / "106").rmdir()
+        (malformed / "task").rmdir()
+        (malformed / "status").unlink()
         malformed.rmdir()
 
         overflow = Path(tmp) / "overflow"
@@ -644,7 +646,8 @@ def self_test() -> None:
     print("process_fd_read=false")
     print("process_signal=false")
     print("service_mutation=false")
-    print("filesystem_write=false")
+    print("production_census_filesystem_write=false")
+    print("self_test_private_fixture_writes=true")
     print("request_history_read=false")
     print("custody_data_read=false")
     print("credential_access=false")
