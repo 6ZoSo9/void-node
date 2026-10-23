@@ -5,7 +5,7 @@ source acceptance and is not production-manifest acceptance.
 
 Acceptance ID:
 
-`voidv7v5stagemanifestcandidateaccept1_d3b7f15b65a2d91dbf64b0d5c093612ae8092669a480e80d25c174d31d22bf0b`
+`voidv7v5stagemanifestcandidateaccept1_1b87eb12658f133da04a9bb0d9e3b460cb66adca6163aac0d759c88be2b5b431`
 
 ## Corrected review meaning
 
@@ -31,14 +31,17 @@ current launcher has passed source review.
 
 The exact #3725 generation is separately bound:
 
-- head `a672d6be15815a008bbf664ba099fc9ce72bfc92`;
-- qualifier blob `661fa682fab32704f9596d7984b8899f968d5649`;
-- qualifier proof blob `89b7e89a69a08e0218a2bfa4a8bc0a1e6df44d60`;
-- focused workflow `39846484405`, job `120060989089`: SUCCESS.
+- head `0cf12c7cee73a68fcd8bb6a060c8a5572c3b8407`;
+- qualifier blob `4de9e927d73f8ec5acd0b9cce26617355456efcd`;
+- qualifier proof blob `9199a09bda1e9c40a68ef9387f23dd73dc33bf73`;
+- focused workflow `39996302783`, job `120560592980`: SUCCESS.
 
-That closes the previously recorded P2 pair-generation/custody defect at the
-source/hosted-fixture level. Qualification remains a point-in-time predicate,
-not protection from a malicious privileged actor after qualification.
+That closes the previously recorded pair-generation/custody defects at the
+source/hosted-fixture level. The repaired qualifier also counts the tree root,
+enforces depth for every child type, reserves the node budget before child
+metadata access, and includes cap/cap+1 plus depth-bound adversaries. Qualification
+remains a point-in-time predicate, not protection from a malicious privileged
+actor after qualification.
 
 ## Acceptance proof input hardening
 
