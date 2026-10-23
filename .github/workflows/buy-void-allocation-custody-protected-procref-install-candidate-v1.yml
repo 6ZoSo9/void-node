@@ -49,7 +49,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_protected_procref_install_candidate_v1.py)" = \
             "467bed6ef835bc84eb5b6f8cb53b0fbfb1b1f686"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_protected_procref_install_candidate_v1.py)" = \
-            "7861a1625238d0324ed697519f3b108eac211b9d"
+            "3faa229d3235c20536ba98b8461fff346d111f89"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-protected-procref-install-candidate-v1.md)" = \
             "0aa1454fcb876fab303f286b548e1814d298afe5"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs)" = \
