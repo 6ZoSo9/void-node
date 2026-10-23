@@ -128,7 +128,10 @@ jobs:
             'host_census_not_executed_in_ci=true' \
             'production_census_read_only=true' \
             'production_census_filesystem_write=false' \
-            'self_test_temporary_filesystem_write=true' \
+            'test_fixture_filesystem_write=true' \
+            'legacy_tree_entry_limit=32768' \
+            'legacy_file_metadata_size_limit=67108864' \
+            'legacy_total_regular_bytes_limit=536870912' \
             'archive_extraction=false' \
             'service_state_checked=false' \
             'service_mutation=false' \
