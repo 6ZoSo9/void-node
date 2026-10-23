@@ -4,8 +4,8 @@ Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS
 
 Status: **source/CI candidate only; protected source not installed; live privileged census not authorized**.
 
-This successor follows the exact current-UID process-reference census at
-`a42153631b0523fcefca12b9ed40a9a743c2fadd`.
+This successor follows the current reconciled current-UID process-reference census at
+`61ecbea8b098f45bcd00eca1546438ad71c30230`.
 
 Its purpose is to define the missing all-process observation boundary required
 by the existing custody replacement plan without making the mutable repository
@@ -41,10 +41,10 @@ This generation does not install that protected path.
 The source records:
 
 ```text
-parent_current_uid_head=a42153631b0523fcefca12b9ed40a9a743c2fadd
-parent_current_uid_source_git_blob_sha1=86c493d7acbe539fe898024474ed3c8815760603
-prestate_head=bcf95a7b30cc2f62822f9322438146eca4b24e41
-prestate_source_git_blob_sha1=feb6508133a1feda9bda793646a5c949f1fdc7f0
+parent_current_uid_head=61ecbea8b098f45bcd00eca1546438ad71c30230
+parent_current_uid_source_git_blob_sha1=d3c648df3f43ab642d60b8eacedb05c851e4fd2c
+prestate_head=332367d1ac93a206437c0c977082b97ed4895cd0
+prestate_source_git_blob_sha1=c2e0c53336665578e4ab26204f7d67908c66ad3f
 archive_lock_git_blob_sha1=edb4ea2b833373ab387762e45ba7da4032c860f3
 archive_lock_sha256=ab96f16d93895b42c977fd26aef2c008115580e3ce31927275ed92986c86f8e7
 ```
@@ -63,11 +63,12 @@ The fixed target remains:
 
 The census builds a bounded metadata-only target snapshot:
 
-- at most 4,096 descendants;
+- at most 32,768 descendants;
 - maximum depth 64;
 - direct, no-follow directory traversal;
 - one filesystem and one Linux mount ID;
 - directories, regular files and symlinks only;
+- every regular file is descriptor-opened only to bind type, generation and the exact target mount ID;
 - no regular-file content read;
 - no symlink-target text read;
 - canonical metadata digest and device/inode identity set.
@@ -87,9 +88,20 @@ Stable zombies/dead tasks are classified separately.
 For ordinary live processes the census observes:
 
 - bounded `/proc/<pid>/stat` before and after;
-- `cwd`, `root` and `exe` by dev/inode identity;
-- open descriptors by dev/inode identity, bounded to 65,536 descriptors;
-- mapped-file dev/inode identities from bounded `/proc/<pid>/maps`.
+- a bounded `/proc/<pid>/task/<tid>` inventory (at most 65,536 TIDs per
+  process and 262,144 total observed tasks per attempt);
+- every TID's `stat` start-time generation before and after the observation;
+- **per-thread** `cwd`, `root`, and open-descriptor tables by dev/inode
+  identity, so a non-leader that unshares `CLONE_FS` or `CLONE_FILES`
+  cannot hide a persistent target reference behind the TGID leader;
+- process-level `exe` and mapped-file dev/inode identities from bounded
+  `/proc/<pid>/maps`. Linux thread groups share the address-space/mm
+  contract, while files/fs state is conservatively inspected per TID.
+
+A candidate requires the complete TID set and each TID's start-time generation
+to remain identical across the process observation. Task creation, exit, TID
+reuse, unreadable task state, or per-thread observation ambiguity prevents a
+clean result.
 
 It never reads:
 
@@ -100,9 +112,9 @@ It never reads:
 
 It does not retain FD pathname text or mapped pathname text.
 
-A vanished/reused PID, inaccessible required observation, FD-close race, PID-set
-change or target-snapshot drift prevents a clean observation. Up to three
-immediate read-only attempts are allowed.
+A vanished/reused PID or TID, inaccessible required observation, FD-close race,
+PID-set change, task-set/generation change, or target-snapshot drift prevents a
+clean observation. Up to three immediate read-only attempts are allowed.
 
 ## Observation is not replacement authority
 
@@ -118,6 +130,8 @@ It still reports:
 all_process_reference_absence_proven=false
 fd_table_stability_proven=false
 mapping_set_stability_proven=false
+task_inventory_generation_stability_required=true
+per_thread_files_fs_reference_scan_required=true
 process_reference_snapshot_race_free=false
 live_at_use_reverification_required=true
 python_runtime_closure_verified=false
@@ -138,6 +152,9 @@ Synthetic tests cover:
 - clean all-process classification;
 - explicit kernel-thread handling;
 - target-reference rejection;
+- a synthetic **non-leader-only FD reference**, which must be detected even
+  when the TGID leader has a clean FD/filesystem view;
+- bounded task-set/start-generation churn detection;
 - PID-set drift rejection;
 - target-snapshot drift rejection;
 - non-root protected-source rejection;
@@ -161,6 +178,8 @@ proc_maps_path_text_retained=false
 all_process_reference_absence_proven=false
 fd_table_stability_proven=false
 mapping_set_stability_proven=false
+task_inventory_generation_stability_required=true
+per_thread_files_fs_reference_scan_required=true
 process_reference_snapshot_race_free=false
 live_at_use_reverification_required=true
 python_runtime_closure_verified=false
