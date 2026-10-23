@@ -100,13 +100,13 @@ const V3_TRIGGER="scripts/prove_buy_void_verified_payment_v3_trigger_closure_v1.
 const V3_DOC="docs/architecture/buy-void-verified-payment-v3-source-generation-acceptance-v1.md";
 const V3_DEDICATED=".github/workflows/buy-void-verified-payment-v3-source-generation-acceptance-v1.yml";
 const V3_TRIGGER_BLOB="95198a897d3021cf4ffcb4e068ddd9d7fa574594";
-const V3_DOC_BLOB="812c02a2fdaa1a11aaaac75b74486ca473e0cb57";
+const V3_DOC_BLOB="7786bb2494dea9a1daa658987611da5c301f382b";
 const V3_CONSUMER_WORKFLOW_BLOBS=Object.freeze({
-  [PROVIDER_WORKFLOW]:"521096800aa980e48b093f3019cf2f0429aadc5a",
-  [HISTORICAL_WORKFLOW]:"5fd9e86fb243dc0c049a00b2182d054eb36e9dff",
-  [FINAL_WORKFLOW]:"e895675c1e104951dbef5e8d1a9331fa3eaca42a",
-  [V4_WORKFLOW]:"006719f4ab28260f14890b3464c35f81b101cdba",
-  [DELTA_WORKFLOW]:"1fae14285f11ffbfbfa9d5cd8c5112989e0b7eb6",
+  [PROVIDER_WORKFLOW]:"5681ac80cda26196b091c5ff637e87edfbefd4e4",
+  [HISTORICAL_WORKFLOW]:"7de707544ffbcc40a2748a7db0dac2bef0c687ed",
+  [FINAL_WORKFLOW]:"08ea6f4763c7305616ee0b5c23858b093e5a869b",
+  [V4_WORKFLOW]:"684191d180d6a1778dfa53b66093baa3d71bac9e",
+  [DELTA_WORKFLOW]:"6096316ad8b2678ab7c70c64d00d14f369ec0d9c",
 });
 
 
@@ -764,6 +764,13 @@ function verifyWorkflowDispatch(){
     assert.ok(source.includes(SELF),"historical_v1_trigger_missing:"+relative);
     assert.ok(source.includes(V2_SUCCESSOR),"v2_source_proof_trigger_missing:"+relative);
     assert.ok(source.includes(V3_SELF),"v3_workflow_trigger_missing:"+relative);
+    assert.ok(source.includes("V3_ACCEPTANCE_SPLIT_ASSERTION_V1"),
+      "v3_acceptance_split_marker_missing:"+relative);
+    assert.ok(source.includes(
+      "historical_v2_candidate_enforcement_identity_accepted,true"),
+      "v3_historical_acceptance_assertion_missing:"+relative);
+    assert.ok(source.includes("candidate_enforcement_identity_accepted,false"),
+      "v3_current_acceptance_false_assertion_missing:"+relative);
     assert.ok(source.includes("node "+V3_SELF+" --self-test"),
       "v3_workflow_invocation_missing:"+relative);
     assert.ok(!source.includes("node "+V2_SUCCESSOR+" --self-test"),
@@ -827,7 +834,9 @@ function verify(){
     provider_source_identity_preserved:true,
     provider_built_artifact_identity_preserved:true,
     current_generation_integration_verified:true,
-    candidate_enforcement_identity_accepted:true,
+    historical_v2_candidate_enforcement_identity_accepted:true,
+    candidate_enforcement_identity_accepted:false,
+    current_v3_consumer_acceptance_split_assertions_bound:true,
     successor_runtime_generation_accepted:false,
     deployed_artifact_generation_verified:false,
     runtime_mount_authority:false,
@@ -837,10 +846,46 @@ function verify(){
   });
 }
 
+function assertCurrentV3AcceptanceSplit(receipt){
+  assert.equal(
+    receipt.historical_v2_candidate_enforcement_identity_accepted,
+    true,
+    "historical_v2_candidate_identity_acceptance_lost",
+  );
+  assert.equal(
+    receipt.candidate_enforcement_identity_accepted,
+    false,
+    "current_v3_candidate_identity_must_remain_unaccepted",
+  );
+  assert.equal(
+    receipt.independent_source_acceptance_complete,
+    false,
+    "current_v3_independent_source_acceptance_must_remain_false",
+  );
+  assert.equal(
+    receipt.successor_runtime_generation_accepted,
+    false,
+    "current_v3_successor_runtime_acceptance_must_remain_false",
+  );
+  return receipt;
+}
+
+function selfTestCurrentV3AcceptanceSplit(receipt){
+  const forged={
+    ...receipt,
+    candidate_enforcement_identity_accepted:true,
+  };
+  assert.throws(
+    ()=>assertCurrentV3AcceptanceSplit(forged),
+    /current_v3_candidate_identity_must_remain_unaccepted/u,
+  );
+}
+
 const args=process.argv.slice(2);
 if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   selfTestBoundedReader();
-  const receipt=verify();
+  const receipt=assertCurrentV3AcceptanceSplit(verify());
+  selfTestCurrentV3AcceptanceSplit(receipt);
   console.log("VOID_BUY_VOID_REPAIRED_V7_V3_CURRENT_GENERATION_DISPATCH_V1_GREEN");
   console.log("v3_source_reader_descriptor_bound=true");
   console.log("v3_source_reader_fifo_swap_rejected=true");
@@ -862,11 +907,20 @@ if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   console.log("current_built_census_identity_matches_frozen_v4="+receipt.current_built_census_identity_matches_frozen_v4);
   console.log("frozen_candidate_rederived_on_current_head=false");
   console.log("current_generation_integration_verified=true");
+  console.log("historical_v2_candidate_enforcement_identity_accepted="+
+    receipt.historical_v2_candidate_enforcement_identity_accepted);
+  console.log("candidate_enforcement_identity_accepted="+
+    receipt.candidate_enforcement_identity_accepted);
+  console.log("current_v3_consumer_acceptance_split_assertions_bound="+
+    receipt.current_v3_consumer_acceptance_split_assertions_bound);
+  console.log("unqualified_current_acceptance_promotion_rejected=true");
   console.log("deployment_or_runtime_authority=false");
   console.log("public_presale_activation=false");
   console.log("funds_movement=false");
 }else if(args.length===1&&args[0]==="--receipt"){
-  process.stdout.write(JSON.stringify(verify(),null,2)+"\n");
+  process.stdout.write(JSON.stringify(
+    assertCurrentV3AcceptanceSplit(verify()),null,2,
+  )+"\n");
 }else{
   throw new Error("usage: prove_buy_void_repaired_v7_v3_current_generation_dispatch_v1.mjs [--self-test|--receipt]");
 }
