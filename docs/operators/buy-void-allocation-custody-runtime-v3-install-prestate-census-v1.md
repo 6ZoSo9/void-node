@@ -113,7 +113,7 @@ Neither status is installation authority.
 
 ## Invocation
 
-Host census requires isolated, safe-path, unoptimized Python:
+Host census requires isolated, safe-path, unoptimized **and no-bytecode** Python. The `-B` flag is mandatory because the production receipt claims no filesystem writes before ordinary module imports:
 
 ```bash
 python3 -I -B \
@@ -121,7 +121,9 @@ python3 -I -B \
   --census
 ```
 
-No sudo is required or authorized by this generation.
+No sudo is required or authorized by this generation. Omitting `-B` is a
+bootstrap HOLD before the normal census imports and cannot emit a successful
+write-free production receipt.
 
 The command emits one canonical JSON record with a content-addressed
 `prestate_id`. On any ambiguity it exits HOLD.
@@ -129,8 +131,8 @@ The command emits one canonical JSON record with a content-addressed
 ## Authority remains false
 
 ```text
-read_only=true
-filesystem_write=false
+production_census_read_only=true
+production_census_filesystem_write=false
 archive_extraction=false
 permission_mutation=false
 service_state_checked=false

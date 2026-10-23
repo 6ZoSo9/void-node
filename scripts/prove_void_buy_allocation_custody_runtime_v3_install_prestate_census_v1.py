@@ -6,6 +6,8 @@ import importlib.util
 import os
 from pathlib import Path
 import stat
+import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -14,7 +16,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "caaf668b25879b5bbcddbf865e574a7b5162143e"
+EXPECTED_SOURCE_BLOB = "c2e0c53336665578e4ab26204f7d67908c66ad3f"
 
 def git_blob(raw: bytes) -> str:
     prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
@@ -214,6 +216,25 @@ with tempfile.TemporaryDirectory(
 
 module.self_test()
 
+without_b = subprocess.run(
+    [sys.executable, "-I", str(TARGET), "--self-test"],
+    cwd="/",
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=10,
+    env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+)
+assert without_b.returncode == 2, without_b
+assert (
+    "reason=python_isolated_unoptimized_nobytecode_mode_required"
+    in without_b.stdout
+), without_b.stdout
+assert "production_census_filesystem_write=false" in without_b.stdout
+assert "self_test_temporary_filesystem_write=false" in without_b.stdout
+
 source = TARGET.read_text(encoding="utf-8")
 pre_self_test = source.split("def self_test()", 1)[0]
 
@@ -290,6 +311,8 @@ print("entry_budget_enforced_before_sort=true")
 print("exact_source_blob_asserted=true")
 print("host_census_not_executed_in_ci=true")
 print("production_census_read_only=true")
+print("python_no_bytecode_mode_required=true")
+print("without_dash_b_bootstrap_hold=true")
 print("production_census_filesystem_write=false")
 print("test_fixture_filesystem_write=true")
 print("legacy_tree_entry_limit=32768")
