@@ -16,8 +16,8 @@ Current source identities:
 
 - preappend plain-input: `945cd55d92d4a76fe0d8bfaa237ca27d4753dc2f`;
 - operator allocation dispatcher: `eb4fb37c6073415228b312663c45a99d5015c727`;
-- range-enabled mounted router: `7df1f21c730b554c414c88c550a4475234485370`;
-- current dispatcher V6 proof: `328513410fb4476730d8fcfba38549c2196b8702`;
+- range/alias-repaired mounted router: `a09661797aa4295371c036be36d82995e5233269`;
+- current dispatcher V6 proof: `1ef5cd61a338cf726ddec59cea24932846d8d1fb`;
 - frozen dispatcher V3/V4/V5 proofs: `794b3bb8e2c386be7fad607a3adf79aadff5332d`, `752deafb5a8ff884cfcfc0ff7ef8fded2a92287b`, `9113830d86e60d818ddf10d6381fb285b534d008`;
 - first-original handoff V4 proof: `2f17db9bb68ab40cc7e3d541d3d3a731f3d87442`;
 - frozen crash matrix V5 proof: `5dc2d12e34e648d2dbfb8f1e79584caa2f8abc51`;
@@ -98,17 +98,17 @@ acceptance, custody reserve/recover, presale activation or funds movement.
 
 The machine-readable bounded-range source generation changes the complete
 `src/index.ts` identity to
-`7df1f21c730b554c414c88c550a4475234485370` without changing the
+`a09661797aa4295371c036be36d82995e5233269` without changing the
 operator allocation dispatcher source
 `eb4fb37c6073415228b312663c45a99d5015c727`.
 
 The current presale-tuple workflow therefore preserves dispatcher V1–V5 as
 immutable historical generations. V4 must refuse its reviewed router
 `40239e0f76aa1edce43523d18c1b57691e41e8cf` against current
-`7df1f21c...`; V5 must likewise refuse reviewed
+`a0966179...`; V5 must likewise refuse reviewed
 `123ec1792a027f93d4c9030749a0e7e136a75a44` against current
-`7df1f21c...`. Dispatcher V6 is the sole current-positive source proof and
-binds exact proof blob `328513410fb4476730d8fcfba38549c2196b8702`.
+`a0966179...`. Dispatcher V6 is the sole current-positive source proof and
+binds exact proof blob `1ef5cd61a338cf726ddec59cea24932846d8d1fb`.
 
 This is source-generation reconciliation only. The mounted operator producer
 remains the legacy payment-only path; verified-payment allocation dispatch,
