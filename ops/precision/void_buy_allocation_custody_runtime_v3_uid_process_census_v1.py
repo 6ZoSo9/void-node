@@ -494,6 +494,22 @@ def stable_uid_process_census(
     return first
 
 
+def verify_process_scope_revalidation(
+    opening_pid_namespace: dict[str, Any],
+    closing_pid_namespace: dict[str, Any],
+    opening_proc_visibility: dict[str, Any],
+    closing_proc_visibility: dict[str, Any],
+) -> dict[str, bool]:
+    if opening_pid_namespace != closing_pid_namespace:
+        hold("host_pid_namespace_changed_during_census")
+    if opening_proc_visibility != closing_proc_visibility:
+        hold("proc_visibility_changed_during_census")
+    return {
+        "host_pid_namespace_revalidated_after_census": True,
+        "proc_visibility_revalidated_after_census": True,
+    }
+
+
 def census(
     expected_host_pid_namespace_dev_ino: str,
 ) -> dict[str, Any]:
@@ -518,6 +534,19 @@ def census(
         zero_uid_processes_observed = False
         dedicated_uid_quiescence_candidate = False
 
+    closing_pid_namespace = verify_host_pid_namespace_lease(
+        expected_host_pid_namespace_dev_ino
+    )
+    closing_proc_visibility = verify_complete_proc_visibility(
+        read_proc_mountinfo()
+    )
+    scope_revalidation = verify_process_scope_revalidation(
+        pid_namespace,
+        closing_pid_namespace,
+        proc_visibility,
+        closing_proc_visibility,
+    )
+
     body = {
         "schema": SCHEMA,
         "marker": MARKER,
@@ -537,6 +566,10 @@ def census(
             "proc_root": str(PROC_ROOT),
             "pid_namespace": pid_namespace,
             "proc_visibility": proc_visibility,
+            "host_pid_namespace_revalidated_after_census":
+                scope_revalidation["host_pid_namespace_revalidated_after_census"],
+            "proc_visibility_revalidated_after_census":
+                scope_revalidation["proc_visibility_revalidated_after_census"],
             "uid_slots_examined": [
                 "real",
                 "effective",
@@ -557,6 +590,8 @@ def census(
         "complete_proc_visibility_verified": True,
         "host_pid_namespace_external_lease_required": True,
         "host_pid_namespace_lease_verified": True,
+        "host_pid_namespace_revalidated_after_census": True,
+        "proc_visibility_revalidated_after_census": True,
         "process_cmdline_read": False,
         "process_environment_read": False,
         "process_executable_read": False,
@@ -714,6 +749,53 @@ def self_test() -> None:
         else:
             hold("self_test_hidden_proc_visibility_accepted")
 
+        stable_namespace = {
+            "external_lease_required": True,
+            "lease_verified": True,
+            "dev": "12",
+            "ino": "34",
+            "pid1_namespace_matches_self": True,
+        }
+        stable_visibility = verify_complete_proc_visibility(visible_mountinfo)
+        stable_scope = verify_process_scope_revalidation(
+            stable_namespace,
+            dict(stable_namespace),
+            stable_visibility,
+            dict(stable_visibility),
+        )
+        if not all(stable_scope.values()):
+            hold("self_test_scope_revalidation_invalid")
+
+        changed_visibility = dict(stable_visibility)
+        changed_visibility["mount_options"] = ["ro"]
+        try:
+            verify_process_scope_revalidation(
+                stable_namespace,
+                dict(stable_namespace),
+                stable_visibility,
+                changed_visibility,
+            )
+        except CensusHold as exc:
+            if "proc_visibility_changed_during_census" not in str(exc):
+                raise
+        else:
+            hold("self_test_proc_visibility_drift_accepted")
+
+        changed_namespace = dict(stable_namespace)
+        changed_namespace["ino"] = "35"
+        try:
+            verify_process_scope_revalidation(
+                stable_namespace,
+                changed_namespace,
+                stable_visibility,
+                dict(stable_visibility),
+            )
+        except CensusHold as exc:
+            if "host_pid_namespace_changed_during_census" not in str(exc):
+                raise
+        else:
+            hold("self_test_pid_namespace_drift_accepted")
+
     print(MARKER + "_SELF_TEST_GREEN")
     print("archive_lock_exact=true")
     print("socket_runtime_policy_exact=true")
@@ -724,6 +806,9 @@ def self_test() -> None:
     print("host_pid_namespace_external_lease_required=true")
     print("private_pid_namespace_rejected=true")
     print("host_pid_namespace_lease_mismatch_rejected=true")
+    print("proc_visibility_revalidated_after_census=true")
+    print("host_pid_namespace_revalidated_after_census=true")
+    print("postscan_scope_drift_holds=true")
     print("malformed_live_status_holds=true")
     print("proc_entry_budget_enforced_before_sort=true")
     print("two_pass_uid_process_set_stability=true")
@@ -787,6 +872,8 @@ if __name__ == "__main__":
         print("proc_thread_status_uid_only=true")
         print("host_pid_namespace_external_lease_required=true")
         print("host_pid_namespace_lease_verified=false")
+        print("host_pid_namespace_revalidated_after_census=false")
+        print("proc_visibility_revalidated_after_census=false")
         print("process_cmdline_read=false")
         print("process_environment_read=false")
         print("process_executable_read=false")
