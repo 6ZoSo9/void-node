@@ -84,7 +84,9 @@ existing-target replacement candidate, it must show:
 The service receipt may contribute only
 `service_quiescence_candidate=true`. Its own generation explicitly keeps
 `service_quiescence_proven=false` and
-`live_process_binding_checked=false`.
+`live_process_binding_checked=false`. A true candidate is accepted only when
+all five supporting observations are also true: service inactive, socket
+absent, runtime directory absent, daemon-reload clear, and unit state safe.
 
 The process receipt may contribute only the current-UID absence candidate. It
 must carry reviewed external **PID- and mount-namespace** leases, require both
@@ -96,7 +98,9 @@ contract from the pinned source.
 
 The process generation duplicates four stability requirements inside the nested
 `process` object as well as at top level. Both copies are independently
-validated and must agree with the source contract:
+validated and must agree with the source contract. The nested selected-attempt
+`root_dev`, `root_ino`, and `mount_id` are also required to equal the outer
+target identity before that target participates in cross-receipt binding:
 `target_snapshot_stable_required=true`,
 `fd_table_stability_proven=false`,
 `mapping_set_stability_proven=false`, and
