@@ -52,9 +52,17 @@ protected_source mode=0444
 protected_source nlink=1
 protected_source regular_file=true
 protected_source symlink=false
+
+publication_syscall=renameat2
+publication_flag=RENAME_NOREPLACE
+ordinary_rename_publication_forbidden=true
 ```
 
-These are future apply requirements, not observed host facts.
+These are future apply requirements, not observed host facts. The initial
+target-absence check is not publication authority: a competing creator may win
+after that check. The final publication must therefore use kernel-atomic
+`renameat2(RENAME_NOREPLACE)` semantics and fail closed if the destination
+exists. An ordinary replace-capable rename is forbidden.
 
 ## Required future apply ceremony
 
@@ -66,7 +74,8 @@ A separately reviewed installer must perform this order:
 4. materialize the exact bytes into a root-owned same-filesystem stage;
 5. fsync the staged source and stage directory;
 6. reverify staged bytes, owner, mode, link count, and ancestry;
-7. publish create-only without clobbering an existing target;
+7. publish with `renameat2(RENAME_NOREPLACE)`; the earlier absence check alone
+   is not authority and an existing destination must make publication fail;
 8. fsync the install parent;
 9. reverify installed bytes, metadata, and ancestry;
 10. emit a content-addressed install receipt;
@@ -118,6 +127,9 @@ create_only_install_required=true
 target_absence_required_before_apply=true
 stage_absence_required_before_apply=true
 no_clobber_required=true
+atomic_noreplace_publication_required=true
+renameat2_rename_noreplace_required=true
+absence_precheck_is_not_publication_authority=true
 root_owned_same_filesystem_staging_required=true
 source_file_fsync_required=true
 stage_directory_fsync_required=true
