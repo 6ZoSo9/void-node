@@ -66,11 +66,43 @@ restricted to:
 
 `/var/lib/void-source-finality-v7/deployment-receipt.json`
 
-The parent directory is root-owned mode 0755. The final receipt is root-owned,
-single-link, mode 0444. Publication uses an exclusive temporary file followed
-by an atomic hard-link no-clobber publication and directory fsync. An existing
-byte-identical receipt is accepted idempotently; an existing different receipt
-HOLDs and is never overwritten.
+The receipt parent is retained through a trusted grandparent descriptor. If the
+parent is absent it is created descriptor-relative as root:root mode 0755 and
+the new parent itself is fsynced. The retained grandparent is fsynced on every
+validated bind, including when the parent already exists, so a retry can recover
+a prior create whose grandparent fsync failed after the parent became visible.
+Any pre-existing parent must already be a direct root-owned non-group/world-
+writable directory; its ownership and mode are preserved, including a safe
+restrictive mode such as 0700. The installer never chowns or chmods a
+pre-existing parent.
+
+The final receipt is root-owned, single-link, mode 0444. Publication no longer
+uses a pathname temp that later has to be unlinked. Instead, the final leaf is
+opened descriptor-relative with `O_CREAT|O_EXCL|O_NOFOLLOW` at mode 0600.
+Receipt bytes are written and fsynced through that retained descriptor; mode
+0444 is the commit marker, followed by a second file fsync, retained-parent
+fsync, terminal descriptor/path generation revalidation, and a bounded
+descriptor read of the accepted receipt.
+
+If any post-create step fails before commit, the root-only 0600 residue is left
+untouched and the operation HOLDs. It is never removed by a compare-then-unlink
+pathname sequence. A later retry rejects such an uncommitted residue instead of
+guessing ownership. If a failure occurs after the receipt is sealed 0444 but before its post-seal file fsync or retained-parent fsync completes, an exact retry re-verifies the committed receipt, fsyncs that exact receipt descriptor, revalidates it, fsyncs the retained parent, re-verifies it again, and only then returns idempotent success. A concurrent foreign substitution is likewise never deleted
+by this installer. The adversarial proof covers symlink-parent zero collateral
+mutation, restrictive parent preservation, new-parent grandparent fsync,
+post-create failures at chown/write/fsync/chmod, foreign final-path substitution,
+oversized existing receipts, create-once success and idempotent exact reapply.
+
+
+The current 49-row protected-source inventory and the accepted enforcement lock/candidate reader are descriptor-bound. Each protected source row is capped at 16 MiB for this generation (current maximum is `src/index.ts` at 3,851,867 bytes).
+
+The accepted enforcement lock and candidate reader is also descriptor-bound: the
+path is pre-observed, opened once with `O_NOFOLLOW|O_NONBLOCK`, checked against that
+generation, read through the retained descriptor with a hard `max + 1` ceiling,
+and revalidated by post-read descriptor and visible-path identity before its Git
+blob is accepted. The proof exercises the exported production reader plus
+regular-file replacement, symlink-swap, FIFO-swap and growth adversaries.
+
 
 This PR only creates the tool/proof. It does not run `--apply` on Precision,
 change systemd, configure source RPCs, contact a provider, access credentials,

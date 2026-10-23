@@ -19,7 +19,7 @@ const GENERATIONS = [
   {sha:"123ec1792a027f93d4c9030749a0e7e136a75a44",
     guard:"runtime/canonical-producer-self-http-guard-v4.cjs",
     proof:"scripts/prove_canonical_producer_legacy_self_http_observers_current_v4.mjs"},
-  {sha:"7df1f21c730b554c414c88c550a4475234485370",
+  {sha:"a09661797aa4295371c036be36d82995e5233269",
     guard:"runtime/canonical-producer-self-http-guard-v5.cjs",
     proof:"scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs"},
 ];

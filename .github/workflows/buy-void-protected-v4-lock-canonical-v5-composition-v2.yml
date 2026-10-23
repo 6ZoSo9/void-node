@@ -45,8 +45,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           read -r head p1 p2 extra <<<"$(git rev-list --parents -n 1 HEAD)"
           test "$head" = "$EXPECTED_HEAD"
-          test "$p1" = "5e6137c8b3e905e891d5571ec95cc413b8207334"
-          test "$p2" = "75927cae2c7ed0b4273e6218937dedf69824f64c"
+          test "$p1" = "0527288a18ebb16161579089427a70d6fa402368"
+          test "$p2" = "1fa91ea0e31ce1497ab2ca596eb1177e8588d768"
           test -z "${extra:-}"
       - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -56,13 +56,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs)" = "21d2e830c915e1a92daa6e837169b05bd75805d3"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-protected-v4-lock-canonical-v5-composition-v2.md)" = "089c8c88d5497df506798b38f2094463f4e57a91"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json)" = "854b9e39772e1e930c63b71e1099509df0f2dbf8"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "5893e300a78dc4ca7729ef47f95a8e3eea2043cf"
-          test "$(git rev-parse HEAD:ops/run-void-node-live-v1.sh)" = "d7d7aede7fcd764a6182bd31f12338c5d3674ecb"
-          test "$(git rev-parse HEAD:src/index.ts)" = "7df1f21c730b554c414c88c550a4475234485370"
-          git diff --check "75927cae2c7ed0b4273e6218937dedf69824f64c" HEAD
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs)" = "1d76844acb0f09eeaef5df5803280dbc8830d7de"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-protected-v4-lock-canonical-v5-composition-v2.md)" = "e25a32fcc852f9feffc88920842a0a04de682195"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json)" = "416202f5a7ee4c55950d5db9d13a718c721fc801"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "b8341906d9563739a50dac98ea184a1d93267531"
+          test "$(git rev-parse HEAD:ops/run-void-node-live-v1.sh)" = "bc6a17ccdf389299fb139db37e742f0b1ad9dc4e"
+          test "$(git rev-parse HEAD:src/index.ts)" = "a09661797aa4295371c036be36d82995e5233269"
+          git diff --check "1fa91ea0e31ce1497ab2ca596eb1177e8588d768" HEAD
       - name: Syntax
         shell: bash
         run: |

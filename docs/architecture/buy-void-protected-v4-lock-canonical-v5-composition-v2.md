@@ -2,41 +2,41 @@
 
 ## Purpose
 
-Restack existing Draft #3682 onto the exact accepted protected V4 lock in
-Draft #3688 while preserving the prior composition in history and reusing the
-exact seven reviewed canonical V5 source paths from Draft #3681.
+Advance existing Draft #3682 onto the exact repaired-router protected V4 lock in
+Draft #3667 while preserving the prior #3682 composition in history and reusing
+the exact seven repaired canonical V5 source paths from Draft #3681.
 
 Current parents:
 
-- prior composition history: `5e6137c8b3e905e891d5571ec95cc413b8207334`;
-- accepted V4 lock: `75927cae2c7ed0b4273e6218937dedf69824f64c` (#3688);
-- canonical V5 source donor: `e7ad76967282b342118839cb507414de47051c69` (#3681).
+- prior composition history: `0527288a18ebb16161579089427a70d6fa402368`;
+- accepted V4 lock: `1fa91ea0e31ce1497ab2ca596eb1177e8588d768` (#3667);
+- canonical V5 source donor: `0b9567057af7a9bae271ead8f42c1b71794742f9` (#3681).
 
-The present tree is based on #3688. The superseded V1 composition evidence
+The present tree is based on #3667. The superseded V1 composition evidence
 files are absent from this tree and replaced by three V2 evidence files.
 
 ## Accepted V4 preservation
 
 These identities remain byte-for-byte unchanged:
 
-- V4 candidate: `5893e300a78dc4ca7729ef47f95a8e3eea2043cf`;
-- V4 lock: `854b9e39772e1e930c63b71e1099509df0f2dbf8`;
-- V4 lock proof: `040414e96906043e2a01995bf2cbd259a7dbd58f`;
-- V4 lock document: `3f8774841ea347b817b1a232e85e1cb0751d0416`;
-- V4 lock workflow: `231f5697c23e7f234e566877da9738093a091313`.
+- V4 candidate: `b8341906d9563739a50dac98ea184a1d93267531`;
+- V4 lock: `416202f5a7ee4c55950d5db9d13a718c721fc801`;
+- V4 lock proof: `1eb43afaea8e46dfc061a67e15e5dae099874091`;
+- V4 lock document: `7654605ce6c895656c694e8104efdbbf35c59138`;
+- V4 lock workflow: `c8043b9db6dbce4b4f86805091ccc553090c11d3`.
 
 The accepted V4 lock still applies only to the exact V4 source generation.
 
 ## Canonical V5 transition
 
-The range router remains `src/index.ts@7df1f21c730b554c414c88c550a4475234485370`. Canonical V5 changes
+The range router remains `src/index.ts@a09661797aa4295371c036be36d82995e5233269`. Canonical V5 changes
 exactly one protected inventory row:
 
 - V4 runner: `6fb040de128ce0df16e848d61ea5f4acb62794da`, mode `100755`;
-- V5 runner: `d7d7aede7fcd764a6182bd31f12338c5d3674ecb`, mode `100755`.
+- V5 runner: `bc6a17ccdf389299fb139db37e742f0b1ad9dc4e`, mode `100755`.
 
 The V5 guard, proof, dispatcher, launcher, workflows, and custody document are
-copied byte-for-byte from exact #3681 head `e7ad76967282b342118839cb507414de47051c69`.
+copied byte-for-byte from exact #3681 head `0b9567057af7a9bae271ead8f42c1b71794742f9`.
 
 A new protected candidate V5 and a separate V5 acceptance lock are required.
 The accepted V4 lock is preserved rather than silently repinned.

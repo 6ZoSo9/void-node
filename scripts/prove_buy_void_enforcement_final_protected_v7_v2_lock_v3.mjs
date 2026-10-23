@@ -8,33 +8,33 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const CANDIDATE_HEAD="a93016c2e1b0656e9abe8a7607bc35c6cf94eb37";
+const CANDIDATE_HEAD="c9d516763cf6d6674d0ede57faf9452d4802d2f1";
 const CANDIDATE="ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json";
 const CANDIDATE_PROOF="scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs";
-const CANDIDATE_PROOF_BLOB="8ea7786299422f7fc3fbfd7474b5e92d869e92c2";
+const CANDIDATE_PROOF_BLOB="96ae15c0a76d4cc463ea64688fa2c5fd119b09fc";
 const CANDIDATE_BYTES=17392;
-const CANDIDATE_SHA256="df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6";
-const CANDIDATE_BLOB="79998af4763b6afca84ffe4e8d14d9a6ff535dfd";
-const CANDIDATE_SET="95a11602e5f2639d33b378293b92863ea7f9f37020ad18dec49d3d4ac6289fd4";
+const CANDIDATE_SHA256="eb2be386ecf374bc75d6c10e4d5cfa3ea5fa309acbef5612f74991c6ba311aab";
+const CANDIDATE_BLOB="5301c32f53c2a82435152e38b36486507a73f906";
+const CANDIDATE_SET="2bfc8455c09e8cbbaa56ac580ccc5f193b54f95c3e4bec1e2274a068303236ec";
 const LOCK="ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json";
-const LOCK_BLOB="245ce93ebfb53478211fab765489e88d8fa23c4a";
+const LOCK_BLOB="e530390e505d447ca0ad9e2a098ec6a819ae3e6c";
 const SELF="scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v3.mjs";
 const DOC="docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v3.md";
 const WORKFLOW=".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml";
-const CURRENT_PARENT="8b0823d55ebebadca172497ef754413591c5f54b";
-const CURRENT_INVENTORY="c0a56b378215feafacc089e9f59a9f966d57f11e5582e4a13afcd6351d2447bb";
+const CURRENT_PARENT="8e0f3c42208a0630b07cd0a64c0bf0b2a2819099";
+const CURRENT_INVENTORY="65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589";
 const FROZEN_INVENTORY="224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2";
 const OLD_INDEX="123ec1792a027f93d4c9030749a0e7e136a75a44";
-const NEW_INDEX="7df1f21c730b554c414c88c550a4475234485370";
+const NEW_INDEX="a09661797aa4295371c036be36d82995e5233269";
 const PROFILE_ID="voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac";
 const PACKAGE_AGGREGATE="77622df7d483bc3f73aa39468246f6860237a3f6749a09a0284644493f3990b6";
 const PROFILE_CANONICAL="3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757";
 const PROVIDER_CLOSURE="3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945";
 const PROVIDER_SEMANTIC="95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384";
 const V7_DELTA="5c5637207d5970d2ca793cf431726ff8d86db370b3e69e9ff1e5caa25d9b5224";
-const RUN=39541480682;
-const CROSS_JOB=119031386124;
-const ARTIFACTS=Object.freeze({22:12319906482,24:12320135827,26:12319778088});
+const RUN=39979328838;
+const CROSS_JOB=120506442218;
+const ARTIFACTS=Object.freeze({22:12513585992,24:12513785788,26:12512398541});
 const EXPECTED_DELTA=Object.freeze([WORKFLOW,DOC,LOCK,SELF].sort());
 
 const sha256=b=>crypto.createHash("sha256").update(b).digest("hex");
@@ -182,7 +182,7 @@ function validateCandidate(c){
   const t=c.successor_transition;assert.ok(t&&typeof t==="object"&&!Array.isArray(t));
   assert.equal(t.predecessor_candidate_git_blob_sha1,"4e23ecbb64eb26c14f5ab15af85eb86d59c3a718");
   assert.equal(t.predecessor_lock_git_blob_sha1,"589845615654da8b688764377b34296267ac0063");
-  assert.equal(t.dispatch_v2_proof_git_blob_sha1,"81a4f189b2c3a1ff988e44ece93ed1ee983898f8");
+  assert.equal(t.dispatch_v2_proof_git_blob_sha1,"5f5e76a594c358639571a190dc48fc9e11fc8b01");
   assert.equal(t.frozen_protected_inventory_sha256,FROZEN_INVENTORY);
   assert.equal(t.reviewed_protected_drift_count,1);
   assert.equal(t.predecessor_index_git_blob_sha1,OLD_INDEX);
@@ -197,7 +197,7 @@ function candidateBytes(){
   assert.equal(gitBlob(bytes),CANDIDATE_BLOB,"candidate_git_blob");
   return validateCandidate(JSON.parse(bytes.toString("utf8")));
 }
-function expectedLock(){return {"schema":"void_buy_void_enforcement_final_protected_v7_v2_lock_v3","marker":"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V3","version":3,"repository":"6ZoSo9/void-node","candidate_head":"a93016c2e1b0656e9abe8a7607bc35c6cf94eb37","candidate_hosted_evidence":{"workflow_run":39541480682,"node22_artifact_id":12319906482,"node24_artifact_id":12320135827,"node26_artifact_id":12319778088,"cross_node_job_id":119031386124,"cross_node_byte_identity_verified":true,"reachable_history_only_verified":true},"candidate_evidence":{"path":"ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json","derivation_proof_path":"scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs","derivation_proof_git_blob_sha1":"8ea7786299422f7fc3fbfd7474b5e92d869e92c2","bytes":17392,"sha256":"df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6","git_blob_sha1":"79998af4763b6afca84ffe4e8d14d9a6ff535dfd","candidate_enforcement_set_sha256":"95a11602e5f2639d33b378293b92863ea7f9f37020ad18dec49d3d4ac6289fd4"},"protected_successor_evidence":{"current_enforcement_parent":"8b0823d55ebebadca172497ef754413591c5f54b","predecessor_candidate_git_blob_sha1":"4e23ecbb64eb26c14f5ab15af85eb86d59c3a718","predecessor_lock_git_blob_sha1":"589845615654da8b688764377b34296267ac0063","dispatch_v2_proof_git_blob_sha1":"81a4f189b2c3a1ff988e44ece93ed1ee983898f8","frozen_protected_inventory_sha256":"224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2","current_enforcement_tracked_source_inventory_sha256":"c0a56b378215feafacc089e9f59a9f966d57f11e5582e4a13afcd6351d2447bb","reviewed_protected_drift_count":1,"predecessor_index_git_blob_sha1":"123ec1792a027f93d4c9030749a0e7e136a75a44","current_index_git_blob_sha1":"7df1f21c730b554c414c88c550a4475234485370","predecessor_candidate_preserved":true,"current_candidate_rederived":true},"audited_package_runtime":{"profile_id":"voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac","packages_aggregate_sha256":"77622df7d483bc3f73aa39468246f6860237a3f6749a09a0284644493f3990b6","profile_canonical_sha256":"3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757"},"dependency_provider":{"provider_closure_sha256":"3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945","provider_closure_semantic_sha256":"95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384"},"v7_executable_delta_candidate_generation_sha256":"5c5637207d5970d2ca793cf431726ff8d86db370b3e69e9ff1e5caa25d9b5224","current_enforcement_tracked_source_inventory_sha256":"c0a56b378215feafacc089e9f59a9f966d57f11e5582e4a13afcd6351d2447bb","complete_executable_closure_verified":true,"current_enforcement_tracked_source_inventory_verified":true,"candidate_enforcement_identity_accepted":true,"deployed_artifact_generation_verified":false,"runtime_mount_authority":false,"production_source_finality_authority_ready":false,"public_presale_activation":false,"funds_movement":false};}
+function expectedLock(){return {"schema":"void_buy_void_enforcement_final_protected_v7_v2_lock_v3","marker":"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V3","version":3,"repository":"6ZoSo9/void-node","candidate_head":"c9d516763cf6d6674d0ede57faf9452d4802d2f1","candidate_hosted_evidence":{"workflow_run":39979328838,"node22_artifact_id":12513585992,"node24_artifact_id":12513785788,"node26_artifact_id":12512398541,"cross_node_job_id":120506442218,"cross_node_byte_identity_verified":true,"reachable_history_only_verified":true},"candidate_evidence":{"path":"ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json","derivation_proof_path":"scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs","derivation_proof_git_blob_sha1":"96ae15c0a76d4cc463ea64688fa2c5fd119b09fc","bytes":17392,"sha256":"eb2be386ecf374bc75d6c10e4d5cfa3ea5fa309acbef5612f74991c6ba311aab","git_blob_sha1":"5301c32f53c2a82435152e38b36486507a73f906","candidate_enforcement_set_sha256":"2bfc8455c09e8cbbaa56ac580ccc5f193b54f95c3e4bec1e2274a068303236ec"},"protected_successor_evidence":{"current_enforcement_parent":"8e0f3c42208a0630b07cd0a64c0bf0b2a2819099","predecessor_candidate_git_blob_sha1":"4e23ecbb64eb26c14f5ab15af85eb86d59c3a718","predecessor_lock_git_blob_sha1":"589845615654da8b688764377b34296267ac0063","dispatch_v2_proof_git_blob_sha1":"5f5e76a594c358639571a190dc48fc9e11fc8b01","frozen_protected_inventory_sha256":"224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2","current_enforcement_tracked_source_inventory_sha256":"65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589","reviewed_protected_drift_count":1,"predecessor_index_git_blob_sha1":"123ec1792a027f93d4c9030749a0e7e136a75a44","current_index_git_blob_sha1":"a09661797aa4295371c036be36d82995e5233269","predecessor_candidate_preserved":true,"current_candidate_rederived":true},"audited_package_runtime":{"profile_id":"voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac","packages_aggregate_sha256":"77622df7d483bc3f73aa39468246f6860237a3f6749a09a0284644493f3990b6","profile_canonical_sha256":"3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757"},"dependency_provider":{"provider_closure_sha256":"3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945","provider_closure_semantic_sha256":"95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384"},"v7_executable_delta_candidate_generation_sha256":"5c5637207d5970d2ca793cf431726ff8d86db370b3e69e9ff1e5caa25d9b5224","current_enforcement_tracked_source_inventory_sha256":"65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589","complete_executable_closure_verified":true,"current_enforcement_tracked_source_inventory_verified":true,"candidate_enforcement_identity_accepted":true,"deployed_artifact_generation_verified":false,"runtime_mount_authority":false,"production_source_finality_authority_ready":false,"public_presale_activation":false,"funds_movement":false};}
 function verifyWorkflow(){
   const source=readExact(WORKFLOW,256*1024).toString("utf8");
   for(const relative of [LOCK,SELF,DOC]){
@@ -205,7 +205,7 @@ function verifyWorkflow(){
     assert.equal(source.split(exact).length-1,2,"lock_v3_workflow_trigger_count:"+relative);
   }
   assert.ok(source.includes("lock-v3-source-proof:"),"lock_v3_job_missing");
-  assert.ok(source.includes("CANDIDATE_HEAD=a93016c2e1b0656e9abe8a7607bc35c6cf94eb37"),"candidate_head_bind_missing");
+  assert.ok(source.includes("CANDIDATE_HEAD=c9d516763cf6d6674d0ede57faf9452d4802d2f1"),"candidate_head_bind_missing");
 }
 function verify(){
   verifyBranch();verifyWorkflow();candidateBytes();

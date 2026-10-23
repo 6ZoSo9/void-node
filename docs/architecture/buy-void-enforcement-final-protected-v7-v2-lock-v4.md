@@ -1,53 +1,52 @@
-# Buy VOID protected V7/V2 enforcement lock V4
+# Buy VOID protected V7/V2 lock V4
 
-Status: **accepted source identity only; no deployment or economic authority**.
+Status: **source/CI-only acceptance of one exact reviewed candidate generation**.
 
-This successor accepts the exact repaired deployment-reader V4 candidate from
-Draft #3680 at `895c2bf320defbbca5fba6792e2a75126b2c4d76`.
+## Accepted candidate
 
-## Hosted evidence
+- candidate head: `65e390d6d3da1f0aef7181c2085b9c7d44967126` (#3665);
+- candidate path: `ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json`;
+- candidate blob: `b8341906d9563739a50dac98ea184a1d93267531`;
+- candidate bytes: `18214`;
+- candidate SHA-256: `7408f190f01113ca8be42f388acbe7fad083ec11100fa9bb31017e635cf53a9f`;
+- candidate enforcement-set SHA-256: `f28b445fe5f1e632d1265ead825ecf9338644a3ae2704fde83ba1cedaf6be695`;
+- derivation proof blob: `781c99c145ac267f1a177c542f095a7f7bd3063f`.
 
-- workflow run: `39665164718`
-- Node 22 artifact: `12376738282`
-- Node 24 artifact: `12377278277`
-- Node 26 artifact: `12377118279`
-- candidate cross-node job: `119449789170`
-- Dispatch V4 cross-node job: `119450541241`
+Hosted candidate evidence:
 
-## Exact identities
+- workflow run `39985941315`;
+- Node 22 artifact `12516106713`;
+- Node 24 artifact `12515888749`;
+- Node 26 artifact `12515668276`;
+- cross-node job `120529688330`.
 
-- candidate proof: `f33a579e62c8201de24d5076cfcbffab66df8dae`
-- candidate JSON: `5893e300a78dc4ca7729ef47f95a8e3eea2043cf`
-- candidate SHA-256: `bf360784af7a6ddf908812b9c335e8e52d4410ba249c5ea1988b97d9cfd5a72c`
-- protected inventory SHA-256: `8485ef25c236b8798bed3a67b9308ef7dcd383aedca1486f4f488d043d7efbe0`
-- enforcement-set SHA-256: `ff084a754e7eb6bef08ec1b1079a17a6110b4333876f0231e46395eed63042d2`
-- Dispatch V4: `51a51a7f85c8068269bad0e09e3ae872c4323a58`
-- lock JSON: `854b9e39772e1e930c63b71e1099509df0f2dbf8`
-- lock proof: `040414e96906043e2a01995bf2cbd259a7dbd58f`
+The three derivations and cross-node equality are terminal SUCCESS, and exact-head candidate review completed with no findings.
 
-The accepted candidate records the exact descriptor-bound production reader
-transition `3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0` to `e0a682ea4038ca22e3a3b97da2cac29874096c46` and preserves the other 48 protected
-source rows.
+## Historical preservation
 
-## CI source-context isolation
+Historical V3 remains immutable:
 
-The final acceptance-lock successor spans eight paths relative to exact V4
-candidate head `895c2bf320defbbca5fba6792e2a75126b2c4d76`: four lock-generation paths plus four legacy
-workflow consumers whose candidate-only Dispatch V4 jobs are pinned back to
-that exact candidate head.
+- candidate V3 blob `5301c32f53c2a82435152e38b36486507a73f906`;
+- accepted lock V3 blob `e530390e505d447ca0ad9e2a098ec6a819ae3e6c`.
 
-Candidate and Dispatch artifacts are downloaded under `$RUNNER_TEMP`, outside
-the checked-out repository. The provider-closure, census, historical-refusal,
-executable-delta, and candidate/Dispatch proof contexts are all isolated from
-the later acceptance-lock head. The current-head lock proof therefore keeps a
-clean Git worktree while validating the exact eight-path successor delta.
+V4 preserves the 49-row inventory SHA-256 `686745113e5e5223a357c053a41496dc8ded12698c31967d541efea7bfe469f1` and the reviewed single protected drift to the hardened deployment-receipt tool.
 
-## Authority boundary
+## Lock identity
 
-`candidate_enforcement_identity_accepted=true` applies only to the exact V4
-source identity. Deployed artifact generation, runtime mount authority,
-production source-finality authority, public presale activation, and funds
-movement remain false.
+- lock blob: `416202f5a7ee4c55950d5db9d13a718c721fc801`;
+- lock SHA-256: `95a16e215ae223c663f7675537ff6037ec2c85491c4aa9dd945e1439684d01b9`;
+- proof blob: `1eb43afaea8e46dfc061a67e15e5dae099874091`.
 
-No deployment receipt is installed. No service, credential, wallet, signer,
-transaction, chain-2050, presale, or funds mutation occurs in this lane.
+The lock proof reads candidate/lock dependencies through bounded `O_NOFOLLOW|O_NONBLOCK` descriptors with pre/open/post generation revalidation. Its inert fixture exercises same-size regular replacement, lstat-to-open symlink substitution, lstat-to-open FIFO substitution without blocking, and oversize rejection.
+
+The lock sets `candidate_enforcement_identity_accepted=true` for this exact V4 candidate only.
+
+It does **not** establish deployed artifact generation, runtime mount, production source-finality, public presale activation or funds movement. Those remain false and require later, separate evidence/authority.
+
+## Scope
+
+This successor is exactly four ADD-only paths: lock JSON, lock proof, this document, and its dedicated workflow.
+
+No merge, deployment/apply, service mutation, credential/signing, transaction/payment acceptance, treasury/liquidity action or funds movement is authorized.
+
+PROTECT THE CORE.

@@ -6,6 +6,9 @@ on:
       - "src/index.ts"
       - "src/economic/buy_void_preappend_plain_input_v1.ts"
       - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
       - "scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs"
       - "scripts/prove_buy_void_dispatch_own_array_index_v1.mjs"
       - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v2.ts"
@@ -15,9 +18,11 @@ on:
       - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts"
+      - "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v2.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts"
       - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs"
       - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v5.mjs"
+      - "scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs"
       - ".github/workflows/buy-void-current-presale-source-tuple-v3.yml"
       - "docs/architecture/buy-void-current-presale-source-tuple-v3.md"
       - ".github/workflows/buy-void-runtime-integration-v1.yml"
@@ -42,6 +47,40 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
+      - name: Verify pull-request trigger dependency closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          import re
+
+          workflow_path = Path(".github/workflows/buy-void-current-presale-source-tuple-v3.yml")
+          text = workflow_path.read_text(encoding="utf-8")
+          trigger_block = text.split("  workflow_dispatch:", 1)[0]
+          jobs_block = text.split("\njobs:\n", 1)[1]
+
+          trigger_paths = set()
+          for line in trigger_block.splitlines():
+              stripped = line.strip()
+              if stripped.startswith('- "') and stripped.endswith('"'):
+                  trigger_paths.add(stripped[3:-1])
+
+          direct_refs = set(re.findall(
+              r'\b((?:src|scripts)/[A-Za-z0-9_./-]+[.](?:ts|mjs))\b',
+              jobs_block,
+          ))
+          missing = sorted(direct_refs - trigger_paths)
+          if missing:
+              raise SystemExit("trigger_dependency_missing=" + ",".join(missing))
+          if str(workflow_path) not in trigger_paths:
+              raise SystemExit("workflow_self_trigger_missing")
+
+          print("current_presale_direct_dependency_trigger_closure=true")
+          print("current_presale_direct_dependency_count=" + str(len(direct_refs)))
+          for relative in sorted(direct_refs):
+              print("trigger_bound=" + relative)
+          PY
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
@@ -58,7 +97,7 @@ jobs:
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v3.ts)" = "794b3bb8e2c386be7fad607a3adf79aadff5332d"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts)" = "752deafb5a8ff884cfcfc0ff7ef8fded2a92287b"
           test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v5.ts)" = "9113830d86e60d818ddf10d6381fb285b534d008"
-          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts)" = "328513410fb4476730d8fcfba38549c2196b8702"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts)" = "1ef5cd61a338cf726ddec59cea24932846d8d1fb"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts)" = "d31f8cbb85ed17c9937baf3c9725a6fae22cc829"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts)" = "959e19e2cfc76616385a47556335e4ba8e094e44"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts)" = "10a6dad27b08c3b21ccc2d0940451f770438e89e"
@@ -115,7 +154,7 @@ jobs:
           test "$status" -eq 1
           grep -Fq 'current mounted router generation drift' "$log"
           grep -Fq '40239e0f76aa1edce43523d18c1b57691e41e8cf' "$log"
-          grep -Fq '7df1f21c730b554c414c88c550a4475234485370' "$log"
+          grep -Fq 'a09661797aa4295371c036be36d82995e5233269' "$log"
           echo "historical_refusal_verified=scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts"
           log="$RUNNER_TEMP/dispatcher-v5.hold"
           set +e
@@ -125,7 +164,7 @@ jobs:
           test "$status" -eq 1
           grep -Fq 'current mounted router generation drift' "$log"
           grep -Fq '123ec1792a027f93d4c9030749a0e7e136a75a44' "$log"
-          grep -Fq '7df1f21c730b554c414c88c550a4475234485370' "$log"
+          grep -Fq 'a09661797aa4295371c036be36d82995e5233269' "$log"
           echo "historical_refusal_verified=scripts/prove_buy_void_operator_verified_allocation_dispatch_v5.ts"
           node scripts/prove_buy_void_preappend_inherited_index_setter_v1.mjs
           node scripts/prove_buy_void_dispatch_own_array_index_v1.mjs
@@ -141,7 +180,7 @@ jobs:
           grep -Fxq 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V4_GREEN' handoff-${{ matrix.node }}.txt
           grep -Fxq 'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V6_GREEN' dispatch-${{ matrix.node }}.txt
           grep -Fxq 'frozen_dispatcher_v5_proof_unchanged=true' dispatch-${{ matrix.node }}.txt
-          grep -Fxq 'reviewed_router_source_blob=7df1f21c730b554c414c88c550a4475234485370' dispatch-${{ matrix.node }}.txt
+          grep -Fxq 'reviewed_router_source_blob=a09661797aa4295371c036be36d82995e5233269' dispatch-${{ matrix.node }}.txt
           grep -Fxq 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V3_GREEN' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'both_native_usdc_rails_admitted=2' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'reviewed_replay_source_blob=b451bcd895986dadaf6e53954671062068316ccf' dualrail-${{ matrix.node }}.txt

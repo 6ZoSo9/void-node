@@ -5,23 +5,23 @@ import fs from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const MARKER="VOID_BUY_VOID_PROTECTED_V4_LOCK_CANONICAL_V5_COMPOSITION_V2";
-const PRIOR_COMPOSITION_PARENT="5e6137c8b3e905e891d5571ec95cc413b8207334";
-const ACCEPTED_LOCK_PARENT="75927cae2c7ed0b4273e6218937dedf69824f64c";
-const V5_SOURCE_HEAD="e7ad76967282b342118839cb507414de47051c69";
-const RANGE_INDEX_BLOB="7df1f21c730b554c414c88c550a4475234485370";
+const PRIOR_COMPOSITION_PARENT="0527288a18ebb16161579089427a70d6fa402368";
+const ACCEPTED_LOCK_PARENT="1fa91ea0e31ce1497ab2ca596eb1177e8588d768";
+const V5_SOURCE_HEAD="0b9567057af7a9bae271ead8f42c1b71794742f9";
+const RANGE_INDEX_BLOB="a09661797aa4295371c036be36d82995e5233269";
 const CANDIDATE_PATH="ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json";
-const CANDIDATE_BLOB="5893e300a78dc4ca7729ef47f95a8e3eea2043cf";
+const CANDIDATE_BLOB="b8341906d9563739a50dac98ea184a1d93267531";
 const LOCK_PATH="ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json";
-const LOCK_BLOB="854b9e39772e1e930c63b71e1099509df0f2dbf8";
+const LOCK_BLOB="416202f5a7ee4c55950d5db9d13a718c721fc801";
 const LOCK_PROOF_PATH="scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs";
-const LOCK_PROOF_BLOB="040414e96906043e2a01995bf2cbd259a7dbd58f";
+const LOCK_PROOF_BLOB="1eb43afaea8e46dfc061a67e15e5dae099874091";
 const LOCK_DOC_PATH="docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4.md";
-const LOCK_DOC_BLOB="3f8774841ea347b817b1a232e85e1cb0751d0416";
-const LOCK_WORKFLOW_PATH=".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml";
-const LOCK_WORKFLOW_BLOB="231f5697c23e7f234e566877da9738093a091313";
+const LOCK_DOC_BLOB="7654605ce6c895656c694e8104efdbbf35c59138";
+const LOCK_WORKFLOW_PATH=".github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v4.yml";
+const LOCK_WORKFLOW_BLOB="c8043b9db6dbce4b4f86805091ccc553090c11d3";
 const RUNNER_PATH="ops/run-void-node-live-v1.sh";
 const V4_RUNNER_BLOB="6fb040de128ce0df16e848d61ea5f4acb62794da";
-const V5_RUNNER_BLOB="d7d7aede7fcd764a6182bd31f12338c5d3674ecb";
+const V5_RUNNER_BLOB="bc6a17ccdf389299fb139db37e742f0b1ad9dc4e";
 const OLD_COMPOSITION_PATHS=Object.freeze([
   "scripts/prove_buy_void_protected_v4_canonical_v5_composition_v1.mjs",
   "docs/architecture/buy-void-protected-v4-canonical-v5-composition-v1.md",
@@ -40,27 +40,27 @@ const V5=Object.freeze([
   },
   {
     "path": "docs/operations/canonical-producer-source-custody-v1.md",
-    "sha": "79d6bcf030beda490efbfaa37f766b6dbe51f3bd",
+    "sha": "3585e8abc0fefdf854e8ecad232af031573934b7",
     "mode": "100644"
   },
   {
     "path": "ops/run-void-node-live-v1.sh",
-    "sha": "d7d7aede7fcd764a6182bd31f12338c5d3674ecb",
+    "sha": "bc6a17ccdf389299fb139db37e742f0b1ad9dc4e",
     "mode": "100755"
   },
   {
     "path": "runtime/canonical-producer-self-http-guard-v5.cjs",
-    "sha": "8f9ab041e23c7519621b4d6a4573c4fa8b302ab6",
+    "sha": "72a84059b2558092fe853b6305493257fca4c76c",
     "mode": "100644"
   },
   {
     "path": "scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs",
-    "sha": "95687a9691b7eec93c028c82e81000cc214d065e",
+    "sha": "871d3663628edcf767a77a1d0ee1f60dd5b59ad7",
     "mode": "100644"
   },
   {
     "path": "scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs",
-    "sha": "0ba98fe898624f2d6507787f9aa7a8951828cd5d",
+    "sha": "a9b8a5cc8d330feb2e0772042a641eb9b9a787a1",
     "mode": "100644"
   }
 ]);
@@ -147,11 +147,11 @@ assert.equal(candidate.public_presale_activation,false);
 assert.equal(candidate.funds_movement,false);
 
 const lock=JSON.parse(fs.readFileSync(LOCK_PATH,"utf8"));
-assert.equal(lock.candidate_head,"895c2bf320defbbca5fba6792e2a75126b2c4d76");
+assert.equal(lock.candidate_head,"65e390d6d3da1f0aef7181c2085b9c7d44967126");
 assert.equal(lock.candidate_evidence?.git_blob_sha1,CANDIDATE_BLOB);
 assert.equal(
   lock.candidate_evidence?.candidate_enforcement_set_sha256,
-  "ff084a754e7eb6bef08ec1b1079a17a6110b4333876f0231e46395eed63042d2",
+  "f28b445fe5f1e632d1265ead825ecf9338644a3ae2704fde83ba1cedaf6be695",
 );
 assert.equal(lock.candidate_enforcement_identity_accepted,true);
 assert.equal(lock.complete_executable_closure_verified,true);
