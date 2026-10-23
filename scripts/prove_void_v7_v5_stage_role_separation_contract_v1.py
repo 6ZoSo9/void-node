@@ -13,7 +13,7 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CONTRACT_REL = "ops/security/void_v7_v5_stage_role_separation_contract_v1.json"
 SOURCE_REL = "ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
-CONTRACT_BLOB = "9fc65073c54d7fe70283439ef3ea107dd3f856f6"
+CONTRACT_BLOB = "1dccc0f7fd1c74005b519113b0728ebd25477ad5"
 SOURCE_BLOB = "b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b"
 UPSTREAM_HEAD = "555db189091321a727b98d5177c7428430fd23a1"
 MARKER = "VOID_V7_V5_STAGE_ROLE_SEPARATION_CONTRACT_V1_PROOF"
@@ -89,6 +89,8 @@ def classify_role_pair(item: dict, contract: dict) -> str:
     reader = contract["stage_verifier"]
     if (item["candidate_uid"], item["candidate_gid"]) != (owner["uid"], owner["gid"]):
         return "HOLD_CANDIDATE_OWNER_DRIFT"
+    if (item["copy_executor_uid"], item["copy_executor_gid"]) != (0, 0):
+        return "HOLD_COPY_EXECUTOR_NOT_ROOT"
     if item["verifier_uid"] is None or item["verifier_gid"] is None:
         return "HOLD_VERIFIER_UNSELECTED"
     if type(item["verifier_uid"]) is not int or type(item["verifier_gid"]) is not int:
@@ -157,9 +159,7 @@ assert owner == {
     "gid": 1000,
     "ownership": "operator-owned",
     "required_root_mode": "0700",
-    "required_operations": [
-        "collect_plan", "verify_candidate", "copy_source_descriptor_custody"
-    ],
+    "required_operations": ["collect_plan", "verify_candidate"],
     "must_not_receive_root_owned_private_stage_acl": True,
 }
 assert reader["status"] == "UNSELECTED"
@@ -181,6 +181,11 @@ assert reader["current_login_supplementary_gids"] == [4, 24, 27, 30, 46, 100, 11
 assert reader["reserved_existing_uids"] == [0, 994, 995, 1000]
 assert reader["reserved_existing_gids"] == [0, 980, 981, 982, 1000]
 assert copier["owner_uid"] == copier["owner_gid"] == 0
+assert copier["required_precondition"] == "_require_privileged_source_custody"
+assert copier["required_operations"] == [
+    "_copy_candidate_to_stage", "_seal_verified_stage_for_publication"
+]
+assert copier["candidate_owner_executes_protected_copy"] is False
 for name in (
     "nofollow_nonblocking_copy", "private_tree_digest_before_acl",
     "named_acl_only_after_private_digest",
@@ -218,6 +223,13 @@ assert observed_shared_role_lines == [row["line"] for row in sites], "untracked_
 candidate = function_source(source, tree, "verify_candidate")
 copy = function_source(source, tree, "_copy_candidate_to_stage")
 child = function_source(source, tree, "_runtime_uid_child_call")
+apply = function_source(source, tree, "apply")
+root_custody = function_source(source, tree, "_require_privileged_source_custody")
+assert 'if os.geteuid() != 0 or os.getuid() != 0:' in root_custody
+assert 'raise InstallError("root_required_for_privileged_apply")' in root_custody
+assert apply.find("_require_privileged_source_custody()") >= 0
+assert apply.find("_copy_candidate_to_stage(") > apply.find("_require_privileged_source_custody()")
+assert "_copy_candidate_to_stage(" not in child, "copy_must_not_run_under_candidate_child"
 drop = function_source(source, tree, "_drop_runtime_child_privileges")
 acl = function_source(source, tree, "_runtime_uid_read_acl_blob")
 stage = function_source(source, tree, "_prepare_private_stage_for_runtime_verification")
@@ -249,6 +261,8 @@ assert "ctypes.CDLL(None" in source, "legacy_native_abi_no_longer_present_rechec
 synthetic = {
     "candidate_uid": 1000,
     "candidate_gid": 1000,
+    "copy_executor_uid": 0,
+    "copy_executor_gid": 0,
     "verifier_uid": 65000,
     "verifier_gid": 65001,
     "shell": "/usr/sbin/nologin",
@@ -274,6 +288,8 @@ negatives = (
     ({"verifier_gid": 980}, "HOLD_VERIFIER_GID_COLLISION"),
     ({"verifier_gid": 983}, "HOLD_VERIFIER_GID_COLLISION"),
     ({"candidate_uid": 65000}, "HOLD_CANDIDATE_OWNER_DRIFT"),
+    ({"copy_executor_uid": 1000}, "HOLD_COPY_EXECUTOR_NOT_ROOT"),
+    ({"copy_executor_gid": 1000}, "HOLD_COPY_EXECUTOR_NOT_ROOT"),
     ({"shell": "/bin/bash"}, "HOLD_VERIFIER_LOGIN_SHELL"),
     ({"supplementary_groups": [980]}, "HOLD_VERIFIER_SUPPLEMENTARY_GROUPS"),
     ({"private_stage_uid": 1000}, "HOLD_PRIVATE_STAGE_NOT_ROOT_CUSTODIED"),
@@ -292,6 +308,8 @@ print(MARKER + "_GREEN")
 print("exact_source_git_blob=" + SOURCE_BLOB)
 print("exact_contract_git_blob=" + CONTRACT_BLOB)
 print("legacy_shared_identity_sites=13")
+print("root_only_copy_precondition_and_call_order=GREEN")
+print("candidate_owner_is_not_protected_copy_executor=true")
 print("source_ordering_and_acl_checks=GREEN")
 print("synthetic_negative_models=" + str(len(negatives)))
 print("synthetic_role_shape_eligible_but_not_attested=true")
