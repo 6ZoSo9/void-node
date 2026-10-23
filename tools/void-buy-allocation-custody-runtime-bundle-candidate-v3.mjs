@@ -686,6 +686,25 @@ export function verifyVoidBuyVoidCustodyRuntimeBundleCandidateV3(candidate) {
   ) {
     fail("custody_bundle_candidate_package_free_invalid");
   }
+
+  // A self-derived candidate_id authenticates only the supplied JSON against
+  // itself. Regenerate the reviewed candidate body from the exact pinned
+  // source/compiler/runtime closure and require complete equality. This binds
+  // every runtime record's bytes, digest, source pin, imports and kind (plus
+  // predecessor/source/compiler metadata) without promoting the still-
+  // unaccepted hosted candidate identity into deployment authority.
+  const {
+    candidate_id: regeneratedId,
+    ...regeneratedBody
+  } = buildVoidBuyVoidCustodyRuntimeBundleCandidateV3(ROOT);
+  if (
+    typeof regeneratedId !== "string" ||
+    regeneratedId !== candidateId(regeneratedBody) ||
+    canonicalJsonV3(body) !== canonicalJsonV3(regeneratedBody)
+  ) {
+    fail("custody_bundle_candidate_generated_closure_invalid");
+  }
+
   // No V3 independent hosted generation has yet been accepted. This
   // structural verifier cannot confer deployment or release authority.
   if (VOID_BUY_VOID_CUSTODY_RUNTIME_V3_HOSTED_ID !==
