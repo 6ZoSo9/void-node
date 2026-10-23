@@ -1,0 +1,188 @@
+name: VOID Buy custody runtime install archive acceptance lock v3
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json"
+      - "scripts/prove_void_buy_allocation_custody_runtime_install_archive_lock_v3.py"
+      - "docs/architecture/buy-void-allocation-custody-runtime-install-archive-lock-v3.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-install-archive-lock-v3.yml"
+      - "tools/void-buy-allocation-custody-runtime-install-archive-v3.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_install_archive_v3.py"
+      - "docs/architecture/buy-void-allocation-custody-runtime-install-archive-v3.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-install-archive-v3.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-bundle-lock-v3.json"
+      - "tools/void-buy-allocation-custody-runtime-bundle-candidate-v3.mjs"
+      - "scripts/prove_void_buy_allocation_custody_runtime_bundle_candidate_v3.mjs"
+      - "docs/architecture/buy-void-allocation-custody-runtime-bundle-candidate-v3.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-bundle-candidate-v3.yml"
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+      - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: custody archive lock v3 / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Bind exact archive-lock successor
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="105b9417d4a89a6a461554f6e2fd785cc5907401"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-install-archive-lock-v3.yml'
+            $'A\tdocs/architecture/buy-void-allocation-custody-runtime-install-archive-lock-v3.md'
+            $'A\tops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_install_archive_lock_v3.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
+            "edb4ea2b833373ab387762e45ba7da4032c860f3"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_install_archive_lock_v3.py)" = \
+            "9fc1864978d8c79dd4c3bc70ab03f54438177492"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-runtime-install-archive-lock-v3.md)" = \
+            "9c1a0fb7547732e6f5ce0d7eeeeb966a8b80f99e"
+
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-runtime-install-archive-v3.py)" = \
+            "2d46a4aa08599552f47c28ab6954f31a9d5669ea"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_install_archive_v3.py)" = \
+            "eb656dc44e8f67e0fdbaf230941b300e037283e7"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-runtime-install-archive-v3.md)" = \
+            "2dd46d7577624ce4b318296437860807d8f84c76"
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-runtime-install-archive-v3.yml)" = \
+            "781c472ad9db73c28870a685fe952066d0ffe8e1"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-bundle-lock-v3.json)" = \
+            "9e371ebc4ba1dcf494e55823eddb8a183c31d69f"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Install locked compiler
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Compile exact source tree
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+
+      - name: Prove exact hosted V3 archive and acceptance lock
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_install_archive_lock_v3.py
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            tools/void-buy-allocation-custody-runtime-install-archive-v3.py
+
+          log="$RUNNER_TEMP/custody-archive-lock-v3-${{ matrix.node }}.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_install_archive_lock_v3.py \
+            --self-test | tee "$log"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_INSTALL_ARCHIVE_LOCK_V3_GREEN' "$log"
+          grep -Fx 'archive_candidate_id=voidbuycustodyarchive3_0b1c997cb4649be6b6eaf161712230ad3ee1a0b69720133d3adc4875bae322cb' "$log"
+          grep -Fx 'archive_bytes=266240' "$log"
+          grep -Fx 'archive_sha256=5c77db938bcfd353e72628088f1e02c4b22d73814cbae555b9c13ce3ba3a95d1' "$log"
+          grep -Fx 'hosted_run=39941043471' "$log"
+          grep -Fx 'cross_node_compare_job=120372580801' "$log"
+          grep -Fx 'archive_candidate_accepted=true' "$log"
+          grep -Fx 'runtime_files_exact=10' "$log"
+          grep -Fx 'deterministic_ustar=true' "$log"
+          grep -Fx 'unnamed_tmpfile_staging=true' "$log"
+          grep -Fx 'atomic_create_only_link_publication=true' "$log"
+          grep -Fx 'failure_cleanup_unlink_not_used=true' "$log"
+          grep -Fx 'immutable_root_install=false' "$log"
+          grep -Fx 'install_target_selected=false' "$log"
+          grep -Fx 'existing_target_replaced=false' "$log"
+          grep -Fx 'runtime_integration=false' "$log"
+          grep -Fx 'payment_acceptance=false' "$log"
+          grep -Fx 'public_presale_activation=false' "$log"
+          grep -Fx 'production_gate_ready=false' "$log"
+          grep -Fx 'funds_movement=false' "$log"
+
+          out="$RUNNER_TEMP/custody-archive-lock-v3-node-${{ matrix.node }}.json"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_install_archive_lock_v3.py \
+            --derive > "$out"
+          cmp "$out" \
+            ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: custody-archive-lock-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/custody-archive-lock-v3-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
+
+  cross-node:
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: custody-archive-lock-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: locks
+
+      - name: Require exact cross-node archive-lock bytes
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "locks/custody-archive-lock-v3-node-$v.json"
+          done
+          cmp locks/custody-archive-lock-v3-node-22.json \
+            locks/custody-archive-lock-v3-node-24.json
+          cmp locks/custody-archive-lock-v3-node-22.json \
+            locks/custody-archive-lock-v3-node-26.json
+          echo VOID_BUY_VOID_CUSTODY_RUNTIME_INSTALL_ARCHIVE_LOCK_V3_THREE_NODE_GREEN
