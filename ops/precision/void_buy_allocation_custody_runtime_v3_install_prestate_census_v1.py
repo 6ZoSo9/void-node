@@ -788,7 +788,7 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     try:
-        raise SystemExit(main(sys.argv[1:]))
+        raise SystemExit(main(_bootstrap_sys.argv[1:]))
     except (CensusHold, OSError, ValueError) as exc:
         print(MARKER)
         print("status=HOLD")
