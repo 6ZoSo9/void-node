@@ -139,12 +139,12 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
     assert not partial_path.exists(), "partial write left a discoverable output path"
 
     failed_publish = parent / "failed-validation-proof.tar"
-    original_inspect = module.inspect_archive
+    original_inspect_bytes = module.inspect_archive_bytes
 
-    def fail_staging_inspection(_path: Path) -> dict:
-        raise module.ArchiveHold("synthetic_staging_validation_failure")
+    def fail_prepublication_inspection(_raw: bytes) -> dict:
+        raise module.ArchiveHold("synthetic_prepublication_validation_failure")
 
-    module.inspect_archive = fail_staging_inspection
+    module.inspect_archive_bytes = fail_prepublication_inspection
     try:
         try:
             module.package(failed_publish)
@@ -153,21 +153,13 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
         else:
             raise AssertionError("failed validation published final archive")
     finally:
-        module.inspect_archive = original_inspect
+        module.inspect_archive_bytes = original_inspect_bytes
     assert not failed_publish.exists(), "failed validation left final archive"
-    assert not any(
-        entry.name.startswith("." + failed_publish.name + ".staging-")
-        for entry in parent.iterdir()
-    ), "failed validation left a staging archive"
 
     published_path = parent / "published-proof.tar"
     packaged = module.package(published_path)
     assert published_path.is_file()
     assert packaged["archive_candidate_id"] == record["archive_candidate_id"]
-    assert not any(
-        entry.name.startswith("." + published_path.name + ".staging-")
-        for entry in parent.iterdir()
-    ), "successful publication left a staging archive"
 
     real_parent = parent / "real-output-parent"
     real_parent.mkdir(mode=0o700)
@@ -250,11 +242,11 @@ for required in [
     "archive_manifest_runtime_identity_not_accepted",
     "descriptor_bound_source_reads",
     "open_bound_private_directory",
-    "publish_validated_create_only",
+    "inspect_archive_bytes",
     "partial_output_cleanup_on_failure=true",
-    "validated_staging_before_final_publication=true",
+    "archive_bytes_validated_before_final_publication=true",
     "failed_validation_final_path_absent=true",
-    "atomic_create_only_final_publication=true",
+    "single_create_only_final_publication_after_validation=true",
     "output_parent_not_private_or_bound",
     "archive_candidate_accepted",
     "existing_target_replaced",
@@ -284,9 +276,9 @@ print("accepted_v3_bundle_lock_bound=true")
 print("descriptor_bound_source_reads=true")
 print("descriptor_bound_create_only_output=true")
 print("partial_output_cleanup_on_failure=true")
-print("validated_staging_before_final_publication=true")
+print("archive_bytes_validated_before_final_publication=true")
 print("failed_validation_final_path_absent=true")
-print("atomic_create_only_final_publication=true")
+print("single_create_only_final_publication_after_validation=true")
 print("symlink_output_parent_rejected=true")
 print("fifo_substitution_rejected_without_blocking=true")
 print("forged_runtime_record_and_payload_rejected=true")
