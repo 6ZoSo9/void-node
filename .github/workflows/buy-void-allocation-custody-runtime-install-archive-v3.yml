@@ -73,7 +73,7 @@ jobs:
           test "${#actual[@]}" -eq 4
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
-          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-runtime-install-archive-v3.py)" =             "d6e9e08dc7262e963f4e58edb65d3b138cc90cbd"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-runtime-install-archive-v3.py)" =             "2d46a4aa08599552f47c28ab6954f31a9d5669ea"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_install_archive_v3.py)" =             "eb656dc44e8f67e0fdbaf230941b300e037283e7"
           test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-runtime-install-archive-v3.md)" =             "2dd46d7577624ce4b318296437860807d8f84c76"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-bundle-lock-v3.json)" =             "9e371ebc4ba1dcf494e55823eddb8a183c31d69f"
