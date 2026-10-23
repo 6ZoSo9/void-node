@@ -324,8 +324,8 @@ with tempfile.TemporaryDirectory(
         assert classified["reference_count_by_kind"]["maps"] == 1
 
         (worker_fd_root / "7").unlink()
-        (pid_root / "cwd").unlink()
-        (pid_root / "cwd").symlink_to(base)
+        (leader_task / "cwd").unlink()
+        (leader_task / "cwd").symlink_to(base)
         (pid_root / "maps").write_text(
             "00400000-00401000 r--p 00000000 00:00 0 [anon]\n",
             encoding="utf-8",
