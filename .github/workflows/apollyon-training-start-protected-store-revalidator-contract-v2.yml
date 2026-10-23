@@ -56,9 +56,9 @@ jobs:
             | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 1699ac4d826e778854ea0c91541cf4412b30fb50
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = f2d8a63296931babcb5153819301a3e251f10e3a
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 8537e53d1ebfeed47ce2edc3032647678a3e978f
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 4c78459826c25cab43870b0b322b566575d18667
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 9a5819e115373950a980d5effbc849d8f5f4c26b
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 4a269165227e41588f18781531852bb5a6b7a274
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 079576db7f880872f2d4dea8e7759bd536161516
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 76f5a6bcbc9854a1133cd1324eb862cb50102c0e
@@ -100,6 +100,13 @@ jobs:
             'superseded_canonicalizer_v2_generation_rejected=true' \
             'revoked_proxy_candidate_rejected=true' \
             'reviewed_canonicalizer_v2_future_host_required=true' \
+            'installed_source_runtime_process_identity_requirements_bound=true' \
+            'mount_and_role_provenance_requirements_bound=true' \
+            'postpublication_and_stopped_trainer_gates_bound=true' \
+            'first_host_pass_read_only_boundary_bound=true' \
+            'full_3557_required_true_fields=27' \
+            'full_3557_required_false_fields=15' \
+            'full_3557_requirement_tamper_rejected=true' \
             'full_3557_future_host_matrix_bound=true' \
             'automatic_retry_forbidden=true' \
             'transaction_lease_fencing_performed=false' \
