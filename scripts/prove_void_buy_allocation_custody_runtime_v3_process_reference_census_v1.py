@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "86c493d7acbe539fe898024474ed3c8815760603"
+EXPECTED_SOURCE_BLOB = "d3c648df3f43ab642d60b8eacedb05c851e4fd2c"
 
 
 def git_blob(raw: bytes) -> str:
@@ -38,7 +38,7 @@ assert module.SCHEMA == (
     "void_buy_void_custody_runtime_v3_process_reference_census_v1"
 )
 assert module.PRESTATE_SOURCE_BLOB == (
-    "feb6508133a1feda9bda793646a5c949f1fdc7f0"
+    "caaf668b25879b5bbcddbf865e574a7b5162143e"
 )
 assert module.ARCHIVE_LOCK_BLOB == (
     "edb4ea2b833373ab387762e45ba7da4032c860f3"
@@ -47,7 +47,7 @@ assert module.ARCHIVE_LOCK_SHA256 == (
     "ab96f16d93895b42c977fd26aef2c008115580e3ce31927275ed92986c86f8e7"
 )
 assert module.TARGET == Path("/opt/void-buy-allocation-custody-runtime-v1")
-assert module.MAX_TARGET_ENTRIES == 4096
+assert module.MAX_TARGET_ENTRIES == 32768
 assert module.MAX_PIDS == 32768
 assert module.MAX_FDS_PER_PROCESS == 65536
 assert module.MAX_SCAN_ATTEMPTS == 3
@@ -71,10 +71,10 @@ clean_row = {
     "incomplete_observations": 0,
 }
 assert module.classify_attempt(
-    [101], [101], 0, [clean_row]
+    [101], [101], 0, [clean_row], True
 )["current_uid_target_reference_absent_candidate"] is True
 assert module.classify_attempt(
-    [101], [101, 102], 0, [clean_row]
+    [101], [101, 102], 0, [clean_row], True
 )["current_uid_target_reference_absent_candidate"] is False
 
 with tempfile.TemporaryDirectory(
@@ -137,7 +137,7 @@ with tempfile.TemporaryDirectory(
         assert pids == [101]
         assert vanished == 0
 
-        classified = module.classify_attempt(pids, pids, 0, [row])
+        classified = module.classify_attempt(pids, pids, 0, [row], True)
         assert classified["current_uid_target_reference_absent_candidate"] is False
         assert classified["referenced_process_count"] == 1
         assert classified["reference_count_by_kind"]["cwd"] == 1
@@ -157,6 +157,43 @@ with tempfile.TemporaryDirectory(
         assert clean_actual["incomplete_observations"] == 0
     finally:
         module.PROC = original_proc
+
+    parent_fd, _ = module._open_bound_directory(target)
+    try:
+        before_file = os.stat("one", dir_fd=parent_fd, follow_symlinks=False)
+        wrong_mount_id = module._fd_mount_id(parent_fd) + 1
+        try:
+            module._observe_target_regular_at(
+                parent_fd,
+                "one",
+                before_file,
+                wrong_mount_id,
+            )
+        except module.CensusHold as exc:
+            assert "target_cross_mount_file_forbidden" in str(exc)
+        else:
+            raise AssertionError("file mount-id mismatch was accepted")
+    finally:
+        os.close(parent_fd)
+
+    before_snapshot = module.target_identity_set(target)
+    replacement = base / "replacement-file"
+    replacement.write_bytes(b"replacement")
+    os.replace(replacement, target_file)
+    after_snapshot = module.target_identity_set(target)
+    assert before_snapshot["snapshot_id"] != after_snapshot["snapshot_id"]
+    target_changed = module.classify_attempt(
+        [101],
+        [101],
+        0,
+        [clean_row],
+        False,
+    )
+    assert target_changed["target_snapshot_stable"] is False
+    assert (
+        target_changed["current_uid_target_reference_absent_candidate"]
+        is False
+    )
 
 source = TARGET.read_text(encoding="utf-8")
 pre_self_test = source.split("def self_test()", 1)[0]
@@ -186,6 +223,12 @@ for required in (
     "MAX_MAPS_BYTES",
     "MAX_FDS_PER_PROCESS",
     "current_uid_target_reference_absent_candidate",
+    "target_snapshot_stable",
+    "target_rescan_each_attempt",
+    "target_snapshot_stable_required",
+    "_observe_target_regular_at",
+    "target_cross_mount_file_forbidden",
+    "snapshot_matches_selected_attempt",
     "all_process_reference_absence_proven",
     "privileged_all_process_scan",
     "custody_principal_process_scan_performed",
@@ -211,6 +254,13 @@ print("fd_inode_reference_tested=true")
 print("mapped_inode_reference_tested=true")
 print("clean_current_uid_fixture_tested=true")
 print("pid_set_change_fail_closed=true")
+print("target_snapshot_change_fail_closed=true")
+print("target_replacement_race_regression=true")
+print("target_rescan_each_attempt=true")
+print("target_snapshot_stable_required=true")
+print("regular_file_mount_id_checked=true")
+print("receipt_target_bound_to_selected_attempt=true")
+print("legacy_tree_entry_limit=32768")
 print("proc_cmdline_read=false")
 print("proc_environ_read=false")
 print("proc_fd_target_text_read=false")

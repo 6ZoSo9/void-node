@@ -5,7 +5,7 @@ Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V1`.
 Status: **read-only current-UID process-reference diagnostic only**.
 
 This successor is based on the exact filesystem-prestate census generation at
-`bcf95a7b30cc2f62822f9322438146eca4b24e41`. It exists to satisfy the
+`ae207992cd291fbc3645320319fe08f39be05d51`. It exists to satisfy the
 existing replacement plan's requirement for a process-reference census without
 silently promoting an unprivileged observation into all-process authority.
 
@@ -14,7 +14,7 @@ silently promoting an unprivileged observation into all-process authority.
 The census binds:
 
 - prestate-census source Git blob:
-  `feb6508133a1feda9bda793646a5c949f1fdc7f0`;
+  `caaf668b25879b5bbcddbf865e574a7b5162143e`;
 - accepted archive-lock Git blob:
   `edb4ea2b833373ab387762e45ba7da4032c860f3`;
 - accepted archive-lock SHA-256:
@@ -27,11 +27,23 @@ The census binds:
 The target is observed metadata-only.
 
 The census descriptor-walks the fixed legacy target, rejects special files,
-cross-device entries and cross-mount directory substitutions, and builds a
-bounded set of `(st_dev, st_ino)` identities for the root and descendants.
+cross-device entries, cross-mount directory substitutions, and same-filesystem
+file bind mounts. Regular files are opened metadata-only through retained
+`O_NOFOLLOW|O_NONBLOCK` descriptors so their Linux mount IDs and generations
+are checked without reading file bodies. It builds a bounded set of
+`(st_dev, st_ino)` identities for the root and descendants.
 
-The target scan is limited to 4,096 entries and depth 64. Legacy regular-file
-contents are not read. Symlink targets are not followed or read.
+The target scan is limited to 32,768 entries and depth 64, matching the current
+qualified prestate generation and covering the observed legacy-tree scale while
+remaining bounded. Legacy regular-file contents are not read. Symlink targets
+are not followed or read.
+
+Each target traversal derives a deterministic metadata-only `snapshot_id`
+over the root generation plus every relative path/type/dev/inode/UID/GID/mode/
+link-count/size/mtime/ctime record. No file body or symlink target text enters
+that snapshot. The receipt's top-level target identity is copied from the
+selected process attempt's **before** snapshot; it is never produced by a later
+unbound target rescan.
 
 ## Process scope
 
@@ -62,9 +74,12 @@ A process whose PID generation changes, vanishes during its scan, has an
 inaccessible required observation, or races an FD close makes that attempt
 incomplete.
 
-The current-UID PID set is sampled before and after each attempt. A changed PID
-set is not accepted as clean evidence. Up to three immediate attempts may be
-made to obtain one stable read-only window.
+Each attempt also snapshots the complete target metadata/inode tree before
+process enumeration and rescans it afterward. A changed target `snapshot_id`
+makes that attempt non-clean even if no process reference was observed. The
+current-UID PID set is likewise sampled before and after each attempt. A changed
+PID set is not accepted as clean evidence. Up to three immediate attempts may
+be made to obtain one stable read-only window.
 
 ## Candidate versus proof
 
@@ -74,8 +89,9 @@ The strongest possible result in this generation is:
 current_uid_target_reference_absent_candidate=true
 ```
 
-That requires one stable current-UID PID set, no incomplete process
-observations, and zero target references through `cwd/root/exe/fd/maps`.
+That requires one unchanged target snapshot across the attempt, one stable
+current-UID PID set, no incomplete process observations, and zero target
+references through `cwd/root/exe/fd/maps`.
 
 These **always remain false**:
 
@@ -94,9 +110,11 @@ And this remains mandatory:
 live_at_use_reverification_required=true
 ```
 
-PID generation and before/after PID-set checks close obvious process-reuse and
-enumeration races, but they do not freeze a live process's FD table or mapping
-set. Therefore a clean user-process census is useful pre-install evidence but
+Target before/after rescans close stale-target-set acceptance for additions,
+removals and inode/metadata replacement across an attempt. PID generation and
+before/after PID-set checks close obvious process-reuse and enumeration races,
+but none of those checks freezes a live process's FD table or mapping set.
+Therefore a clean user-process census is useful pre-install evidence but
 is not permission to replace the target. A later separately reviewed privileged
 all-process gate must run from a protected root-owned source and reobserve
 references immediately at use before any root replacement ceremony can treat
@@ -120,6 +138,9 @@ Do not run this source with sudo. Root execution intentionally HOLDs.
 read_only=true
 production_filesystem_write=false
 root_execution_forbidden=true
+target_snapshot_stable_required=true
+regular_file_mount_id_checked=true
+receipt_target_bound_to_selected_attempt=true
 fd_table_stability_proven=false
 mapping_set_stability_proven=false
 live_at_use_reverification_required=true
