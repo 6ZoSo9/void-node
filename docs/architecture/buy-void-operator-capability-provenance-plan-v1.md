@@ -5,11 +5,11 @@ Status: **SOURCE-ONLY HOLD**
 Base generation:
 
 - repository: `6ZoSo9/void-node`
-- head: `40e61e4695cd4fd9e95bbd44e95152b5c2e2f432`
-- tree: `c6d9b9cedd33acd2a114c7577ef11aa3274c3cb3`
-- plan ID: `voidbvcred1_157079efc5c79fa8471b14bfbbf9e2fb32e51e01db08946d1f829dbf69ffbcfc`
-- plan Git blob: `6acd4942f22386e8a05c1371e9d8f99d3f5d7a33`
-- proof Git blob: `03842914183db7651a871ded53538a3227b0ac35`
+- head: `61b0f81b2112aab32e3dc16084fe2d43178ec4da`
+- tree: `3e4a3d78c5225b64be24efd70498e540e505fee2`
+- plan ID: `voidbvcred1_7050f6cc60f4daffc168fc4df973ab39ca4b115d1eee864c61eba4eac1f74349`
+- plan Git blob: `12c97a412696c6a61d0b1527e2c05024a238e6c9`
+- proof Git blob: `c170547adfc4b00ce4e7a59a34a9869a05d35270`
 
 ## Purpose
 
