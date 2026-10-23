@@ -43,6 +43,12 @@ non-regular file substitution without waiting for a FIFO writer.
 - Executes a disposable real kernel regular-to-FIFO source-open regression
   plus adversarial recomputed candidate ID tests. Those adversaries require
   the nested authority, predecessor and source pins to remain immutable.
+- The structural verifier does not trust a self-rehashed candidate body. It
+  independently regenerates the complete reviewed candidate body from the
+  exact pinned predecessor/source/compiler/runtime closure and requires
+  canonical equality. Runtime-record byte counts, SHA-256 values, tracked-source
+  pins, import lists and runtime kinds are therefore bound to the generated
+  closure; recomputing `candidate_id` after altering any of them still HOLDs.
 
 ## Important acceptance distinction
 
@@ -54,6 +60,11 @@ explicit placeholders:
 UNACCEPTED_PENDING_HOSTED_V3_BUNDLE_ID
 UNACCEPTED_PENDING_HOSTED_V3_BUNDLE_SHA256
 ```
+
+The regenerated-body check is a source-generation integrity check, not an
+external release signature. Compiled-output identities are regenerated from the
+current exact checked build closure; they are not independently accepted hosted
+release constants in this Draft.
 
 A fresh cross-node CI artifact and independent reviewed acceptance generation
 must bind the exact runtime file bytes before any archive is declared installable.
