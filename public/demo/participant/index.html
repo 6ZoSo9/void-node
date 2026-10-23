@@ -139,11 +139,11 @@ ops/voidctl doctor</pre>
     <div class="grid" style="margin-top:16px;">
       <div class="card">
         <h2>Latest DataNet object</h2>
-        <div id="latestDataset" class="list"></div>
+        <div id="latestDataset" class="list" role="status" aria-live="polite" aria-atomic="true"></div>
       </div>
       <div class="card">
         <h2>Latest agent job</h2>
-        <div id="latestAgent" class="list"></div>
+        <div id="latestAgent" class="list" role="status" aria-live="polite" aria-atomic="true"></div>
       </div>
     </div>
 
@@ -177,6 +177,26 @@ ops/voidctl doctor</pre>
       el.className = ("pill " + (cls || "")).trim();
     }
 
+    function renderLatestRecord(id, lines, emptyMessage){
+      const container = document.getElementById(id);
+      const item = document.createElement("div");
+      item.className = "item";
+
+      if (!lines) {
+        item.textContent = emptyMessage;
+      } else {
+        for (const line of lines) {
+          const row = document.createElement("div");
+          row.className = line.className;
+          if (line.marginTop) row.style.marginTop = line.marginTop;
+          row.textContent = String(line.text ?? "");
+          item.append(row);
+        }
+      }
+
+      container.replaceChildren(item);
+    }
+
     async function loadSummary(){
       const s = await jfetch("/__void/demo/summary.json");
       const a = await jfetch("/__void/agent/summary.json");
@@ -198,22 +218,36 @@ ops/voidctl doctor</pre>
       setText("sigReason", String(u.verification_reason ?? ""));
 
       const ds = ((s.datanet || {}).latest_dataset || null);
-      document.getElementById("latestDataset").innerHTML = ds ? `
-        <div class="item">
-          <div class="k">Dataset ID</div>
-          <div class="v">${ds.id || ""}</div>
-          <div class="k" style="margin-top:8px;">mime=${ds.mime || ""} | plain=${ds.plaintext_len ?? ""} | cipher=${ds.ciphertext_len ?? ""}</div>
-          <div class="k" style="margin-top:6px;">sha256=${ds.sha256 || ""}</div>
-        </div>` : `<div class="item">No dataset found.</div>`;
+      renderLatestRecord("latestDataset", ds ? [
+        { className: "k", text: "Dataset ID" },
+        { className: "v", text: ds.id || "" },
+        {
+          className: "k",
+          marginTop: "8px",
+          text: `mime=${ds.mime || ""} | plain=${ds.plaintext_len ?? ""} | cipher=${ds.ciphertext_len ?? ""}`,
+        },
+        {
+          className: "k",
+          marginTop: "6px",
+          text: `sha256=${ds.sha256 || ""}`,
+        },
+      ] : null, "No dataset found.");
 
       const job = (a.latest_job || null);
-      document.getElementById("latestAgent").innerHTML = job ? `
-        <div class="item">
-          <div class="k">Job ID</div>
-          <div class="v">${job.id || ""}</div>
-          <div class="k" style="margin-top:8px;">type=${job.type || ""} | status=${job.status || ""} | priority=${job.priority ?? ""}</div>
-          <div class="k" style="margin-top:6px;">result_hash=${job.result_hash || ""}</div>
-        </div>` : `<div class="item">No job found.</div>`;
+      renderLatestRecord("latestAgent", job ? [
+        { className: "k", text: "Job ID" },
+        { className: "v", text: job.id || "" },
+        {
+          className: "k",
+          marginTop: "8px",
+          text: `type=${job.type || ""} | status=${job.status || ""} | priority=${job.priority ?? ""}`,
+        },
+        {
+          className: "k",
+          marginTop: "6px",
+          text: `result_hash=${job.result_hash || ""}`,
+        },
+      ] : null, "No job found.");
 
       setPill("healthPill", "health: ok", "ok");
     }
