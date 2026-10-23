@@ -74,6 +74,27 @@
     }
     .btn:hover{filter:brightness(1.08)}
     .btn:disabled{opacity:.6;cursor:not-allowed}
+    .btn:focus-visible,textarea:focus-visible{
+      outline:3px solid var(--accent);
+      outline-offset:3px;
+    }
+    .field-label{
+      display:block;
+      margin-bottom:8px;
+      color:var(--text);
+      font-weight:600;
+    }
+    .sr-only{
+      position:absolute;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
     textarea,input{
       width:100%;
       border:1px solid var(--border);
@@ -113,7 +134,7 @@
       <section class="card">
         <h2>Node Health</h2>
         <div class="row mb">
-          <span class="pill"><span id="healthDot" class="dot"></span><span id="healthLabel">unknown</span></span>
+          <span class="pill" role="status" aria-live="polite" aria-atomic="true"><span class="sr-only">Node health: </span><span id="healthDot" class="dot"></span><span id="healthLabel">unknown</span></span>
           <button id="refreshAll" class="btn">Refresh</button>
         </div>
         <div class="kv">
@@ -141,11 +162,12 @@
     <section class="card mt">
       <h2>Submit Job</h2>
       <div class="mb">
-        <textarea id="jobMsg">hello from VOID demo</textarea>
+        <label class="field-label" for="jobMsg">Job message</label>
+        <textarea id="jobMsg" name="message" rows="5">hello from VOID demo</textarea>
       </div>
       <div class="row">
         <button id="submitBtn" class="btn">Submit Demo Job</button>
-        <span id="submitState" class="pill"><span id="submitDot" class="dot"></span><span id="submitLabel">idle</span></span>
+        <span id="submitState" class="pill" role="status" aria-live="polite" aria-atomic="true"><span class="sr-only">Job submission: </span><span id="submitDot" class="dot"></span><span id="submitLabel">idle</span></span>
       </div>
       <div class="kv mt">
         <div class="k">job id</div><div id="jobId" class="mono">-</div>
@@ -156,7 +178,7 @@
 
     <section class="card mt">
       <h2>Latest Result</h2>
-      <pre id="resultBox">No result yet.</pre>
+      <pre id="resultBox" role="status" aria-live="polite" aria-atomic="true">No result yet.</pre>
     </section>
   </div>
 
