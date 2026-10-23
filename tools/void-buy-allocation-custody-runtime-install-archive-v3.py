@@ -564,15 +564,76 @@ def inspect_archive(path: Path) -> dict[str, Any]:
     }
 
 
-def write_create_only(path: Path, raw: bytes) -> None:
-    parent = path.parent
-    visible = parent.stat()
-    if not stat.S_ISDIR(visible.st_mode) or stat.S_ISLNK(visible.st_mode):
-        hold("output_parent_invalid")
-    if stat.S_IMODE(visible.st_mode) & 0o077:
-        hold("output_parent_not_private")
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+def open_bound_private_directory(path: Path) -> tuple[int, os.stat_result]:
+    absolute = path.absolute()
+    parts = absolute.parts
+    if (
+        not absolute.is_absolute()
+        or not parts
+        or parts[0] != "/"
+        or any(part in ("", ".", "..") for part in parts[1:])
+        or "\\x00" in str(absolute)
+    ):
+        hold("output_parent_path_invalid")
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK
+    current_fd = -1
     try:
+        current_fd = os.open("/", flags)
+        root_visible = os.stat("/", follow_symlinks=False)
+        root_opened = os.fstat(current_fd)
+        if not stat.S_ISDIR(root_opened.st_mode) or not _same_identity(
+            root_visible, root_opened
+        ):
+            hold("output_filesystem_root_unbound")
+        for component in parts[1:]:
+            child = f"/proc/self/fd/{current_fd}/{component}"
+            visible = os.stat(child, follow_symlinks=False)
+            if not stat.S_ISDIR(visible.st_mode) or stat.S_ISLNK(visible.st_mode):
+                hold("output_parent_ancestor_invalid:" + component)
+            next_fd = os.open(child, flags)
+            opened = os.fstat(next_fd)
+            if not stat.S_ISDIR(opened.st_mode) or not _same_identity(
+                visible, opened
+            ):
+                os.close(next_fd)
+                hold("output_parent_ancestor_rebound:" + component)
+            os.close(current_fd)
+            current_fd = next_fd
+        opened_parent = os.fstat(current_fd)
+        visible_parent = os.stat(str(absolute), follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(opened_parent.st_mode)
+            or not _same_identity(opened_parent, visible_parent)
+            or stat.S_IMODE(opened_parent.st_mode) & 0o077
+        ):
+            hold("output_parent_not_private_or_bound")
+        return current_fd, opened_parent
+    except Exception:
+        if current_fd >= 0:
+            os.close(current_fd)
+        raise
+
+
+def write_create_only(path: Path, raw: bytes) -> None:
+    absolute = path.absolute()
+    leaf = absolute.name
+    if (
+        not leaf
+        or leaf in (".", "..")
+        or "/" in leaf
+        or "\\x00" in leaf
+        or absolute.parent == absolute
+    ):
+        hold("output_leaf_invalid")
+    parent_fd, parent_generation = open_bound_private_directory(absolute.parent)
+    fd = -1
+    try:
+        leaf_path = f"/proc/self/fd/{parent_fd}/{leaf}"
+        fd = os.open(
+            leaf_path,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            0o600,
+        )
         total = 0
         while total < len(raw):
             written = os.write(fd, raw[total:])
@@ -581,10 +642,20 @@ def write_create_only(path: Path, raw: bytes) -> None:
             total += written
         os.fsync(fd)
         opened = os.fstat(fd)
-        if not stat.S_ISREG(opened.st_mode) or opened.st_nlink != 1:
-            hold("archive_output_not_regular")
+        parent_after = os.fstat(parent_fd)
+        parent_visible_after = os.stat(str(absolute.parent), follow_symlinks=False)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != 1
+            or stat.S_IMODE(opened.st_mode) & 0o077
+            or not _same_identity(parent_generation, parent_after)
+            or not _same_identity(parent_after, parent_visible_after)
+        ):
+            hold("archive_output_or_parent_generation_invalid")
     finally:
-        os.close(fd)
+        if fd >= 0:
+            os.close(fd)
+        os.close(parent_fd)
 
 
 def package(path: Path) -> dict[str, Any]:
@@ -622,6 +693,20 @@ def self_test() -> None:
             pass
         else:
             hold("self_test_create_only_overwrite_allowed")
+
+        real_parent = parent / "real-output-parent"
+        real_parent.mkdir(mode=0o700)
+        linked_parent = parent / "linked-output-parent"
+        linked_parent.symlink_to(real_parent, target_is_directory=True)
+        try:
+            write_create_only(linked_parent / "redirected.tar", raw)
+        except ArchiveHold:
+            pass
+        else:
+            hold("self_test_symlink_output_parent_accepted")
+        if (real_parent / "redirected.tar").exists():
+            hold("self_test_symlink_output_parent_created_file")
+
         trailing = parent / "trailing.tar"
         trailing.write_bytes(raw + b"X")
         try:
@@ -695,6 +780,8 @@ def main(argv: list[str]) -> int:
         print("runtime_files_exact=10")
         print("deterministic_ustar=true")
         print("descriptor_bound_source_reads=true")
+        print("descriptor_bound_create_only_output=true")
+        print("symlink_output_parent_rejected=true")
         print("fifo_substitution_rejected_without_blocking=true")
         print("archive_candidate_accepted=false")
         print("immutable_root_install=false")
