@@ -24,15 +24,18 @@ The candidate binds:
 - accepted protected source SHA-256
   `79810ed2afa60d2e544e0f6f48ff8189dd26d5aaeb65208bfb1f562fda467a1c`.
 
-## Production apply is unreachable
+## Production apply CLI is present but unreachable
 
-The source contains:
+The source contains an explicit `--apply` parser entry so the future apply
+algorithm can be adversarially tested, but this generation hardcodes:
 
 ```text
+PRODUCTION_APPLY_CLI_PRESENT=true
+PRODUCTION_APPLY_REACHABLE=false
 PRODUCTION_APPLY_AUTHORIZED = False
 ```
 
-and `apply_production()` checks that value before:
+and `apply_production()` checks that immutable authority value before:
 
 - checking root UID;
 - reading the supplied source candidate;
@@ -81,8 +84,11 @@ The disabled future path requires:
 9. exact single source entry, root ownership in production, mode `0444`,
    exact bytes and digest;
 10. staged source fsync and stage-directory fsync;
-11. retained-parent and stage revalidation before publication;
-12. same-parent `renameat2(RENAME_NOREPLACE)`;
+11. retain the exact stage descriptor through publication, revalidate the
+    canonical stage pathname against that descriptor immediately before
+    publication, and refuse a substituted generation;
+12. same-parent `renameat2(RENAME_NOREPLACE)` while both parent and stage
+    descriptors remain open;
 13. install-parent fsync;
 14. retained-parent identity/mount revalidation;
 15. exact final root/source re-verification;
@@ -106,10 +112,13 @@ An existing destination is never removed or replaced.
 - stage and parent fsync;
 - final exact byte re-verification;
 - content-addressed receipt generation;
-- pre-publication stage cleanup;
+- pre-publication cleanup only for the exact stage generation created by the
+  candidate;
+- substituted-stage rejection while retaining the original stage descriptor;
+- refusal to delete a foreign stage generation after pathname substitution;
 - parent metadata drift rejection;
-- truthful classification of post-publication parent-fsync and final-verify
-  failures.
+- truthful classification of pre-publication and post-publication host writes,
+  including parent-fsync and final-verify failures.
 
 Those temporary fixture writes do not authorize or simulate a real `/opt`
 apply.
@@ -124,10 +133,15 @@ publication_state=published_needs_inspection
 publication_failure_phase=parent_fsync | final_verification
 ```
 
-A post-publication failure is never reported as `not_published`.
+A post-publication failure is never reported as `not_published`, and it
+reports `production_host_write_performed=true`. A pre-publication failure
+after stage creation is also a host mutation even when exact-generation cleanup
+succeeds.
 
-Pre-publication failures may clean only the exact stage generation created by
-the candidate algorithm; the final target is never unlinked or removed.
+Pre-publication cleanup may touch only the exact retained stage generation
+created by the candidate algorithm. If the canonical stage pathname has been
+substituted, cleanup refuses the foreign generation and leaves it for
+inspection. The final target is never unlinked or removed.
 
 ## Source-only invocation
 
@@ -151,11 +165,12 @@ No sudo/root execution is requested or authorized.
 
 ```text
 source_candidate_only=true
-production_apply_exposed=false
+production_apply_cli_present=true
+production_apply_reachable=false
 production_apply_authorized=false
 protected_source_installed=false
 root_census_execution_authorized=false
-host_write=false
+production_host_write_performed=false
 service_mutation=false
 systemd_mutation=false
 replacement_apply_authorized=false
