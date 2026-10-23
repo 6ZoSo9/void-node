@@ -65,10 +65,10 @@ jobs:
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs)" =             "b87945fb2d7df4af4740fc28ae467f8f660361e3"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_transport_v2.ts)" =             "2714988acfbcded3d4779ef79a141cd3e39b1426"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts)" =             "098d64684159a6c3fcf500738b0d722c584a45b3"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts)" =             "addd7842edb7f0e851d1e589d4303c0dc6e2756f"
           test "$(git rev-parse HEAD:src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs)" =             "45ade2941e28a51e4dbb4884dfcbe9ec549022e6"
           test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_transport_v2.ts)" =             "61dc219117538f2894b170ac98bb56806f69f430"
-          test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_v2_allocation_stage.ts)" =             "b10c3ef1cf20230ca1fbba626329a2997ca9f8ed"
+          test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_v2_allocation_stage.ts)" =             "6efb2be5f03ff87290ef376d7852d22db22900f8"
 
           git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -115,6 +115,8 @@ jobs:
           grep -Fx 'canonical_first_request_lineage_preflight_verified=true' "$stage_out"
           grep -Fx 'lineage_history_bounded_before_copy=true' "$stage_out"
           grep -Fx 'lineage_history_accessor_and_proxy_traps_not_executed=true' "$stage_out"
+          grep -Fx 'lineage_history_backing_constructor_not_consulted=true' "$stage_out"
+          grep -Fx 'lineage_history_detached_buffer_rejected=true' "$stage_out"
           grep -Fx 'request_history_source_authenticated=false' "$stage_out"
           # Compose the private bearer + staged payment with the real
           # custody-V2 Unix inspect protocol on a disposable same-UID fixture.
