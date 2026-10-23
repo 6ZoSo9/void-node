@@ -43,14 +43,14 @@ local Git object database.
 
 ## Frozen evidence
 
-- V3 candidate: `79998af4763b6afca84ffe4e8d14d9a6ff535dfd`
-- V3 candidate SHA-256: `df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6`
-- V3 lock: `245ce93ebfb53478211fab765489e88d8fa23c4a`
-- accepted enforcement set: `95a11602e5f2639d33b378293b92863ea7f9f37020ad18dec49d3d4ac6289fd4`
-- frozen current-inventory SHA-256: `c0a56b378215feafacc089e9f59a9f966d57f11e5582e4a13afcd6351d2447bb`
-- frozen Dispatch V2 proof: `81a4f189b2c3a1ff988e44ece93ed1ee983898f8`
+- V3 candidate: `5301c32f53c2a82435152e38b36486507a73f906`
+- V3 candidate SHA-256: `eb2be386ecf374bc75d6c10e4d5cfa3ea5fa309acbef5612f74991c6ba311aab`
+- V3 lock: `e530390e505d447ca0ad9e2a098ec6a819ae3e6c`
+- accepted enforcement set: `2bfc8455c09e8cbbaa56ac580ccc5f193b54f95c3e4bec1e2274a068303236ec`
+- frozen current-inventory SHA-256: `65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589`
+- frozen Dispatch V2 proof: `5f5e76a594c358639571a190dc48fc9e11fc8b01`
 
-Dispatch V3 proof Git blob: `fba37e94a90b3d4278fd3fba10fbe6313f2f0625`.
+Dispatch V3 proof Git blob: `db35665f536e1fddbac5faf3dc19b37c62f73953`.
 
 ## Deliberate boundary
 
@@ -62,3 +62,5 @@ new deployment receipt can be planned.
 This change performs no service mutation, credential access, wallet access,
 signing, transaction broadcast, chain-2050 mutation, presale activation, or
 funds movement.
+
+Current repaired-router reader composition inventory SHA-256: `c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d`.

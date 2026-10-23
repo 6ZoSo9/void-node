@@ -1,14 +1,14 @@
 # Buy VOID protected V7/V2 deployment-generation successor V3
 
-Source/CI candidate only. Base: #3656 `8b0823d55ebebadca172497ef754413591c5f54b`.
+Source/CI candidate only. Base: #3656 `8e0f3c42208a0630b07cd0a64c0bf0b2a2819099`.
 
-V1/V2 candidate and lock remain immutable. V3 re-derives current 49-row source inventory and admits exactly the reviewed `src/index.ts` transition `123ec1792a027f93d4c9030749a0e7e136a75a44 -> 7df1f21c730b554c414c88c550a4475234485370`.
+V1/V2 candidate and lock remain immutable. V3 re-derives current 49-row source inventory and admits exactly the reviewed repaired-range `src/index.ts` transition `123ec1792a027f93d4c9030749a0e7e136a75a44 -> a09661797aa4295371c036be36d82995e5233269`.
 
-- inventory SHA-256: `c0a56b378215feafacc089e9f59a9f966d57f11e5582e4a13afcd6351d2447bb`
-- candidate set SHA-256: `95a11602e5f2639d33b378293b92863ea7f9f37020ad18dec49d3d4ac6289fd4`
-- candidate JSON SHA-256: `df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6`
-- candidate Git blob: `79998af4763b6afca84ffe4e8d14d9a6ff535dfd`
-- proof Git blob: `8ea7786299422f7fc3fbfd7474b5e92d869e92c2`
+- inventory SHA-256: `65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589`
+- candidate set SHA-256: `2bfc8455c09e8cbbaa56ac580ccc5f193b54f95c3e4bec1e2274a068303236ec`
+- candidate JSON SHA-256: `eb2be386ecf374bc75d6c10e4d5cfa3ea5fa309acbef5612f74991c6ba311aab`
+- candidate Git blob: `5301c32f53c2a82435152e38b36486507a73f906`
+- proof Git blob: `96ae15c0a76d4cc463ea64688fa2c5fd119b09fc`
 
 The candidate remains unaccepted. Exact V3 derivation is executed in an independent portable Node 22/24/26 matrix whose jobs use reachable-history-only clones; V3 artifact publication and V3 cross-node equality do not depend on the historical V2 matrix. The historical V2 jobs remain separate regression evidence. A V3 lock may be added only after the portable V3 outputs are byte-identical and their real evidence IDs are recorded. No deployment/apply, service/runtime, credentials/signing, payment/activation, treasury/liquidity or funds authority.
 
