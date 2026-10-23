@@ -147,6 +147,50 @@ assert.equal(
   1,
 );
 
+const runtimeObservationAFailedDifferentDomain =
+  createVoidP2PReachabilityObservationV1({
+    subjectNodeId: subjectKeys.nodeId,
+    observerNodeId: observerA.nodeId,
+    observerFailureDomain: "failure-domain-b",
+    observedAt: new Date(now + 3).toISOString(),
+    kind: "authenticated_dialback",
+    candidateAddress: "1.1.1.1:4700",
+    outcome: "failure",
+    authenticatedSubjectId: null,
+    latencyMs: null,
+  });
+const runtimeFailedDomainRotation = classifyVoidP2PReachabilityRuntimeV1(
+  [runtimeObservationA, runtimeObservationAFailedDifferentDomain, runtimeObservationB],
+  { nowMs: now + 5 },
+);
+assert.equal(runtimeFailedDomainRotation.classification, "direct_observed_unconfirmed");
+assert.equal(runtimeFailedDomainRotation.counts.dialback_successes, 2);
+assert.equal(runtimeFailedDomainRotation.counts.dialback_failures, 1);
+assert.equal(runtimeFailedDomainRotation.counts.independent_success_observers, 1);
+assert.equal(runtimeFailedDomainRotation.counts.independent_success_domains, 1);
+
+const runtimeObservationAOutboundDifferentDomain =
+  createVoidP2PReachabilityObservationV1({
+    subjectNodeId: subjectKeys.nodeId,
+    observerNodeId: observerA.nodeId,
+    observerFailureDomain: "failure-domain-b",
+    observedAt: new Date(now + 4).toISOString(),
+    kind: "authenticated_outbound_seen",
+    candidateAddress: "1.1.1.1:4700",
+    outcome: "success",
+    authenticatedSubjectId: subjectKeys.nodeId,
+    latencyMs: 15,
+  });
+const runtimeOutboundDomainRotation = classifyVoidP2PReachabilityRuntimeV1(
+  [runtimeObservationA, runtimeObservationAOutboundDifferentDomain, runtimeObservationB],
+  { nowMs: now + 5 },
+);
+assert.equal(runtimeOutboundDomainRotation.classification, "direct_observed_unconfirmed");
+assert.equal(runtimeOutboundDomainRotation.counts.dialback_successes, 2);
+assert.equal(runtimeOutboundDomainRotation.counts.outbound_successes, 1);
+assert.equal(runtimeOutboundDomainRotation.counts.independent_success_observers, 1);
+assert.equal(runtimeOutboundDomainRotation.counts.independent_success_domains, 1);
+
 const sourceContract: any = await import(
   "./lib/void_p2p_reachability_classification_contract_v1.mjs"
 );
@@ -390,6 +434,8 @@ try {
   console.log("non_public_probe_direct_confirmed=false");
   console.log("independent_observers_direct_confirmed=true");
   console.log("conflicting_observer_failure_domains_direct_confirmed=false");
+  console.log("failed_dialback_domain_rotation_withholds_independence=true");
+  console.log("outbound_domain_rotation_withholds_independence=true");
   console.log("nat_type_inferred=false");
   console.log("relay_requirement_inferred=false");
   console.log("runtime_network_probe_exercised=true");
