@@ -4,13 +4,19 @@ import vm from "node:vm";
 
 const html = readFileSync("public/demo/participant/index.html", "utf8");
 assert.doesNotMatch(html, /\.innerHTML\b/u, "summary data must not enter an HTML parsing sink");
-for (const id of ["latestDataset", "latestAgent"]) {
-  assert.match(
-    html,
-    new RegExp('<div id="' + id + '" class="list" role="status" aria-live="polite" aria-atomic="true"><\\/div>', "u"),
-    id + " must announce its bounded asynchronous replacement",
-  );
-}
+assert.match(html, /<div id="latestDataset" class="list"><\/div>/u);
+assert.match(html, /<div id="latestAgent" class="list"><\/div>/u);
+assert.match(
+  html,
+  /<div id="latestDatasetStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true">Dataset summary not loaded\.<\/div>/u,
+  "dataset status must be a dedicated bounded live region",
+);
+assert.match(
+  html,
+  /<div id="latestAgentStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true">Agent summary not loaded\.<\/div>/u,
+  "agent status must be a dedicated bounded live region",
+);
+assert.match(html, /\.sr-only\s*\{[\s\S]*?position:absolute/u);
 assert.match(html, /container\.replaceChildren\(item\)/u);
 assert.match(html, /row\.textContent = String\(line\.text \?\? ""\)/u);
 
@@ -45,10 +51,10 @@ const document = {
 };
 const probes = {
   datasetId: '<img src=x onerror="globalThis.datasetOwned=true">',
-  datasetMime: "</div><script>globalThis.mimeOwned=true</script>",
+  datasetMime: "m".repeat(200000) + "</div><script>globalThis.mimeOwned=true</script>",
   datasetSha: "<svg onload=globalThis.shaOwned=true>",
   jobId: "</div><script>globalThis.jobOwned=true</script>",
-  jobType: '<img src=x onerror="globalThis.typeOwned=true">',
+  jobType: "t".repeat(200000) + '<img src=x onerror="globalThis.typeOwned=true">',
   jobHash: "<svg onload=globalThis.hashOwned=true>",
 };
 const payloads = new Map([
@@ -127,6 +133,23 @@ for (const [id, expected] of [
 for (const flag of ["datasetOwned", "mimeOwned", "shaOwned", "jobOwned", "typeOwned", "hashOwned"]) {
   assert.equal(context[flag], undefined, flag + " must not execute");
 }
+
+for (const [id, expected] of [
+  ["latestDatasetStatus", "Latest dataset updated."],
+  ["latestAgentStatus", "Latest agent job updated."],
+]) {
+  const status = elements.get(id);
+  assert.ok(status, id + " status element must exist");
+  assert.equal(status.textContent, expected);
+  assert.ok(status.textContent.length < 64, id + " announcement must stay bounded");
+  for (const probe of Object.values(probes)) {
+    assert.equal(status.textContent.includes(probe), false,
+      id + " announcement must not echo API-controlled fields");
+  }
+}
+
 console.log("public_participant_demo_safe_render_v1=PASS");
 console.log("untrusted_summary_fields_rendered_as_text=true");
+console.log("full_record_text_outside_live_region=true");
 console.log("bounded_async_status_regions=true");
+console.log("large_untrusted_fields_not_announced=true");
