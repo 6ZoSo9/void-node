@@ -15,7 +15,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "a99b752cf499c5057dc63e5ad2422af6f7fd1055"
+EXPECTED_SOURCE_BLOB = "c079555c20ffb1486120409ecc77edde832b9b98"
 
 
 def git_blob(raw: bytes) -> str:
@@ -396,6 +396,7 @@ print("private_pid_namespace_rejected=true")
 print("host_pid_namespace_lease_mismatch_rejected=true")
 print("complete_proc_visibility_required=true")
 print("hidepid_restricted_proc_holds=true")
+print("descriptor_relative_bounded_reader_tested=true")
 print("retained_procfs_view_required=true")
 print("retained_procfs_view_descriptor_relative=true")
 print("retained_procfs_view_revalidated_after_census=true")
