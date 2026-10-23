@@ -92,11 +92,11 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_releaser_integration_v1.c)" = \
-            afd2d6b78c89fda568fe25d885368c0f36a86fe7
+            24e2d1c94cac03f7370eb0133ba0fc4ca7fd23f7
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_releaser_integration_v1.py)" = \
-            7204ea46408b622c985fd0e5358a8416e522b34e
+            4adf95503712ad4c59e874976f6a49de3e72c24b
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-releaser-integration-v1.md)" = \
-            d8ef148093c8d531c1b4c84f2565e6259af6ccd1
+            e012c1e1fc38bf4fa13fe51c0a35d26816251456
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_release_pipe_pair_generation_v1.c)" = \
             93390eefd1e72e70af7206e9982c8eaa5e042149
@@ -155,6 +155,8 @@ jobs:
             'trainer_exec_stop_synchronization=true' \
             'frame_budget_starts_after_releaser_proof=true' \
             'frame_and_eof_buffered_before_trainer_resume=true' \
+            'standard_descriptors_exactly_classified=true' \
+            'inherited_sqpoll_standard_fd_rejected=true' \
             'late_writer_escape_syscalls_blocked=true' \
             'creat_procfd_reopen_blocked=true' \
             'writer_cloexec_clear_ioctl_blocked=true' \
