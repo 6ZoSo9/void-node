@@ -16,7 +16,7 @@ const REVIEWED_REL =
   "protected_all_process_reference_census_v1.py";
 const REVIEWED = path.join(ROOT, REVIEWED_REL);
 
-const EXPECTED_PLAN_BLOB = "9c8e414e3b46924472c0d49a7e9dbf7e616bdf2f";
+const EXPECTED_PLAN_BLOB = "2a80e0107db0e7aa1ab80f5fdfbb318a61ff0aba";
 const EXPECTED_REVIEWED_BLOB =
   "25c0e32ae85da4569fb9521a0812e10ab0fcede3";
 const EXPECTED_REVIEWED_BYTES = 56180;
@@ -82,6 +82,9 @@ assert.deepEqual(planModule.INSTALL_CONTRACT, {
   protected_source_nlink: 1,
   protected_source_regular_file: true,
   protected_source_symlink: false,
+  publication_syscall: "renameat2",
+  publication_flag: "RENAME_NOREPLACE",
+  ordinary_rename_publication_forbidden: true,
 });
 
 const authority = planModule.AUTHORITY;
@@ -94,6 +97,9 @@ for (const [key, expected] of Object.entries({
   target_absence_required_before_apply: true,
   stage_absence_required_before_apply: true,
   no_clobber_required: true,
+  atomic_noreplace_publication_required: true,
+  renameat2_rename_noreplace_required: true,
+  absence_precheck_is_not_publication_authority: true,
   root_owned_same_filesystem_staging_required: true,
   source_file_fsync_required: true,
   stage_directory_fsync_required: true,
@@ -143,7 +149,7 @@ assert.deepEqual(first.required_future_apply_sequence, [
   "MATERIALIZE_EXACT_BYTES_IN_ROOT_OWNED_SAME_FILESYSTEM_STAGE",
   "FSYNC_SOURCE_AND_STAGE_DIRECTORY",
   "REVERIFY_STAGED_BYTES_OWNER_MODE_NLINK_AND_ANCESTRY",
-  "PUBLISH_CREATE_ONLY_WITHOUT_CLOBBER",
+  "PUBLISH_WITH_RENAMEAT2_RENAME_NOREPLACE",
   "FSYNC_INSTALL_PARENT",
   "REVERIFY_INSTALLED_BYTES_OWNER_MODE_NLINK_AND_ANCESTRY",
   "EMIT_CONTENT_ADDRESSED_INSTALL_RECEIPT",
@@ -163,7 +169,6 @@ for (const forbidden of [
   "mkdir",
   "chmod",
   "chown",
-  "rename",
   "unlink",
   "rmSync",
   "systemctl",
@@ -177,6 +182,9 @@ for (const forbidden of [
 assert.equal((sourceText.match(/from "node:crypto"/g) ?? []).length, 1);
 assert(sourceText.includes("--plan only; no install mode"));
 assert(sourceText.includes("valid mode is --plan"));
+assert(sourceText.includes('publication_syscall: "renameat2"'));
+assert(sourceText.includes('publication_flag: "RENAME_NOREPLACE"'));
+assert(sourceText.includes("absence_precheck_is_not_publication_authority: true"));
 
 const node = process.execPath;
 function run(args) {
@@ -223,6 +231,8 @@ console.log("reviewed_protected_source_bytes_exact=true");
 console.log("reviewed_protected_source_sha256_exact=true");
 console.log("fixed_protected_install_paths_bound=true");
 console.log("create_only_no_clobber_contract=true");
+console.log("atomic_renameat2_noreplace_publication_required=true");
+console.log("absence_precheck_not_publication_authority=true");
 console.log("same_filesystem_root_staging_required=true");
 console.log("fsync_and_postinstall_reverification_required=true");
 console.log("content_addressed_install_receipt_required=true");
