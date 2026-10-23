@@ -37,7 +37,6 @@ jobs:
       - name: Bind exact atomic-upgrade source generation
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -45,34 +44,22 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
           case "$EVENT_NAME" in
-            pull_request)
-              base="$PR_BASE"
-              cursor="$EXPECTED_HEAD"
-              while [ -n "$base" ] && [ "$cursor" != "$base" ]; do
-                parent_line="$(git rev-list --parents -n 1 "$cursor")"
-                parent_count="$(awk '{print NF-1}' <<<"$parent_line")"
-                if [ "$parent_count" -gt 1 ]; then
-                  candidate_base="$(git rev-parse "$cursor^1")"
-                  if git merge-base --is-ancestor "$base" "$candidate_base"; then
-                    base="$candidate_base"
-                    break
-                  fi
-                fi
-                [ "$parent_count" -ge 1 ] || break
-                next="$(git rev-parse "$cursor^1")"
-                if ! git merge-base --is-ancestor "$base" "$next"; then
-                  break
-                fi
-                cursor="$next"
-              done
+            pull_request|workflow_dispatch)
+              base="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
               ;;
-            push) base="$PUSH_BEFORE" ;;
-            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
-            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+            push)
+              base="$PUSH_BEFORE"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
           esac
           test -n "$base"
           test "$base" != 0000000000000000000000000000000000000000
+          test "$base" != "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+          echo "source_base=$base"
 
           expected="$RUNNER_TEMP/expected-scope.txt"
           actual="$RUNNER_TEMP/actual-scope.txt"
