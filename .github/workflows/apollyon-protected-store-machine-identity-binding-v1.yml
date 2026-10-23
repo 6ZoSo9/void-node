@@ -47,9 +47,9 @@ jobs:
           git diff --no-renames --name-only "$PARENT" HEAD -- | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 7e2d7cc06bcc2bbfee2b3462f68270716369844e
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-machine-identity-binding-v1.md)" = dc17975ed304686762153e64b36cbc72b199fe1a
+          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 188c4c21d31d27d380a3c4f91b81bb7f6b826be3
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 9f13039a35c5c0afd457593d4436c614991434b1
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-machine-identity-binding-v1.md)" = 3b464cfb7f3d59b2329f2d1623066c36574e1657
 
           # Authenticate immutable parent evidence from the historical parent tree,
           # not from cumulative successor worktree copies.
@@ -80,19 +80,23 @@ jobs:
 
           for marker in \
             'VOID_APOLLYON_PROTECTED_STORE_MACHINE_IDENTITY_BINDING_V1_PROOF_GREEN' \
-            'binding_id=voidapollyonhostidbind1_84b546de51ba3f22cd1f5775eb0230d5683e53254d3d3426b9a97fc2d3037f1d' \
+            'binding_id=voidapollyonhostidbind1_71ad71a32fed9e24ccb3e06499f8777d7835ddac6280fb9f4a92423bfbd02198' \
             'parent_pr=3749' \
             'parent_head=4bb11c7469b47b25810390b762709bd93a7184e3' \
             'parent_blob_count=4' \
-            'binding_contract_count=21' \
-            'negative_authority_count=15' \
-            'rejected_adversaries=56' \
+            'binding_contract_count=24' \
+            'negative_authority_count=18' \
+            'rejected_adversaries=62' \
             'target_host=Xiphos' \
             'machine_identity_kind=etc_machine_id_sha256' \
             'expected_machine_id_sha256=543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057' \
             'raw_machine_id_recorded=false' \
             'raw_machine_id_printed=false' \
             'machine_identity_bound=true' \
+            'observed_digest_binding_not_authenticated_host_identity=true' \
+            'authenticated_transport_attestation_present=false' \
+            'authenticated_xiphos_machine_identity_proven=false' \
+            'host_pass_authorized=false' \
             'host_pass_performed=false' \
             'protected_store_origin_proven=false' \
             'writer_invocation_authorized=false' \
@@ -100,7 +104,7 @@ jobs:
             'credential_access=false' \
             'transaction=false' \
             'funds_movement=false' \
-            'next_gate=SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS'
+            'next_gate=AUTHENTICATE_XIPHOS_TRANSPORT_AND_ATTEST_MACHINE_IDENTITY_THEN_SEPARATELY_AUTHORIZE_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS'
           do
             grep -Fx "$marker" "$out"
           done
