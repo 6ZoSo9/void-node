@@ -116,6 +116,18 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
     else:
         raise AssertionError("create-only archive output overwrote existing file")
 
+    real_parent = parent / "real-output-parent"
+    real_parent.mkdir(mode=0o700)
+    linked_parent = parent / "linked-output-parent"
+    linked_parent.symlink_to(real_parent, target_is_directory=True)
+    try:
+        module.write_create_only(linked_parent / "redirected.tar", raw)
+    except module.ArchiveHold:
+        pass
+    else:
+        raise AssertionError("symlink output parent was accepted")
+    assert not (real_parent / "redirected.tar").exists()
+
     trailing = parent / "trailing.tar"
     trailing.write_bytes(raw + b"X")
     try:
@@ -184,6 +196,8 @@ for required in [
     "runtime_payload_identity_mismatch",
     "archive_manifest_runtime_identity_not_accepted",
     "descriptor_bound_source_reads",
+    "open_bound_private_directory",
+    "output_parent_not_private_or_bound",
     "archive_candidate_accepted",
     "existing_target_replaced",
     "node_binary_identity_verified",
@@ -210,6 +224,8 @@ print("deterministic_ustar=true")
 print("full_runtime_record_identity_bound=true")
 print("accepted_v3_bundle_lock_bound=true")
 print("descriptor_bound_source_reads=true")
+print("descriptor_bound_create_only_output=true")
+print("symlink_output_parent_rejected=true")
 print("fifo_substitution_rejected_without_blocking=true")
 print("forged_runtime_record_and_payload_rejected=true")
 print("forged_accepted_lock_member_rejected=true")
