@@ -30,11 +30,11 @@ historical V1 hashes.
 - V2 serializer path:
   `tools/apollyon-claim-contract-canonical-json-v2.mjs`
 - V2 serializer Git blob:
-  `c131e29a35543d7f9dc1d02b37a9a9dbfd086e79`
+  `07a19a92379aa3e1d1648becf007129820d51a70`
 - V2 proof path:
   `scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs`
 - V2 proof Git blob:
-  `b113f5f9868e8f0bbda8ee0c00ff2e82caf51bed`
+  `03de2c24110bbc804a9f7489f8ae62f69c03c59b`
 
 The branch is four ADD-only paths. V1 and all current consumers remain byte
 unchanged.
@@ -74,9 +74,9 @@ The serializer rejects:
 - noncanonical numbers or unsupported JS values.
 
 Metadata primitives used by the module are captured during module
-initialization. Object/array values are never handed to a live
-`JSON.stringify` operation, so later inherited `toJSON` hooks cannot affect
-serialization. Cycle tracking uses an internal linked frame rather than an
+initialization, including the `node:util` Proxy detector itself. Object/array
+values are never handed to a live `JSON.stringify` operation, so later
+inherited `toJSON` hooks cannot affect serialization. Cycle tracking uses an internal linked frame rather than an
 array stack, and the proof also installs a post-import numeric setter on
 `Array.prototype["0"]`; V2 must emit the same bytes with zero setter calls.
 
@@ -101,10 +101,11 @@ After importing V2, the proof separately poisons:
 Each poison must demonstrably change or intercept V1 while V2 returns the exact
 pre-poison bytes.
 
-Additional adversaries require zero executed Proxy traps, zero executed
-accessor getters, and zero post-import Array-prototype numeric-setter calls while
-rejecting Proxy/accessor/symbol/non-enumerable/sparse/extra-array/
-custom-prototype/`__proto__`/cyclic/deep/noncanonical-value surfaces.
+Additional adversaries replace `types.isProxy` after module import and still
+require Proxy rejection with zero traps. They also require zero accessor getters
+and zero post-import Array-prototype numeric-setter calls while rejecting
+Proxy/accessor/symbol/non-enumerable/sparse/extra-array/custom-prototype/
+`__proto__`/cyclic/deep/noncanonical-value surfaces.
 
 Node 22, 24 and 26 each execute the proof. The focused workflow extracts the
 fixture-vector SHA-256 from every Node job and requires cross-node equality.
