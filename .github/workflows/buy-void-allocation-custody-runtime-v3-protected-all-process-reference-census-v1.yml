@@ -47,11 +47,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "09fea72290cf88e2e31d31acfe97e2ca134af184"
+            "8bba1d591b1f3a5e111ff9149209d23ddd4cb4be"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "9c8d4996a9d9fdaf8b4f6824616c06e4d40b01f6"
+            "e57ea2cc2405ff7b83bc889617c8e52a4548b47b"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" = \
-            "c04ae3f8b04e3691a3dec1d53f2cd0b4d46bc918"
+            "f23d4e19b786db42feee5c7134fdc42719df395f"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
             "a5fa6ff22cc21df555e8a70c32500f07251dc4a8"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
@@ -101,6 +101,8 @@ jobs:
             'target_resolved_in_host_mount_namespace=true' \
             'host_namespace_lease_provenance_authenticated_by_census=false' \
             'separately_reviewed_host_namespace_lease_required=true' \
+            'host_scoped_target_reference_absent_candidate_only=true' \
+            'all_process_target_reference_absent_observed=false' \
             'task_inventory_generation_stability_required=true' \
             'per_thread_files_fs_reference_scan_required=true' \
             'bounded_task_inventory_required=true' \
@@ -157,6 +159,8 @@ jobs:
             'target_resolved_in_host_mount_namespace=true' \
             'host_namespace_lease_provenance_authenticated_by_census=false' \
             'separately_reviewed_host_namespace_lease_required=true' \
+            'host_scoped_target_reference_absent_candidate_only=true' \
+            'all_process_target_reference_absent_observed=false' \
             'task_inventory_generation_stability_required=true' \
             'per_thread_files_fs_reference_scan_required=true' \
             'bounded_task_inventory_required=true' \
