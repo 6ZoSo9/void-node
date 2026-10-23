@@ -16,7 +16,7 @@ if (
         print("process_signal=false")
         print("service_mutation=false")
         print("production_census_filesystem_write=false")
-    print("self_test_private_fixture_writes=true")
+        print("self_test_private_fixture_writes=false")
         print("funds_movement=false")
         raise SystemExit(2)
     raise RuntimeError("python_isolated_unoptimized_mode_required")
@@ -28,6 +28,7 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
 from typing import Any
 
 MARKER = _BOOTSTRAP_MARKER
@@ -57,6 +58,7 @@ MAX_TASK_ENTRIES = 262144
 MAX_STATUS_BYTES = 64 * 1024
 MAX_MOUNTINFO_BYTES = 4 * 1024 * 1024
 MAX_REPO_FILE = 2 * 1024 * 1024
+DEV_INO_LEASE_RE = re.compile(r"[1-9][0-9]{0,19}:[1-9][0-9]{0,19}")
 
 
 class CensusHold(RuntimeError):
@@ -188,6 +190,56 @@ def resolve_service_identity() -> dict[str, Any]:
         "uid": int(user.pw_uid),
         "gid": int(user.pw_gid),
         "primary_group_match": True,
+    }
+
+
+def parse_dev_ino_lease(
+    value: str,
+    code: str = "host_pid_namespace_lease_invalid",
+) -> tuple[int, int]:
+    if not isinstance(value, str) or not DEV_INO_LEASE_RE.fullmatch(value):
+        hold(code)
+    dev_text, ino_text = value.split(":", 1)
+    dev = int(dev_text, 10)
+    ino = int(ino_text, 10)
+    if dev <= 0 or ino <= 0:
+        hold(code)
+    return dev, ino
+
+
+def verify_pid_namespace_lease_stats(
+    self_ns: os.stat_result,
+    init_ns: os.stat_result,
+    expected: tuple[int, int],
+) -> tuple[int, int]:
+    observed = (int(self_ns.st_dev), int(self_ns.st_ino))
+    init_observed = (int(init_ns.st_dev), int(init_ns.st_ino))
+    if observed != init_observed:
+        hold("not_in_pid1_namespace")
+    if observed != expected:
+        hold("host_pid_namespace_lease_mismatch")
+    return observed
+
+
+def verify_host_pid_namespace_lease(
+    expected_host_pid_namespace_dev_ino: str,
+    proc_root: Path = PROC_ROOT,
+) -> dict[str, Any]:
+    expected = parse_dev_ino_lease(expected_host_pid_namespace_dev_ino)
+    if proc_root != Path("/proc") or Path(os.path.realpath(proc_root)) != proc_root:
+        hold("proc_root_not_canonical")
+    try:
+        self_ns = os.stat(proc_root / "self/ns/pid")
+        init_ns = os.stat(proc_root / "1/ns/pid")
+    except OSError as exc:
+        hold("host_pid_namespace_unreadable:" + str(exc.errno))
+    observed = verify_pid_namespace_lease_stats(self_ns, init_ns, expected)
+    return {
+        "external_lease_required": True,
+        "lease_verified": True,
+        "dev": str(observed[0]),
+        "ino": str(observed[1]),
+        "pid1_namespace_matches_self": True,
     }
 
 
@@ -442,10 +494,15 @@ def stable_uid_process_census(
     return first
 
 
-def census() -> dict[str, Any]:
+def census(
+    expected_host_pid_namespace_dev_ino: str,
+) -> dict[str, Any]:
     lock = verify_source_inputs()
     identity = resolve_service_identity()
 
+    pid_namespace = verify_host_pid_namespace_lease(
+        expected_host_pid_namespace_dev_ino
+    )
     proc_visibility = verify_complete_proc_visibility(read_proc_mountinfo())
 
     if identity["state"] == "present":
@@ -478,6 +535,7 @@ def census() -> dict[str, Any]:
         "service_identity": identity,
         "process_observation": {
             "proc_root": str(PROC_ROOT),
+            "pid_namespace": pid_namespace,
             "proc_visibility": proc_visibility,
             "uid_slots_examined": [
                 "real",
@@ -497,6 +555,8 @@ def census() -> dict[str, Any]:
         "proc_status_uid_only": True,
         "proc_thread_status_uid_only": True,
         "complete_proc_visibility_verified": True,
+        "host_pid_namespace_external_lease_required": True,
+        "host_pid_namespace_lease_verified": True,
         "process_cmdline_read": False,
         "process_environment_read": False,
         "process_executable_read": False,
@@ -606,6 +666,34 @@ def self_test() -> None:
         else:
             hold("self_test_proc_entry_budget_not_enforced")
 
+        if parse_dev_ino_lease("12:34") != (12, 34):
+            hold("self_test_pid_namespace_lease_parse_invalid")
+        fake_ns = type("FakeNamespace", (), {"st_dev": 12, "st_ino": 34})
+        if verify_pid_namespace_lease_stats(
+            fake_ns(), fake_ns(), (12, 34)
+        ) != (12, 34):
+            hold("self_test_pid_namespace_lease_verify_invalid")
+        try:
+            verify_pid_namespace_lease_stats(
+                fake_ns(),
+                type("DifferentNamespace", (), {"st_dev": 12, "st_ino": 35})(),
+                (12, 34),
+            )
+        except CensusHold as exc:
+            if "not_in_pid1_namespace" not in str(exc):
+                raise
+        else:
+            hold("self_test_private_pid_namespace_accepted")
+        try:
+            verify_pid_namespace_lease_stats(
+                fake_ns(), fake_ns(), (12, 35)
+            )
+        except CensusHold as exc:
+            if "host_pid_namespace_lease_mismatch" not in str(exc):
+                raise
+        else:
+            hold("self_test_pid_namespace_lease_mismatch_accepted")
+
         visible_mountinfo = (
             b"29 23 0:26 / /proc rw,nosuid,nodev,noexec,relatime"
             b" - proc proc rw\n"
@@ -633,6 +721,9 @@ def self_test() -> None:
     print("thread_uid_slots_classified=true")
     print("proc_visibility_verified_before_empty_candidate=true")
     print("hidepid_restricted_proc_holds=true")
+    print("host_pid_namespace_external_lease_required=true")
+    print("private_pid_namespace_rejected=true")
+    print("host_pid_namespace_lease_mismatch_rejected=true")
     print("malformed_live_status_holds=true")
     print("proc_entry_budget_enforced_before_sort=true")
     print("two_pass_uid_process_set_stability=true")
@@ -665,12 +756,21 @@ def main(argv: list[str]) -> int:
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--self-test", action="store_true")
     group.add_argument("--census", action="store_true")
+    parser.add_argument("--expected-host-pid-namespace-dev-ino")
     args = parser.parse_args(argv)
     if args.self_test:
         self_test()
         return 0
     if args.census:
-        print(json.dumps(census(), sort_keys=True, separators=(",", ":")))
+        if args.expected_host_pid_namespace_dev_ino is None:
+            hold("expected_host_pid_namespace_lease_required")
+        print(
+            json.dumps(
+                census(args.expected_host_pid_namespace_dev_ino),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
         return 0
     return 2
 
@@ -685,6 +785,8 @@ if __name__ == "__main__":
         print("read_only=true")
         print("proc_status_uid_only=true")
         print("proc_thread_status_uid_only=true")
+        print("host_pid_namespace_external_lease_required=true")
+        print("host_pid_namespace_lease_verified=false")
         print("process_cmdline_read=false")
         print("process_environment_read=false")
         print("process_executable_read=false")
