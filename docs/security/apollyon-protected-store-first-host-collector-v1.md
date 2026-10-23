@@ -184,9 +184,9 @@ provenance-HOLD generation, and this collector source. It verifies:
 
 No Xiphos host pass is performed by CI.
 
-Source blob: `493945e73b7f718c728e17a4f14e04dc4a32edf4`.
+Source blob: `36f77c85a2716989726af77679160de2b9e48f76`.
 
-Proof blob: `44e454a6e49629d0a2b8e6562c3e97e73c6afb86`.
+Proof blob: `40d34dfa2a8bc36c7f11824fbbf93a623839035d`.
 
 ## Next gate
 
