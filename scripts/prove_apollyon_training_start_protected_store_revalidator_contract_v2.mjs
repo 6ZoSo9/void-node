@@ -39,6 +39,14 @@ const PINS=Object.freeze({
     "76f5a6bcbc9854a1133cd1324eb862cb50102c0e",
   "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py":
     "ed6eb47c2f83b35b489d0e9034a4b87c2d10b9dd",
+  "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs":
+    "f97fafb0148527ae3a954e2752faef8c7fc9e88e",
+  "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
+    "6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe",
+  "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
+    "25629371f6da164e12fecfc08c5f26815418e3a8",
+  "tools/apollyon-training-start-consumption-contract-v1.mjs":
+    "f557d92e89f3502ee6ac1243411cd43191ec1f37",
 });
 
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
@@ -777,6 +785,8 @@ console.log(
 console.log("exact_parent_revalidation_request_blob_bound=true");
 console.log("exact_parent_protected_writer_blob_bound=true");
 console.log("exact_fixture_custody_source_blob_bound=true");
+console.log("direct_dependency_blob_count="+Object.keys(PINS).length);
+console.log("all_direct_source_and_proof_dependency_blobs_bound=true");
 console.log("public_candidate_content_addressed=true");
 console.log("flat_primitive_frame_hash_json_independent=true");
 console.log("post_import_json_tojson_poisoning_does_not_change_candidate_bytes=true");
