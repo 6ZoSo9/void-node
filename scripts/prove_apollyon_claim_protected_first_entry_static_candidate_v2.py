@@ -244,7 +244,7 @@ forged_non_elf["binary"]["sha256"] = module.sha256(non_elf)
 forged_non_elf["binary"]["git_blob_sha1"] = module.git_blob(non_elf)
 expect_rejected(
     readdress(forged_non_elf),
-    "candidate_supplied_binary_shape_invalid",
+    "candidate_binary_identity_invalid",
     non_elf,
 )
 
@@ -257,7 +257,7 @@ forged_mutated["binary"]["sha256"] = module.sha256(mutated_elf)
 forged_mutated["binary"]["git_blob_sha1"] = module.git_blob(mutated_elf)
 expect_rejected(
     readdress(forged_mutated),
-    "candidate_independent_rebuild_mismatch",
+    "candidate_binary_identity_invalid",
     mutated_elf,
 )
 
@@ -297,7 +297,7 @@ for forbidden in (
 ):
     assert forbidden not in source, forbidden
 
-print("VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_V1_PROOF_GREEN")
+print("VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_V2_PROOF_GREEN")
 print("candidate_tool_blob_bound=true")
 print("candidate_tool_executed_from_verified_bytes=true")
 print("accepted_parent_bound=true")
@@ -314,8 +314,8 @@ print("readdressed_binary_drift_rejected=true")
 print("readdressed_binary_extra_key_rejected=true")
 print("readdressed_authority_overclaim_rejected=true")
 print("readdressed_next_gate_drift_rejected=true")
-print("forged_non_elf_bytes_rejected=true")
-print("forged_mutated_elf_rebuild_mismatch_rejected=true")
+print("forged_non_elf_rejected_at_immutable_v1_identity=true")
+print("forged_mutated_elf_rejected_at_immutable_v1_identity=true")
 print("validator_reinspected_supplied_binary=true")
 print("validator_independent_rebuild_byte_identical=true")
 print("accepted_v1_binary_identity_preserved=true")
