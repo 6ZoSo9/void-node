@@ -26,7 +26,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact hardened parent and four-path scope
+      - name: Verify exact hardened parent and five-path reviewed V4 scope
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -37,6 +37,7 @@ jobs:
           test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
           mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
           expected=(
+            $'M\t.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml'
             $'M\t.github/workflows/void-v7-v5-stage-static-launcher-qualifier-v2.yml'
             $'M\tdocs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md'
             $'M\tops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c'
@@ -45,6 +46,10 @@ jobs:
           test "${#actual[@]}" -eq "${#expected[@]}"
           for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
           git diff --check "$PARENT" HEAD
+          # #3723's historical V4 workflow was merged onto this exact branch.
+          HISTORICAL_V4=.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml
+          test "$(git rev-parse "$PARENT:$HISTORICAL_V4")" = "231f5697c23e7f234e566877da9738093a091313"
+          test "$(git rev-parse "HEAD:$HISTORICAL_V4")" = "b82f0d1ea2f9c101343c2023bbf88516c948fa67"
 
       - name: Bind exact sources
         shell: bash
@@ -53,7 +58,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c)" = "2337466b713b6572cc5ec832817899bbcb4e2ac2"
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py)" = "f7ea902b7d145d4c770d76f41b0c2fb974ee3f3e"
           test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py)" = "06a52c04b0d9b3256c9897e08608040f4dfb95e7"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md)" = "be65b8ec0f2043d541e9d35b5e9d0cd4201888fe"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md)" = "28d7821d3733134c0932f1c492c9f533c944c1a4"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json)" = "c7ff1128ff04f3ce5f995206af52f844564c6b39"
 
       - name: Python syntax
