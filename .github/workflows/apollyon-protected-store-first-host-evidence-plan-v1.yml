@@ -1,0 +1,138 @@
+name: Apollyon protected-store first-host evidence plan V1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json"
+      - "scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py"
+      - "docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md"
+      - ".github/workflows/apollyon-protected-store-first-host-evidence-plan-v1.yml"
+      - "ops/security/apollyon-protected-store-machine-identity-binding-v1.json"
+      - "scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py"
+      - "docs/security/apollyon-protected-store-machine-identity-binding-v1.md"
+      - ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml"
+      - "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs"
+      - "scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs"
+      - "docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md"
+      - ".github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml"
+      - "tools/apollyon-training-start-store-revalidation-request-v1.mjs"
+      - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
+      - "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "tools/apollyon-training-start-consumption-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact parent and reviewed cumulative source-only scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          PARENT=981c2d7783173bcd0ff996966570a1deb3aa8426
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/apollyon-protected-store-first-host-evidence-plan-v1.yml' \
+            'docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md' \
+            'ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json' \
+            'scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py' \
+            '.github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml' \
+            'docs/security/apollyon-protected-store-machine-identity-binding-v1.md' \
+            'ops/security/apollyon-protected-store-machine-identity-binding-v1.json' \
+            'scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py' \
+            | LC_ALL=C sort > "$expected"
+          git diff --no-renames --name-only "$PARENT" HEAD -- | LC_ALL=C sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json)" = 110c8a6bb4f8ec89514cfd9ef4cdc3218fa2a4ca
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py)" = 533b8357caea9c77c5c73aba95233712824b65d9
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md)" = 4b055837dd4e150fb2573947ff11f0b2f455622e
+
+          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 188c4c21d31d27d380a3c4f91b81bb7f6b826be3
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 9f13039a35c5c0afd457593d4436c614991434b1
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-machine-identity-binding-v1.md)" = 3b464cfb7f3d59b2329f2d1623066c36574e1657
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml)" = 5f4e3fdbcbab7d825496cb66d874177e992fc207
+
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 4c78459826c25cab43870b0b322b566575d18667
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 62ff7e94e57a6333cdcfc78f6f63d8ef67288a20
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 16eb15388c6cc5d12097cbf69f1d04c9bc6c10d3
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml)" = 12ae0543cc714e3b9e5fe6e6fdf9d6b67b0fac9f
+
+          git diff --check "$PARENT" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile source proof without bytecode writes
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          name = "scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py"
+          compile(Path(name).read_text("utf-8"), name, "exec", dont_inherit=True)
+          print("plan_python_syntax_green=true")
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove source-only first-host boundary
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/apollyon-first-host-plan.txt"
+          python3 -I -B scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py --self-test | tee "$out"
+
+          for marker in \
+            'VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_EVIDENCE_PLAN_V1_PROOF_GREEN' \
+            'plan_id=voidapollyonfirsthostplan1_c75bf9aaa019f82e2d73c80cb0c8bb3a1072bc462870a6d36b67a40fc59746be' \
+            'parent_pr=3743' \
+            'parent_head=981c2d7783173bcd0ff996966570a1deb3aa8426' \
+            'parent_blob_count=4' \
+            'first_pass_requirement_count=39' \
+            'negative_authority_count=16' \
+            'rejected_adversaries=65' \
+            'hosted_candidate_identity_bound=true' \
+            'machine_identity_binding_required=true' \
+            'machine_identity_bound=false' \
+            'duplicate_json_keys_rejected=true' \
+            'cross_node_candidate_evidence_bound=true' \
+            'read_only_metadata_safe_first_pass_required=true' \
+            'protected_record_contents_read_forbidden=true' \
+            'process_environment_read_forbidden=true' \
+            'raw_process_args_read_forbidden=true' \
+            'host_read_performed=false' \
+            'filesystem_mutation=false' \
+            'service_mutation=false' \
+            'writer_capability_created=false' \
+            'claim_publication=false' \
+            'training_execution=false' \
+            'credential_access=false' \
+            'transaction=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          python3 -I -B scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py --run > "$RUNNER_TEMP/run.txt"
+          grep -Fx 'VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_EVIDENCE_PLAN_V1_PROOF_GREEN' "$RUNNER_TEMP/run.txt"
+          grep -Fx 'host_read_performed=false' "$RUNNER_TEMP/run.txt"
+          grep -Fx 'machine_identity_bound=false' "$RUNNER_TEMP/run.txt"
+          grep -Fx 'duplicate_json_keys_rejected=true' "$RUNNER_TEMP/run.txt"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
