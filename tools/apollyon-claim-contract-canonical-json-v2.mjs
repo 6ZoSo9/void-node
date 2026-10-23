@@ -255,6 +255,7 @@ function serialize(value,depth,stack){
   if(typeof value!=="object"){
     fail("apollyon_claim_canonical_v2_value_invalid");
   }
+  assertNoProxy(value,"apollyon_claim_canonical_v2_proxy_forbidden");
   if(ARRAY_IS_ARRAY(value))return serializeArray(value,depth,stack);
   return serializeObject(value,depth,stack);
 }
