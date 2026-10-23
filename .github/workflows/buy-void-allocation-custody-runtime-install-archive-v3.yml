@@ -73,9 +73,9 @@ jobs:
           test "${#actual[@]}" -eq 4
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
-          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-runtime-install-archive-v3.py)" =             "5285c941deeedd288dc519b11513dbee2dd24978"
-          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_install_archive_v3.py)" =             "8a62f2106034a5a329f800a76c17876d07999c4c"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-runtime-install-archive-v3.md)" =             "eeabfc8f413d9a0ed36ff9a650311280952b53a5"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-runtime-install-archive-v3.py)" =             "a5cfdcf06c40f4765a9f8e080304c40241dd78df"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_install_archive_v3.py)" =             "92aa44a55ea09c3ac02311f46cd0e2005a23c7d4"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-allocation-custody-runtime-install-archive-v3.md)" =             "95fd2de1edab3e04b6be62b66e65523ce57bf2a7"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-bundle-lock-v3.json)" =             "9e371ebc4ba1dcf494e55823eddb8a183c31d69f"
 
           git diff --check "$BASE" HEAD
@@ -108,7 +108,7 @@ jobs:
 
           grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_INSTALL_ARCHIVE_V3_SELF_TEST_GREEN' "$self"
           grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_INSTALL_ARCHIVE_V3_PROOF_GREEN' "$proof"
-          for marker in             'runtime_files_exact=10'             'deterministic_ustar=true'             'full_runtime_record_identity_bound=true'             'accepted_v3_bundle_lock_bound=true'             'descriptor_bound_source_reads=true'             'fifo_substitution_rejected_without_blocking=true'             'forged_runtime_record_and_payload_rejected=true'             'forged_accepted_lock_member_rejected=true'             'archive_candidate_accepted=false'             'immutable_root_install=false'             'existing_target_replaced=false'             'node_binary_identity_verified=false'             'runtime_integration=false'             'payment_acceptance=false'             'public_presale_activation=false'             'production_gate_ready=false'             'funds_movement=false'; do
+          for marker in             'runtime_files_exact=10'             'deterministic_ustar=true'             'full_runtime_record_identity_bound=true'             'accepted_v3_bundle_lock_bound=true'             'descriptor_bound_source_reads=true'             'descriptor_bound_create_only_output=true'             'symlink_output_parent_rejected=true'             'fifo_substitution_rejected_without_blocking=true'             'forged_runtime_record_and_payload_rejected=true'             'forged_accepted_lock_member_rejected=true'             'archive_candidate_accepted=false'             'immutable_root_install=false'             'existing_target_replaced=false'             'node_binary_identity_verified=false'             'runtime_integration=false'             'payment_acceptance=false'             'public_presale_activation=false'             'production_gate_ready=false'             'funds_movement=false'; do
             grep -Fx "$marker" "$proof"
           done
 
