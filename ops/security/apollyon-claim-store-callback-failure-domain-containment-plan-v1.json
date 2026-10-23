@@ -74,7 +74,9 @@
     "supervisor_preexec_kernel_file_storage_io_quotas_required": true,
     "supervisor_exact_resource_ceiling_contract_enforced_pre_callback_required": true,
     "supervisor_durable_inflight_unknown_fence_committed_before_worker_launch_required": true,
-    "supervisor_fence_clear_only_after_quiescence_and_terminal_revalidation_required": true
+    "supervisor_fence_clear_only_after_quiescence_and_terminal_revalidation_required": true,
+    "terminal_authorization_winner_revalidation_required": true,
+    "terminal_durable_claim_record_revalidation_required": true
   },
   "authority": {
     "protected_host_execution_authorized": false,
@@ -90,7 +92,7 @@
     "funds_movement_authorized": false
   },
   "next_gate": "DISTINCT_REVIEW_FAILURE_DOMAIN_PLAN_THEN_BUILD_ISOLATED_RUNTIME_CANDIDATE_V1",
-  "plan_id": "voidapollyonclaimcallbackcontain1_7c0ed39e634dabcfa229b8e0cbca786b79eac85cfd587167c165fe7fe7df8c19",
+  "plan_id": "voidapollyonclaimcallbackcontain1_9dd940ac663df8b532be0d25455eb522e9762563e2f04414ac933072aadc3a3f",
   "worker_resource_ceiling_contract": {
     "worker_deadline_ms": 5000,
     "worker_tree_reap_timeout_ms": 5000,
