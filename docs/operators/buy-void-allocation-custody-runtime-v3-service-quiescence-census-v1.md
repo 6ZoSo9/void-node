@@ -129,13 +129,16 @@ The **production `--census` path** performs no filesystem write. The
 temporary fixtures under the caller's temporary directory; their receipts
 therefore report `self_test_temporary_filesystem_write=true` /
 `test_fixture_filesystem_write=true` separately instead of describing those
-test executions as globally write-free.
+test executions as globally write-free. Failure receipts use the same scoped
+labels: a failed `--self-test` reports
+`self_test_temporary_filesystem_write=true`, while a production census or
+pre-fixture bootstrap HOLD reports it false.
 
 ## Authority remains false
 
 ```text
-read_only=true
-filesystem_write=false
+production_read_only=true
+production_filesystem_write=false
 systemd_show_only=true
 systemd_mutation=false
 daemon_reload=false
