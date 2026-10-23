@@ -315,6 +315,49 @@ try {
   const missingQuote = serverInput();
   delete missingQuote.request.quoted_void;
   negative(missingQuote, "event_request_original_identity_mismatch");
+
+  const oversizedHistory = canonicalLineage();
+  oversizedHistory.requests_jsonl = Buffer.alloc(64 * 1024 * 1024 + 1);
+  negative(
+    serverInput(),
+    "lineage_history_requests_jsonl_bytes_invalid",
+    oversizedHistory,
+  );
+
+  let lengthGetterCalls = 0;
+  const accessorHistory = canonicalLineage();
+  const accessorBuffer = Buffer.from(accessorHistory.requests_jsonl);
+  Object.defineProperty(accessorBuffer, "length", {
+    configurable: true,
+    get() {
+      lengthGetterCalls++;
+      throw new Error("lineage_history_length_getter_executed");
+    },
+  });
+  accessorHistory.requests_jsonl = accessorBuffer;
+  negative(
+    serverInput(),
+    "lineage_history_requests_jsonl_bytes_invalid",
+    accessorHistory,
+  );
+  assert.equal(lengthGetterCalls, 0,
+    "lineage history length accessor must never execute");
+
+  let historyProxyTraps = 0;
+  const proxyHistory = canonicalLineage();
+  proxyHistory.requests_jsonl = new Proxy(Buffer.alloc(0), {
+    get() {
+      historyProxyTraps++;
+      throw new Error("lineage_history_proxy_trap_executed");
+    },
+  }) as any;
+  negative(
+    serverInput(),
+    "lineage_history_requests_jsonl_bytes_invalid",
+    proxyHistory,
+  );
+  assert.equal(historyProxyTraps, 0,
+    "lineage history proxy traps must never execute");
   for (const badQuote of [
     null, "", "0", 0, "-6", "06", "6 ", "6e0", "6.0000001",
     "10000001", 10000001, 0.0000001, true, {}, [],
@@ -452,6 +495,8 @@ console.log("request_quote_bound_to_verified_usdc_micro_units_and_rate=true");
 console.log("payment_instruction_amount_bound_to_verified_usdc=true");
 console.log("first_request_launch_and_native_usdc_backfill_rejected=true");
 console.log("canonical_first_request_lineage_preflight_verified=true");
+console.log("lineage_history_bounded_before_copy=true");
+console.log("lineage_history_accessor_and_proxy_traps_not_executed=true");
 console.log("request_history_source_authenticated=false");
 console.log("equal_missing_zero_or_invalid_void_quotes_rejected=true");
 console.log("auth_denial_precedes_untrusted_planning=true");
