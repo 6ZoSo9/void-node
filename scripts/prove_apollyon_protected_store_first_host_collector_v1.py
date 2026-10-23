@@ -95,8 +95,9 @@ run_git(["diff", "--check", PARENT_HEAD, "HEAD", "--"])
 
 source_text = SOURCE.read_text("utf-8")
 for forbidden in (
-    "/cmdline", "/environ", "os.listdir(", "os.scandir(", ".iterdir(",
-    ".glob(", ".rglob(", "socket.create_connection", "urllib.", "requests.",
+    ' / "cmdline"', ' / "environ"', "os.environ", "os.getenv(",
+    "os.listdir(", "os.scandir(", ".iterdir(", ".glob(", ".rglob(",
+    "socket.create_connection", "urllib.", "requests.",
 ):
     need(forbidden not in source_text, "forbidden_source_surface:" + forbidden)
 for required in (
