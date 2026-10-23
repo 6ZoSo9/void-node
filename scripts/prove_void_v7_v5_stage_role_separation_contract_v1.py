@@ -209,7 +209,11 @@ for item in sites:
         "split_declarations", "stage_verifier", "candidate_owner",
         "operation_scoped_child", "stage_verifier_fixture",
     )
-assert len(re.findall(r"\bRUNTIME_(?:UID|GID)\b", source)) == 13, "untracked_shared_role_site"
+observed_shared_role_lines = [
+    index + 1 for index, line in enumerate(source_lines)
+    if re.search(r"\bRUNTIME_(?:UID|GID)\b", line)
+]
+assert observed_shared_role_lines == [row["line"] for row in sites], "untracked_shared_role_site"
 
 candidate = function_source(source, tree, "verify_candidate")
 copy = function_source(source, tree, "_copy_candidate_to_stage")
