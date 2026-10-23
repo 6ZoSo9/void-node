@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_host_namespace_lease_observation_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "08094872d5a8aca720ae0a9f710866890d8132e7"
+EXPECTED_SOURCE_BLOB = "073e1f1400def53831a089a3e9c14d6e1f311bf5"
 
 
 def git_blob(raw: bytes) -> str:
@@ -42,7 +42,7 @@ assert module.PROCESS_CENSUS_REL == (
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
 assert module.PROCESS_CENSUS_BLOB == (
-    "ded737a228a627a241a84131113db6d3521f635c"
+    "6bf476e3383b7b18966320df13b4041da9c8c11f"
 )
 assert module.PROC == Path("/proc")
 
