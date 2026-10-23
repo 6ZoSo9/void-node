@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -139,6 +140,50 @@ def git_blob(raw: bytes) -> str:
     return hashlib.sha1(
         b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw
     ).hexdigest()
+
+
+def run_git(args: list[str]) -> str:
+    result = subprocess.run(
+        ["/usr/bin/git", "--no-replace-objects", "-C", os.fspath(ROOT), *args],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=30,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/nonexistent",
+            "LANG": "C",
+            "LC_ALL": "C",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null",
+            "GIT_NO_REPLACE_OBJECTS": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_TERMINAL_PROMPT": "0",
+        },
+    )
+    need(
+        result.returncode == 0,
+        "git_command_failed:" + ":".join(args[:2]),
+    )
+    return result.stdout.strip()
+
+
+def parent_tree_blob(relative: str) -> str:
+    need(
+        relative in PINS
+        and not relative.startswith("/")
+        and ".." not in relative.split("/"),
+        "parent_tree_path_invalid",
+    )
+    blob = run_git(["rev-parse", PARENT_HEAD + ":" + relative])
+    need(
+        len(blob) == 40 and all(ch in "0123456789abcdef" for ch in blob),
+        "parent_tree_blob_invalid:" + relative,
+    )
+    return blob
 
 
 def read_regular(path: Path, maximum: int = 4 * 1024 * 1024) -> bytes:
@@ -343,9 +388,10 @@ def main() -> None:
     rejected += 1
 
     if sys.argv[1] == "--run":
+        run_git(["merge-base", "--is-ancestor", PARENT_HEAD, "HEAD"])
         for relative, expected in PINS.items():
             need(
-                git_blob(read_regular(ROOT / relative)) == expected,
+                parent_tree_blob(relative) == expected,
                 "parent_blob_mismatch:" + relative,
             )
 
