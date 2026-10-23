@@ -53,7 +53,7 @@ jobs:
           log="$RUNNER_TEMP/operator-capability-provenance-plan-v1.log"
           node scripts/prove_buy_void_operator_capability_provenance_plan_v1.mjs | tee "$log"
           grep -Fx 'VOID_BUY_VOID_OPERATOR_CAPABILITY_PROVENANCE_PLAN_V1_GREEN' "$log"
-          grep -Fx 'plan_id=voidbvcred1_157079efc5c79fa8471b14bfbbf9e2fb32e51e01db08946d1f829dbf69ffbcfc' "$log"
+          grep -Fx 'plan_id=voidbvcred1_7050f6cc60f4daffc168fc4df973ab39ca4b115d1eee864c61eba4eac1f74349' "$log"
           grep -Fx 'source_binding_count=4' "$log"
           grep -Fx 'future_requirement_count=17' "$log"
           grep -Fx 'base_repository_loadcredential_provisioning_present=false' "$log"
@@ -74,4 +74,4 @@ jobs:
 
       - name: Diff hygiene
         shell: bash
-        run: git diff --check 40e61e4695cd4fd9e95bbd44e95152b5c2e2f432 HEAD
+        run: git diff --check 61b0f81b2112aab32e3dc16084fe2d43178ec4da HEAD
