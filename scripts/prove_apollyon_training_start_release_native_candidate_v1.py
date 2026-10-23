@@ -18,7 +18,7 @@ PARENT_SOURCE_REL = "tools/apollyon-training-start-release-binding-v1.mjs"
 PARENT_PROOF_REL = "scripts/prove_apollyon_training_start_release_binding_v1.mjs"
 PARENT_WORKFLOW_REL = ".github/workflows/apollyon-training-start-release-binding-v1.yml"
 
-SOURCE_BLOB = "3c81dbbe694f421a0e6cbc18d8fb7d6f4c7fd983"
+SOURCE_BLOB = "098276fc92c247fa1465c11c6403c2c50a61629a"
 PARENT_SOURCE_BLOB = "b83b9e72a2c0e139bf677e6d045a0b31100d733a"
 PARENT_PROOF_BLOB = "021ebdf3b84aefb12e05abfee5667e243a23b1df"
 PARENT_WORKFLOW_BLOB = "bd743b470826b5b96638c690406bd4548d66092f"
@@ -146,6 +146,9 @@ assert "trainer_releaser_lineage_proven=false" in source
 assert "trainer_release_authorized=false" in source
 assert "training_execution_authorized=false" in source
 assert "training_execution_performed=false" in source
+assert "X32_SYSCALL_BIT_V1 0x40000000U" in source
+assert "BPF_JMP|BPF_JSET|BPF_K,X32_SYSCALL_BIT_V1" in source
+assert "selftest_x32_namespace()" in source
 
 for forbidden in (
     "O_CREAT",
@@ -469,6 +472,7 @@ with tempfile.TemporaryDirectory(
         "hostile_nonzero_capability_rejected=true",
         "hostile_supplementary_group_rejected=true",
         "post_first_entry_exec_forbidden=true",
+        "x32_syscall_namespace_rejected=true",
         "hostile_loader_runtime_environment_rejected=true",
         "private_release_channel_origin_proven=false",
         "release_writer_exclusivity_proven=false",
@@ -538,6 +542,7 @@ with tempfile.TemporaryDirectory(
         "procfs_self_pid_bound_to_getpid=true",
         "procfs_generation_revalidated=true",
         "post_first_entry_exec_forbidden=true",
+        "x32_syscall_namespace_rejected=true",
         "private_release_channel_origin_proven=false",
         "release_writer_exclusivity_proven=false",
         "trainer_releaser_lineage_proven=false",
@@ -590,6 +595,7 @@ print("candidate_no_needed=true")
 print("candidate_reproducible_bytes=true")
 print("candidate_three_build_equality=true")
 print("candidate_sha256=" + candidate_sha256)
+print("x32_syscall_namespace_rejected=true")
 print("release_fd3_exact_allowlist_bound=true")
 print("release_fd_anonymous_pipe_identity_bound=true")
 print("release_frame_short_extra_timeout_adversaries=true")
