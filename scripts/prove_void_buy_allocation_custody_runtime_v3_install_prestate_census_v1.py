@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "5da3edbcc9f2799faad44f722893c501669a80fd"
+EXPECTED_SOURCE_BLOB = "ccaa7ffc6b82c7cca3d6bea1268dc72ea25d28ca"
 
 spec = importlib.util.spec_from_file_location(
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1",
