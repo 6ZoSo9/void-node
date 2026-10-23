@@ -14,7 +14,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 BINDING = ROOT / "ops/security/apollyon-protected-store-machine-identity-binding-v1.json"
 MARKER = "VOID_APOLLYON_PROTECTED_STORE_MACHINE_IDENTITY_BINDING_V1_PROOF"
-BINDING_ID = "voidapollyonhostidbind1_84b546de51ba3f22cd1f5775eb0230d5683e53254d3d3426b9a97fc2d3037f1d"
+BINDING_ID = "voidapollyonhostidbind1_71ad71a32fed9e24ccb3e06499f8777d7835ddac6280fb9f4a92423bfbd02198"
 PARENT_HEAD = "4bb11c7469b47b25810390b762709bd93a7184e3"
 EXPECTED_MACHINE_ID_SHA256 = "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057"
 
@@ -34,6 +34,9 @@ CONTRACT = [
     "machine_identity_mismatch_must_hold",
     "machine_identity_unreadable_or_changed_must_hold",
     "machine_identity_measurement_must_not_print_raw_id",
+    "observed_digest_binding_not_authenticated_host_identity",
+    "authenticated_transport_attestation_required_before_host_pass",
+    "authenticated_xiphos_machine_identity_required_before_host_pass",
     "separate_operator_authorization_required_for_host_pass",
     "host_pass_remains_metadata_safe_read_only",
     "protected_record_contents_read_forbidden",
@@ -52,6 +55,9 @@ CONTRACT = [
     "funds_movement_forbidden",
 ]
 AUTH_FALSE = [
+    "authenticated_transport_attestation_present",
+    "authenticated_xiphos_machine_identity_proven",
+    "host_pass_authorized",
     "host_pass_performed",
     "protected_store_origin_proven",
     "current_store_generation_revalidation_performed",
@@ -233,7 +239,7 @@ def validate(value: object) -> dict:
         value,
         (
             "schema", "marker", "version", "repository", "issue", "parent",
-            "authenticated_host_identity", "binding_contract", "authority",
+            "observed_machine_identity_binding", "binding_contract", "authority",
             "next_gate", "binding_id",
         ),
         "binding",
@@ -270,11 +276,11 @@ def validate(value: object) -> dict:
         need(parent[role + "_git_blob_sha1"] == PINS[path], "parent_blob_invalid:" + role)
 
     identity = closed(
-        binding["authenticated_host_identity"],
+        binding["observed_machine_identity_binding"],
         tuple(IDENTITY_EXPECTED),
-        "authenticated_host_identity",
+        "observed_machine_identity_binding",
     )
-    need(identity == IDENTITY_EXPECTED, "authenticated_host_identity_invalid")
+    need(identity == IDENTITY_EXPECTED, "observed_machine_identity_binding_invalid")
 
     contract = closed(binding["binding_contract"], CONTRACT, "binding_contract")
     for key in CONTRACT:
@@ -291,7 +297,7 @@ def validate(value: object) -> dict:
 
     need(
         binding["next_gate"]
-        == "SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS",
+        == "AUTHENTICATE_XIPHOS_TRANSPORT_AND_ATTEST_MACHINE_IDENTITY_THEN_SEPARATELY_AUTHORIZE_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS",
         "next_gate_invalid",
     )
     without_id = copy.deepcopy(binding)
@@ -346,8 +352,8 @@ def adversaries(binding: dict) -> int:
     }
     for key, value in mutations.items():
         bad = copy.deepcopy(binding)
-        bad["authenticated_host_identity"][key] = value
-        expect(bad, "authenticated_host_identity_invalid", "identity:" + key)
+        bad["observed_machine_identity_binding"][key] = value
+        expect(bad, "observed_machine_identity_binding_invalid", "identity:" + key)
 
     bad = copy.deepcopy(binding)
     bad["parent"]["head"] = "0" * 40
@@ -410,6 +416,10 @@ def main() -> None:
     print("raw_machine_id_recorded=false")
     print("raw_machine_id_printed=false")
     print("machine_identity_bound=true")
+    print("observed_digest_binding_not_authenticated_host_identity=true")
+    print("authenticated_transport_attestation_present=false")
+    print("authenticated_xiphos_machine_identity_proven=false")
+    print("host_pass_authorized=false")
     print("host_pass_performed=false")
     print("protected_store_origin_proven=false")
     print("writer_invocation_authorized=false")
@@ -417,7 +427,7 @@ def main() -> None:
     print("credential_access=false")
     print("transaction=false")
     print("funds_movement=false")
-    print("next_gate=SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS")
+    print("next_gate=AUTHENTICATE_XIPHOS_TRANSPORT_AND_ATTEST_MACHINE_IDENTITY_THEN_SEPARATELY_AUTHORIZE_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS")
 
 
 if __name__ == "__main__":
