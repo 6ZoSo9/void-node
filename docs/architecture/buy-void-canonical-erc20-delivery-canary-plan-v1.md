@@ -5,15 +5,15 @@ Status: **SOURCE-ONLY HOLD**
 Base generation:
 
 - repository: `6ZoSo9/void-node`
-- head: `e83b1df4bc3b52d08d5e38e076fa6c80085f7e01`
-- tree: `016ed94a40ad7b25565f9233e3ad29375f7f37b3`
-- plan ID: `voidbverc20canary1_7149b3d05bb5c4fa856d3d3494cc556541a514925f465fa0fcc6c13222690d86`
-- plan Git blob: `3727d3759012072443f11ff97343d5c0c66bc5c7`
-- proof Git blob: `8b99edf0859cbc034ad16bf08238c04aa9121321`
+- head: `40e61e4695cd4fd9e95bbd44e95152b5c2e2f432`
+- tree: `c6d9b9cedd33acd2a114c7577ef11aa3274c3cb3`
+- plan ID: `voidbverc20canary1_5c1bc8a16b52b8e7e07f79aadfa01c5865b5804f7603f2c8fd4330d043520173`
+- plan Git blob: `3efe05cfd104e87d48b3eb7e1d6d943ce10a6d5d`
+- proof Git blob: `a9cd410a08be430399cf39af38ea1d0e34cede92`
 
 ## Current-main rederivation — October 22, 2026
 
-This V1 plan has been rederived on current `main@e83b1df4bc3b52d08d5e38e076fa6c80085f7e01`.
+This V1 plan has been rederived on current `main@40e61e4695cd4fd9e95bbd44e95152b5c2e2f432`.
 All **53/53** bound source Git identities were compared against the complete
 current-main tree and are byte-identical to the prior reviewed generation.
 Only the provenance envelope changed: base head/tree, content-addressed plan ID,
