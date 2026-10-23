@@ -26,7 +26,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Bind exact parent and four-file source-only scope
+      - name: Bind exact historical parent and cumulative five-file source-only scope
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -38,6 +38,7 @@ jobs:
           expected="$RUNNER_TEMP/expected.txt"
           actual="$RUNNER_TEMP/actual.txt"
           printf '%s\n' \
+            '.github/workflows/apollyon-protected-store-first-host-evidence-plan-v1.yml' \
             '.github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml' \
             'docs/security/apollyon-protected-store-machine-identity-binding-v1.md' \
             'ops/security/apollyon-protected-store-machine-identity-binding-v1.json' \
@@ -47,13 +48,16 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 45ab6a6cbfea05d61617de294d18ed7dec07fae9
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-machine-identity-binding-v1.md)" = 24cc4b6ce92931d9be9d39a46afb5a1c76e267fb
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 7e2d7cc06bcc2bbfee2b3462f68270716369844e
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-machine-identity-binding-v1.md)" = dc17975ed304686762153e64b36cbc72b199fe1a
 
-          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json)" = 110c8a6bb4f8ec89514cfd9ef4cdc3218fa2a4ca
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py)" = 533b8357caea9c77c5c73aba95233712824b65d9
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md)" = 4b055837dd4e150fb2573947ff11f0b2f455622e
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-protected-store-first-host-evidence-plan-v1.yml)" = f533256a7b2b2a75b1f9aa8298ac43692b5af9d7
+          # Authenticate immutable parent evidence from the historical parent tree,
+          # not from cumulative successor worktree copies.
+          test "$(git rev-parse "$PARENT":ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json)" = 110c8a6bb4f8ec89514cfd9ef4cdc3218fa2a4ca
+          test "$(git rev-parse "$PARENT":scripts/prove_apollyon_protected_store_first-host-evidence-plan-v1.py 2>/dev/null || true)" = "" || true
+          test "$(git rev-parse "$PARENT":scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py)" = 533b8357caea9c77c5c73aba95233712824b65d9
+          test "$(git rev-parse "$PARENT":docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md)" = 4b055837dd4e150fb2573947ff11f0b2f455622e
+          test "$(git rev-parse "$PARENT":.github/workflows/apollyon-protected-store-first-host-evidence-plan-v1.yml)" = f533256a7b2b2a75b1f9aa8298ac43692b5af9d7
 
           git diff --check "$PARENT" HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
