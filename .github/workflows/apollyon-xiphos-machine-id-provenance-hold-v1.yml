@@ -56,7 +56,7 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = 44e454a6e49629d0a2b8e6562c3e97e73c6afb86
 
           test "$(git rev-parse HEAD:ops/security/apollyon-xiphos-machine-id-provenance-hold-v1.json)" = e0c7aa5d26639caee4c293da1846544bb07ca903
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v1.py)" = f919e7a37a5837a36498e28db2228c112da459d2
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v1.py)" = d848808585934e6609f0c84c09adcba18339a583
           test "$(git rev-parse HEAD:docs/security/apollyon-xiphos-machine-id-provenance-hold-v1.md)" = fb6fdba3e8cba4f471daa09cef3469de0c0dd24d
 
           git diff --check "$PARENT" "$EXPECTED_HEAD"
