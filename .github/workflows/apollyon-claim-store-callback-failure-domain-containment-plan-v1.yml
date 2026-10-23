@@ -51,8 +51,8 @@ jobs:
 
           # Current content-addressed plan, proof and security doc: fail on drift.
           test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = 54c0b81eec3aa05406b0fd465b1d34c7e324a8f3
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = e707b51decfdaf6a25103338321891e1e83fc1e6
-          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 013b2d12b98ac63f38ff3d65d7db564c16ed6caf
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = 69277b8136d7eab42aada5511a7eabdaddb36044
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 6bfb3349333be98bf727239ba6a92120cf508baf
 
           git diff --check "$PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -81,6 +81,9 @@ jobs:
           grep -Fx 'unsafe_supervisor_death_fence_reuse_hazard_observed=true' "$out"
           grep -Fx 'bound_source_role_identities_enforced=true' "$out"
           grep -Fx 'source_uid_gid_nlink_metadata_drift_rejected=true' "$out"
+          grep -Fx 'source_uid_gid_nlink_open_metadata_drift_rejected=true' "$out"
+          grep -Fx 'source_uid_gid_nlink_terminal_fd_drift_rejected=true' "$out"
+          grep -Fx 'source_uid_gid_nlink_terminal_visible_drift_rejected=true' "$out"
           grep -Fx 'failure_domain_containment_proven=false' "$out"
           grep -Fx 'trusted_callback_origin_proven=false' "$out"
           grep -Fx 'protected_host_execution_authorized=false' "$out"
