@@ -46,11 +46,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "e2c36f188396774d090731ad3cba78a9e919acc0"
+            "03626d0953bcd151fdd2ec33253427a79249c6db"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "7ec218eb6593fd69b68e8d1bb1360a7d4388d235"
+            "a5f86fcfcba94539e3153a6d951ddc55305218b2"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.md)" = \
-            "d9766d0e80c8e11d1786dfb1d07884eced3877b9"
+            "2e4b328daffd7acb59f06e33216f499919c88ad3"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
             "4d9c6e5809a5cc64454626760f71e60ed99354bc"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
@@ -80,11 +80,21 @@ jobs:
             'archive_lock_exact=true' \
             'target_identity_metadata_only=true' \
             'current_uid_process_scope=true' \
+            'proc_status_effective_uid_classification=true' \
+            'process_uid_slots_stable_during_reference_scan=true' \
             'host_pid_namespace_external_lease_required=true' \
             'private_pid_namespace_rejected=true' \
             'host_pid_namespace_lease_mismatch_rejected=true' \
             'complete_proc_visibility_required=true' \
+            'proc_mount_root_is_slash_required=true' \
+            'proc_mount_point_exact_required=true' \
+            'proc_root_root_owned_nonwritable_required=true' \
+            'proc_self_pid_matches_runtime_required=true' \
             'hidepid_restricted_proc_holds=true' \
+            'proc_subtree_mount_holds=true' \
+            'retained_procfs_view_required=true' \
+            'retained_procfs_view_revalidated_after_census=true' \
+            'target_streaming_entry_budget=true' \
             'proc_cmdline_read=false' \
             'proc_environ_read=false' \
             'proc_fd_target_text_read=false' \
@@ -129,11 +139,18 @@ jobs:
             'archive_lock_exact=true' \
             'target_identity_metadata_only=true' \
             'current_uid_process_scope=true' \
+            'proc_status_effective_uid_classification=true' \
+            'process_uid_slots_stable_during_reference_scan=true' \
             'host_pid_namespace_external_lease_required=true' \
             'private_pid_namespace_rejected=true' \
             'host_pid_namespace_lease_mismatch_rejected=true' \
             'complete_proc_visibility_required=true' \
+            'proc_mount_root_is_slash_required=true' \
+            'proc_mount_point_exact_required=true' \
+            'proc_root_root_owned_nonwritable_required=true' \
+            'proc_self_pid_matches_runtime_required=true' \
             'hidepid_restricted_proc_holds=true' \
+            'proc_subtree_mount_holds=true' \
             'retained_procfs_view_required=true' \
             'retained_procfs_view_descriptor_relative=true' \
             'retained_procfs_view_revalidated_after_census=true' \
