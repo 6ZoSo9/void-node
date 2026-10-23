@@ -1,0 +1,169 @@
+name: VOID Buy custody runtime V3 service quiescence census v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-service-quiescence-census-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-service-quiescence-census-v1.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json"
+      - "tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs"
+      - "tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact quiescence-census successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="4f0150a53a4c938c273c634f506f5dbbc56475e7"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-service-quiescence-census-v1.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-service-quiescence-census-v1.md'
+            $'A\tops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py)" = \
+            "90358ef1df3ecfa3daeee39452ffd025e9a8d86e"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py)" = \
+            "616a2a8e1baebf8eae8499231c99d22040fc187b"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-service-quiescence-census-v1.md)" = \
+            "1ba84371a3b8ea4d4b7a674b34e7b1df111fa013"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
+            "edb4ea2b833373ab387762e45ba7da4032c860f3"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs)" = \
+            "63eb0aa4e4211869284d389839e71e23554d62b1"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs)" = \
+            "9d4b97a822b50c525722f0decae9205a9aebeb4a"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile Python sources
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py
+
+      - name: Self-test without host systemd observation
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/custody-quiescence-selftest.txt"
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py \
+            --self-test | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_SERVICE_QUIESCENCE_CENSUS_V1_SELF_TEST_GREEN' "$out"
+          for marker in \
+            'archive_lock_exact=true' \
+            'bootstrap_policy_exact=true' \
+            'socket_runtime_policy_exact=true' \
+            'canonical_system_unit_bound=true' \
+            'canonical_socket_path_bound=true' \
+            'systemctl_show_only=true' \
+            'inactive_service_candidate_classified=true' \
+            'unsafe_systemd_load_states_rejected=true' \
+            'python_no_bytecode_mode_required=true' \
+            'enabled_unit_rejected=true' \
+            'pending_daemon_reload_rejected=true' \
+            'lingering_runtime_directory_rejected=true' \
+            'active_service_rejected=true' \
+            'present_socket_rejected=true' \
+            'service_quiescence_proven=false' \
+            'live_process_binding_checked=false' \
+            'production_read_only=true' \
+            'production_filesystem_write=false' \
+            'self_test_temporary_filesystem_write=true' \
+            'systemd_mutation=false' \
+            'service_start=false' \
+            'service_stop=false' \
+            'service_restart=false' \
+            'socket_connect=false' \
+            'socket_unlink=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove source boundary
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/custody-quiescence-proof.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py \
+            | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_SERVICE_QUIESCENCE_CENSUS_V1_PROOF_GREEN' "$proof"
+          for marker in \
+            'archive_lock_exact=true' \
+            'bootstrap_policy_exact=true' \
+            'socket_runtime_policy_exact=true' \
+            'canonical_system_unit_bound=true' \
+            'canonical_socket_path_bound=true' \
+            'systemctl_show_only=true' \
+            'systemctl_mutating_verbs_absent=true' \
+            'exact_source_blob_asserted=true' \
+            'inactive_service_candidate_classified=true' \
+            'unsafe_systemd_load_states_rejected=true' \
+            'python_no_bytecode_mode_required=true' \
+            'without_dash_b_bootstrap_hold=true' \
+            'enabled_unit_rejected=true' \
+            'pending_daemon_reload_rejected=true' \
+            'lingering_runtime_directory_rejected=true' \
+            'active_service_rejected=true' \
+            'present_socket_rejected=true' \
+            'service_quiescence_proven=false' \
+            'live_process_binding_checked=false' \
+            'host_census_not_executed_in_ci=true' \
+            'production_read_only=true' \
+            'production_filesystem_write=false' \
+            'test_fixture_filesystem_write=true' \
+            'systemd_mutation=false' \
+            'daemon_reload=false' \
+            'service_start=false' \
+            'service_stop=false' \
+            'service_restart=false' \
+            'socket_connect=false' \
+            'socket_unlink=false' \
+            'request_history_read=false' \
+            'custody_data_read=false' \
+            'credential_access=false' \
+            'wallet_or_signer_access=false' \
+            'install_target_selected=false' \
+            'existing_target_replaced=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
