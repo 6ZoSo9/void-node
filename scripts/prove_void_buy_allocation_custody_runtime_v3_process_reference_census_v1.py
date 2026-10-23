@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "3f496f320e2366eff28990e20f9dae59bfcc2ebc"
+EXPECTED_SOURCE_BLOB = "fa517d708666b630b235d104402e1919bbd1079a"
 
 
 def git_blob(raw: bytes) -> str:
@@ -207,6 +207,7 @@ for required in (
     "current_uid_target_reference_absent_candidate",
     "target_snapshot_stable",
     "target_rescan_each_attempt",
+    "target_snapshot_stable_required",
     "all_process_reference_absence_proven",
     "privileged_all_process_scan",
     "custody_principal_process_scan_performed",
@@ -235,6 +236,7 @@ print("pid_set_change_fail_closed=true")
 print("target_snapshot_change_fail_closed=true")
 print("target_replacement_race_regression=true")
 print("target_rescan_each_attempt=true")
+print("target_snapshot_stable_required=true")
 print("legacy_tree_entry_limit=32768")
 print("proc_cmdline_read=false")
 print("proc_environ_read=false")
