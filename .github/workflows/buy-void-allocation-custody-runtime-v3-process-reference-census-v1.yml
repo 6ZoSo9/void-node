@@ -31,7 +31,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          BASE="97ddf23065b56fef3bf16c5c96092a0b100042a1"
+          BASE="836f5e704a603f67b77b2406aeec9174f640497e"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
@@ -46,13 +46,13 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "6bf476e3383b7b18966320df13b4041da9c8c11f"
+            "ded737a228a627a241a84131113db6d3521f635c"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "a313ed277052b59e1606177c0e95d1d4106e7e3d"
+            "52587693cb86e01252055ff3d25831e867cdb075"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.md)" = \
-            "ce3bf3ef04238d7fe68010113b63c000ef849468"
+            "dfc5014c7604f0cee2eb9f91b35471eaaca44d9a"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "e32ebd94ad09cd80e03489079e74657aab159d7a"
+            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
