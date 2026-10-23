@@ -49,9 +49,9 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
-          test "$(git rev-parse HEAD:tools/apollyon-claim-contract-canonical-json-v2.mjs)" = 7880229ec73d22c51b176f9a07a64a54f3ac89ae
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs)" = 789f0717fdf9ef08da34576e526c9798cd8d139e
-          test "$(git rev-parse HEAD:docs/security/apollyon-claim-contract-canonical-json-v2.md)" = f31f3bb479c293e33f0de1408d5315750ea895a0
+          test "$(git rev-parse HEAD:tools/apollyon-claim-contract-canonical-json-v2.mjs)" = 5580cf87064deba12dc6191465db4ce9824828fc
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs)" = b4d36417fbbe0ce4532375f432e31c6f488debbb
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-contract-canonical-json-v2.md)" = 165180e449c7b11f19f2f0a3c468ddb6cd0f0a91
 
           git diff --check "$BASE" HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -72,7 +72,7 @@ jobs:
 
           for marker in \
             'VOID_APOLLYON_CLAIM_CONTRACT_CANONICAL_JSON_V2_PROOF_GREEN' \
-            'valid_fixture_equivalence_count=18' \
+            'valid_fixture_equivalence_count=19' \
             'post_import_object_tojson_poison_resisted=true' \
             'post_import_array_tojson_poison_resisted=true' \
             'post_import_json_stringify_poison_resisted=true' \
@@ -80,6 +80,7 @@ jobs:
             'proxy_traps_executed=0' \
             'accessor_getter_executed=0' \
             'closed_surface_adversaries_rejected=true' \
+            'integer_like_key_order_matches_v1=true' \
             'frozen_v1_unchanged=true' \
             'consumer_migration_performed=false' \
             'protected_host_execution_authorized=false' \
