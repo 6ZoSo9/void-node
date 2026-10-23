@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_host_namespace_lease_observation_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "9a420790377ce7c83a254460452a4f27676e1cbd"
+EXPECTED_SOURCE_BLOB = "cdae4647f25a125acd4108f4dc29a4af4a83bf4d"
 
 
 def git_blob(raw: bytes) -> str:
@@ -163,6 +163,7 @@ print("mount_namespace_mismatch_rejected=true")
 print("complete_proc_visibility_required=true")
 print("hidepid_restricted_proc_holds=true")
 print("descriptor_relative_bounded_reader_tested=true")
+print("proc_self_intermediate_symlink_supported=true")
 print("proc_fdinfo_zero_size_reader_tested=true")
 print("proc_mount_id_reader_tested=true")
 print("operator_observation_only=true")
