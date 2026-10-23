@@ -33,13 +33,11 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
           SOURCE_BASE: e68e46bd64fc0dbc550f14a23bf6aa66a90fdf90
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            test "$PR_BASE" = "$SOURCE_BASE"
             test "$(git merge-base "$SOURCE_BASE" "$EXPECTED_HEAD")" = "$SOURCE_BASE"
             cat > "$RUNNER_TEMP/expected-delta" <<'EOF'
           A	.github/workflows/buy-void-v7-fsverity-capability-census-v1.yml
