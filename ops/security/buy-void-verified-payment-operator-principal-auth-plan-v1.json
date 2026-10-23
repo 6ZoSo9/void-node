@@ -15,8 +15,8 @@
     "transaction_broadcast": false,
     "verified_allocation_dispatch_mounted": false
   },
-  "base_head": "e83b1df4bc3b52d08d5e38e076fa6c80085f7e01",
-  "base_tree": "016ed94a40ad7b25565f9233e3ad29375f7f37b3",
+  "base_head": "a3e0fdc4a9ee3c39c84f5783064c2e38f9481f97",
+  "base_tree": "4eeb6d9d382d9520b60ae9b698b1135da85b05df",
   "current_observations": {
     "capability_browser_storage_allowed": false,
     "capability_cookie_allowed": false,
@@ -56,7 +56,7 @@
     "payment_to_void_delivery_canary_separate",
     "coupled_launch_activation_separate"
   ],
-  "plan_id": "voidbuyopauth1_c5f0e1ac8d0dff89df7458877f2cb814f5166cf1edd138595835c5ada603471f",
+  "plan_id": "voidbuyopauth1_35d73623a820ffb06acd4bf49769237ad13cf2db0ad7f40f2613229d92f2c2d1",
   "repository": "6ZoSo9/void-node",
   "schema": "void_buy_void_verified_payment_operator_principal_auth_plan_v1",
   "source_bindings": {
