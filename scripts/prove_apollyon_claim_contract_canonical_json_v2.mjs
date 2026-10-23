@@ -43,6 +43,15 @@ const fixtures=[
     nested:{gamma:null,alpha:true,beta:-7},
     list:[{k:"v"},3,false],
   },
+  {
+    "10":"ten",
+    "2":"two",
+    "0":"zero",
+    "4294967294":"max-index",
+    "4294967295":"not-index",
+    "01":"leading-zero",
+    a:1,
+  },
 ];
 
 let vector="";
@@ -53,6 +62,20 @@ for(let index=0;index<fixtures.length;index+=1){
   vector+=v2+"\n";
 }
 const fixtureVectorSha256=crypto.createHash("sha256").update(vector,"utf8").digest("hex");
+
+const numericKeyFixture={
+  "10":"ten",
+  "2":"two",
+  "0":"zero",
+  "4294967294":"max-index",
+  "4294967295":"not-index",
+  "01":"leading-zero",
+  a:1,
+};
+const numericKeyExpected=
+  '{"0":"zero","2":"two","10":"ten","4294967294":"max-index","01":"leading-zero","4294967295":"not-index","a":1}';
+assert.equal(canonicalApollyonClaimContractJsonV1(numericKeyFixture),numericKeyExpected);
+assert.equal(canonicalApollyonClaimContractJsonV2(numericKeyFixture),numericKeyExpected);
 
 const nestedFixture={
   z:[3,{b:"two",a:1}],
@@ -286,6 +309,7 @@ console.log("captured_own_primitive_survived_poison=true");
 console.log("proxy_traps_executed=0");
 console.log("accessor_getter_executed=0");
 console.log("closed_surface_adversaries_rejected=true");
+console.log("integer_like_key_order_matches_v1=true");
 console.log("frozen_v1_unchanged=true");
 console.log("consumer_migration_performed=false");
 console.log("protected_host_execution_authorized=false");
