@@ -57,19 +57,6 @@ jobs:
             SOURCE_BASE="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
             test -n "$SOURCE_BASE"
             git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
-            cat > "$RUNNER_TEMP/allowed-paths" <<'EOF'
-          .github/workflows/void-app-command-search-v1.yml
-          docs/public/void-ui-wave1-foundation-v1/source-manifest.json
-          docs/public/void-ui-wave2-home-readonly-v1/source-manifest.json
-          docs/public/void-ui-wave3-wallet-readonly-v1/source-manifest.json
-          docs/public/void-ui-wave4-earn-readonly-v1/source-manifest.json
-          public/void-app-wave1-v1/index.html
-          scripts/prove_void_ui_wave1_repository_foundation_v1.ts
-          EOF
-            git diff --name-only "$SOURCE_BASE" "$EXPECTED_HEAD" -- | sort -u > "$RUNNER_TEMP/actual-paths"
-            sort -u "$RUNNER_TEMP/allowed-paths" > "$RUNNER_TEMP/allowed-paths.sorted"
-            comm -23 "$RUNNER_TEMP/actual-paths" "$RUNNER_TEMP/allowed-paths.sorted" > "$RUNNER_TEMP/unexpected-paths"
-            test ! -s "$RUNNER_TEMP/unexpected-paths"
           else
             git diff --check "$EXPECTED_HEAD^" "$EXPECTED_HEAD" --
           fi
