@@ -137,6 +137,28 @@ Digest conventions are exact and shared with the reviewed custody transport:
   identity-file parent so ambient user configuration cannot add identities or
   behavior.
 
+## Required remote execution chain
+
+Authenticating the SSH host key does not by itself authenticate the code that
+produces the measurement. The future binding/attestation generation must also
+prove the server-side execution chain that receives the bound client key:
+
+- the exact client public key is present in a reviewed authorized-keys record;
+- that record uses `restrict` and one exact forced command;
+- authorized-key environment options are absent and the authorized-keys file
+  itself is under reviewed custody;
+- the forced command rejects any non-empty `SSH_ORIGINAL_COMMAND`;
+- effective sshd policy has `PermitUserEnvironment no`, `PermitUserRC no`,
+  and an empty accepted-environment surface for this account;
+- the account shell is exact, reviewed, root-owned and non-writable;
+- any system SSH rc path is absent or exact/reviewed;
+- the forced-command handler and measurement runtime are root-owned,
+  non-writable, exact-source-bound artifacts.
+
+This prevents a valid host key plus mutable account startup state from
+substituting a fake canonical measurement before the fixed
+`/etc/machine-id` reader runs.
+
 ## Required challenge-bound measurement
 
 The future attestation uses a **32-byte client-generated CSPRNG challenge**.
@@ -198,13 +220,13 @@ The proof:
 - requires all transport identities to remain null/unbound;
 - requires all authority fields false;
 - validates content-addressed plan ID
-  `voidapollyonxiphosattestplan1_bb22aae1db88ec8dbfaaf4a40d952e8b67d25754b0a060ecf6a439c263081fab`;
-- executes **106 semantic adversaries**; and
+  `voidapollyonxiphosattestplan1_e3f13c2059ead38ee0c8ec05101d575976439a2f3381a035f8a6b35ddbaee5ff`;
+- executes **118 semantic adversaries**; and
 - performs no network or host access.
 
-Plan blob: `835291d036668b3d0bbe7aeb02e51f61ff0b2a72`.
+Plan blob: `9a49983ee4cb27c7d8ab0a64180e831f26d78925`.
 
-Proof blob: `a721cc5e7e49bd969301d4918ad224c17b6009cf`.
+Proof blob: `6f120814733e7ef845fcec59f7a10e8eef8915ae`.
 
 ## Next gate
 
