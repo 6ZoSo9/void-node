@@ -326,6 +326,35 @@ def _python_runtime_observation() -> dict[str, Any]:
     }
 
 
+def _observe_regular_at(
+    parent_fd: int,
+    name: str,
+    before: os.stat_result,
+    expected_mnt: int,
+    relative: str,
+) -> os.stat_result:
+    descriptor = os.open(name, _leaf_flags(), dir_fd=parent_fd)
+    try:
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or _generation(before) != _generation(opened)
+        ):
+            hold("target_file_rebound:" + relative)
+        if _fd_mount_id(descriptor) != expected_mnt:
+            hold("target_file_mount_boundary_invalid:" + relative)
+        after = os.fstat(descriptor)
+        visible = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if (
+            _generation(opened) != _generation(after)
+            or _generation(after) != _generation(visible)
+        ):
+            hold("target_file_changed:" + relative)
+        return opened
+    finally:
+        os.close(descriptor)
+
+
 def _target_records(
     fd: int,
     prefix: str,
@@ -373,6 +402,11 @@ def _target_records(
             kind = "symlink"
         else:
             hold("target_special_file_forbidden:" + relative)
+
+        if kind == "file":
+            before = _observe_regular_at(
+                fd, name, before, expected_mnt, relative
+            )
 
         identities.add((before.st_dev, before.st_ino))
         records.append({
@@ -981,6 +1015,7 @@ def self_test() -> None:
     print("root_owned_nonwritable_ancestry_required=true")
     print("root_execution_required=true")
     print("target_identity_metadata_only=true")
+    print("regular_file_mount_id_checked=true")
     print("all_numeric_pids_scope=true")
     print("kernel_thread_explicit_skip=true")
     print("pid_generation_recheck=true")
