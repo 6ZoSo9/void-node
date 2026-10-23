@@ -30,7 +30,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          BASE="3d7b8041f90b92d66d8de43cd0b28e98cbf194be"
+          BASE="aebffe89a834eddccbd708495047f369f4dbaf29"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
@@ -45,17 +45,20 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs)" = \
-            "5c9494787c67bbe419e5ec550826f900387f502c"
+            "c7590b7f133ce9af66ec37d6dfcce837b1e78117"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_protected_procref_install_plan_v1.mjs)" = \
-            "1e41387df290b6d34fc71168d116abe258d9726b"
+            "57186f132e274fd5ef801833417604f98594f575"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-protected-procref-install-plan-v1.md)" = \
-            "110728f4ed90a4cd0ffabf7a121f528e2a212734"
+            "e0ccc080956e3f11f33fcbf3d732e46bb062c894"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "25a0913606baa3303743f36a8c79f3c7a14ea159"
+            "9738f14111fc03dffe9afb04f7bede73ceb13087"
 
-          test "$(git cat-file -s HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = "70661"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.json)" = \
+            "e66742be948ae418cbdca75542db263050930c15"
+
+          test "$(git cat-file -s HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = "74322"
           printf '%s  %s\n' \
-            "447411e1853fdff56098e2700c60855aaa6ebc2dfb02104afc82af83c2c97efe" \
+            "f3ef0593eae77825f730609b85da51af66168ba11f39848d052a91942e4cc335" \
             "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py" \
             | sha256sum -c -
 
