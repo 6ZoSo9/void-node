@@ -106,6 +106,22 @@ capability generation:
 A content-addressed V2 candidate, a caller-provided FD, a source checkout, or a
 synthetic fixture receipt is never sufficient proof of those facts.
 
+The machine-readable V2 contract also requires, without claiming they have
+been performed:
+
+- trusted ancestor custody;
+- absent POSIX access **and** default ACLs on root/consumption directories;
+- fail-closed symlink/FIFO/device/hardlink substitution handling;
+- regular single-link bounded records with canonical bytes, terminal EOF and
+  retained/visible generation checks;
+- terminal receipt, custody record and publish-request binding rereads;
+- transaction lease/fencing across final revalidation and any writer handoff;
+- lease-loss and indeterminate-close mapping to HOLD; and
+- no automatic retry after an indeterminate outcome.
+
+All matching `*_proven`, `*_revalidated` and `*_performed` fields remain
+false in this source candidate.
+
 ## Parent request cross-binding
 
 `qualifyApollyonTrainingStartProtectedStoreRevalidatorAgainstRequestV2()`
@@ -159,9 +175,9 @@ candidate_weight_mutation_performed=false
 Current V2 source generation before this document:
 
 - contract source blob:
-  `cf934d43324370a05bb2790bfa5fad0f482121cc`;
+  `bb5281d9836d9879cc086eba75585b276d2768fe`;
 - proof blob:
-  `65ce3c8cc15ce5d1f870ac14eab9e8cc2b36b5fd`.
+  `41c3e1a1c4a8fb1a7750b02f18c6ade4f2e38733`.
 
 Next gate:
 `apollyon_training_start_protected_store_revalidator_implementation_v2`,
