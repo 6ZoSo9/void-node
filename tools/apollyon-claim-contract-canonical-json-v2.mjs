@@ -169,6 +169,30 @@ function serializeArray(value,depth,stack){
   });
 }
 
+function arrayIndexValue(key){
+  if(key==="0")return 0;
+  if(typeof key!=="string"||key.length===0||key[0]==="0")return -1;
+  let value=0;
+  for(let index=0;index<key.length;index+=1){
+    const code=APPLY(STRING_CHAR_CODE_AT,key,[index]);
+    if(code<0x30||code>0x39)return -1;
+    value=value*10+(code-0x30);
+    if(value>4294967294)return -1;
+  }
+  return value;
+}
+
+function compareCanonicalObjectKeys(left,right){
+  const leftIndex=arrayIndexValue(left);
+  const rightIndex=arrayIndexValue(right);
+  if(leftIndex>=0&&rightIndex>=0)return leftIndex-rightIndex;
+  if(leftIndex>=0)return -1;
+  if(rightIndex>=0)return 1;
+  if(left<right)return -1;
+  if(left>right)return 1;
+  return 0;
+}
+
 function serializeObject(value,depth,stack){
   assertNoProxy(value,"apollyon_claim_canonical_v2_proxy_forbidden");
   const prototype=GET_PROTOTYPE_OF(value);
@@ -192,7 +216,11 @@ function serializeObject(value,depth,stack){
       fail("apollyon_claim_canonical_v2_object_shape_invalid");
     }
   }
-  APPLY(ARRAY_SORT,names,[]);
+  // V1 first inserts lexicographically sorted keys into an ordinary object,
+  // then JSON.stringify applies ECMAScript own-property order: array-index
+  // names numerically first, followed by the remaining strings in insertion
+  // (therefore lexicographic) order. Reproduce that order without stringify.
+  APPLY(ARRAY_SORT,names,[compareCanonicalObjectKeys]);
 
   return withStack(stack,value,()=>{
     let out="{";
