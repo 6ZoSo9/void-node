@@ -45,11 +45,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
+            "e32ebd94ad09cd80e03489079e74657aab159d7a"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "a63eca7368c337d68f5cda31d9e52b0b759f1b53"
+            "d41671f9901685ad10e90ec9d50945716ba87a86"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-install-prestate-census-v1.md)" = \
-            "8125d427981777de86649eff93162635c80330d9"
+            "a4b76c978ace5373a26cad4eb56f1c83029d26c9"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
@@ -80,12 +80,15 @@ jobs:
             'legacy_regular_file_content_read=false' \
             'nested_mount_rejection_bound=true' \
             'mount_id_boundary_bound=true' \
-            'symlink_opaque_identity_bound=true' \
+            'symlink_target_content_read=false' \
+            'hold_reason_untrusted_entry_names_redacted=true' \
             'special_file_rejection=true' \
             'stage_and_rollback_collision_observed=true' \
             'production_census_read_only=true' \
             'python_no_bytecode_mode_required=true' \
-            'production_census_filesystem_write=false' \
+            'production_census_explicit_filesystem_write=false' \
+            'production_census_filesystem_write_free=false' \
+            'production_census_atime_write_possible=true' \
             'self_test_temporary_filesystem_write=true' \
             'archive_extraction=false' \
             'service_state_checked=false' \
@@ -119,7 +122,8 @@ jobs:
             'legacy_regular_file_content_read=false' \
             'nested_mount_rejection_bound=true' \
             'mount_id_boundary_bound=true' \
-            'symlink_opaque_identity_bound=true' \
+            'symlink_target_content_read=false' \
+            'hold_reason_untrusted_entry_names_redacted=true' \
             'absent_target_create_only_candidate_proven=true' \
             'present_target_rollback_candidate_proven=true' \
             'special_file_rejection=true' \
@@ -132,7 +136,9 @@ jobs:
             'production_receipt_scoped_authority_keys=true' \
             'python_no_bytecode_mode_required=true' \
             'without_dash_b_bootstrap_hold=true' \
-            'production_census_filesystem_write=false' \
+            'production_census_explicit_filesystem_write=false' \
+            'production_census_filesystem_write_free=false' \
+            'production_census_atime_write_possible=true' \
             'test_fixture_filesystem_write=true' \
             'legacy_tree_entry_limit=32768' \
             'legacy_file_metadata_size_limit=67108864' \
