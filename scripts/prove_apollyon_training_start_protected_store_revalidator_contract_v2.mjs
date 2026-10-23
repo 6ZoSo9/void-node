@@ -32,7 +32,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE_REL=
   "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs";
 const PINS=Object.freeze({
-  [SOURCE_REL]:"1699ac4d826e778854ea0c91541cf4412b30fb50",
+  [SOURCE_REL]:"4c78459826c25cab43870b0b322b566575d18667",
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
     "079576db7f880872f2d4dea8e7759bd536161516",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
@@ -250,10 +250,58 @@ assert.equal(
   candidate.revalidator_candidate_id,
 );
 
+const FULL_3557_REQUIRED_TRUE=Object.freeze([
+  "installed_source_generation_identity_required",
+  "installed_package_closure_identity_required",
+  "trusted_interpreter_runtime_identity_required",
+  "installed_service_process_identity_required",
+  "ambient_environment_and_mutable_provenance_rejection_required",
+  "privileged_fixed_root_capability_origin_required",
+  "mount_namespace_and_bind_alias_provenance_required",
+  "caller_selected_root_or_directory_fd_authority_forbidden",
+  "cross_uid_kernel_peer_credential_provenance_required",
+  "protected_operator_and_claim_service_identity_required",
+  "ephemeral_delegated_capability_lifetime_required",
+  "stopped_trainer_identity_revalidation_required",
+  "separate_native_releaser_gate_required",
+  "sole_writer_exact_frame_eof_and_credential_gate_required",
+  "protected_store_receipt_non_authoritative_for_keys_signing_economics",
+  "first_host_pass_read_only_metadata_safe_required",
+  "first_host_pass_credentials_keys_wallets_forbidden",
+  "first_host_pass_mutation_service_training_forbidden",
+  "record_content_digest_and_id_cross_binding_required",
+  "pending_or_partial_record_maps_to_hold_required",
+  "indeterminate_outcome_no_unlink_rollback_or_release_required",
+  "postpublication_root_generation_winner_claim_consumption_revalidation_required",
+  "postpublication_parent_fsync_evidence_required",
+  "negative_fixture_complete_fd_census_required",
+  "negative_fixture_exactly_once_close_required",
+  "negative_fixture_zero_mutation_and_stable_namespace_required",
+  "terminal_close_failure_provenance_required",
+]);
+const FULL_3557_REQUIRED_FALSE=Object.freeze([
+  "installed_source_generation_identity_proven",
+  "installed_package_closure_identity_proven",
+  "trusted_interpreter_runtime_identity_proven",
+  "installed_service_process_identity_proven",
+  "privileged_fixed_root_capability_origin_proven",
+  "mount_namespace_and_bind_alias_provenance_proven",
+  "cross_uid_kernel_peer_credential_provenance_proven",
+  "protected_operator_and_claim_service_identity_proven",
+  "ephemeral_delegated_capability_lifetime_proven",
+  "stopped_trainer_identity_revalidation_performed",
+  "separate_native_releaser_gate_satisfied",
+  "sole_writer_exact_frame_eof_and_credential_gate_satisfied",
+  "first_host_pass_performed",
+  "postpublication_revalidation_performed",
+  "postpublication_parent_fsync_evidence_proven",
+]);
+
 for(const key of [
   "source_contract_only","flat_primitive_content_address_required",
   "candidate_frame_hash_json_independent",
   "reviewed_canonicalizer_v2_required_for_future_host",
+  ...FULL_3557_REQUIRED_TRUE,
   "fixture_terminal_root_policy_revalidation_source_bound",
   "trusted_ancestor_custody_required",
   "root_and_consumption_access_acl_absence_required",
@@ -290,6 +338,7 @@ for(const key of [
   "reviewed_canonicalizer_v2_host_integration_proven",
   "parent_revalidation_request_v1_host_realm_proven",
   "candidate_material_derivation_host_realm_proven",
+  ...FULL_3557_REQUIRED_FALSE,
   "trusted_ancestor_custody_proven",
   "root_and_consumption_acl_policy_revalidated",
   "record_type_link_bounds_revalidated",
@@ -318,6 +367,42 @@ for(const key of [
 ]){
   assert.equal(candidate[key],false,key);
 }
+
+for(const key of FULL_3557_REQUIRED_TRUE){
+  assert.equal(candidate[key],true,key);
+  const tampered={...candidate,[key]:false};
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(
+      tampered,
+    ),
+    /v2_candidate_invalid/u,
+    "missing #3557 required gate: "+key,
+  );
+}
+for(const key of FULL_3557_REQUIRED_FALSE){
+  assert.equal(candidate[key],false,key);
+  const tampered={...candidate,[key]:true};
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(
+      tampered,
+    ),
+    /v2_candidate_invalid/u,
+    "premature #3557 proof state: "+key,
+  );
+}
+for(const key of FULL_3557_REQUIRED_TRUE){
+  assert.equal(
+    VOID_APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_AUTHORITY_V2[key],
+    true,key,
+  );
+}
+for(const key of FULL_3557_REQUIRED_FALSE){
+  assert.equal(
+    VOID_APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_AUTHORITY_V2[key],
+    false,key,
+  );
+}
+
 for(const [key,expected] of Object.entries({
   source_contract_only:true,
   public_candidate_only:true,
@@ -705,6 +790,13 @@ console.log("current_canonicalizer_v2_generation_bound=true");
 console.log("superseded_canonicalizer_v2_generation_rejected=true");
 console.log("revoked_proxy_candidate_rejected=true");
 console.log("reviewed_canonicalizer_v2_future_host_required=true");
+console.log("installed_source_runtime_process_identity_requirements_bound=true");
+console.log("mount_and_role_provenance_requirements_bound=true");
+console.log("postpublication_and_stopped_trainer_gates_bound=true");
+console.log("first_host_pass_read_only_boundary_bound=true");
+console.log("full_3557_required_true_fields="+FULL_3557_REQUIRED_TRUE.length);
+console.log("full_3557_required_false_fields="+FULL_3557_REQUIRED_FALSE.length);
+console.log("full_3557_requirement_tamper_rejected=true");
 console.log("full_3557_future_host_matrix_bound=true");
 console.log("automatic_retry_forbidden=true");
 console.log("transaction_lease_fencing_performed=false");
