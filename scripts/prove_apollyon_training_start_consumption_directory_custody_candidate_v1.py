@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
 PINS = {
     "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py":
-        "f8062b282ef71e6b345e5ea1ffbad138b3694489",
+        "ed6eb47c2f83b35b489d0e9034a4b87c2d10b9dd",
     "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
         "76f5a6bcbc9854a1133cd1324eb862cb50102c0e",
     "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
@@ -207,6 +207,56 @@ with tempfile.TemporaryDirectory(prefix="apollyon-custody-default-acl-v1-") as t
     assert hit[0] == 1
     assert fd_set() == baseline
 
+with tempfile.TemporaryDirectory(prefix="apollyon-custody-root-policy-drift-v1-") as td:
+    root, leaf = fixture(td)
+    real_acl_check = mod.require_no_extended_acl
+    drifted = [False]
+
+    def acl_check_then_mode_drift(fd: int, label: str) -> None:
+        real_acl_check(fd, label)
+        if label == "fixture_root" and not drifted[0]:
+            drifted[0] = True
+            root.chmod(0o750)
+
+    baseline = fd_set()
+    mod.require_no_extended_acl = acl_check_then_mode_drift
+    try:
+        expect_hold(
+            lambda: observe(root), "fixture_root_final_generation_changed",
+        )
+    finally:
+        mod.require_no_extended_acl = real_acl_check
+        root.chmod(0o700)
+    assert drifted[0]
+    assert fd_set() == baseline
+
+with tempfile.TemporaryDirectory(prefix="apollyon-custody-root-acl-drift-v1-") as td:
+    root, leaf = fixture(td)
+    real_getxattr = mod.os.getxattr
+    root_ino = root.stat().st_ino
+    root_access_checks = [0]
+
+    def acl_appears_after_initial_check(fd: int, name: str, *args, **kwargs):
+        if (
+            os.fstat(fd).st_ino == root_ino
+            and name == "system.posix_acl_access"
+        ):
+            root_access_checks[0] += 1
+            if root_access_checks[0] >= 2:
+                return b"synthetic late root ACL"
+        return real_getxattr(fd, name, *args, **kwargs)
+
+    baseline = fd_set()
+    mod.os.getxattr = acl_appears_after_initial_check
+    try:
+        expect_hold(
+            lambda: observe(root), "fixture_root_extended_acl_present",
+        )
+    finally:
+        mod.os.getxattr = real_getxattr
+    assert root_access_checks[0] == 2
+    assert fd_set() == baseline
+
 with tempfile.TemporaryDirectory(prefix="apollyon-custody-drift-v1-") as td:
     root, leaf = fixture(td)
     real_open = mod.os.open
@@ -335,6 +385,9 @@ print("fixed_root_descriptor_generation_checked=true")
 print("consumption_directory_descriptor_generation_checked=true")
 print("acl_and_symlink_adversaries_rejected=true")
 print("default_directory_acl_rejected=true")
+print("fixture_root_postcheck_mode_drift_rejected=true")
+print("fixture_root_postcheck_acl_drift_rejected=true")
+print("terminal_root_policy_revalidated=true")
 print("visible_directory_replacement_rejected=true")
 print("rejected_directory_fd_cleanup_verified=true")
 print("isolated_python_preimport_guard=true")
