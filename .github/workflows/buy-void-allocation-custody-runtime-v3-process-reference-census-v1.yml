@@ -31,7 +31,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          BASE="ae207992cd291fbc3645320319fe08f39be05d51"
+          BASE="332367d1ac93a206437c0c977082b97ed4895cd0"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
@@ -46,13 +46,13 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "d3c648df3f43ab642d60b8eacedb05c851e4fd2c"
+            "65916e49b7297e3b592049a3878683141d364152"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "ce4f48c617b848ceb0dd1e7465fd143da4bf63c2"
+            "554ffb2a2bd57c3972dcdc40484c0922ec756cce"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.md)" = \
-            "7f01545b6ebb08c277e364d1c37d1b799dbe8d6c"
+            "7fa8924f32c433132c67d8b9e68ac79e3180575f"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "caaf668b25879b5bbcddbf865e574a7b5162143e"
+            "c2e0c53336665578e4ab26204f7d67908c66ad3f"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
@@ -94,6 +94,7 @@ jobs:
             'regular_file_mount_id_checked=true' \
             'receipt_target_bound_to_selected_attempt=true' \
             'legacy_tree_entry_limit=32768' \
+            'python_no_bytecode_mode_required=true' \
             'root_execution_forbidden=true' \
             'all_process_reference_absence_proven=false' \
             'privileged_all_process_scan=false' \
@@ -135,6 +136,8 @@ jobs:
             'regular_file_mount_id_checked=true' \
             'receipt_target_bound_to_selected_attempt=true' \
             'legacy_tree_entry_limit=32768' \
+            'python_no_bytecode_mode_required=true' \
+            'without_dash_b_bootstrap_hold=true' \
             'proc_cmdline_read=false' \
             'proc_environ_read=false' \
             'proc_fd_target_text_read=false' \
