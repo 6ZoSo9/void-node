@@ -31,7 +31,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE_REL=
   "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs";
 const PINS=Object.freeze({
-  [SOURCE_REL]:"bb5281d9836d9879cc086eba75585b276d2768fe",
+  [SOURCE_REL]:"ef578b704e8cb186b98fd4f89f410f70dc0306b0",
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
     "079576db7f880872f2d4dea8e7759bd536161516",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
@@ -235,7 +235,7 @@ assert.equal(
 
 for(const key of [
   "source_contract_only","flat_primitive_content_address_required",
-  "candidate_content_address_json_independent",
+  "candidate_frame_hash_json_independent",
   "reviewed_canonicalizer_v2_required_for_future_host",
   "fixture_terminal_root_policy_revalidation_source_bound",
   "trusted_ancestor_custody_required",
@@ -272,6 +272,7 @@ for(const key of [
 for(const key of [
   "reviewed_canonicalizer_v2_host_integration_proven",
   "parent_revalidation_request_v1_host_realm_proven",
+  "candidate_material_derivation_host_realm_proven",
   "trusted_ancestor_custody_proven",
   "root_and_consumption_acl_policy_revalidated",
   "record_type_link_bounds_revalidated",
@@ -305,10 +306,11 @@ for(const [key,expected] of Object.entries({
   public_candidate_only:true,
   candidate_is_bearer_authority:false,
   flat_primitive_content_address_required:true,
-  candidate_content_address_json_independent:true,
+  candidate_frame_hash_json_independent:true,
   reviewed_canonicalizer_v2_required_for_future_host:true,
   reviewed_canonicalizer_v2_host_integration_proven:false,
   parent_revalidation_request_v1_host_realm_proven:false,
+  candidate_material_derivation_host_realm_proven:false,
   fixture_terminal_root_policy_revalidation_source_bound:true,
   trusted_ancestor_custody_required:true,
   trusted_ancestor_custody_proven:false,
@@ -507,10 +509,11 @@ const source=fs.readFileSync(path.join(ROOT,SOURCE_REL),"utf8");
 for(const required of [
   "qualifyApollyonTrainingStartStoreRevalidationRequestV1",
   "flat_primitive_content_address_required:true",
-  "candidate_content_address_json_independent:true",
+  "candidate_frame_hash_json_independent:true",
   "reviewed_canonicalizer_v2_required_for_future_host:true",
   "reviewed_canonicalizer_v2_host_integration_proven:false",
   "parent_revalidation_request_v1_host_realm_proven:false",
+  "candidate_material_derivation_host_realm_proven:false",
   "fixture_terminal_root_policy_revalidation_source_bound:true",
   "trusted_ancestor_custody_required:true",
   "root_and_consumption_access_acl_absence_required:true",
@@ -581,7 +584,7 @@ console.log("exact_parent_revalidation_request_blob_bound=true");
 console.log("exact_parent_protected_writer_blob_bound=true");
 console.log("exact_fixture_custody_source_blob_bound=true");
 console.log("public_candidate_content_addressed=true");
-console.log("flat_primitive_content_address_json_independent=true");
+console.log("flat_primitive_frame_hash_json_independent=true");
 console.log("post_import_json_tojson_poisoning_does_not_change_candidate_bytes=true");
 console.log("captured_reflection_primordials_bound=true");
 console.log("revoked_proxy_candidate_rejected=true");
@@ -592,6 +595,7 @@ console.log("transaction_lease_fencing_performed=false");
 console.log("terminal_receipt_reread_performed=false");
 console.log("custody_record_reread_performed=false");
 console.log("parent_v1_request_host_realm_proven=false");
+console.log("candidate_material_derivation_host_realm_proven=false");
 console.log("public_candidate_not_bearer_authority=true");
 console.log("parent_request_cross_binding_required=true");
 console.log("readdressed_public_candidate_rejected_against_parent=true");
