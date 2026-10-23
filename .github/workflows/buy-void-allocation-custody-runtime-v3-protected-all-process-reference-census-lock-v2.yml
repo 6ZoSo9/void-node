@@ -32,7 +32,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          BASE="3d7b8041f90b92d66d8de43cd0b28e98cbf194be"
+          BASE="cfae72e86e060ec797a86797d71f7be7aa019be8"
 
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
@@ -51,14 +51,14 @@ jobs:
           )
           diff -u             <(printf '%s\n' "${expected_sorted[@]}")             <(printf '%s\n' "${actual[@]}")
 
-          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.json)" =             "5e53aa44bbd1f983dacea2c072fc6abf01031caf"
-          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v2.py)" =             "0c5be0cb1c6e443c38d5007b768d9aecbf1edafb"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.md)" =             "1ac5571a9a1c3c98315a9f131fc53fd4f5de3e2b"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.json)" =             "2acfdfcda3af5fd68db2986bf9d4109badf45177"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v2.py)" =             "93b5ca8044a435bf9ecdace2ec3687040c634be5"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.md)" =             "e4b47b8618525c2ea21a0b485f246474f7442e30"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" =             "25a0913606baa3303743f36a8c79f3c7a14ea159"
-          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" =             "3f9e30ddd89f36b37f6d7f9754f95f7d190d4da3"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" =             "6424b96d89a4109a42ed73b3dc8c88b78e9589d4"
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.yml)" =             "74dadcfb40b2eab81260dd58b9783085f3cba8fe"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" =             "9738f14111fc03dffe9afb04f7bede73ceb13087"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" =             "127340dbc839718ae40e216b9edf0ba9fcaf4435"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" =             "dacabdee63158c37f39d22489dc1cbf87752705d"
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.yml)" =             "661a110e2fe8694ebdf948ff6033890da03cb2a3"
 
           git diff --check "$BASE" HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -91,7 +91,7 @@ jobs:
 
           grep -Fx             'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS_LOCK_V2_PROOF_GREEN'             "$out"
 
-          for marker in             'candidate_source_git_blob_exact=true'             'candidate_source_bytes_exact=true'             'candidate_source_ascii_only=true'             'source_companion_blobs_exact=true'             'hosted_focused_run_bound=true'             'exact_head_code_review_no_findings_bound=true'             'candidate_source_accepted=true'             'source_sha256_freshly_derived=false'             'source_sha256_diagnostic_only=true'             'bounded_generation_stable_task_inventory_required=true'             'per_thread_files_fs_reference_scan_required=true'             'per_thread_host_mount_namespace_required=true'             'private_task_mount_namespace_rejected=true'             'task_mount_namespace_generation_stability_required=true'             'host_namespace_lease_provenance_authenticated_by_census=false'             'separately_reviewed_host_namespace_lease_required=true'             'mount_namespace_reference_scan_performed=false'             'mount_namespace_reference_absence_proven=false'             'all_process_target_reference_absent_observed=false'             'all_process_reference_absence_proven=false'             'fd_table_stability_proven=false'             'mapping_set_stability_proven=false'             'process_reference_snapshot_race_free=false'             'live_at_use_reverification_required=true'             'protected_install_authorized=false'             'protected_source_installed=false'             'live_privileged_census_authorized=false'             'live_privileged_census_executed=false'             'replacement_apply_authorized=false'             'runtime_integration=false'             'payment_acceptance=false'             'public_presale_activation=false'             'production_gate_ready=false'             'funds_movement=false'
+          for marker in             'candidate_source_git_blob_exact=true'             'candidate_source_bytes_exact=true'             'candidate_source_ascii_only=true'             'source_companion_blobs_exact=true'             'hosted_focused_run_bound=true'             'exact_head_code_review_no_findings_bound=true'             'candidate_source_accepted=true'             'source_sha256_freshly_derived=false'             'source_sha256_diagnostic_only=true'             'bounded_generation_stable_task_inventory_required=true'             'per_thread_files_fs_reference_scan_required=true'             'per_thread_host_mount_namespace_required=true'             'private_task_mount_namespace_rejected=true'             'task_mount_namespace_generation_stability_required=true'             'host_namespace_lease_provenance_authenticated_by_census=false'             'separately_reviewed_host_namespace_lease_required=true'             'host_user_namespace_external_lease_required=true'             'host_user_namespace_terminal_revalidation_required=true'             'private_user_namespace_rejected=true'             'host_user_namespace_lease_mismatch_rejected=true'             'mount_namespace_reference_scan_performed=false'             'mount_namespace_reference_absence_proven=false'             'all_process_target_reference_absent_observed=false'             'all_process_reference_absence_proven=false'             'fd_table_stability_proven=false'             'mapping_set_stability_proven=false'             'process_reference_snapshot_race_free=false'             'live_at_use_reverification_required=true'             'protected_install_authorized=false'             'protected_source_installed=false'             'live_privileged_census_authorized=false'             'live_privileged_census_executed=false'             'replacement_apply_authorized=false'             'runtime_integration=false'             'payment_acceptance=false'             'public_presale_activation=false'             'production_gate_ready=false'             'funds_movement=false'
           do
             grep -Fx "$marker" "$out"
           done
@@ -102,5 +102,5 @@ jobs:
       - name: Diff hygiene
         run: |
           set -euo pipefail
-          git diff --check "3d7b8041f90b92d66d8de43cd0b28e98cbf194be" HEAD
+          git diff --check "cfae72e86e060ec797a86797d71f7be7aa019be8" HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
