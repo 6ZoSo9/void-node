@@ -3,14 +3,17 @@
 Status: **candidate / source and hosted CI only**. This is not an approved
 replacement for the historical protected enforcement lock. Target dependency:
 [PR #3692](https://github.com/6ZoSo9/void-node/pull/3692) at current-main
-restack head `8238fc68eacc5cc6bd7ff2a7c47128f37e585140` with tree
-`8d4dcf83d563b7a645b6236643ca4e47b50de801`.
+repaired current-main head `f84d380d41e3aefd3c96b3fa956f5f7addf9f908`
+with tree `6d03b668ca51cc7ffa115c164955d09dc9b13e70`.
 
 The original reviewed seven-ADD-only generation remains immutable at
 `0628d81259fed779ea3bb6c4d067b66b19a3e577` / tree
-`282648386bb2f0b79f95af398de61f231e79504c`. The current parent preserves
-that head as an ancestor, keeps the six runtime/test blobs byte-identical, and
-changes only the transport workflow to bind the exact current-main composition.
+`282648386bb2f0b79f95af398de61f231e79504c`. The repaired parent preserves
+that head as an ancestor and still exposes exactly seven ADD-only V2 paths
+relative to live `main@61b0f81b2112aab32e3dc16084fe2d43178ec4da`.
+The transport source/proof remain byte-identical; the current workflow,
+allocation-stage source/proof and custody-inspect source/proof are separately
+versioned to bind payment-instruction amount and first-original lineage.
 
 ## Problem and authority
 
@@ -130,25 +133,64 @@ on disposable synthetic ERC-20 Transfer receipts and checks the unmodified
 event's ability to reach **staged_unmounted** with all payment/custody authority
 false.
 
-The accepted source HEAD, tree, and three changed dependency blob IDs in this
-version are pinned to that correction. The branch integrates the dependency by
-an **additive two-parent merge**, preserving the earlier successor history and
-the corrected #3692 parent; no force push or historical evidence repinning.
+The accepted source HEAD/tree and all seven current dependency blobs are pinned
+to the repaired parent. In addition to canonical quote/verifier binding, the
+stage now requires payment-instruction amount equality and a bounded canonical
+first-request lineage preflight. Later native-USDC or launch-authority backfill
+cannot repair a deficient first row. The historical seven-file generation stays
+separately authenticated and is never repinned in place.
 
 ## Disposable custody inspection regression alignment
 
-The #3692 correction also replaces the historical fabricated V2 event in
-`scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs` with the output of
-the real canonical receipt/log verifier, using one synthetic native Base USDC
-Transfer. The custody bridge remains **inspect-only** and returns HOLD even for
-a valid disposable Unix socket reply. The versioned source proof pins the
-updated Git blob `d0a81327e43a76e7b8171d975b7dde981483219f`.
+The current custody-inspect proof uses the real canonical receipt/log verifier,
+the repaired payment-instruction and first-original lineage preflight, and a
+disposable native Base USDC Transfer. Authentication is required before lineage
+or socket-configuration access. The custody bridge remains **inspect-only** and
+returns HOLD even for a valid disposable Unix socket reply. The versioned source
+proof pins current blob `b87945fb2d7df4af4740fc28ae467f8f660361e3`.
 
 ## Broad TypeScript source regression
 
 The original real-verifier synthetic proof used a boolean-discriminant access
 that passed the dedicated build but not the repository's broader focused
-TypeScript invocation. It now uses the existing `"reason" in decision`
-union narrowing. The versioned source acceptance pins the corrected test blob
-`d447fad19edbb0897166f67ab2e435fe34d5e164` rather than relaxing
-TypeScript settings or altering a historical proof.
+TypeScript invocation. The current focused stage proof is pinned as
+`addd7842edb7f0e851d1e589d4303c0dc6e2756f` and includes adversaries for
+payment-instruction amount, incomplete first-row launch/native-USDC provenance,
+bounded lineage buffers, accessors/proxies and detached backing stores. TypeScript
+settings and historical evidence remain unchanged.
+
+
+## Repaired-parent exact identities
+
+```text
+current_main=61b0f81b2112aab32e3dc16084fe2d43178ec4da
+accepted_v2_parent=f84d380d41e3aefd3c96b3fa956f5f7addf9f908
+accepted_v2_parent_tree=6d03b668ca51cc7ffa115c164955d09dc9b13e70
+transport_workflow=0cc7e50febb6d289c343e188a10e63bbd22053d6
+custody_inspect_proof=b87945fb2d7df4af4740fc28ae467f8f660361e3
+transport_proof=2714988acfbcded3d4779ef79a141cd3e39b1426
+allocation_stage_proof=addd7842edb7f0e851d1e589d4303c0dc6e2756f
+custody_inspect_source=45ade2941e28a51e4dbb4884dfcbe9ec549022e6
+transport_source=61dc219117538f2894b170ac98bb56806f69f430
+allocation_stage_source=6efb2be5f03ff87290ef376d7852d22db22900f8
+```
+
+## Source-proof reader and acceptance semantics
+
+The current V2 source proof and trigger-closure proof use retained descriptor-
+relative directory traversal with `O_NOFOLLOW|O_NONBLOCK`, bounded reads and
+before/open/after generation checks. Disposable guarded regular-to-FIFO swaps
+must reject without blocking.
+
+The frozen enforcement lock remains historical evidence only:
+
+```text
+historical_v2_candidate_enforcement_identity_accepted=true
+candidate_enforcement_identity_accepted=false
+independent_source_acceptance_complete=false
+successor_runtime_generation_accepted=false
+```
+
+All five protected V2 consumers assert that split. Current source-generation
+integration does not convert historical candidate acceptance into authority for
+this changed V2 source generation.

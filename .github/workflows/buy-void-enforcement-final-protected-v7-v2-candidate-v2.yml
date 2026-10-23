@@ -99,6 +99,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"
+          echo "V2_ACCEPTANCE_SPLIT_ASSERTION_V1"
           integration="$RUNNER_TEMP/current-protected-integration-${{ matrix.node }}.json"
           node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test
           node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --receipt > "$integration"
@@ -117,6 +118,8 @@ jobs:
           assert.equal(c.public_presale_activation,false);
           assert.equal(c.funds_movement,false);
           assert.equal(i.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2");
+          assert.equal(i.historical_v2_candidate_enforcement_identity_accepted,true);
+          assert.equal(i.candidate_enforcement_identity_accepted,false);
           assert.equal(i.protected_path_count,49);
           assert.equal(i.protected_path_identity_preserved,true);
           assert.equal(i.current_built_census_identity_matches_frozen_v4,true);
@@ -137,6 +140,7 @@ jobs:
           cmp "$candidate" ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json
           lock="$RUNNER_TEMP/final-protected-v7-v2-lock-${{ matrix.node }}.json"
           echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"
+          echo "V2_ACCEPTANCE_SPLIT_ASSERTION_V1"
           node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test
           cp ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json "$lock"
           cmp "$lock" ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json

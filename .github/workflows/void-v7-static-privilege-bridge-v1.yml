@@ -1,0 +1,62 @@
+name: VOID V7 static privilege bridge v1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/precision/void_v7_static_privilege_bridge_v1.c'
+      - 'scripts/prove_void_v7_static_privilege_bridge_v1.py'
+      - 'docs/operators/void-v7-static-privilege-bridge-v1.md'
+      - '.github/workflows/void-v7-static-privilege-bridge-v1.yml'
+permissions:
+  contents: read
+
+jobs:
+  static-privilege-bridge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Verify exact source identity and scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git hash-object --no-filters ops/precision/void_v7_static_privilege_bridge_v1.c)" = "91a37d6291dd4370c251ac7895595a3ccf5c5d91"
+          test "$(git hash-object --no-filters scripts/prove_void_v7_static_privilege_bridge_v1.py)" = "3271fcfad470e96eb28d8b3a7e4e2a3d94a764b1"
+          test "$(git hash-object --no-filters docs/operators/void-v7-static-privilege-bridge-v1.md)" = "475ed26a4fb1f1213e06e887583263e2c36295b9"
+          test "$(git merge-base "$PR_BASE" "$EXPECTED_HEAD")" = "$PR_BASE"
+          git diff --check "$PR_BASE" "$EXPECTED_HEAD" --
+          cat > /tmp/voidpriv-allowed.txt <<'SCOPE'
+          .github/workflows/void-v7-static-privilege-bridge-v1.yml
+          docs/operators/void-v7-static-privilege-bridge-v1.md
+          ops/precision/void_v7_static_privilege_bridge_v1.c
+          scripts/prove_void_v7_static_privilege_bridge_v1.py
+          SCOPE
+          git diff --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | sort -u > /tmp/voidpriv-actual.txt
+          test -s /tmp/voidpriv-actual.txt
+          sort -u /tmp/voidpriv-allowed.txt > /tmp/voidpriv-allowed.sorted.txt
+          comm -23 /tmp/voidpriv-actual.txt /tmp/voidpriv-allowed.sorted.txt > /tmp/voidpriv-unexpected.txt
+          test ! -s /tmp/voidpriv-unexpected.txt
+
+      - name: Source-bound nonroot built-in privilege proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          python3 -I -B scripts/prove_void_v7_static_privilege_bridge_v1.py
