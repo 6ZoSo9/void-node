@@ -332,6 +332,45 @@ def _parse_ext4_superblock_bytes(raw: bytes) -> dict[str, Any]:
     }
 
 
+
+def _classify_ext4_dax_policy(
+    mount_options: tuple[str, ...],
+    super_options: tuple[str, ...],
+) -> dict[str, Any]:
+    tokens = tuple(
+        option
+        for option in (*mount_options, *super_options)
+        if option == "dax" or option.startswith("dax=")
+    )
+    modes: list[str] = []
+    unknown = False
+    for option in tokens:
+        if option == "dax" or option == "dax=always":
+            modes.append("always")
+        elif option == "dax=never":
+            modes.append("never")
+        elif option == "dax=inode":
+            modes.append("inode")
+        else:
+            unknown = True
+
+    if unknown:
+        policy = "unknown"
+    elif not modes:
+        policy = "inode"
+    elif len(set(modes)) != 1:
+        policy = "ambiguous"
+    else:
+        policy = modes[0]
+
+    return {
+        "tokens": tokens,
+        "policy": policy,
+        "policy_source": "default" if not tokens else "explicit",
+        "disabled_proven": policy == "never",
+        "forced": policy == "always",
+    }
+
 def collect() -> dict[str, Any]:
     if socket.gethostname() != EXPECTED_HOSTNAME:
         raise CensusError("wrong_host")
@@ -348,7 +387,10 @@ def collect() -> dict[str, Any]:
     mount_options = tuple(str(x) for x in mount["mount_options"])
     super_options = tuple(str(x) for x in mount["super_options"])
     read_only_mount = "ro" in mount_options or "ro" in super_options
-    dax_requested = any(x == "dax" or x.startswith("dax=") for x in (*mount_options, *super_options))
+    dax = _classify_ext4_dax_policy(mount_options, super_options)
+    dax_requested = bool(dax["tokens"])
+    dax_policy = str(dax["policy"])
+    dax_disabled_proven = bool(dax["disabled_proven"])
 
     config_text, config_source = _read_config_text()
     config_fs_verity = _kernel_config_value(config_text, "CONFIG_FS_VERITY")
@@ -405,7 +447,7 @@ def collect() -> dict[str, Any]:
         and target_generation_stable
         and mount_generation_stable
         and not read_only_mount
-        and not dax_requested
+        and dax_disabled_proven
         and kernel_support_observed
         and fs_driver_present
         and ext4["source_device_status"] == "ok"
@@ -423,8 +465,15 @@ def collect() -> dict[str, Any]:
         reasons.append("authoritative_v1_probe_supports_ext4_only")
     if read_only_mount:
         reasons.append("target_mount_read_only")
-    if dax_requested:
-        reasons.append("target_mount_dax_requested")
+    if fstype == "ext4" and not dax_disabled_proven:
+        if dax_policy == "always":
+            reasons.append("ext4_dax_forced_always")
+        elif dax_policy == "inode":
+            reasons.append("ext4_dax_inode_policy_unproven")
+        elif dax_policy == "ambiguous":
+            reasons.append("ext4_dax_policy_ambiguous")
+        else:
+            reasons.append("ext4_dax_policy_unknown")
     if not kernel_support_observed:
         reasons.append("kernel_fsverity_support_not_proven")
     if not fs_driver_present:
@@ -466,6 +515,10 @@ def collect() -> dict[str, Any]:
             "super_options": super_options,
             "read_only": read_only_mount,
             "dax_requested": dax_requested,
+            "dax_options": dax["tokens"],
+            "dax_policy": dax_policy,
+            "dax_policy_source": dax["policy_source"],
+            "dax_disabled_proven": dax_disabled_proven,
             "documented_fsverity_filesystem_class": documented_fs_class,
             "filesystem_driver_present": fs_driver_present,
             "mount_generation_stable": mount_generation_stable,
@@ -511,6 +564,7 @@ def plan() -> int:
     print("external_subprocess=false")
     print("ioctl_invocation=false")
     print("ext4_superblock_read_only_feature_probe=true")
+    print("dax_admission_requires_explicit_never=true")
     print("next_action=RUN_UNPRIVILEGED_READ_ONLY_FSVERITY_CAPABILITY_CENSUS_ON_PRECISION")
     return 0
 
@@ -541,6 +595,9 @@ def run() -> int:
     print("mount_source=" + result["target"]["source"])
     print("mount_read_only=" + str(result["target"]["read_only"]).lower())
     print("mount_dax_requested=" + str(result["target"]["dax_requested"]).lower())
+    print("mount_dax_policy=" + str(result["target"]["dax_policy"]))
+    print("mount_dax_policy_source=" + str(result["target"]["dax_policy_source"]))
+    print("mount_dax_disabled_proven=" + str(result["target"]["dax_disabled_proven"]).lower())
     print("filesystem_driver_present=" + str(result["target"]["filesystem_driver_present"]).lower())
     print("mount_major_minor=" + str(result["target"]["major_minor"]))
     print("mount_generation_stable=" + str(result["target"]["mount_generation_stable"]).lower())
@@ -635,6 +692,26 @@ def self_test() -> int:
     assert _kernel_config_value("# CONFIG_FS_VERITY is not set\n", "CONFIG_FS_VERITY") == "n"
     assert _decode_mount_field("/a\\040b") == "/a b"
 
+    assert _classify_ext4_dax_policy((), ()) == {
+        "tokens": (),
+        "policy": "inode",
+        "policy_source": "default",
+        "disabled_proven": False,
+        "forced": False,
+    }
+    assert _classify_ext4_dax_policy(("rw", "dax=never"), ("rw",)) == {
+        "tokens": ("dax=never",),
+        "policy": "never",
+        "policy_source": "explicit",
+        "disabled_proven": True,
+        "forced": False,
+    }
+    assert _classify_ext4_dax_policy(("dax",), ())["policy"] == "always"
+    assert _classify_ext4_dax_policy(("dax=always",), ())["forced"] is True
+    assert _classify_ext4_dax_policy(("dax=inode",), ())["policy"] == "inode"
+    assert _classify_ext4_dax_policy(("dax=never",), ("dax=always",))["policy"] == "ambiguous"
+    assert _classify_ext4_dax_policy(("dax=future",), ())["policy"] == "unknown"
+
     print(MARKER + "_SELF_TEST_GREEN")
     print("target_canonical_path_required=true")
     print("terminal_target_generation_revalidation_required=true")
@@ -648,6 +725,7 @@ def self_test() -> int:
     print("ext4_verity_ro_compat_bit_bound=true")
     print("ext4_extents_incompat_bit_bound=true")
     print("kernel_config_fsverity_parser_bound=true")
+    print("ext4_dax_policy_fail_closed=true")
     print("kernel_config_gzip_output_bounded=true")
     print("kernel_config_malformed_deflate_hold=true")
     print("external_subprocess=false")
