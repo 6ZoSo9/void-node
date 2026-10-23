@@ -174,6 +174,33 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
     assert published_path.is_file()
     assert packaged["archive_candidate_id"] == record["archive_candidate_id"]
 
+    leaf_race_path = parent / "leaf-race-proof.tar"
+    original_leaf_race_fsync = module.os.fsync
+    leaf_removed_after_parent_fsync = [False]
+
+    def remove_leaf_after_parent_fsync(fd: int) -> None:
+        original_leaf_race_fsync(fd)
+        if (
+            not leaf_removed_after_parent_fsync[0]
+            and stat.S_ISDIR(module.os.fstat(fd).st_mode)
+            and leaf_race_path.exists()
+        ):
+            leaf_race_path.unlink()
+            leaf_removed_after_parent_fsync[0] = True
+
+    module.os.fsync = remove_leaf_after_parent_fsync
+    try:
+        try:
+            module.write_create_only(leaf_race_path, raw)
+        except module.ArchiveHold as exc:
+            assert "archive_output_leaf_changed_after_parent_fsync" in str(exc)
+        else:
+            raise AssertionError("leaf race after parent fsync was accepted")
+    finally:
+        module.os.fsync = original_leaf_race_fsync
+    assert leaf_removed_after_parent_fsync[0]
+    assert not leaf_race_path.exists()
+
     moving_parent = parent / "moving-output-parent-proof"
     moved_parent = parent / "moved-output-parent-proof"
     moving_parent.mkdir(mode=0o700)
@@ -292,6 +319,7 @@ for required in [
     "failed_validation_final_path_absent=true",
     "single_create_only_final_publication_after_validation=true",
     "successful_output_parent_fsync=true",
+    "output_leaf_revalidated_after_parent_fsync=true",
     "retained_parent_cleanup_survives_path_rebind=true",
     "output_parent_not_private_or_bound",
     "archive_candidate_accepted",
@@ -326,6 +354,7 @@ print("archive_bytes_validated_before_final_publication=true")
 print("failed_validation_final_path_absent=true")
 print("single_create_only_final_publication_after_validation=true")
 print("successful_output_parent_fsync=true")
+print("output_leaf_revalidated_after_parent_fsync=true")
 print("retained_parent_cleanup_survives_path_rebind=true")
 print("symlink_output_parent_rejected=true")
 print("fifo_substitution_rejected_without_blocking=true")
