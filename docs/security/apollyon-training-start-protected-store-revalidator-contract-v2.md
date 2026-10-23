@@ -175,9 +175,9 @@ candidate_weight_mutation_performed=false
 Current V2 source generation before this document:
 
 - contract source blob:
-  `bb5281d9836d9879cc086eba75585b276d2768fe`;
+  `ef578b704e8cb186b98fd4f89f410f70dc0306b0`;
 - proof blob:
-  `41c3e1a1c4a8fb1a7750b02f18c6ade4f2e38733`.
+  `12b8869ef3147803a9028b36d142e1276b74f1ac`.
 
 Next gate:
 `apollyon_training_start_protected_store_revalidator_implementation_v2`,
