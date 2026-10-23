@@ -7,6 +7,7 @@
 #include <linux/audit.h>
 #include <linux/capability.h>
 #include <linux/filter.h>
+#include <linux/io_uring.h>
 #include <linux/magic.h>
 #include <linux/seccomp.h>
 #include <poll.h>
@@ -176,6 +177,47 @@ static int pipe_link_inode_at(int fd_dir,int fd,ino_t *out_ino) {
     unsigned long long value=strtoull(link+6,&end,10);
     if(errno!=0 || end==link+6 || *end!='\0' || value==0ULL) return 0;
     *out_ino=(ino_t)value;
+    return 1;
+}
+
+static int fd_link_exact_at(int fd_dir,int fd,const char *expected) {
+    char leaf[32],link[PATH_MAX];
+    int n=snprintf(leaf,sizeof(leaf),"%d",fd);
+    if(
+        expected==NULL || n<=0 || (size_t)n>=sizeof(leaf)
+    ) return 0;
+    ssize_t len=readlinkat(fd_dir,leaf,link,sizeof(link)-1);
+    if(len<=0 || (size_t)len>=sizeof(link)-1) return 0;
+    link[len]='\0';
+    return strcmp(link,expected)==0;
+}
+
+static int standard_fd_set_safe(const proc_context_v1 *proc) {
+    if(proc==NULL || proc->self_fd_dir<0) return 0;
+    struct stat in_st,out_st,err_st;
+    ino_t out_ino=0,err_ino=0;
+    if(
+        fstat(STDIN_FILENO,&in_st)!=0 ||
+        fstat(STDOUT_FILENO,&out_st)!=0 ||
+        fstat(STDERR_FILENO,&err_st)!=0
+    ) return 0;
+
+    /*
+     * The hosted proof owns these exact inherited objects:
+     * stdin is subprocess.DEVNULL; stdout/stderr are distinct anonymous pipes.
+     * Reject regular files, sockets and anon_inode descriptors (including an
+     * inherited io_uring/SQPOLL ring) instead of treating fd numbers 0/1/2 as
+     * inherently safe.
+     */
+    if(
+        !S_ISCHR(in_st.st_mode) ||
+        !fd_link_exact_at(proc->self_fd_dir,STDIN_FILENO,"/dev/null") ||
+        !S_ISFIFO(out_st.st_mode) ||
+        !S_ISFIFO(err_st.st_mode) ||
+        !pipe_link_inode_at(proc->self_fd_dir,STDOUT_FILENO,&out_ino) ||
+        !pipe_link_inode_at(proc->self_fd_dir,STDERR_FILENO,&err_ino) ||
+        out_ino==err_ino
+    ) return 0;
     return 1;
 }
 
@@ -370,6 +412,7 @@ static int child_generation_revalidate(
 
 static int own_fd_set_exact(proc_context_v1 *proc,int writer,int pidfd) {
 #ifdef SYS_getdents64
+    if(!standard_fd_set_safe(proc)) return 0;
     if(lseek(proc->self_fd_dir,0,SEEK_SET)<0) return 0;
     unsigned char buf[MAX_DIRENTS];
     for(;;) {
@@ -406,6 +449,35 @@ static int own_fd_set_exact(proc_context_v1 *proc,int writer,int pidfd) {
     (void)proc;(void)writer;(void)pidfd;
     return 0;
 #endif
+}
+
+static int inherited_sqpoll_standard_fd_rejected(void) {
+    pid_t pid=fork();
+    if(pid<0) return 0;
+    if(pid==0) {
+        struct io_uring_params params;
+        memset(&params,0,sizeof(params));
+        params.flags=IORING_SETUP_SQPOLL;
+        params.sq_thread_idle=100U;
+        int ring=(int)syscall(__NR_io_uring_setup,2U,&params);
+        if(ring<0) _exit(171);
+        if(dup2(ring,STDIN_FILENO)!=STDIN_FILENO) _exit(172);
+        if(ring!=STDIN_FILENO && close(ring)!=0) _exit(173);
+
+        proc_context_v1 proc;
+        if(!open_proc_context(&proc)) _exit(174);
+        int rejected=!standard_fd_set_safe(&proc);
+        close_proc_context(&proc);
+        _exit(rejected?0:175);
+    }
+    int status=0;
+    for(;;) {
+        pid_t got=waitpid(pid,&status,0);
+        if(got==pid) break;
+        if(got<0 && errno==EINTR) continue;
+        return 0;
+    }
+    return WIFEXITED(status) && WEXITSTATUS(status)==0;
 }
 
 static int install_writer_continuity_filter(void) {
@@ -1230,6 +1302,7 @@ int main(int argc,char **argv) {
         return 2;
     }
 
+    if(!inherited_sqpoll_standard_fd_rejected()) return 9;
     if(!run_case(
         argv[3],argv[5],argv[7],CASE_EXTRA_RELEASER_THREAD
     )) return 10;
@@ -1249,6 +1322,8 @@ int main(int argc,char **argv) {
     puts(MARKER "_SELF_TEST_GREEN");
     puts("parent_pipe_pair_blob_bound=" PARENT_PIPE_PAIR_BLOB_SHA1);
     puts("trainer_native_blob_bound=" TRAINER_NATIVE_BLOB_SHA1);
+    puts("standard_descriptors_exactly_classified=true");
+    puts("inherited_sqpoll_standard_fd_rejected=true");
     puts("extra_releaser_thread_rejected=true");
     puts("child_retained_writer_rejected=true");
     puts("wrong_trainer_pipe_rejected=true");
