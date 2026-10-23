@@ -1,0 +1,93 @@
+name: Apollyon Xiphos machine identity provenance HOLD V1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/apollyon-xiphos-machine-id-provenance-hold-v1.json"
+      - "scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v1.py"
+      - "docs/security/apollyon-xiphos-machine-id-provenance-hold-v1.md"
+      - ".github/workflows/apollyon-xiphos-machine-id-provenance-hold-v1.yml"
+      - ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml"
+      - "docs/security/apollyon-protected-store-machine-identity-binding-v1.md"
+      - "ops/security/apollyon-protected-store-machine-identity-binding-v1.json"
+      - "scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py"
+      - ".github/workflows/apollyon-protected-store-first-host-collector-v1.yml"
+      - "docs/security/apollyon-protected-store-first-host-collector-v1.md"
+      - "ops/xiphos/apollyon_protected_store_first_host_collector_v1.py"
+      - "scripts/prove_apollyon_protected_store_first_host_collector_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact parent, scope, and inherited blobs
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          PARENT=f8cf1eba57d8930452642699c21fa188c31cbd13
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$PARENT" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n'             '.github/workflows/apollyon-xiphos-machine-id-provenance-hold-v1.yml'             'docs/security/apollyon-xiphos-machine-id-provenance-hold-v1.md'             'ops/security/apollyon-xiphos-machine-id-provenance-hold-v1.json'             'scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v1.py'             | LC_ALL=C sort > "$expected"
+          git diff --no-renames --name-only "$PARENT" "$EXPECTED_HEAD" --             | LC_ALL=C sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml)" = c8737fe68f15894bd15af0e775fc79cb2b50d9bb
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-machine-identity-binding-v1.md)" = 24cc4b6ce92931d9be9d39a46afb5a1c76e267fb
+          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 45ab6a6cbfea05d61617de294d18ed7dec07fae9
+
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-protected-store-first-host-collector-v1.yml)" = bea96da92311ca4a60a4d9893a1aadc5e5874239
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = a20dc26eb9ac16421b91290bcf149cbdef8a58d0
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_protected_store_first_host_collector_v1.py)" = 493945e73b7f718c728e17a4f14e04dc4a32edf4
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = 44e454a6e49629d0a2b8e6562c3e97e73c6afb86
+
+          test "$(git rev-parse HEAD:ops/security/apollyon-xiphos-machine-id-provenance-hold-v1.json)" = e0c7aa5d26639caee4c293da1846544bb07ca903
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v1.py)" = d848808585934e6609f0c84c09adcba18339a583
+          test "$(git rev-parse HEAD:docs/security/apollyon-xiphos-machine-id-provenance-hold-v1.md)" = fb6fdba3e8cba4f471daa09cef3469de0c0dd24d
+
+          git diff --check "$PARENT" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile proof without bytecode writes
+        run: |
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          name = "scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v1.py"
+          compile(Path(name).read_text("utf-8"), name, "exec", dont_inherit=True)
+          print("proof_python_syntax_green=true")
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove exact provenance HOLD
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/apollyon-xiphos-machine-id-provenance-hold.log"
+          python3 -I -B scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v1.py --self-test | tee "$out"
+          grep -Fx 'VOID_APOLLYON_XIPHOS_MACHINE_ID_PROVENANCE_HOLD_V1_PROOF_GREEN' "$out"
+          grep -Fx 'plan_id=voidapollyonxiphosprovenancehold1_98c9443ab88a6f7deb306af5369e00802ca84f132bff89f383eeadce47bc0716' "$out"
+          grep -Fx 'observed_normalized_machine_id_sha256=543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057' "$out"
+          grep -Fx 'raw_machine_id_absent_from_repository=true' "$out"
+          grep -Fx 'digest_internal_consistency_proven=true' "$out"
+          grep -Fx 'authenticated_xiphos_machine_identity_proven=false' "$out"
+          grep -Fx 'merged_binding_claim_accepted_for_host_authority=false' "$out"
+          grep -Fx 'collector_machine_identity_prerequisite_satisfied_for_host_execution=false' "$out"
+          grep -Fx 'host_pass_authorized=false' "$out"
+          grep -Fx 'parent_blob_validation=true' "$out"
+          grep -Fx 'semantic_adversaries=24' "$out"
+          grep -Fx 'training_execution_authorized=false' "$out"
+          grep -Fx 'funds_movement_authorized=false' "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
