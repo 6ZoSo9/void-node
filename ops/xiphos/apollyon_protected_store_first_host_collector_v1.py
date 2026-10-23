@@ -617,7 +617,7 @@ def self_test() -> None:
     parsed = parse_status(status)
     if parsed["NoNewPrivs"] != "1":
         hold("selftest_status_failed")
-    proc_stat = b"123 (test worker) S " + (b"1 " * 19) + b"987654 0 0 0\n"
+    proc_stat = b"123 (test worker) S " + (b"1 " * 18) + b"987654 0 0 0\n"
     if parse_proc_stat_start_ticks(proc_stat, 123) != "987654":
         hold("selftest_process_stat_failed")
     systemd = "\n".join(
