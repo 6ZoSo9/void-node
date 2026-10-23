@@ -173,53 +173,71 @@ function startTagHasSelfClosingFlag(tag) {
   return false;
 }
 
-function htmlTagsBefore(html, limit) {
-  const tags = [];
-  let index = 0;
-  while (index < limit) {
-    const start = html.indexOf("<", index);
-    if (start === -1 || start >= limit) break;
-    if (html.startsWith("<!--", start)) {
-      const commentEnd = html.indexOf("-->", start + 4);
-      index = commentEnd === -1 ? limit : commentEnd + 3;
-      continue;
-    }
+const htmlRawTextElements = new Set([
+  "iframe", "noembed", "noframes", "script", "style", "xmp",
+]);
+const htmlRcdataElements = new Set(["textarea", "title"]);
 
-    let cursor = start + 1;
-    const closing = html[cursor] === "/";
-    if (closing) cursor += 1;
-    const nameStart = cursor;
-    while (cursor < html.length && /[a-z0-9:-]/iu.test(html[cursor])) cursor += 1;
-    if (cursor === nameStart) {
-      index = start + 1;
-      continue;
-    }
-    const name = html.slice(nameStart, cursor).toLowerCase();
+function nextHtmlTag(html, index, limit, rawTextName) {
+  if (rawTextName === "plaintext") return null;
 
-    let quote = null;
-    while (cursor < html.length) {
-      const character = html[cursor];
-      if (quote !== null) {
-        if (character === quote) quote = null;
-      } else if (character === '"' || character === "'") {
-        quote = character;
-      } else if (character === ">") {
+  let start = -1;
+  if (rawTextName !== null) {
+    const lowerHtml = html.toLowerCase();
+    const needle = "</" + rawTextName;
+    start = lowerHtml.indexOf(needle, index);
+    while (start !== -1 && start < limit) {
+      const afterName = lowerHtml[start + needle.length];
+      if (afterName === ">" || afterName === "/" || isAsciiWhitespace(afterName)) {
         break;
       }
-      cursor += 1;
+      start = lowerHtml.indexOf(needle, start + needle.length);
     }
-    if (cursor >= html.length || cursor >= limit) break;
+    if (start === -1 || start >= limit) return null;
+  } else {
+    start = html.indexOf("<", index);
+    while (start !== -1 && start < limit && html.startsWith("<!--", start)) {
+      const commentEnd = html.indexOf("-->", start + 4);
+      if (commentEnd === -1 || commentEnd >= limit) return null;
+      start = html.indexOf("<", commentEnd + 3);
+    }
+    if (start === -1 || start >= limit) return null;
+  }
 
-    const raw = html.slice(start, cursor + 1);
-    tags.push({
+  let cursor = start + 1;
+  const closing = html[cursor] === "/";
+  if (closing) cursor += 1;
+  const nameStart = cursor;
+  while (cursor < html.length && /[a-z0-9:-]/iu.test(html[cursor])) cursor += 1;
+  if (cursor === nameStart) {
+    return nextHtmlTag(html, start + 1, limit, rawTextName);
+  }
+  const name = html.slice(nameStart, cursor).toLowerCase();
+
+  let quote = null;
+  while (cursor < html.length) {
+    const character = html[cursor];
+    if (quote !== null) {
+      if (character === quote) quote = null;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === ">") {
+      break;
+    }
+    cursor += 1;
+  }
+  if (cursor >= html.length || cursor >= limit) return null;
+
+  const raw = html.slice(start, cursor + 1);
+  return {
+    nextIndex: cursor + 1,
+    tag: {
       closing,
       name,
       raw,
       selfClosing: !closing && startTagHasSelfClosingFlag(raw),
-    });
-    index = cursor + 1;
-  }
-  return tags;
+    },
+  };
 }
 
 function tagCreatesLiveRegion(tag) {
@@ -247,6 +265,39 @@ const mathMlHtmlIntegrationEncodings = new Set([
   "application/xhtml+xml",
   "text/html",
 ]);
+
+const foreignContentHtmlBreakoutStartTags = new Set([
+  "b", "big", "blockquote", "body", "br", "center", "code", "dd", "div",
+  "dl", "dt", "em", "embed", "h1", "h2", "h3", "h4", "h5", "h6",
+  "head", "hr", "i", "img", "li", "listing", "menu", "meta", "nobr",
+  "ol", "p", "pre", "ruby", "s", "small", "span", "strong", "strike",
+  "sub", "sup", "table", "tt", "u", "ul", "var",
+]);
+
+function tagBreaksOutOfForeignContent(tag) {
+  if (foreignContentHtmlBreakoutStartTags.has(tag.name)) return true;
+  if (tag.name !== "font") return false;
+  const attributes = parseStartTagAttributes(tag.raw);
+  return ["color", "face", "size"].some((name) => attributes.has(name));
+}
+
+function isForeignContentHtmlBoundary(element) {
+  return element.namespace === "html" ||
+    element.htmlIntegrationPoint ||
+    (
+      element.namespace === "math" &&
+      mathMlTextIntegrationPoints.has(element.name)
+    );
+}
+
+function popForeignContentForHtmlBreakout(stack) {
+  while (
+    stack.length > 0 &&
+    !isForeignContentHtmlBoundary(stack.at(-1))
+  ) {
+    stack.pop();
+  }
+}
 
 function namespaceForStartTag(stack, tag) {
   const parent = stack.at(-1);
@@ -294,16 +345,37 @@ function requireResultPayloadOutsideLiveAncestors(html) {
   assert.notEqual(resultIndex, -1, "full result payload element must exist");
 
   const stack = [];
-  for (const tag of htmlTagsBefore(html, resultIndex)) {
+  let index = 0;
+  let rawTextName = null;
+  while (index < resultIndex) {
+    const parsed = nextHtmlTag(html, index, resultIndex, rawTextName);
+    if (parsed === null) break;
+    index = parsed.nextIndex;
+    const tag = parsed.tag;
+
+    if (rawTextName !== null) {
+      assert.equal(tag.closing, true);
+      assert.equal(tag.name, rawTextName);
+      rawTextName = null;
+    }
+
     if (tag.closing) {
-      for (let index = stack.length - 1; index >= 0; index -= 1) {
-        if (stack[index].name === tag.name) {
-          stack.splice(index);
+      for (let stackIndex = stack.length - 1; stackIndex >= 0; stackIndex -= 1) {
+        if (stack[stackIndex].name === tag.name) {
+          stack.splice(stackIndex);
           break;
         }
       }
       continue;
     }
+
+    if (
+      stack.at(-1)?.namespace !== "html" &&
+      tagBreaksOutOfForeignContent(tag)
+    ) {
+      popForeignContentForHtmlBreakout(stack);
+    }
+
     const namespace = namespaceForStartTag(stack, tag);
     if (namespace === "html" && voidElements.has(tag.name)) continue;
     if (namespace !== "html" && tag.selfClosing) continue;
@@ -313,6 +385,14 @@ function requireResultPayloadOutsideLiveAncestors(html) {
       namespace,
       htmlIntegrationPoint: isHtmlIntegrationPoint(tag, namespace),
     });
+
+    if (namespace === "html") {
+      if (htmlRawTextElements.has(tag.name) || htmlRcdataElements.has(tag.name)) {
+        rawTextName = tag.name;
+      } else if (tag.name === "plaintext") {
+        rawTextName = "plaintext";
+      }
+    }
   }
 
   for (const ancestor of stack) {
@@ -465,6 +545,13 @@ requireDemoAccessibility(
   ),
 );
 
+requireDemoAccessibility(
+  source.replace(
+    '<pre id="resultBox">No result yet.</pre>',
+    '<script>const marker = "</div>";</script>\n<pre id="resultBox">No result yet.</pre>',
+  ),
+);
+
 const negativeMutations = [
   {
     name: "broken_label_target",
@@ -553,6 +640,30 @@ const negativeMutations = [
     html: source.replace(
       '<pre id="resultBox">No result yet.</pre>',
       '<svg><foreignObject><section role="status" />\n<pre id="resultBox">No result yet.</pre></section></foreignObject></svg>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_svg_breakout_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<svg><g><div role="status" /></g></svg>\n<pre id="resultBox">No result yet.</pre></div>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_math_breakout_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<math><mrow><div role="status" /></mrow></math>\n<pre id="resultBox">No result yet.</pre></div>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_script_data_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<div role="status"><script>const marker = "</div>";</script>\n<pre id="resultBox">No result yet.</pre></div>',
     ),
     error: /must not be nested inside a live region/u,
   },
@@ -676,5 +787,7 @@ console.log("nonvoid_self_closing_live_ancestor_rejected=true");
 console.log("foreign_self_closing_live_element_closed=true");
 console.log("foreign_unquoted_slash_attribute_not_self_closing=true");
 console.log("foreign_html_integration_live_ancestor_rejected=true");
+console.log("foreign_html_breakout_live_ancestor_rejected=true");
+console.log("script_data_live_ancestor_rejected=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=24");
+console.log("negative_mutations=27");
