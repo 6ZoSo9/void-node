@@ -65,8 +65,8 @@ jobs:
       - name: Bind exact V3 composition
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          ACCEPTED_PARENT: 78b5e4d2566fea29fbc8d2a495238fe68d4d20cc
-          ACCEPTED_PARENT_TREE: 70d5899f3d3fe8a0daa5cbac912507bef2595b69
+          ACCEPTED_PARENT: 52ae2fed1464157848c95fdccf10f23802f85ed6
+          ACCEPTED_PARENT_TREE: ceae3ee1ea428d09376be71ec473d1c1b96af620
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
