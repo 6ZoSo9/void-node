@@ -1373,7 +1373,7 @@ def self_test() -> None:
     clean = classify_attempt([1, 2, 3], [1, 2, 3], clean_rows, True)
     if clean["host_scoped_target_reference_absent_candidate"] is not True:
         hold("self_test_clean_candidate_rejected")
-    if clean["host_scoped_target_reference_absent_candidate"] is not False:
+    if clean["all_process_target_reference_absent_observed"] is not False:
         hold("self_test_untrusted_lease_promoted")
     if (
         clean["all_process_reference_absence_proven"] is not False
