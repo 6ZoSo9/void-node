@@ -179,7 +179,6 @@ function htmlTagsBefore(html, limit) {
       closing,
       name,
       raw,
-      selfClosing: /\/\s*>$/u.test(raw),
     });
     index = cursor + 1;
   }
@@ -221,7 +220,7 @@ function requireResultPayloadOutsideLiveAncestors(html) {
       }
       continue;
     }
-    if (tag.selfClosing || voidElements.has(tag.name)) continue;
+    if (voidElements.has(tag.name)) continue;
     stack.push({ name: tag.name, tag: tag.raw });
   }
 
@@ -429,6 +428,14 @@ const negativeMutations = [
     error: /must not be nested inside a live region/u,
   },
   {
+    name: "result_payload_nonvoid_self_closing_live_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" role="status" />\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
     name: "result_payload_multitoken_role_live_ancestor",
     html: source.replace(
       '<section class="card mt">\n      <h2>Latest Result</h2>',
@@ -544,5 +551,6 @@ console.log("result_submission_timeout_status_bounded=true");
 console.log("ordered_progressbar_fallback_nonlive=true");
 console.log("encoded_aria_live_ancestor_rejected=true");
 console.log("quoted_gt_live_ancestor_rejected=true");
+console.log("nonvoid_self_closing_live_ancestor_rejected=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=21");
+console.log("negative_mutations=22");
