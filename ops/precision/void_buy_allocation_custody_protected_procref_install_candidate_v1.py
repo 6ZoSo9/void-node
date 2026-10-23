@@ -345,7 +345,6 @@ def _parent_record(
         "uid": st.st_uid,
         "gid": st.st_gid,
         "mode": stat.S_IMODE(st.st_mode),
-        "nlink": st.st_nlink,
         "mount_id": _fd_mount_id(fd),
     }
 
