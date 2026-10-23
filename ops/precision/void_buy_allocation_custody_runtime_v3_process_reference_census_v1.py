@@ -40,7 +40,7 @@ PRESTATE_SOURCE_REL = (
     "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-PRESTATE_SOURCE_BLOB = "e32ebd94ad09cd80e03489079e74657aab159d7a"
+PRESTATE_SOURCE_BLOB = "4d9c6e5809a5cc64454626760f71e60ed99354bc"
 ARCHIVE_LOCK_REL = (
     "ops/security/"
     "buy-void-allocation-custody-runtime-install-archive-lock-v3.json"
