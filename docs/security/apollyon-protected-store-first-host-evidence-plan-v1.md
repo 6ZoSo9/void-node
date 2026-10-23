@@ -9,17 +9,17 @@ Status: **source/test/CI plan only**. This generation does not contact Xiphos, r
 This is the source-only successor to #3743 for the first host-evidence step required by #3557.
 
 The parent V2 protected-store revalidator contract is fully source/CI-qualified at exact head
-`3706aecf2e258c9c7021137da05428187bbe6654`. Its hosted Node 22/24/26 derivation and compare run `39963410577` produced the exact immutable candidate:
+`981c2d7783173bcd0ff996966570a1deb3aa8426`. Its hosted Node 22/24/26 derivation and compare run `39973909609` produced the exact immutable candidate:
 
 - candidate ID: `apollyon_training_start_protected_store_revalidator_v2:20fb5bedf6db2b606fb9adb025f95786417d58458d6bc06444b8f03c756f3444`;
 - frame bytes: `9570`;
 - frame SHA-256: `e178d7150e90d0538fed1d6721d731b9bffe66546b960877ac6aa4e5c7b98626`;
-- Node 22 artifact: `12506463546`;
-- Node 24 artifact: `12506363765`;
-- Node 26 artifact: `12507375197`;
-- compare job: `120455735301`.
+- Node 22 artifact: `12511636373`;
+- Node 24 artifact: `12512036192`;
+- Node 26 artifact: `12511236866`;
+- compare job: `120490993474`.
 
-This plan binds that exact candidate and the exact #3743 source/proof/document/workflow Git blobs. It does not convert hosted CI evidence into installed-host authority.
+The corrected #3743 dependency-closure generation reproduces the same candidate ID, 9,570-byte frame and SHA-256; only its proof/document/workflow provenance and hosted run/artifact identities advanced. This plan binds that current exact candidate evidence and the exact #3743 source/proof/document/workflow Git blobs. It does not convert hosted CI evidence into installed-host authority.
 
 ## First-pass boundary
 
@@ -61,16 +61,16 @@ Root privilege may be used later only when separately authorized and only if req
 
 ## Exact parent source identity
 
-The plan pins exact #3743 head `3706aecf2e258c9c7021137da05428187bbe6654` and:
+The plan pins exact #3743 head `981c2d7783173bcd0ff996966570a1deb3aa8426` and:
 
 - contract tool `4c78459826c25cab43870b0b322b566575d18667`;
-- proof `2e919af52e44c6dcfec41dc47567a73f658874c3`;
-- security document `9f5a94967abd85d81d6f693bf6ff51d086623de9`;
-- workflow `2774c5f9c3d037cfbd32c15d4af05cb640199ae1`.
+- proof `62ff7e94e57a6333cdcfc78f6f63d8ef67288a20`;
+- security document `16eb15388c6cc5d12097cbf69f1d04c9bc6c10d3`;
+- workflow `12ae0543cc714e3b9e5fe6e6fdf9d6b67b0fac9f`.
 
 The content-addressed plan ID is:
 
-`voidapollyonfirsthostplan1_be2b83c33630bce1e9bc635cbdd90981f55df38ab0e929706acd4cd7798015ca`.
+`voidapollyonfirsthostplan1_c75bf9aaa019f82e2d73c80cb0c8bb3a1072bc462870a6d36b67a40fc59746be`.
 
 The source proof validates the closed plan schema, re-hashes the plan ID, reads and Git-blob-verifies all four exact parent artifacts, flips every first-pass requirement and every forbidden authority field independently, and rejects candidate/host/parent identity tampering.
 
