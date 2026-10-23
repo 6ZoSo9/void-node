@@ -55,16 +55,23 @@ the current-UID process set from the **effective UID slot** in bounded
 re-read after each process reference scan; a credential change or vanished
 status makes that process observation non-clean.
 
-A clean current-UID candidate also requires an externally reviewed host
-PID-namespace `dev:ino` lease. The census opens canonical `/proc` once and
-retains that directory descriptor for the complete attempt. Through that
-retained descriptor it requires `self/ns/pid` and `1/ns/pid` to match each
-other and the external lease, identifies the retained procfs mount, rejects
-restricted `hidepid` views, and performs PID enumeration plus all process
-observations descriptor-relatively. It revalidates the retained procfs
-descriptor, namespace lease, visibility contract, and terminal visible
-`/proc` identity before a clean candidate can be emitted. Temporary pathname
-overmounts therefore cannot switch the scan to a narrower procfs view.
+A clean current-UID candidate requires two externally reviewed namespace
+`dev:ino` leases: the host PID namespace and the host mount namespace. The
+census opens canonical `/proc` once and retains that directory descriptor for
+the complete attempt. Through that retained descriptor it requires both
+`self/ns/pid == 1/ns/pid == expected PID lease` and
+`self/ns/mnt == 1/ns/mnt == expected mount lease` before resolving the fixed
+`/opt` target. This rejects a private PID namespace and also a container or
+other mount namespace that shares the host PID namespace but resolves a
+different `/opt` tree.
+
+The same retained procfs view identifies the procfs mount, rejects restricted
+`hidepid` views, and performs PID enumeration plus all process observations
+descriptor-relatively. It revalidates both namespace leases, the retained
+procfs descriptor, visibility contract, and terminal visible `/proc` identity
+after the process scan. A clean receipt therefore binds the target snapshot to
+the verified host mount namespace rather than merely to the caller's pathname
+view.
 
 It never reads:
 
@@ -107,9 +114,10 @@ current_uid_target_reference_absent_candidate=true
 
 That requires one unchanged target snapshot across the attempt, one stable
 current-UID PID set, no incomplete process observations, zero target references
-through `cwd/root/exe/fd/maps`, a verified external host PID-namespace lease,
-unrestricted procfs visibility, and terminal revalidation of the retained
-procfs view.
+through `cwd/root/exe/fd/maps`, verified external host PID- and mount-namespace
+leases, unrestricted procfs visibility, host-mount resolution of the target,
+and terminal revalidation of the retained procfs view and both namespace
+leases.
 
 These **always remain false**:
 
@@ -148,7 +156,8 @@ silently permit Python bytecode-cache writes:
 python3 -I -B \
   ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py \
   --census \
-  --expected-host-pid-namespace-dev-ino '<DEV>:<INO>'
+  --expected-host-pid-namespace-dev-ino '<PID_NS_DEV>:<PID_NS_INO>' \
+  --expected-host-mount-namespace-dev-ino '<MNT_NS_DEV>:<MNT_NS_INO>'
 ```
 
 Do not run this source with sudo. Root execution intentionally HOLDs.
@@ -162,6 +171,10 @@ process_uid_slots_stable_during_reference_scan=true
 host_pid_namespace_external_lease_required=true
 host_pid_namespace_lease_verified=true
 host_pid_namespace_lease_revalidated_after_census=true
+host_mount_namespace_external_lease_required=true
+host_mount_namespace_lease_verified=true
+host_mount_namespace_lease_revalidated_after_census=true
+target_resolved_in_host_mount_namespace=true
 complete_proc_visibility_verified=true
 proc_visibility_revalidated_after_census=true
 retained_procfs_view_used=true
