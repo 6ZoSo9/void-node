@@ -41,9 +41,12 @@ predecessor identities only.
 
 ## Revoked-Proxy successor binding
 
-This successor is based on
+The revoked/callable-Proxy repair was first derived from
 `main@80418e33a22ba26a00f32017610517042b18334d` and preserves the frozen V1
-blob above.
+blob above. Current merge-forward generations preserve the reviewed
+serializer/proof bytes while the focused workflow derives the effective
+current-main source base with `git merge-base EXPECTED_HEAD origin/main`,
+so unrelated later main commits do not become part of this four-path delta.
 
 - successor V2 serializer Git blob:
   `4d4b970fa2df3a3e7cae176b18c62aff52e94adc`
