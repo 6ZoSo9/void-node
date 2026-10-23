@@ -1,0 +1,163 @@
+name: VOID Buy custody runtime bundle candidate v3
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-runtime-bundle-candidate-v3.mjs"
+      - "tools/void-buy-allocation-custody-runtime-bundle-candidate-v2.mjs"
+      - "scripts/prove_void_buy_allocation_custody_runtime_bundle_candidate_v2.mjs"
+      - "docs/architecture/buy-void-allocation-custody-runtime-bundle-candidate-v2.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-bundle-candidate-v2.yml"
+      - "scripts/prove_void_buy_allocation_custody_runtime_bundle_candidate_v3.mjs"
+      - "docs/architecture/buy-void-allocation-custody-runtime-bundle-candidate-v3.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-bundle-candidate-v3.yml"
+      - "tools/void-buy-allocation-custody-runtime-bundle-candidate-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_runtime_bundle_candidate_v1.mjs"
+      - "docs/architecture/buy-void-allocation-custody-runtime-bundle-candidate-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-bundle-candidate-v1.yml"
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+      - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "src/economic/buy_void_auto_fulfillment_v1.ts"
+      - "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts"
+      - "src/economic/buy_void_preappend_plain_input_v1.ts"
+      - "src/economic/buy_void_execution_attempt_journal_v1.ts"
+      - "src/economic/buy_void_inventory_reservation_journal_v1.ts"
+      - "src/economic/buy_void_verified_payment_v2.ts"
+      - "src/economic/buy_void_fulfillment_confirmation_v1.ts"
+      - "src/economic/buy_void_fulfillment_journal_v1.ts"
+      - "src/economic/buy_void_broadcast_outcome_journal_v1.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  derive:
+    name: custody bundle v3 / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact source generation
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="9b6ff6892805cf9d7269d146e308970523c6cffe"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse "$BASE^{tree}")" = "78926fd8db4f6dde314909f6608a9a404329c968"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+          mapfile -t actual < <(git diff --name-only "$BASE" HEAD | LC_ALL=C sort)
+          expected=(
+            ".github/workflows/buy-void-allocation-custody-runtime-bundle-candidate-v3.yml"
+            "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+            "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+            "docs/architecture/buy-void-allocation-custody-runtime-bundle-candidate-v3.md"
+            "scripts/prove_void_buy_allocation_custody_runtime_bundle_candidate_v3.mjs"
+            "tools/void-buy-allocation-custody-runtime-bundle-candidate-v3.mjs"
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          test "${#actual[@]}" -eq 6
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+          git diff --check "$BASE" HEAD
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked compiler
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile exact source tree
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          node node_modules/typescript/bin/tsc -p tsconfig.build.json
+      - name: Prove V3 source successor
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-allocation-custody-runtime-bundle-candidate-v3.mjs
+          node --check scripts/prove_void_buy_allocation_custody_runtime_bundle_candidate_v3.mjs
+          proof="$RUNNER_TEMP/custody-bundle-v3-proof.txt"
+          node scripts/prove_void_buy_allocation_custody_runtime_bundle_candidate_v3.mjs | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_CANDIDATE_V3_SOURCE_PROOF_GREEN' "$proof"
+          for marker in \
+            'predecessor_v2_git_blobs_verified=4' \
+            'exact_source_transitions_from_v2=2' \
+            'three_fifo_safe_readers_bound=true' \
+            'ten_file_package_free_closure_verified=true' \
+            'three_node_byte_equality_required=true' \
+            'real_fifo_swap_rejected_without_blocking=true' \
+            'forged_authority_predecessor_source_pin_rejected=true' \
+            'hosted_identity_authenticated=false' \
+            'candidate_accepted=false' \
+            'service_started=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$proof"
+          done
+      - name: Emit V3 candidate
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/candidate-v3-node${{ matrix.node }}.json"
+          output="$RUNNER_TEMP/custody-bundle-v3-emit.txt"
+          node tools/void-buy-allocation-custody-runtime-bundle-candidate-v3.mjs --emit "$candidate" | tee "$output"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_CANDIDATE_V3_GREEN' "$output"
+          grep -Fx 'candidate_accepted=false' "$output"
+          grep -Fx 'v3_hosted_identity_authenticated=false' "$output"
+          grep -Fx 'runtime_integration=false' "$output"
+          grep -Fx 'production_gate_ready=false' "$output"
+          grep -Fx 'funds_movement=false' "$output"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: custody-bundle-v3-${{ matrix.node }}
+          path: ${{ runner.temp }}/candidate-v3-node${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: custody bundle v3 / compare Node 22-24-26
+    needs: derive
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: custody-bundle-v3-*
+          path: ${{ runner.temp }}/candidates
+          merge-multiple: true
+      - name: Require byte-identical V3 candidates
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/custody-bundle-v3-compare.txt"
+          node tools/void-buy-allocation-custody-runtime-bundle-candidate-v3.mjs --compare \
+            "$RUNNER_TEMP/candidates/candidate-v3-node22.json" \
+            "$RUNNER_TEMP/candidates/candidate-v3-node24.json" \
+            "$RUNNER_TEMP/candidates/candidate-v3-node26.json" | tee "$output"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_CANDIDATE_V3_THREE_NODE_GREEN' "$output"
+          grep -Fx 'candidate_accepted=false' "$output"
+          grep -Fx 'runtime_integration=false' "$output"
+          grep -Fx 'funds_movement=false' "$output"
+      - name: Diff hygiene
+        run: git diff --check
