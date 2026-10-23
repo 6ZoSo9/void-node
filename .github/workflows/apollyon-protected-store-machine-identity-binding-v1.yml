@@ -37,7 +37,7 @@ jobs:
 
           expected="$RUNNER_TEMP/expected.txt"
           actual="$RUNNER_TEMP/actual.txt"
-          printf '%s\\n' \
+          printf '%s\n' \
             '.github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml' \
             'docs/security/apollyon-protected-store-machine-identity-binding-v1.md' \
             'ops/security/apollyon-protected-store-machine-identity-binding-v1.json' \
