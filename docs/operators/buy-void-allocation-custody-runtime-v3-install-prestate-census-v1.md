@@ -65,10 +65,13 @@ generation; **file contents are never read or hashed**. The opened generation is
 revalidated against the visible generation before the metadata record is used.
 
 The tree may contain ordinary directories, regular files and symlinks.
-Symlinks are treated as opaque legacy entries: the census never follows them,
-records only their metadata plus the byte length and SHA-256 of the link text,
-and never prints the link target. FIFOs, sockets, devices and other special
-files HOLD.
+Directory names are enumerated lazily through descriptor-relative
+`os.scandir(fd)`; at most the remaining global entry budget is retained before
+sorting, so a huge directory cannot allocate an unbounded name list ahead of
+the 4,096-entry HOLD. Symlinks are treated as opaque legacy entries: the census
+never follows them, records only their metadata plus the byte length and
+SHA-256 of the link text, and never prints the link target. FIFOs, sockets,
+devices and other special files HOLD.
 
 The census emits a bounded **metadata digest** over relative path, type,
 device/inode, UID, GID, mode, link count and metadata timestamps, plus regular
