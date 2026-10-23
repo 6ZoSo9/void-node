@@ -16,7 +16,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "f965215dd502a3d6321cfe090bbc4ffaa52a7648"
+EXPECTED_SOURCE_BLOB = "ff3660858363567b566c2dbd00fde5b5cbbf3668"
 
 def git_blob(raw: bytes) -> str:
     prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
@@ -264,8 +264,17 @@ scan_block = pre_self_test.split("def _scan_dir(", 1)[1].split(
 assert scan_block.index("_reserve_tree_name(totals)") < scan_block.index(
     "names.append(entry.name)"
 )
+assert "names.sort(reverse=True)" in scan_block
+assert "while names:" in scan_block
+assert "name = names.pop()" in scan_block
+assert scan_block.index("name = names.pop()") < scan_block.index(
+    "_consume_tree_name(totals)"
+)
 assert scan_block.index("_consume_tree_name(totals)") < scan_block.index(
     'if name in (".", "..")'
+)
+assert scan_block.index("name = names.pop()") < scan_block.index(
+    "_scan_dir("
 )
 
 for required in (
@@ -342,6 +351,7 @@ print("special_file_rejection=true")
 print("collision_fail_closed=true")
 print("entry_budget_enforced_before_sort=true")
 print("global_retained_name_budget_bound=true")
+print("processed_names_released_before_recursion=true")
 print("production_receipt_scoped_write_keys=true")
 print("exact_source_blob_asserted=true")
 print("host_census_not_executed_in_ci=true")
