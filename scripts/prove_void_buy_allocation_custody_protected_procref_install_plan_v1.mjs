@@ -14,14 +14,14 @@ const REVIEWED_REL =
   "ops/precision/" +
   "void_buy_allocation_custody_runtime_v3_" +
   "protected_all_process_reference_census_v1.py";
-const REVIEWED = path.join(ROOT, REVIEWED_REL);
 const ACCEPTED_LOCK_REL =
   "ops/security/" +
   "buy-void-allocation-custody-runtime-v3-" +
   "protected-all-process-reference-census-lock-v3.json";
-const ACCEPTED_LOCK = path.join(ROOT, ACCEPTED_LOCK_REL);
 
 const EXPECTED_PLAN_BLOB = "c7590b7f133ce9af66ec37d6dfcce837b1e78117";
+const REVIEWED_HEAD = "cfae72e86e060ec797a86797d71f7be7aa019be8";
+const ACCEPTED_LOCK_HEAD = "aebffe89a834eddccbd708495047f369f4dbaf29";
 const EXPECTED_REVIEWED_BLOB =
   "9738f14111fc03dffe9afb04f7bede73ceb13087";
 const EXPECTED_REVIEWED_BYTES = 74322;
@@ -41,9 +41,45 @@ function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+function exactHistoricalGitBlob(head, relative, expectedBlob, maximum) {
+  const env = { PATH: "/usr/bin:/bin", LC_ALL: "C" };
+  const rev = spawnSync(
+    "/usr/bin/git",
+    ["rev-parse", head + ":" + relative],
+    { cwd: ROOT, env, encoding: "utf8", timeout: 5000, maxBuffer: 64 * 1024 },
+  );
+  assert.equal(rev.status, 0, "historical_git_ref_unavailable:" + relative);
+  assert.equal(rev.stderr, "", "historical_git_ref_stderr:" + relative);
+  assert.equal(
+    rev.stdout.trim(),
+    expectedBlob,
+    "historical_git_ref_blob_mismatch:" + relative,
+  );
+  const object = spawnSync(
+    "/usr/bin/git",
+    ["cat-file", "blob", expectedBlob],
+    { cwd: ROOT, env, timeout: 5000, maxBuffer: maximum },
+  );
+  assert.equal(object.status, 0, "historical_git_blob_unavailable:" + relative);
+  assert.equal(object.stderr.length, 0, "historical_git_blob_stderr:" + relative);
+  assert.ok(Buffer.isBuffer(object.stdout));
+  assert.ok(object.stdout.length > 0 && object.stdout.length <= maximum);
+  return Buffer.from(object.stdout);
+}
+
 const planBytes = readFileSync(PLAN);
-const reviewedBytes = readFileSync(REVIEWED);
-const acceptedLockBytes = readFileSync(ACCEPTED_LOCK);
+const reviewedBytes = exactHistoricalGitBlob(
+  REVIEWED_HEAD,
+  REVIEWED_REL,
+  EXPECTED_REVIEWED_BLOB,
+  512 * 1024,
+);
+const acceptedLockBytes = exactHistoricalGitBlob(
+  ACCEPTED_LOCK_HEAD,
+  ACCEPTED_LOCK_REL,
+  EXPECTED_ACCEPTED_LOCK_BLOB,
+  512 * 1024,
+);
 
 assert.equal(gitBlob(planBytes), EXPECTED_PLAN_BLOB);
 assert.equal(gitBlob(reviewedBytes), EXPECTED_REVIEWED_BLOB);
@@ -58,7 +94,7 @@ assert.equal(
 );
 assert.deepEqual(planModule.REVIEWED_SOURCE, {
   repository: "6ZoSo9/void-node",
-  head: "cfae72e86e060ec797a86797d71f7be7aa019be8",
+  head: REVIEWED_HEAD,
   path: REVIEWED_REL,
   git_blob_sha1: EXPECTED_REVIEWED_BLOB,
   bytes: EXPECTED_REVIEWED_BYTES,
@@ -74,7 +110,7 @@ assert.deepEqual(planModule.REVIEWED_SOURCE, {
 assert.deepEqual(planModule.ACCEPTED_SOURCE_LOCK, {
   repository: "6ZoSo9/void-node",
   pr: 3777,
-  head: "aebffe89a834eddccbd708495047f369f4dbaf29",
+  head: ACCEPTED_LOCK_HEAD,
   path: ACCEPTED_LOCK_REL,
   git_blob_sha1: EXPECTED_ACCEPTED_LOCK_BLOB,
   lock_id:
