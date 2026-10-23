@@ -117,7 +117,12 @@
     "known_hosts_digest_bound_into_receipt_required": true,
     "client_public_key_digest_bound_into_receipt_required": true,
     "challenge_digest_bound_into_receipt_required": true,
-    "raw_machine_id_never_transmitted_on_any_channel_required": true
+    "raw_machine_id_never_transmitted_on_any_channel_required": true,
+    "canonical_single_request_frame_required": true,
+    "request_eof_required": true,
+    "request_closed_schema_and_canonical_json_required": true,
+    "request_duplicate_keys_and_nonfinite_forbidden": true,
+    "response_closed_schema_duplicate_keys_and_nonfinite_forbidden": true
   },
   "authority": {
     "attestation_execution_authorized": false,
@@ -135,5 +140,5 @@
     "funds_movement_authorized": false
   },
   "next_gate": "INDEPENDENTLY_AUTHENTICATE_AND_SOURCE_BIND_XIPHOS_ED25519_HOST_KEY_KNOWN_HOSTS_CLIENT_IDENTITY_AND_ENDPOINT_THEN_SEPARATELY_AUTHORIZE_ATTESTATION_EXECUTION",
-  "plan_id": "voidapollyonxiphosattestplan1_e3f13c2059ead38ee0c8ec05101d575976439a2f3381a035f8a6b35ddbaee5ff"
+  "plan_id": "voidapollyonxiphosattestplan1_b0449a1b41766da2fad19a248f5eec3c9c9287b87eede149f6ea2eab09f6bc15"
 }
