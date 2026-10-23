@@ -617,12 +617,17 @@ def classify_attempt(
     }
 
 
-def current_uid_census(
-    identities: set[tuple[int, int]],
-) -> dict[str, Any]:
+def _assert_unprivileged_execution() -> int:
     uid = os.geteuid()
     if uid == 0 or os.getuid() == 0:
         hold("root_execution_forbidden_for_user_owned_diagnostic")
+    return uid
+
+
+def current_uid_census(
+    identities: set[tuple[int, int]],
+) -> dict[str, Any]:
+    uid = _assert_unprivileged_execution()
 
     attempts: list[dict[str, Any]] = []
     for attempt in range(1, MAX_SCAN_ATTEMPTS + 1):
@@ -651,10 +656,14 @@ def current_uid_census(
         "all_process_reference_absence_proven": False,
         "privileged_all_process_scan": False,
         "custody_principal_process_scan_performed": False,
+        "fd_table_stability_proven": False,
+        "mapping_set_stability_proven": False,
+        "live_at_use_reverification_required": True,
     }
 
 
 def census() -> dict[str, Any]:
+    _assert_unprivileged_execution()
     lock = verify_source_inputs()
     target = target_identity_set(TARGET)
     process = current_uid_census(target["identities"])
@@ -683,6 +692,9 @@ def census() -> dict[str, Any]:
         "read_only": True,
         "production_filesystem_write": False,
         "root_execution_forbidden": True,
+        "fd_table_stability_proven": False,
+        "mapping_set_stability_proven": False,
+        "live_at_use_reverification_required": True,
         "process_environment_read": False,
         "process_arguments_read": False,
         "proc_cmdline_read": False,
@@ -778,6 +790,9 @@ def self_test() -> None:
     print("current_uid_target_reference_absent_candidate_tested=true")
     print("all_process_reference_absence_proven=false")
     print("privileged_all_process_scan=false")
+    print("fd_table_stability_proven=false")
+    print("mapping_set_stability_proven=false")
+    print("live_at_use_reverification_required=true")
     print("production_filesystem_write=false")
     print("self_test_temporary_filesystem_write=true")
     print("service_mutation=false")
@@ -814,6 +829,9 @@ if __name__ == "__main__":
         print("production_filesystem_write=false")
         print("root_execution_forbidden=true")
         print("all_process_reference_absence_proven=false")
+        print("fd_table_stability_proven=false")
+        print("mapping_set_stability_proven=false")
+        print("live_at_use_reverification_required=true")
         print("replacement_apply_authorized=false")
         print("service_mutation=false")
         print("runtime_integration=false")
