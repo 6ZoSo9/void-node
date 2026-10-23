@@ -584,8 +584,9 @@ def run_host_pass() -> dict[str, Any]:
     paths_before = _fixed_path_observation()
     mounts_before = _mount_observation()
     service_before = _systemctl_show()
-    process = _process_observation(service_before["MainPID"])
+    process_before = _process_observation(service_before["MainPID"])
     service_after = _systemctl_show()
+    process_after = _process_observation(service_after["MainPID"])
     mounts_after = _mount_observation()
     paths_after = _fixed_path_observation()
     ancestors_after = _ancestor_observation()
@@ -603,12 +604,15 @@ def run_host_pass() -> dict[str, Any]:
         hold("mount_metadata_changed_during_pass")
     if service_after != service_before:
         hold("service_state_changed_during_pass")
+    if process_after != process_before:
+        hold("service_process_subject_changed_during_pass")
 
     digest = digest_after
     ancestors = ancestors_after
     paths = paths_after
     mounts = mounts_after
     service = service_after
+    process = process_after
 
     receipt = {
         "marker": MARKER,
