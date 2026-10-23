@@ -692,6 +692,46 @@ for (const marker of [
   }
 }
 
+const commandMenuPrimaryRoutes = [
+  "home",
+  "wallet",
+  "earn",
+  "data",
+  "buy",
+  "validate",
+  "network",
+];
+for (const route of commandMenuPrimaryRoutes) {
+  const marker = `href="#/${route}"`;
+  if (commandMenuHtml.split(marker).length - 1 !== 1) {
+    fail(`command menu primary destination missing or duplicated: ${route}`);
+  }
+}
+if (
+  !commandMenuHtml.includes(
+    '<a href="#/validate">Validate <span>Eligibility and readiness</span></a>'
+  )
+) {
+  fail("command search must expose the existing Validate destination");
+}
+const commandDestinationLinks =
+  commandMenuHtml.match(/<a href="#\/[a-z-]+">/g) ?? [];
+if (commandDestinationLinks.length !== 8) {
+  fail(`unexpected command destination count: ${commandDestinationLinks.length}`);
+}
+const commandValidateRepair =
+  sourceManifest.command_search_validate_destination_repair;
+if (
+  commandValidateRepair?.date !== "2026-10-23" ||
+  commandValidateRepair?.surface !== "command-menu" ||
+  commandValidateRepair?.route !== "#/validate" ||
+  commandValidateRepair?.primary_destination !== true ||
+  commandValidateRepair?.destinations_after_repair !== 8 ||
+  commandValidateRepair?.authority_added !== false
+) {
+  fail("command Validate destination repair manifest is invalid");
+}
+
 const commandFilterStart = appJs.indexOf("function filterCommandResults() {");
 const commandFilterEnd = appJs.indexOf(
   "\nfunction currentRoute() {",
