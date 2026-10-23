@@ -13,7 +13,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json"
 MARKER = "VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_EVIDENCE_PLAN_V1_PROOF"
-PLAN_ID = "voidapollyonfirsthostplan1_658cd84a07a7162ce3c9e650feffdf388d9ab08a17bf41ce461f81e96ed9960f"
+PLAN_ID = "voidapollyonfirsthostplan1_be2b83c33630bce1e9bc635cbdd90981f55df38ab0e929706acd4cd7798015ca"
 PARENT_HEAD = "3706aecf2e258c9c7021137da05428187bbe6654"
 
 PINS = {
@@ -31,6 +31,7 @@ REQUIREMENTS = [
     "root_privilege_only_if_required_for_metadata_visibility",
     "read_only_metadata_safe_only",
     "exact_target_host_required",
+    "authenticated_machine_identity_evidence_required_before_host_pass",
     "exact_parent_candidate_identity_required",
     "installed_source_generation_identity_observation_required",
     "installed_package_runtime_identity_observation_required",
@@ -68,6 +69,7 @@ REQUIREMENTS = [
 ]
 AUTHORITY = [
     "host_pass_performed",
+    "machine_identity_bound",
     "protected_store_origin_proven",
     "current_store_generation_revalidation_performed",
     "authorization_winner_reread_performed",
@@ -103,6 +105,36 @@ def canonical(value: object) -> bytes:
     return json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False
     ).encode("ascii")
+
+
+def reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict:
+    out = {}
+    for key, value in pairs:
+        need(type(key) is str, "json_key_invalid")
+        need(key not in out, "duplicate_json_key:" + key)
+        out[key] = value
+    return out
+
+
+def reject_nonfinite_json(value: str) -> object:
+    raise Hold("json_nonfinite_invalid:" + value)
+
+
+def parse_plan_json(raw: bytes) -> object:
+    try:
+        text = raw.decode("utf-8", "strict")
+    except UnicodeError as exc:
+        raise Hold("json_encoding_invalid") from exc
+    try:
+        return json.loads(
+            text,
+            object_pairs_hook=reject_duplicate_pairs,
+            parse_constant=reject_nonfinite_json,
+        )
+    except Hold:
+        raise
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        raise Hold("json_parse_invalid") from exc
 
 
 def git_blob(raw: bytes) -> str:
@@ -219,11 +251,22 @@ def validate(value: object) -> dict:
 
     fixed = closed(
         plan["fixed_host_contract"],
-        ("target_host", "claim_state_root", "consumption_directory"),
+        (
+            "target_host",
+            "machine_identity_kind",
+            "expected_machine_id_sha256",
+            "machine_identity_binding_status",
+            "claim_state_root",
+            "consumption_directory",
+        ),
         "fixed_host_contract",
     )
     need(
         fixed["target_host"] == "Xiphos"
+        and fixed["machine_identity_kind"] == "etc_machine_id_sha256"
+        and fixed["expected_machine_id_sha256"] is None
+        and fixed["machine_identity_binding_status"]
+        == "UNBOUND_REQUIRES_SEPARATE_AUTHENTICATED_XIPHOS_MACHINE_ID_EVIDENCE"
         and fixed["claim_state_root"] == "/var/lib/void-apollyon-attempt-claim-v2"
         and fixed["consumption_directory"]
         == "/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1",
@@ -240,7 +283,7 @@ def validate(value: object) -> dict:
 
     need(
         plan["next_gate"]
-        == "SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS",
+        == "BIND_AUTHENTICATED_XIPHOS_MACHINE_ID_THEN_SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS",
         "next_gate_invalid",
     )
     no_id = copy.deepcopy(plan)
@@ -278,6 +321,18 @@ def adversaries(plan: dict) -> int:
     expect(bad, "fixed_host_contract_invalid", "target_host")
 
     bad = copy.deepcopy(plan)
+    bad["fixed_host_contract"]["machine_identity_kind"] = "hostname"
+    expect(bad, "fixed_host_contract_invalid", "machine_identity_kind")
+
+    bad = copy.deepcopy(plan)
+    bad["fixed_host_contract"]["expected_machine_id_sha256"] = "0" * 64
+    expect(bad, "fixed_host_contract_invalid", "machine_identity_unexpected_binding")
+
+    bad = copy.deepcopy(plan)
+    bad["fixed_host_contract"]["machine_identity_binding_status"] = "BOUND"
+    expect(bad, "fixed_host_contract_invalid", "machine_identity_status")
+
+    bad = copy.deepcopy(plan)
     bad["fixed_host_contract"]["claim_state_root"] = "/tmp/claim"
     expect(bad, "fixed_host_contract_invalid", "fixed_root")
 
@@ -301,8 +356,23 @@ def adversaries(plan: dict) -> int:
 
 def main() -> None:
     need(sys.argv[1:] in (["--self-test"], ["--run"]), "mode_invalid")
-    plan = validate(json.loads(read_regular(PLAN, 256 * 1024)))
+    raw_plan = read_regular(PLAN, 256 * 1024)
+    plan = validate(parse_plan_json(raw_plan))
     rejected = adversaries(plan)
+
+    duplicate = raw_plan.replace(
+        b'"parent": {',
+        b'"authority": {"host_pass_performed": true},\n  "parent": {',
+        1,
+    )
+    need(duplicate != raw_plan, "duplicate_fixture_injection_failed")
+    try:
+        parse_plan_json(duplicate)
+    except Hold as exc:
+        need(str(exc) == "duplicate_json_key:authority", "duplicate_json_wrong_rejection")
+    else:
+        raise Hold("duplicate_json_key_accepted")
+    rejected += 1
 
     if sys.argv[1] == "--run":
         for relative, expected in PINS.items():
@@ -321,6 +391,9 @@ def main() -> None:
     print("negative_authority_count=" + str(len(AUTHORITY)))
     print("rejected_adversaries=" + str(rejected))
     print("hosted_candidate_identity_bound=true")
+    print("machine_identity_binding_required=true")
+    print("machine_identity_bound=false")
+    print("duplicate_json_keys_rejected=true")
     print("cross_node_candidate_evidence_bound=true")
     print("read_only_metadata_safe_first_pass_required=true")
     print("protected_record_contents_read_forbidden=true")
@@ -335,7 +408,7 @@ def main() -> None:
     print("credential_access=false")
     print("transaction=false")
     print("funds_movement=false")
-    print("next_gate=SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS")
+    print("next_gate=BIND_AUTHENTICATED_XIPHOS_MACHINE_ID_THEN_SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS")
 
 
 if __name__ == "__main__":
