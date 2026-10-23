@@ -121,8 +121,11 @@ funds_movement=false
 ```
 
 The only filesystem write performed by `--package` is create-only publication
-of the build artifact into a caller-selected already-private directory. No
-systemd action, target replacement, permission mutation, request/customer
+of the build artifact into a caller-selected already-private directory. The
+output parent is itself traversed and retained through descriptor-relative
+`O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK` opens; a symlinked or rebound parent is
+rejected before artifact creation, and the parent generation is revalidated
+after the write. No systemd action, target replacement, permission mutation, request/customer
 history read, custody reserve/recover, key/wallet access, RPC, transaction or
 funds movement is performed.
 
