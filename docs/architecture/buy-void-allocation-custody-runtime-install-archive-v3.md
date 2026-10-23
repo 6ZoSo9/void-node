@@ -120,20 +120,24 @@ production_gate_ready=false
 funds_movement=false
 ```
 
-The only filesystem writes performed by `--package` are within a caller-selected
-already-private build directory. Archive bytes are first written create-only to
-a hidden same-directory staging inode. Any partial write is removed before the
-command returns failure. The staged archive is then fully re-inspected and
-rebound to the exact accepted V3 candidate before publication. Only after that
-validation succeeds is the same inode linked create-only into the final archive
-name; the staging name is removed and the parent directory is fsynced. Failed
-validation therefore leaves no final archive path, and an existing final path is
-never overwritten.
+The only filesystem write performed by `--package` is one create-only final
+artifact in a caller-selected already-private build directory. Before that
+final path can exist, the exact in-memory archive bytes are fully inspected,
+rebound to the accepted V3 candidate, and required to satisfy the canonical
+archive contract. Only after validation succeeds does the create-only write
+begin.
 
 The output parent is traversed and retained through descriptor-relative
-`O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK` opens; symlinked or rebound parents are
-rejected, and parent identity is revalidated around cleanup/publication. No
-systemd action, target replacement, permission mutation, request/customer
+`O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK` opens. The same retained descriptor is used
+for the write-failure cleanup path, so renaming or replacing the caller-visible
+parent during the write cannot strand a partial artifact in the original
+directory. The caller-visible parent generation is revalidated before success;
+a mismatch HOLDS and removes the created inode through the retained descriptor.
+Synthetic tests force both a partial write and an output-parent pathname rebind
+and require no discoverable archive in either the replacement or moved original
+directory. An existing final path is never overwritten.
+
+No systemd action, target replacement, permission mutation, request/customer
 history read, custody reserve/recover, key/wallet access, RPC, transaction or
 funds movement is performed.
 
