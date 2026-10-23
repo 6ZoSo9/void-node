@@ -6,7 +6,6 @@ on:
       - "public/public-node/connect/index.html"
       - "public/public-node/connect/public-node-connect-pack-v1.html"
       - "public/public-node/connect/public-node-connect-pack-v1.json"
-      - "public/public-node/index.json"
       - "docs/public/public-node-connect-pack-v1.md"
       - "scripts/prove_void_public_node_connect_focus_v1.mjs"
       - "tools/proof-public-node-connect-pack-v1.mjs"
