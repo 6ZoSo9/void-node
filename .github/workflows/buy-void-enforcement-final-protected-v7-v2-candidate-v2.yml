@@ -101,6 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V3"
+          echo "V3_ACCEPTANCE_SPLIT_ASSERTION_V1"
           integration="$RUNNER_TEMP/current-protected-integration-${{ matrix.node }}.json"
           node scripts/prove_buy_void_repaired_v7_v3_current_generation_dispatch_v1.mjs --self-test
           node scripts/prove_buy_void_repaired_v7_v3_current_generation_dispatch_v1.mjs --receipt > "$integration"
@@ -119,6 +120,8 @@ jobs:
           assert.equal(c.public_presale_activation,false);
           assert.equal(c.funds_movement,false);
           assert.equal(i.marker,"VOID_BUY_VOID_REPAIRED_V7_V3_CURRENT_GENERATION_DISPATCH_V1");
+          assert.equal(i.historical_v2_candidate_enforcement_identity_accepted,true);
+          assert.equal(i.candidate_enforcement_identity_accepted,false);
           assert.equal(i.protected_path_count,49);
           assert.equal(i.protected_path_identity_preserved,true);
           assert.equal(i.current_built_census_identity_matches_frozen_v4,true);
