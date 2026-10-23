@@ -83,7 +83,10 @@ A protected live run enumerates all numeric `/proc/<pid>` entries, bounded to
 32,768 PIDs.
 
 Kernel threads are identified from the proc stat flags and skipped explicitly.
-Stable zombies/dead tasks are classified separately.
+A zombie TGID leader is **not** treated as dead while any surviving task remains
+live. The bounded task inventory is inspected first; a zombie leader with a live
+worker makes the process observation incomplete. Only a stable thread group in
+which every task is zombie/dead can be classified as not live.
 
 For ordinary live processes the census observes:
 
@@ -121,7 +124,9 @@ clean observation. Up to three immediate read-only attempts are allowed.
 A protected root-owned source is not by itself proof that `/proc` exposes the
 host process universe. A root process can run inside a private PID namespace,
 and a process sharing the host PID namespace can still run in a private mount
-namespace that resolves a decoy `/opt` tree.
+namespace that resolves a decoy `/opt` tree. Even with both host namespaces, a
+chroot can retain host procfs while resolving absolute paths beneath a different
+filesystem root, so the scanner's filesystem root must also match PID 1's root.
 
 Therefore a real `--census` additionally requires two externally supplied,
 separately reviewed namespace leases:
@@ -134,13 +139,14 @@ requires, through that retained view:
 
 - `self/ns/pid == 1/ns/pid == expected PID lease`;
 - `self/ns/mnt == 1/ns/mnt == expected mount lease`;
+- `self/root == 1/root` by kernel dev/inode identity;
 - the retained mount is procfs;
 - `hidepid` is absent or exactly `hidepid=0`;
 - all PID/TID/stat/cwd/root/exe/fd/maps observations are descriptor-relative
   through the retained procfs view;
 - target mount IDs are read through that same retained host procfs view;
-- PID namespace, mount namespace, proc visibility and retained procfs identity
-  are revalidated after the process scan.
+- PID namespace, mount namespace, filesystem-root identity, proc visibility and
+  retained procfs identity are revalidated after the process scan.
 
 This closes the private-PID/private-mount false-clean class **only when the
 expected lease values come from separately reviewed host evidence**. The census
@@ -180,6 +186,8 @@ host_pid_namespace_external_lease_required=true
 host_pid_namespace_lease_verified=true
 host_mount_namespace_external_lease_required=true
 host_mount_namespace_lease_verified=true
+host_filesystem_root_matches_pid1=true
+host_filesystem_root_revalidated_after_census=true
 complete_proc_visibility_verified=true
 retained_procfs_view_used=true
 retained_procfs_view_revalidated_after_census=true
@@ -208,7 +216,10 @@ Synthetic tests cover:
 - target-reference rejection;
 - a synthetic **non-leader-only FD reference**, which must be detected even
   when the TGID leader has a clean FD/filesystem view;
+- a zombie TGID leader with a surviving worker, which must remain incomplete
+  rather than being classified as dead;
 - bounded task-set/start-generation churn detection;
+- PID-1 filesystem-root mismatch rejection for chroot/private-root execution;
 - private PID-namespace and PID-lease mismatch rejection;
 - private mount-namespace and mount-lease mismatch rejection;
 - restricted `hidepid` procfs rejection;
@@ -240,6 +251,8 @@ fd_table_stability_proven=false
 mapping_set_stability_proven=false
 task_inventory_generation_stability_required=true
 per_thread_files_fs_reference_scan_required=true
+zombie_leader_live_worker_rejected=true
+host_filesystem_root_matches_pid1=true
 process_reference_snapshot_race_free=false
 live_at_use_reverification_required=true
 python_runtime_closure_verified=false
