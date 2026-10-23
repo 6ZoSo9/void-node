@@ -56,9 +56,9 @@ jobs:
             | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 17802032a56dc0c2334f03d0a7f5012ec92b2f90
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 9426dffe811d42364e1050378b3afb0be13a1122
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = c6cb2b50585da92c4f306b7ad2cd112a89765b49
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 1699ac4d826e778854ea0c91541cf4412b30fb50
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = f2d8a63296931babcb5153819301a3e251f10e3a
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 8537e53d1ebfeed47ce2edc3032647678a3e978f
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 079576db7f880872f2d4dea8e7759bd536161516
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 76f5a6bcbc9854a1133cd1324eb862cb50102c0e
@@ -95,6 +95,7 @@ jobs:
             'captured_regexp_exec_primordial_bound=true' \
             'captured_buffer_length_intrinsic_bound=true' \
             'captured_typed_array_set_primordial_bound=true' \
+            'private_frame_return_without_buffer_copy=true' \
             'current_canonicalizer_v2_generation_bound=true' \
             'superseded_canonicalizer_v2_generation_rejected=true' \
             'revoked_proxy_candidate_rejected=true' \
