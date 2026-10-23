@@ -17,18 +17,18 @@ const REVIEWED_REL =
 const ACCEPTED_LOCK_REL =
   "ops/security/" +
   "buy-void-allocation-custody-runtime-v3-" +
-  "protected-all-process-reference-census-lock-v3.json";
+  "protected-all-process-reference-census-lock-v4.json";
 
-const EXPECTED_PLAN_BLOB = "c7590b7f133ce9af66ec37d6dfcce837b1e78117";
-const REVIEWED_HEAD = "cfae72e86e060ec797a86797d71f7be7aa019be8";
-const ACCEPTED_LOCK_HEAD = "aebffe89a834eddccbd708495047f369f4dbaf29";
+const EXPECTED_PLAN_BLOB = "a2431fffbee7be4de2ee1152b70e5fcccafd40c9";
+const REVIEWED_HEAD = "0eb763d8ecba723f5a80cccb24a297fbf5a010b7";
+const ACCEPTED_LOCK_HEAD = "77728fa6781b82b98caeaacbf54cfca40a4bc249";
 const EXPECTED_REVIEWED_BLOB =
-  "9738f14111fc03dffe9afb04f7bede73ceb13087";
+  "2f22f0cf3e5c5ed56c2a31f0862f087cdbbe41a9";
 const EXPECTED_REVIEWED_BYTES = 74322;
 const EXPECTED_REVIEWED_SHA256 =
-  "f3ef0593eae77825f730609b85da51af66168ba11f39848d052a91942e4cc335";
+  "79810ed2afa60d2e544e0f6f48ff8189dd26d5aaeb65208bfb1f562fda467a1c";
 const EXPECTED_ACCEPTED_LOCK_BLOB =
-  "e66742be948ae418cbdca75542db263050930c15";
+  "29a5d9325468897c9b99d22d4a0376547a5e865e";
 
 function gitBlob(bytes) {
   return createHash("sha1")
@@ -109,21 +109,21 @@ assert.deepEqual(planModule.REVIEWED_SOURCE, {
 
 assert.deepEqual(planModule.ACCEPTED_SOURCE_LOCK, {
   repository: "6ZoSo9/void-node",
-  pr: 3777,
+  pr: 3783,
   head: ACCEPTED_LOCK_HEAD,
   path: ACCEPTED_LOCK_REL,
   git_blob_sha1: EXPECTED_ACCEPTED_LOCK_BLOB,
   lock_id:
-    "voidbuycustodyallprocreflock3_" +
-    "9738f14111fc03dffe9afb04f7bede73ceb13087",
+    "voidbuycustodyallprocreflock4_" +
+    "2f22f0cf3e5c5ed56c2a31f0862f087cdbbe41a9",
   candidate_source_accepted: true,
-  source_head: "cfae72e86e060ec797a86797d71f7be7aa019be8",
+  source_head: "0eb763d8ecba723f5a80cccb24a297fbf5a010b7",
   source_git_blob_sha1: EXPECTED_REVIEWED_BLOB,
   source_bytes: EXPECTED_REVIEWED_BYTES,
   source_sha256: EXPECTED_REVIEWED_SHA256,
-  proof_git_blob_sha1: "ba1b8cc6c30c613c2d638e60f1bb61a288266227",
-  document_git_blob_sha1: "86952328f67e74fe8ab600617692733cf1d0a24e",
-  workflow_git_blob_sha1: "5c778dc18be4d11f55a417dccbc61ca57cbf2678",
+  proof_git_blob_sha1: "17c29d6666d01690e69c780ee5fd7b1948cac1dc",
+  document_git_blob_sha1: "69c231e128e579c73eec16d55f3732de3ae243c8",
+  workflow_git_blob_sha1: "31a883aa65f3b98252a7dfadc57dffffd51db455",
 });
 
 const acceptedLock = JSON.parse(acceptedLockBytes.toString("utf8"));
