@@ -4,8 +4,8 @@ Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS
 
 Status: **source/CI candidate only; protected source not installed; live privileged census not authorized**.
 
-This successor follows the current reconciled current-UID process-reference census at
-`61ecbea8b098f45bcd00eca1546438ad71c30230`.
+This successor follows the current host-scoped current-UID process-reference census at
+`2f58b776c4ba5b4c1b309d122122bd3355e2abc9`.
 
 Its purpose is to define the missing all-process observation boundary required
 by the existing custody replacement plan without making the mutable repository
@@ -41,10 +41,10 @@ This generation does not install that protected path.
 The source records:
 
 ```text
-parent_current_uid_head=61ecbea8b098f45bcd00eca1546438ad71c30230
-parent_current_uid_source_git_blob_sha1=d3c648df3f43ab642d60b8eacedb05c851e4fd2c
-prestate_head=332367d1ac93a206437c0c977082b97ed4895cd0
-prestate_source_git_blob_sha1=c2e0c53336665578e4ab26204f7d67908c66ad3f
+parent_current_uid_head=2f58b776c4ba5b4c1b309d122122bd3355e2abc9
+parent_current_uid_source_git_blob_sha1=a5fa6ff22cc21df555e8a70c32500f07251dc4a8
+prestate_head=836f5e704a603f67b77b2406aeec9174f640497e
+prestate_source_git_blob_sha1=4d9c6e5809a5cc64454626760f71e60ed99354bc
 archive_lock_git_blob_sha1=edb4ea2b833373ab387762e45ba7da4032c860f3
 archive_lock_sha256=ab96f16d93895b42c977fd26aef2c008115580e3ce31927275ed92986c86f8e7
 ```
@@ -116,6 +116,45 @@ A vanished/reused PID or TID, inaccessible required observation, FD-close race,
 PID-set change, task-set/generation change, or target-snapshot drift prevents a
 clean observation. Up to three immediate read-only attempts are allowed.
 
+## Host PID/mount namespace and retained procfs scope
+
+A protected root-owned source is not by itself proof that `/proc` exposes the
+host process universe. A root process can run inside a private PID namespace,
+and a process sharing the host PID namespace can still run in a private mount
+namespace that resolves a decoy `/opt` tree.
+
+Therefore a real `--census` additionally requires two externally supplied,
+separately reviewed namespace leases:
+
+- expected host PID namespace `dev:ino`;
+- expected host mount namespace `dev:ino`.
+
+The source opens and retains one canonical `/proc` directory descriptor, then
+requires, through that retained view:
+
+- `self/ns/pid == 1/ns/pid == expected PID lease`;
+- `self/ns/mnt == 1/ns/mnt == expected mount lease`;
+- the retained mount is procfs;
+- `hidepid` is absent or exactly `hidepid=0`;
+- all PID/TID/stat/cwd/root/exe/fd/maps observations are descriptor-relative
+  through the retained procfs view;
+- target mount IDs are read through that same retained host procfs view;
+- PID namespace, mount namespace, proc visibility and retained procfs identity
+  are revalidated after the process scan.
+
+This closes the private-PID/private-mount false-clean class **only when the
+expected lease values come from separately reviewed host evidence**. The census
+does not authenticate the provenance of those lease strings itself and records:
+
+```text
+host_namespace_lease_provenance_authenticated_by_census=false
+separately_reviewed_host_namespace_lease_required=true
+```
+
+Accordingly, passing arbitrary lease strings is not replacement authority.
+A later ceremony must bind the expected leases to independent host evidence and
+must still perform live-at-use revalidation.
+
 ## Observation is not replacement authority
 
 Even a clean protected run may set only:
@@ -132,6 +171,16 @@ fd_table_stability_proven=false
 mapping_set_stability_proven=false
 task_inventory_generation_stability_required=true
 per_thread_files_fs_reference_scan_required=true
+host_pid_namespace_external_lease_required=true
+host_pid_namespace_lease_verified=true
+host_mount_namespace_external_lease_required=true
+host_mount_namespace_lease_verified=true
+complete_proc_visibility_verified=true
+retained_procfs_view_used=true
+retained_procfs_view_revalidated_after_census=true
+target_resolved_in_host_mount_namespace=true
+host_namespace_lease_provenance_authenticated_by_census=false
+separately_reviewed_host_namespace_lease_required=true
 process_reference_snapshot_race_free=false
 live_at_use_reverification_required=true
 python_runtime_closure_verified=false
@@ -155,6 +204,10 @@ Synthetic tests cover:
 - a synthetic **non-leader-only FD reference**, which must be detected even
   when the TGID leader has a clean FD/filesystem view;
 - bounded task-set/start-generation churn detection;
+- private PID-namespace and PID-lease mismatch rejection;
+- private mount-namespace and mount-lease mismatch rejection;
+- restricted `hidepid` procfs rejection;
+- retained-procfs terminal scope revalidation;
 - PID-set drift rejection;
 - target-snapshot drift rejection;
 - non-root protected-source rejection;
