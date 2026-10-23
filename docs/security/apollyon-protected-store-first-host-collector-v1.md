@@ -144,6 +144,8 @@ source. It verifies:
 - symlink rejection;
 - synthetic ACL rejection;
 - terminal descriptor-generation drift rejection;
+- a fully inert `run_host_pass()` simulation with monkeypatched metadata
+  providers, including service/process/path/mount cross-pass drift adversaries;
 - negative authority in plan mode; and
 - exact four-file parent-relative scope.
 
@@ -151,7 +153,7 @@ No Xiphos host pass is performed by CI.
 
 Source blob: `012f1b007c82b0b529e55ce1911dc2375d7a6894`.
 
-Proof blob: `38dca4c29c397c39dcc6b0fe26fc2486c7012fa4`.
+Proof blob: `c002dfe3c03ef80729077c1fbe9b743f650c340c`.
 
 ## Next gate
 
