@@ -16,22 +16,6 @@
     "workflow_path": ".github/workflows/apollyon-protected-store-first-host-evidence-plan-v1.yml",
     "workflow_git_blob_sha1": "f533256a7b2b2a75b1f9aa8298ac43692b5af9d7"
   },
-  "authenticated_host_identity": {
-    "target_host": "Xiphos",
-    "identity_kind": "etc_machine_id_sha256",
-    "normalization": "strip_ascii_whitespace_then_require_exact_lowercase_32_hex_then_sha256_ascii",
-    "expected_machine_id_sha256": "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057",
-    "raw_machine_id_recorded": false,
-    "raw_machine_id_printed": false,
-    "format_valid_observed": true,
-    "generation_stable_observed": true,
-    "read_only_observation": true,
-    "filesystem_mutation_observed": false,
-    "service_mutation_observed": false,
-    "training_execution_observed": false,
-    "credential_access_observed": false,
-    "funds_movement_observed": false
-  },
   "binding_contract": {
     "future_host_pass_must_match_exact_machine_id_sha256": true,
     "hostname_alone_insufficient": true,
@@ -53,7 +37,10 @@
     "trainer_release_forbidden": true,
     "training_execution_forbidden": true,
     "network_rpc_transaction_forbidden": true,
-    "funds_movement_forbidden": true
+    "funds_movement_forbidden": true,
+    "observed_digest_binding_not_authenticated_host_identity": true,
+    "authenticated_transport_attestation_required_before_host_pass": true,
+    "authenticated_xiphos_machine_identity_required_before_host_pass": true
   },
   "authority": {
     "machine_identity_bound": true,
@@ -71,8 +58,27 @@
     "credential_access": false,
     "signing": false,
     "transaction": false,
-    "funds_movement": false
+    "funds_movement": false,
+    "authenticated_transport_attestation_present": false,
+    "authenticated_xiphos_machine_identity_proven": false,
+    "host_pass_authorized": false
   },
-  "next_gate": "SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS",
-  "binding_id": "voidapollyonhostidbind1_84b546de51ba3f22cd1f5775eb0230d5683e53254d3d3426b9a97fc2d3037f1d"
+  "next_gate": "AUTHENTICATE_XIPHOS_TRANSPORT_AND_ATTEST_MACHINE_IDENTITY_THEN_SEPARATELY_AUTHORIZE_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS",
+  "binding_id": "voidapollyonhostidbind1_71ad71a32fed9e24ccb3e06499f8777d7835ddac6280fb9f4a92423bfbd02198",
+  "observed_machine_identity_binding": {
+    "target_host": "Xiphos",
+    "identity_kind": "etc_machine_id_sha256",
+    "normalization": "strip_ascii_whitespace_then_require_exact_lowercase_32_hex_then_sha256_ascii",
+    "expected_machine_id_sha256": "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057",
+    "raw_machine_id_recorded": false,
+    "raw_machine_id_printed": false,
+    "format_valid_observed": true,
+    "generation_stable_observed": true,
+    "read_only_observation": true,
+    "filesystem_mutation_observed": false,
+    "service_mutation_observed": false,
+    "training_execution_observed": false,
+    "credential_access_observed": false,
+    "funds_movement_observed": false
+  }
 }
