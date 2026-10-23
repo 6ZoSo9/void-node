@@ -4,7 +4,7 @@ Marker: `VOID_BUY_VOID_CUSTODY_PROTECTED_PROCREF_INSTALL_PLAN_V1`.
 
 Status: **source-only protected-install planning; no install authority**.
 
-This generation is stacked directly on the #3777 V3 source-acceptance lock. It
+This generation is stacked directly on the #3783 V4 source-acceptance lock. It
 defines a future installer contract only; no protected source has been
 installed and no root census is authorized or executed.
 
@@ -16,27 +16,27 @@ not install those bytes.
 ## Exact reviewed source
 
 The plan accepts only the exact current #3753 protected all-process census
-generation that is source-accepted by #3777:
+generation that is source-accepted by #3783:
 
 ```text
 repository=6ZoSo9/void-node
-head=cfae72e86e060ec797a86797d71f7be7aa019be8
+head=0eb763d8ecba723f5a80cccb24a297fbf5a010b7
 path=ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py
-git_blob_sha1=9738f14111fc03dffe9afb04f7bede73ceb13087
+git_blob_sha1=2f22f0cf3e5c5ed56c2a31f0862f087cdbbe41a9
 bytes=74322
-sha256=f3ef0593eae77825f730609b85da51af66168ba11f39848d052a91942e4cc335
-accepted_source_lock_pr=3777
-accepted_source_lock_head=aebffe89a834eddccbd708495047f369f4dbaf29
-accepted_source_lock_blob=e66742be948ae418cbdca75542db263050930c15
+sha256=79810ed2afa60d2e544e0f6f48ff8189dd26d5aaeb65208bfb1f562fda467a1c
+accepted_source_lock_pr=3783
+accepted_source_lock_head=77728fa6781b82b98caeaacbf54cfca40a4bc249
+accepted_source_lock_blob=29a5d9325468897c9b99d22d4a0376547a5e865e
 ```
 
 A future installer must materialize the exact Git-object bytes. Copying from a
 mutable worktree is not authorized.
 
 The source-plan proof follows the same boundary. It authenticates the accepted
-census at exact historical source head
-`cfae72e86e060ec797a86797d71f7be7aa019be8` and the accepted lock at exact
-historical lock head `aebffe89a834eddccbd708495047f369f4dbaf29`, verifies each
+census at exact current source head
+`0eb763d8ecba723f5a80cccb24a297fbf5a010b7` and the accepted lock at exact
+V4 lock head `77728fa6781b82b98caeaacbf54cfca40a4bc249`, verifies each
 `head:path` resolves to the recorded Git blob, and reads those exact blob
 objects with `git cat-file`. It deliberately does **not** require the mutable
 current checkout to contain those historical bytes; later reviewed source
