@@ -659,10 +659,24 @@ export class VoidUdpSwarmPublicRelayIntroductionCollectorV1 {
     if (this.timer) return Promise.resolve(this.lastOutcome);
     if (this.startPromise) return this.startPromise;
 
-    // Publish the shared latch before any injected callback can synchronously
-    // reenter start() from the initial sweep.
-    const operation = Promise.resolve().then(() => this.startExclusive());
+    // Publish a pending shared latch before invoking any code that can
+    // synchronously reenter start(). Then begin the initial sweep in the same
+    // turn so a public runOnce() called immediately after start() cannot seize
+    // the run lock before this startup generation does.
+    let resolveOperation!:
+      (value: VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1) => void;
+    let rejectOperation!: (reason?: unknown) => void;
+    const operation =
+      new Promise<VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1>(
+        (resolve, reject) => {
+          resolveOperation = resolve;
+          rejectOperation = reject;
+        },
+      );
     this.startPromise = operation;
+
+    const exclusive = this.startExclusive();
+    void exclusive.then(resolveOperation, rejectOperation);
     void operation.then(
       () => {
         if (this.startPromise === operation) this.startPromise = null;
