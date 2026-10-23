@@ -120,35 +120,37 @@ production_gate_ready=false
 funds_movement=false
 ```
 
-The only filesystem write performed by `--package` is one create-only final
-artifact in a caller-selected already-private build directory. Before that
-final path can exist, the exact in-memory archive bytes are fully inspected,
-rebound to the accepted V3 candidate, and required to satisfy the canonical
-archive contract. Only after validation succeeds does the create-only write
-begin. The written file generation is captured **before** file fsync. That same
-generation must survive fsync unchanged; an exact-byte truncate/rewrite during
-fsync is rejected even if the bytes are restored. The exact archive bytes are
-then read back through the same retained output descriptor, required to equal
-the prevalidated in-memory bytes exactly, and required to keep that generation
-stable before the parent-directory durability step can proceed.
+The only archive payload write performed by `--package` begins in an
+**unnamed** same-filesystem `O_TMPFILE` inode opened from the retained private
+output-directory descriptor. The final archive pathname does not exist while
+archive bytes are written, file-fsynced, read back, or checked against the
+prevalidated in-memory bytes. A partial write, content-generation failure,
+parent rebind, or any other prepublication HOLD therefore closes an unnamed
+descriptor; there is no pathname cleanup and no unlink race.
 
-The output parent is traversed and retained through descriptor-relative
-`O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK` opens. The same retained descriptor is used
-for the write-failure cleanup path, so renaming or replacing the caller-visible
-parent during the write cannot strand a partial artifact in the original
-directory. On successful publication, the archive file is fsynced first, the
-retained parent directory is then fsynced to make the new directory entry
-durable, and the retained/caller-visible parent generation is revalidated again.
-After that directory fsync, the archive leaf is re-statted through the retained
-parent descriptor and must still be the exact opened file generation before
-returning success. Any parent or leaf drift HOLDS and enters retained-descriptor
-cleanup. Synthetic tests require both regular-file and directory fsync on
-success, truncate and restore the exact retained output bytes during file
-fsync to prove pre-fsync generation stability, remove the leaf immediately after
-parent fsync to prove the terminal leaf check, force a partial write and an
-output-parent pathname rebind,
-and require no discoverable failed archive. An existing final path is never
-overwritten.
+After all prepublication validation succeeds, the exact retained temporary
+inode is published with one create-only hard-link operation through
+`/proc/self/fd/<fd>` into the retained parent directory. The destination link
+fails if the final name already exists. The newly linked inode is re-fsynced
+and read back exactly, the retained parent directory is fsynced for directory
+entry durability, and both retained/caller-visible parent identity and the
+final leaf generation are checked again before success is returned.
+
+The implementation deliberately performs **no pathname unlink in an exception
+handler**. Once publication has occurred, a same-UID process could rename or
+replace a pathname between any identity check and a cleanup unlink; deleting by
+name would risk removing the replacement instead of the validated inode.
+Downstream consumption therefore requires a successful command plus independent
+archive inspection. Before publication, failures cannot leave a discoverable
+archive because the staging inode has no name.
+
+Synthetic tests require both regular-file and directory fsync on success,
+truncate and restore the unnamed staged bytes during file fsync to prove
+generation stability, force a partial write and prove that the final publication
+primitive is never called, remove the published leaf immediately after parent
+fsync to prove the terminal leaf check, force an output-parent pathname rebind,
+and require no discoverable prepublication artifact. An existing final path is
+never overwritten.
 
 No systemd action, target replacement, permission mutation, request/customer
 history read, custody reserve/recover, key/wallet access, RPC, transaction or
