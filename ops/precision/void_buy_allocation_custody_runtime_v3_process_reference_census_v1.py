@@ -324,7 +324,7 @@ def verify_complete_proc_visibility(
         text = raw.decode("utf-8", errors="strict")
     except UnicodeDecodeError as exc:
         hold("proc_mountinfo_encoding_invalid:" + type(exc).__name__)
-    matches: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
+    matches: list[dict[str, Any]] = []
     for line in text.splitlines():
         parts = line.split()
         try:
@@ -341,10 +341,19 @@ def verify_complete_proc_visibility(
             hold("proc_mount_identity_not_procfs")
         mount_options = tuple(sorted(set(parts[5].split(","))))
         super_options = tuple(sorted(set(parts[separator + 3].split(","))))
-        matches.append((mount_options, super_options))
+        matches.append({
+            "root": parts[3],
+            "mount_point": parts[4],
+            "mount_options": mount_options,
+            "super_options": super_options,
+        })
     if len(matches) != 1:
         hold("proc_mount_selection_invalid")
-    mount_options, super_options = matches[0]
+    selected = matches[0]
+    if selected["root"] != "/" or selected["mount_point"] != "/proc":
+        hold("proc_mount_scope_not_complete_host_view")
+    mount_options = selected["mount_options"]
+    super_options = selected["super_options"]
     all_options = set(mount_options) | set(super_options)
     hidden = sorted(
         option for option in all_options
@@ -354,6 +363,8 @@ def verify_complete_proc_visibility(
         hold("proc_visibility_restricted:" + ",".join(hidden))
     return {
         "mount_id": expected_mount_id,
+        "root": selected["root"],
+        "mount_point": selected["mount_point"],
         "mount_options": list(mount_options),
         "super_options": list(super_options),
         "hidepid_restricted": False,
@@ -361,13 +372,38 @@ def verify_complete_proc_visibility(
     }
 
 
+def parse_proc_self_stat_pid(raw: bytes, expected_pid: int) -> int:
+    if (
+        not isinstance(expected_pid, int)
+        or isinstance(expected_pid, bool)
+        or expected_pid <= 0
+    ):
+        hold("proc_self_expected_pid_invalid")
+    first_space = raw.find(b" ")
+    if first_space < 1:
+        hold("proc_self_stat_shape_invalid")
+    pid_text = raw[:first_space]
+    if not pid_text.isascii() or not pid_text.isdigit():
+        hold("proc_self_stat_pid_invalid")
+    observed = int(pid_text, 10)
+    if observed != expected_pid:
+        hold("proc_self_pid_namespace_mismatch")
+    return observed
+
+
 def open_pinned_proc_view(
     expected_host_pid_namespace_dev_ino: str,
 ) -> tuple[int, dict[str, Any]]:
     expected = parse_dev_ino_lease(expected_host_pid_namespace_dev_ino)
     before = os.stat("/proc", follow_symlinks=False)
-    if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
-        hold("proc_root_not_direct_directory")
+    if (
+        not stat.S_ISDIR(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_uid != 0
+        or before.st_gid != 0
+        or stat.S_IMODE(before.st_mode) & 0o022
+    ):
+        hold("proc_root_custody_invalid")
     fd = os.open("/proc", _directory_flags())
     try:
         opened = os.fstat(fd)
@@ -398,6 +434,13 @@ def open_pinned_proc_view(
             allow_zero_size=True,
         )
         visibility = verify_complete_proc_visibility(mountinfo, mount_id)
+        self_stat = _read_bounded_at(
+            fd,
+            "self/stat",
+            MAX_STAT_BYTES,
+            allow_zero_size=True,
+        )
+        parse_proc_self_stat_pid(self_stat, os.getpid())
         return fd, {
             "external_lease_required": True,
             "lease_verified": True,
@@ -407,7 +450,11 @@ def open_pinned_proc_view(
             "proc_root_dev": opened.st_dev,
             "proc_root_ino": opened.st_ino,
             "proc_mount_id": mount_id,
+            "proc_root_uid": opened.st_uid,
+            "proc_root_gid": opened.st_gid,
+            "proc_root_mode": format(stat.S_IMODE(opened.st_mode), "04o"),
             "proc_visibility": visibility,
+            "proc_self_pid_matches_runtime": True,
         }
     except BaseException:
         os.close(fd)
@@ -424,6 +471,7 @@ def revalidate_pinned_proc_view(
     if (
         opened.st_dev != initial["proc_root_dev"]
         or opened.st_ino != initial["proc_root_ino"]
+        or _fd_mount_id(fd) != initial["proc_mount_id"]
     ):
         hold("proc_root_generation_changed")
     try:
@@ -454,6 +502,13 @@ def revalidate_pinned_proc_view(
     )
     if visibility != initial["proc_visibility"]:
         hold("proc_visibility_scope_changed")
+    self_stat = _read_bounded_at(
+        fd,
+        "self/stat",
+        MAX_STAT_BYTES,
+        allow_zero_size=True,
+    )
+    parse_proc_self_stat_pid(self_stat, os.getpid())
     visible = os.stat("/proc", follow_symlinks=False)
     visible_matches = _identity(visible) == _identity(opened)
     if not visible_matches:
@@ -461,6 +516,7 @@ def revalidate_pinned_proc_view(
     return {
         "host_pid_namespace_lease_revalidated_after_census": True,
         "proc_visibility_revalidated_after_census": True,
+        "proc_self_pid_revalidated_after_census": True,
         "retained_procfs_view_revalidated_after_census": True,
         "visible_proc_root_matches_retained_at_terminal": True,
     }
@@ -1326,6 +1382,10 @@ def self_test() -> None:
         b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
         b" - proc proc rw,hidepid=2\n"
     )
+    subtree_mountinfo = (
+        b"42 1 0:1 /123 /proc rw,nosuid,nodev,noexec,relatime"
+        b" - proc proc rw,hidepid=0\n"
+    )
     if verify_complete_proc_visibility(
         visible_mountinfo, 42
     )["hidepid_restricted"] is not False:
@@ -1337,6 +1397,28 @@ def self_test() -> None:
             raise
     else:
         hold("self_test_hidepid_restriction_accepted")
+    try:
+        verify_complete_proc_visibility(subtree_mountinfo, 42)
+    except CensusHold as exc:
+        if "proc_mount_scope_not_complete_host_view" not in str(exc):
+            raise
+    else:
+        hold("self_test_proc_subtree_mount_accepted")
+    if parse_proc_self_stat_pid(
+        b"123 (fixture) S 0 0 0\n",
+        123,
+    ) != 123:
+        hold("self_test_proc_self_pid_parse_invalid")
+    try:
+        parse_proc_self_stat_pid(
+            b"124 (fixture) S 0 0 0\n",
+            123,
+        )
+    except CensusHold as exc:
+        if "proc_self_pid_namespace_mismatch" not in str(exc):
+            raise
+    else:
+        hold("self_test_proc_self_pid_mismatch_accepted")
 
     with tempfile.TemporaryDirectory(
         prefix="void-custody-procref-readat-selftest-"
@@ -1425,7 +1507,12 @@ def self_test() -> None:
     print("private_pid_namespace_rejected=true")
     print("host_pid_namespace_lease_mismatch_rejected=true")
     print("complete_proc_visibility_required=true")
+    print("proc_mount_root_is_slash_required=true")
+    print("proc_mount_point_exact_required=true")
+    print("proc_root_root_owned_nonwritable_required=true")
+    print("proc_self_pid_matches_runtime_required=true")
     print("hidepid_restricted_proc_holds=true")
+    print("proc_subtree_mount_holds=true")
     print("descriptor_relative_bounded_reader_tested=true")
     print("proc_cmdline_read=false")
     print("proc_environ_read=false")
