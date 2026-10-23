@@ -14,7 +14,7 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "09fea72290cf88e2e31d31acfe97e2ca134af184"
+EXPECTED_SOURCE_BLOB = "8bba1d591b1f3a5e111ff9149209d23ddd4cb4be"
 
 
 def git_blob(raw: bytes) -> str:
@@ -135,7 +135,8 @@ clean_rows = [
     {"pid": 11, "status": "kernel_thread_skipped"},
 ]
 clean = module.classify_attempt([10, 11], [10, 11], clean_rows, True)
-assert clean["all_process_target_reference_absent_observed"] is True
+assert clean["host_scoped_target_reference_absent_candidate"] is True
+assert clean["all_process_target_reference_absent_observed"] is False
 assert clean["all_process_reference_absence_proven"] is False
 assert clean["fd_table_stability_proven"] is False
 assert clean["mapping_set_stability_proven"] is False
@@ -315,6 +316,7 @@ for required in (
     "per_thread_files_fs_reference_scan_required",
     "MAX_TASKS_PER_PROCESS",
     "MAX_TOTAL_TASKS",
+    "host_scoped_target_reference_absent_candidate",
     "all_process_target_reference_absent_observed",
     "all_process_reference_absence_proven",
     "fd_table_stability_proven",
@@ -363,6 +365,8 @@ print("retained_procfs_view_revalidated_after_census=true")
 print("target_resolved_in_host_mount_namespace=true")
 print("host_namespace_lease_provenance_authenticated_by_census=false")
 print("separately_reviewed_host_namespace_lease_required=true")
+print("host_scoped_target_reference_absent_candidate_only=true")
+print("all_process_target_reference_absent_observed=false")
 print("task_inventory_generation_stability_required=true")
 print("per_thread_files_fs_reference_scan_required=true")
 print("bounded_task_inventory_required=true")
