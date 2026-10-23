@@ -1,0 +1,96 @@
+name: Apollyon claim-store callback failure-domain containment plan V1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json'
+      - 'scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py'
+      - 'docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md'
+      - '.github/workflows/apollyon-claim-store-callback-failure-domain-containment-plan-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact parent and source-only scope
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          PARENT=187a4da4992b7d81330b9474e535b8af631de0d4
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$PARENT" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            'ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json' \
+            'scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py' \
+            'docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md' \
+            '.github/workflows/apollyon-claim-store-callback-failure-domain-containment-plan-v1.yml' \
+            | sort > "$expected"
+          git diff --no-renames --name-only "$PARENT" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = 2d72a28e9daaeabcab58975a6f362c438c720592
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = 445480e625e01e44be8722709d56d5a6541099e2
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = 69694ab1c8ffd8021817a449255eca956f91a7e8
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = bed4c6fe3896ff48dfbc873d078fac943528fa5f
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = 848a061a0b246e138ec8ed775ed8a87f159476f6
+
+          # Current content-addressed plan, proof and security doc: fail on drift.
+          test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = 45db26e5092a3102821402cde9671c5fac103542
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = ac7d24d37341933b4454184c6b1e11216f620090
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 30b0aca158cb080aea489652d3e7bc5b717c3142
+
+          git diff --check "$PARENT" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile source proof without bytecode writes
+        run: |
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          name = "scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py"
+          compile(Path(name).read_text("utf-8"), name, "exec", dont_inherit=True)
+          print("plan_python_syntax_green=true")
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Self-test plan and require terminal-supervisor negative markers
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/apollyon-callback-containment-plan-selftest.log"
+          python3 -I -B scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py --self-test | tee "$out"
+          grep -Fx 'runtime_contract_requirements=39' "$out"
+          grep -Fx 'resource_ceiling_count=18' "$out"
+          grep -Fx 'exact_resource_ceilings_enforced=true' "$out"
+          grep -Fx 'storage_io_limits_bound=true' "$out"
+          grep -Fx 'uncaught_exception_hook_surfaces_forbidden=true' "$out"
+          grep -Fx 'exception_surface_mutation_maps_to_hold=true' "$out"
+          grep -Fx 'rejected_adversaries=77' "$out"
+          grep -Fx 'negative_cases_failed_at_semantic_gate=true' "$out"
+          grep -Fx 'unsafe_supervisor_death_fence_reuse_hazard_observed=true' "$out"
+          grep -Fx 'bound_source_role_identities_enforced=true' "$out"
+          grep -Fx 'source_uid_gid_nlink_metadata_drift_rejected=true' "$out"
+          grep -Fx 'source_uid_gid_nlink_open_metadata_drift_rejected=true' "$out"
+          grep -Fx 'source_uid_gid_nlink_terminal_fd_drift_rejected=true' "$out"
+          grep -Fx 'source_uid_gid_nlink_terminal_visible_drift_rejected=true' "$out"
+          grep -Fx 'failure_domain_containment_proven=false' "$out"
+          grep -Fx 'trusted_callback_origin_proven=false' "$out"
+          grep -Fx 'protected_host_execution_authorized=false' "$out"
+          grep -Fx 'training_execution_authorized=false' "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Verify exact bound source generation
+        run: python3 -I -B scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py --run

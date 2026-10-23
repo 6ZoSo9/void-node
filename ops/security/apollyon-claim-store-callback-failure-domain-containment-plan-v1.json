@@ -1,0 +1,119 @@
+{
+  "schema": "void_apollyon_claim_store_callback_failure_domain_containment_plan_v1",
+  "marker": "VOID_APOLLYON_CLAIM_STORE_CALLBACK_FAILURE_DOMAIN_CONTAINMENT_PLAN_V1",
+  "version": 1,
+  "repository": "6ZoSo9/void-node",
+  "stack_parent_pr": 3549,
+  "stack_parent_head": "187a4da4992b7d81330b9474e535b8af631de0d4",
+  "bound_sources": {
+    "core": {
+      "path": "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs",
+      "git_blob_sha1": "2d72a28e9daaeabcab58975a6f362c438c720592"
+    },
+    "transaction_lease": {
+      "path": "tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs",
+      "git_blob_sha1": "445480e625e01e44be8722709d56d5a6541099e2"
+    },
+    "native_bridge": {
+      "path": "tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs",
+      "git_blob_sha1": "69694ab1c8ffd8021817a449255eca956f91a7e8"
+    },
+    "core_proof": {
+      "path": "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs",
+      "git_blob_sha1": "bed4c6fe3896ff48dfbc873d078fac943528fa5f"
+    },
+    "native_proof": {
+      "path": "scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs",
+      "git_blob_sha1": "848a061a0b246e138ec8ed775ed8a87f159476f6"
+    }
+  },
+  "observed_gap": {
+    "rejected_promise_surfaces": [
+      "transaction_acquisition_result",
+      "core_revalidator_result",
+      "transaction_release_result",
+      "native_bridge_revalidator_result"
+    ],
+    "getter_safe_promise_rejection_preserved": true,
+    "caller_promise_constructor_or_species_must_not_be_observed": true,
+    "already_rejected_promise_can_terminate_containing_node_process": true,
+    "trusted_callback_origin_proven": false,
+    "failure_domain_containment_proven": false
+  },
+  "required_future_runtime_contract": {
+    "separate_os_process_failure_domain_required": true,
+    "one_request_per_isolated_process_required": true,
+    "node_unhandled_rejections_strict_required": true,
+    "custom_unhandled_rejection_suppression_forbidden": true,
+    "callback_source_custody_and_exact_identity_required": true,
+    "inherited_descriptor_allowlist_required": true,
+    "minimal_environment_required": true,
+    "no_success_ack_before_child_clean_exit_required": true,
+    "canonical_success_receipt_required_before_clean_exit": true,
+    "post_callback_event_loop_checkpoint_required": true,
+    "trusted_supervisor_completion_checkpoint_unforgeable_required": true,
+    "callback_initiated_clean_exit_cannot_authorize_success_required": true,
+    "nonzero_or_signal_exit_maps_to_hold_required": true,
+    "bounded_worker_deadline_and_process_tree_reap_required": true,
+    "all_descendant_processes_and_worker_threads_quiescent_before_ack_required": true,
+    "post_mutation_child_failure_maps_to_indeterminate_required": true,
+    "automatic_replay_after_indeterminate_forbidden": true,
+    "parent_must_ignore_buffered_success_after_abnormal_exit": true,
+    "supervisor_held_fencing_lease_through_child_exit_and_terminal_checks_required": true,
+    "supervisor_death_prior_worker_quiescence_before_fence_reuse_required": true,
+    "supervisor_restart_durable_fencing_epoch_and_unknown_recovery_required": true,
+    "unknown_mutation_after_abnormal_exit_maps_to_indeterminate_required": true,
+    "terminal_store_generation_revalidation_required": true,
+    "terminal_peer_identity_revalidation_required": true,
+    "terminal_callback_source_identity_revalidation_required": true,
+    "terminal_checks_after_worker_tree_quiescence_before_ack_required": true,
+    "supervisor_bounded_canonical_receipt_frame_and_eof_required": true,
+    "supervisor_bounded_stdout_stderr_diagnostic_capture_required": true,
+    "supervisor_preexec_kernel_memory_pid_cpu_fd_quotas_required": true,
+    "supervisor_quota_breach_unknown_mutation_indeterminate_required": true,
+    "supervisor_preexec_kernel_file_storage_io_quotas_required": true,
+    "supervisor_exact_resource_ceiling_contract_enforced_pre_callback_required": true,
+    "supervisor_durable_inflight_unknown_fence_committed_before_worker_launch_required": true,
+    "supervisor_fence_clear_only_after_quiescence_and_terminal_revalidation_required": true,
+    "terminal_authorization_winner_revalidation_required": true,
+    "terminal_durable_claim_record_revalidation_required": true,
+    "callback_worker_uncaught_exception_listener_registration_forbidden": true,
+    "callback_worker_uncaught_exception_capture_callback_forbidden": true,
+    "callback_worker_exception_surface_mutation_attempt_maps_to_hold_required": true
+  },
+  "authority": {
+    "protected_host_execution_authorized": false,
+    "filesystem_mutation_authorized": false,
+    "service_or_systemd_mutation_authorized": false,
+    "production_claim_publication_authorized": false,
+    "training_start_authorized": false,
+    "training_execution_authorized": false,
+    "credential_access_authorized": false,
+    "private_key_or_wallet_access_authorized": false,
+    "signing_authorized": false,
+    "transaction_authorized": false,
+    "funds_movement_authorized": false
+  },
+  "next_gate": "DISTINCT_REVIEW_FAILURE_DOMAIN_PLAN_THEN_BUILD_ISOLATED_RUNTIME_CANDIDATE_V1",
+  "plan_id": "voidapollyonclaimcallbackcontain1_9f64ebd8cd027083db530c333418e24bbbad64aefe852a21478f155358662369",
+  "worker_resource_ceiling_contract": {
+    "worker_deadline_ms": 5000,
+    "worker_tree_reap_timeout_ms": 5000,
+    "canonical_receipt_frame_bytes_max": 65536,
+    "stdout_capture_bytes_max": 8192,
+    "stderr_capture_bytes_max": 8192,
+    "diagnostic_capture_bytes_max": 8192,
+    "memory_max_bytes": 268435456,
+    "memory_swap_max_bytes": 0,
+    "pids_max": 32,
+    "cpu_quota_us": 100000,
+    "cpu_period_us": 100000,
+    "rlimit_nofile": 64,
+    "rlimit_fsize_bytes": 1048576,
+    "private_filesystem_bytes_max": 16777216,
+    "io_read_bytes_per_second_max": 16777216,
+    "io_write_bytes_per_second_max": 8388608,
+    "io_read_iops_max": 1024,
+    "io_write_iops_max": 512
+  }
+}
