@@ -149,3 +149,60 @@ jobs:
           grep -Fx 'training_execution_performed=false' "$out"
           grep -Fx 'funds_movement=false' "$out"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Emit immutable hosted V2 candidate receipt
+        run: |
+          set -euo pipefail
+          candidate_dir="$RUNNER_TEMP/apollyon-static-v2-candidate"
+          receipt="$RUNNER_TEMP/apollyon-static-v2-candidate-receipt.log"
+          python3 -I -B             ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v2.py             --derive-dir "$candidate_dir" | tee "$receipt"
+
+          grep -Fx 'VOID_APOLLYON_CLAIM_PROTECTED_FIRST_ENTRY_STATIC_CANDIDATE_V2_DERIVE_GREEN' "$receipt"
+          grep -Fx 'binary_sha256=9c414a6aac9bbfc1b07175908e130993141255b132359ccae23ae49ecf5f7b6d' "$receipt"
+          grep -Fx 'binary_bytes=808472' "$receipt"
+          grep -Fx 'accepted_v1_binary_identity_preserved=true' "$receipt"
+          grep -Fx 'candidate_accepted=false' "$receipt"
+          grep -Fx 'protected_install_authorized=false' "$receipt"
+          grep -Fx 'training_execution_performed=false' "$receipt"
+          grep -Fx 'funds_movement=false' "$receipt"
+
+          python3 -I -B - "$candidate_dir/candidate-v1.json" <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          raw = path.read_bytes()
+          row = json.loads(raw.decode("ascii"))
+          candidate_id = row["candidate_id"]
+          assert candidate_id.startswith(
+              "apollyon_claim_protected_first_entry_static_candidate_v2:"
+          )
+          assert row["binary"]["bytes"] == 808472
+          assert row["binary"]["sha256"] == (
+              "9c414a6aac9bbfc1b07175908e130993141255b132359ccae23ae49ecf5f7b6d"
+          )
+          assert row["binary"]["git_blob_sha1"] == (
+              "0eaedceb79f39829fbde9f06e454f45b9aeb8912"
+          )
+          assert row["authority"]["candidate_accepted"] is False
+          assert row["authority"]["protected_install_authorized"] is False
+          assert row["authority"]["training_execution_performed"] is False
+          assert row["authority"]["funds_movement"] is False
+          print("hosted_candidate_id=" + candidate_id)
+          print("hosted_candidate_json_sha256=" + hashlib.sha256(raw).hexdigest())
+          PY
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Upload immutable V2 candidate receipt
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: apollyon-static-first-entry-v2-candidate
+          path: |
+            ${{ runner.temp }}/apollyon-static-v2-candidate/candidate-v1.json
+            ${{ runner.temp }}/apollyon-static-v2-candidate/apollyon-claim-protected-first-entry-static-v1
+            ${{ runner.temp }}/apollyon-static-v2-candidate-receipt.log
+          if-no-files-found: error
+          retention-days: 7
