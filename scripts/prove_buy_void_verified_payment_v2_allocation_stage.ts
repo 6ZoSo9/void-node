@@ -31,6 +31,17 @@ const chainTx = "0x" + "a".repeat(64);
 const buyer = "0x" + "b".repeat(40);
 const receiver = "0x" + "c".repeat(40);
 const nativeUsdc = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+const launchAuthority = Object.freeze({
+  marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1",
+  version: 1,
+  coupled_launch_id: "sha256:" + "1".repeat(64),
+  source_composition_id: "sha256:" + "2".repeat(64),
+  activation_generation: "0x" + "3".repeat(64),
+  generation_tip_sha256: "sha256:" + "4".repeat(64),
+  activation_receipt_id: "voidbclive1_" + "5".repeat(64),
+  activation_receipt_sha256: "6".repeat(64),
+  expires_at_ms: 1_900_000_000_000,
+});
 const transferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const addressTopic = (address: string) => "0x" + "0".repeat(24) + address.slice(2);
 let sideEffects = 0;
@@ -128,6 +139,7 @@ function serverInput(): any {
     delivery_address: buyer,
     receive_address: receiver,
     usdc_contract: nativeUsdc,
+    launch_authority: launchAuthority,
     payment_instructions: {
       send_chain: "base",
       send_chain_id: 8453,
@@ -147,15 +159,41 @@ function serverInput(): any {
     ...serverCallbacks,
   };
 }
-function stage(input: any, http: any = request()) {
+function lineageFor(requestRow: any, extraRows: any[] = []) {
+  const rows = [requestRow, ...extraRows];
+  return {
+    requests_jsonl: Buffer.from(
+      rows.map((row) => JSON.stringify(row)).join("\n") + "\n",
+      "utf8",
+    ),
+    prior_operator_events_jsonl: Buffer.alloc(0),
+    allocation_jsonl: Buffer.alloc(0),
+  };
+}
+function canonicalLineage() {
+  return lineageFor(serverInput().request);
+}
+function stage(
+  input: any,
+  http: any = request(),
+  history: any = canonicalLineage(),
+) {
   const { res, state } = response();
-  const result = stageAuthenticatedBuyVoidVerifiedPaymentV2(http, res, input);
+  const result = stageAuthenticatedBuyVoidVerifiedPaymentV2(
+    http, res, input, history,
+  );
   return { result, state };
 }
-function negative(input: any, marker: string) {
+function negative(
+  input: any,
+  marker: string,
+  history: any = canonicalLineage(),
+) {
   const { res } = response();
   assert.throws(
-    () => stageAuthenticatedBuyVoidVerifiedPaymentV2(request(), res, input),
+    () => stageAuthenticatedBuyVoidVerifiedPaymentV2(
+      request(), res, input, history,
+    ),
     new RegExp(marker, "u"),
   );
   cases++;
@@ -197,6 +235,9 @@ try {
   assert.equal(result.kind, "verified_payment_allocation_handoff");
   assert.equal(result.mounted_verified_allocation_dispatch, false);
   assert.equal(result.source_only_unmounted, true);
+  assert.equal(result.payment_instruction_amount_bound, true);
+  assert.equal(result.canonical_first_request_lineage_preflight_verified, true);
+  assert.equal(result.request_history_source_authenticated, false);
   assert.equal(result.event.request_id, id);
   assert.equal(result.request.request_id, id);
   assert.equal(result.event_snapshot_sha256.length, 64);
@@ -232,13 +273,44 @@ try {
     const allowed = serverInput();
     allowed.request.quoted_void = canonicalQuote;
     allowed.request.usdc_amount = usdcAmount;
+    allowed.request.payment_instructions.amount = usdcAmount;
     allowed.event = verifiedEventFor(allowed.request);
-    const admitted = stage(allowed).result;
+    const admitted = stage(
+      allowed, request(), lineageFor(allowed.request),
+    ).result;
     assert.equal(admitted?.status, "staged_unmounted");
     assert.equal(admitted?.payment_acceptance, false);
     assert.equal(Object.hasOwn(admitted?.event || {}, "quoted_void"), false);
     cases++;
   }
+
+  const wrongInstructionAmount = serverInput();
+  wrongInstructionAmount.request.payment_instructions.amount = "30";
+  negative(wrongInstructionAmount, "event_request_original_identity_mismatch");
+
+  const missingInstructionAmount = serverInput();
+  delete missingInstructionAmount.request.payment_instructions.amount;
+  negative(missingInstructionAmount, "event_request_original_identity_mismatch");
+
+  // A later full snapshot cannot backfill launch provenance omitted from the
+  // first request row. The current request remains well-formed, but the
+  // canonical chronology classifier must keep first-row absence negative.
+  const currentWithLaunch = serverInput();
+  const firstWithoutLaunch = structuredClone(currentWithLaunch.request);
+  delete firstWithoutLaunch.launch_authority;
+  negative(
+    currentWithLaunch,
+    "original_request_lineage_unqualified",
+    lineageFor(firstWithoutLaunch, [currentWithLaunch.request]),
+  );
+
+  const firstWithoutToken = structuredClone(currentWithLaunch.request);
+  delete firstWithoutToken.usdc_contract;
+  negative(
+    currentWithLaunch,
+    "original_request_lineage_unqualified",
+    lineageFor(firstWithoutToken, [currentWithLaunch.request]),
+  );
 
   const missingQuote = serverInput();
   delete missingQuote.request.quoted_void;
@@ -335,12 +407,18 @@ try {
     enumerable: true,
     get() { throw new Error("untrusted_input_read_before_auth"); },
   });
-  const rejected = stage(neverRead, failedBearer);
+  const poisonHistory: any = {};
+  Object.defineProperty(poisonHistory, "requests_jsonl", {
+    enumerable: true,
+    get() { throw new Error("history_read_before_auth"); },
+  });
+  const rejected = stage(neverRead, failedBearer, poisonHistory);
   assert.equal(rejected.result, null);
   assert.equal(rejected.state.code, 401);
   cases++;
 
   for (const key of [
+    "request_history_source_authenticated",
     "source_finality_authentication_verified",
     "cross_uid_service_authenticated",
     "mounted_verified_allocation_dispatch",
@@ -371,6 +449,10 @@ console.log("server_only_event_and_request_snapshotted=true");
 console.log("numeric_and_text_canonical_void_quotes_supported=true");
 console.log("real_canonical_verifier_event_without_quote_stages=true");
 console.log("request_quote_bound_to_verified_usdc_micro_units_and_rate=true");
+console.log("payment_instruction_amount_bound_to_verified_usdc=true");
+console.log("first_request_launch_and_native_usdc_backfill_rejected=true");
+console.log("canonical_first_request_lineage_preflight_verified=true");
+console.log("request_history_source_authenticated=false");
 console.log("equal_missing_zero_or_invalid_void_quotes_rejected=true");
 console.log("auth_denial_precedes_untrusted_planning=true");
 console.log("payment_only_writer_unreachable=true");
