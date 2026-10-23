@@ -2,7 +2,7 @@
 
 Status: **Draft / source and hosted CI only**.
 
-This successor is stacked on #3698 exact head `78b5e4d2566fea29fbc8d2a495238fe68d4d20cc`. It preserves the
+This successor is stacked on #3698 exact head `52ae2fed1464157848c95fdccf10f23802f85ed6`. It preserves the
 seven exact V2 verified-payment additions and the protected V1/V2 historical
 evidence, while admitting one reviewed production-source transition from #3690:
 
