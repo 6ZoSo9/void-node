@@ -443,18 +443,33 @@ def collect_proc_namespace_snapshot() -> dict[str, Any]:
             or init_mnt_after != mnt_value
         ):
             hold("namespace_generation_changed")
+        terminal_mountinfo = _read_bounded_at(
+            fd,
+            "self/mountinfo",
+            MAX_MOUNTINFO_BYTES,
+            allow_zero_size=True,
+        )
+        terminal_proc_mount = _parse_proc_mountinfo(
+            terminal_mountinfo, terminal
+        )
+        if terminal_proc_mount != proc_mount:
+            hold("proc_mount_contract_changed")
         if _boot_id_sha256(fd) != boot_hash:
             hold("boot_id_changed")
 
         return {
-            "pid_namespace_dev_ino": f"{pid_value[0]}:{pid_value[1]}",
-            "mount_namespace_dev_ino": f"{mnt_value[0]}:{mnt_value[1]}",
+            "pid_namespace_candidate_dev_ino": f"{pid_value[0]}:{pid_value[1]}",
+            "mount_namespace_candidate_dev_ino": f"{mnt_value[0]}:{mnt_value[1]}",
             "proc_root_dev": opened.st_dev,
             "proc_root_ino": opened.st_ino,
             "proc_mount": proc_mount,
             "boot_id_sha256": boot_hash,
             "pid1_pid_namespace_matches_self": True,
             "pid1_mount_namespace_matches_self": True,
+            "host_initial_pid_namespace_verified": False,
+            "host_initial_mount_namespace_verified": False,
+            "namespace_values_candidate_only": True,
+            "proc_mount_contract_revalidated": True,
             "retained_procfs_view_revalidated": True,
             "same_boot_binding_observed": True,
         }
@@ -489,8 +504,11 @@ def collect() -> dict[str, Any]:
         "process_environment_read": False,
         "process_arguments_read": False,
         "namespace_lease_is_install_authority": False,
+        "namespace_values_candidate_only": True,
+        "host_initial_namespace_authority_proven": False,
         "namespace_lease_external_review_completed": False,
         "automatic_process_census_feed_authorized": False,
+        "process_census_consumption_authorized": False,
         "replacement_apply_authorized": False,
         "runtime_integration": False,
         "payment_acceptance": False,
@@ -499,8 +517,8 @@ def collect() -> dict[str, Any]:
     }
     return {
         **body,
-        "namespace_lease_id": (
-            "voidbuycustodynslease1_" + sha256(canonical(body))
+        "namespace_candidate_id": (
+            "voidbuycustodynscandidate1_" + sha256(canonical(body))
         ),
     }
 
@@ -570,14 +588,18 @@ def self_test() -> None:
     print("procfs_type_required=true")
     print("complete_proc_visibility_required=true")
     print("hidepid_restricted_proc_holds=true")
+    print("proc_mount_contract_revalidated=true")
     print("boot_id_same_boot_binding=true")
     print("descriptor_relative_bounded_reader_tested=true")
     print("python_no_bytecode_mode_required=true")
     print("production_filesystem_write=false")
     print("self_test_temporary_filesystem_write=true")
     print("namespace_lease_is_install_authority=false")
+    print("namespace_values_candidate_only=true")
+    print("host_initial_namespace_authority_proven=false")
     print("namespace_lease_external_review_completed=false")
     print("automatic_process_census_feed_authorized=false")
+    print("process_census_consumption_authorized=false")
     print("replacement_apply_authorized=false")
     print("runtime_integration=false")
     print("payment_acceptance=false")
@@ -610,8 +632,11 @@ if __name__ == "__main__":
         print("read_only=true")
         print("production_filesystem_write=false")
         print("namespace_lease_is_install_authority=false")
+        print("namespace_values_candidate_only=true")
+        print("host_initial_namespace_authority_proven=false")
         print("namespace_lease_external_review_completed=false")
         print("automatic_process_census_feed_authorized=false")
+        print("process_census_consumption_authorized=false")
         print("replacement_apply_authorized=false")
         print("service_mutation=false")
         print("runtime_integration=false")
