@@ -1,0 +1,172 @@
+name: VOID Buy custody V3 protected all-process reference census lock v5
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v5.json"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v5.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v5.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v5.yml"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact v5 source-acceptance successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="a8188279c4b4d48399fc0442a55c21769ad75a9a"
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v5.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v5.md'
+            $'A\tops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v5.json'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v5.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v5.json)" = \
+            "61f7852661e0d07cc3ab242b4c78843747676607"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v5.py)" = \
+            "7d9d9e2478748455bd64ecc99e761b026aaac1e0"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v5.md)" = \
+            "e2ae216acaddfba43006b5976bea8ab5197de45d"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
+            "f2288b01fa37d6facf7cc223db2604f9bc30fd57"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
+            "cc322e3fa9396cf82cae15e1beede49259b44dd7"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" = \
+            "ef1edde41785e35ee4be74c0d7a9c757894ecec3"
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.yml)" = \
+            "ad46011fe95eff6afb29f4ce7a88aba7ac8de91b"
+
+          printf '%s  %s\n' \
+            "5a8c447e5288960e510888e5af38e80b1014503d522bfb27bc77a31e213633ce" \
+            "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py" \
+            | sha256sum -c -
+          test "$(wc -c < ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" -eq 74322
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Verify historical v4 Git object
+        shell: bash
+        run: |
+          set -euo pipefail
+          HIST_BRANCH="ren/custody-runtime-v3-protected-all-process-reference-census-v1-20261023"
+          HIST_HEAD="f6f7f15edd4597a1c02bdf6e493b361586d4ae49"
+          HIST_PATH="ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v4.json"
+          OUT="$RUNNER_TEMP/historical-v4-lock.json"
+
+          git fetch --no-tags origin "$HIST_BRANCH:refs/remotes/origin/$HIST_BRANCH"
+          test "$(git rev-parse "refs/remotes/origin/$HIST_BRANCH")" = "$HIST_HEAD"
+          git show "$HIST_HEAD:$HIST_PATH" > "$OUT"
+          test "$(git hash-object "$OUT")" = "29a5d9325468897c9b99d22d4a0376547a5e865e"
+
+          python3 -I -B - "$OUT" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          p = pathlib.Path(sys.argv[1])
+          value = json.loads(p.read_text(encoding="utf-8"))
+          assert value["version"] == 4
+          assert value["candidate_source_accepted"] is True
+          assert value["candidate_evidence"]["source_git_blob_sha1"] == (
+              "2f22f0cf3e5c5ed56c2a31f0862f087cdbbe41a9"
+          )
+          for key in (
+              "protected_install_authorized",
+              "protected_source_installed",
+              "live_privileged_census_authorized",
+              "live_privileged_census_executed",
+              "replacement_apply_authorized",
+              "runtime_integration",
+              "payment_acceptance",
+              "public_presale_activation",
+              "production_gate_ready",
+              "funds_movement",
+          ):
+              assert value[key] is False, key
+          print("HISTORICAL_PROTECTED_ALL_PROCESS_LOCK_V4_EXACT_GREEN")
+          PY
+
+      - name: Compile v5 proof
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v5.py
+
+      - name: Prove v5 current protected-source acceptance
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/protected-source-lock-v5.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v5.py \
+            | tee "$out"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS_LOCK_V5_GREEN' "$out"
+          for marker in \
+            'candidate_source_git_blob_exact=true' \
+            'candidate_source_bytes_exact=true' \
+            'candidate_source_ascii_only=true' \
+            'candidate_source_sha256_exact=true' \
+            'source_generation_companion_blobs_exact=true' \
+            'historical_v4_lock_identity_bound=true' \
+            'focused_source_run_bound=true' \
+            'exact_head_review_bound=true' \
+            'candidate_source_accepted=true' \
+            'current_parent_lineage_bound=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'host_mount_namespace_external_lease_required=true' \
+            'host_user_namespace_external_lease_required=true' \
+            'host_namespace_lease_provenance_authenticated_by_census=false' \
+            'mount_namespace_reference_absence_proven=false' \
+            'all_process_reference_absence_proven=false' \
+            'fd_table_stability_proven=false' \
+            'mapping_set_stability_proven=false' \
+            'process_reference_snapshot_race_free=false' \
+            'live_at_use_reverification_required=true' \
+            'protected_install_authorized=false' \
+            'protected_source_installed=false' \
+            'live_privileged_census_authorized=false' \
+            'live_privileged_census_executed=false' \
+            'replacement_apply_authorized=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'production_gate_ready=false' \
+            'funds_movement=false' \
+            'next_gate=CREATE_CURRENT_PROTECTED_SOURCE_INSTALL_PLAN_SUCCESSOR'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
