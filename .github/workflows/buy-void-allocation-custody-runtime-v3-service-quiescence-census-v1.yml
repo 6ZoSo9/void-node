@@ -49,9 +49,9 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py)" = \
             "7fc110cea870b3ec6aed4df84e5b7bb2ce2f635f"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py)" = \
-            "c0a29d98d2f6fd85b8cd4131a6ec8c14123eaf87"
+            "4901a5e982556d90ec785b94b8517367c90b7185"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-service-quiescence-census-v1.md)" = \
-            "74ec28e0c4bd85fd2d6c67f7694f377e60d73ba4"
+            "5845816c27e7af626e0bf06303183673926999d2"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs)" = \
@@ -120,6 +120,7 @@ jobs:
             'canonical_socket_path_bound=true' \
             'systemctl_show_only=true' \
             'systemctl_mutating_verbs_absent=true' \
+            'exact_source_blob_asserted=true' \
             'inactive_service_candidate_classified=true' \
             'active_service_rejected=true' \
             'present_socket_rejected=true' \
