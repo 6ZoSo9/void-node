@@ -53,8 +53,8 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_protected_store_first_host_collector_v1.py)" = 36f77c85a2716989726af77679160de2b9e48f76
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = 5159ae38a32d32e910d7baeadf3003cb6d83d20b
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = 13491811c99d8d0de95609af81711e595cfb0159
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = 40d34dfa2a8bc36c7f11824fbbf93a623839035d
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = 02af98e4dce3eae9e76b132344e4b7c0c8f5d45c
 
           test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26
           test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 45ab6a6cbfea05d61617de294d18ed7dec07fae9
