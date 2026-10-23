@@ -637,7 +637,7 @@ def write_create_only(path: Path, raw: bytes) -> os.stat_result:
     try:
         fd = os.open(
             leaf_path,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
             0o600,
         )
         created = True
@@ -648,14 +648,38 @@ def write_create_only(path: Path, raw: bytes) -> os.stat_result:
                 hold("archive_write_failed")
             total += written
         os.fsync(fd)
+        opened_before_readback = os.fstat(fd)
+        if (
+            not stat.S_ISREG(opened_before_readback.st_mode)
+            or opened_before_readback.st_nlink != 1
+            or stat.S_IMODE(opened_before_readback.st_mode) & 0o077
+            or opened_before_readback.st_size != len(raw)
+        ):
+            hold("archive_output_or_parent_generation_invalid")
+
+        readback = bytearray()
+        read_offset = 0
+        while read_offset < len(raw):
+            chunk = os.pread(
+                fd, min(65536, len(raw) - read_offset), read_offset
+            )
+            if not chunk:
+                hold("archive_output_readback_short")
+            readback.extend(chunk)
+            read_offset += len(chunk)
+        if os.pread(fd, 1, len(raw)) != b"":
+            hold("archive_output_readback_growth")
         opened = os.fstat(fd)
+        if (
+            not _same_file_generation(opened_before_readback, opened)
+            or bytes(readback) != raw
+        ):
+            hold("archive_output_bytes_or_generation_changed")
+
         parent_after = os.fstat(parent_fd)
         parent_visible_after = os.stat(str(absolute.parent), follow_symlinks=False)
         if (
-            not stat.S_ISREG(opened.st_mode)
-            or opened.st_nlink != 1
-            or stat.S_IMODE(opened.st_mode) & 0o077
-            or not _same_identity(parent_generation, parent_after)
+            not _same_identity(parent_generation, parent_after)
             or not _same_identity(parent_after, parent_visible_after)
         ):
             hold("archive_output_or_parent_generation_invalid")
@@ -761,6 +785,37 @@ def self_test() -> None:
             pass
         else:
             hold("self_test_create_only_overwrite_allowed")
+
+        content_race = parent / "content-race-v3.tar"
+        original_content_race_fsync = os.fsync
+        content_race_exercised = False
+
+        def truncate_after_file_fsync(fd: int) -> None:
+            nonlocal content_race_exercised
+            original_content_race_fsync(fd)
+            if (
+                not content_race_exercised
+                and stat.S_ISREG(os.fstat(fd).st_mode)
+                and content_race.exists()
+            ):
+                os.ftruncate(fd, 7)
+                content_race_exercised = True
+
+        os.fsync = truncate_after_file_fsync
+        try:
+            try:
+                write_create_only(content_race, raw)
+            except ArchiveHold as exc:
+                if "archive_output_or_parent_generation_invalid" not in str(exc):
+                    raise
+            else:
+                hold("self_test_output_content_race_accepted")
+        finally:
+            os.fsync = original_content_race_fsync
+        if not content_race_exercised:
+            hold("self_test_output_content_race_not_exercised")
+        if content_race.exists():
+            hold("self_test_output_content_race_left_output")
 
         partial = parent / "partial-write.tar"
         original_write = os.write
@@ -967,6 +1022,7 @@ def main(argv: list[str]) -> int:
         print("failed_validation_final_path_absent=true")
         print("single_create_only_final_publication_after_validation=true")
         print("successful_output_parent_fsync=true")
+        print("successful_output_exact_readback=true")
         print("output_leaf_revalidated_after_parent_fsync=true")
         print("retained_parent_cleanup_survives_path_rebind=true")
         print("symlink_output_parent_rejected=true")
