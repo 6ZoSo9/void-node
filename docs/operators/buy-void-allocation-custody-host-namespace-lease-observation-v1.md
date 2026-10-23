@@ -66,16 +66,21 @@ A successful observation requires:
 - caller PID namespace equal to PID 1's PID namespace;
 - caller mount namespace equal to PID 1's mount namespace;
 - all namespace identities, procfs visibility, and retained/visible `/proc`
-  generation unchanged through the terminal recheck.
+  generation unchanged through the terminal recheck;
+- the kernel boot ID hashes to the same SHA-256 before and after the
+  observation.
 
 The output contains:
 
 ```text
 host_pid_namespace_dev_ino_candidate
 host_mount_namespace_dev_ino_candidate
+boot_id_sha256
 ```
 
-Those are observations, not attestations.
+Those are observations, not attestations. The boot hash gives the later
+reviewer a same-boot cross-check against the independent designated-host
+candidate collector in Draft #3762; it does not create lease authority.
 
 ## Critical trust boundary
 
@@ -91,6 +96,7 @@ operator_must_independently_know_host_context=true
 independent_host_context_attested=false
 lease_authority=false
 automatic_process_census_composition_authorized=false
+same_boot_binding_observed=true
 ```
 
 Do not build a launcher that silently runs this helper and immediately feeds its
@@ -118,6 +124,7 @@ Do not use sudo. Root execution intentionally HOLDs.
 read_only=true
 production_filesystem_write=false
 root_execution_forbidden=true
+same_boot_binding_observed=true
 operator_observation_only=true
 operator_must_independently_know_host_context=true
 independent_host_context_attested=false
