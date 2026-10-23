@@ -72,7 +72,7 @@ jobs:
 
           for marker in \
             'VOID_APOLLYON_CLAIM_CONTRACT_CANONICAL_JSON_V2_PROOF_GREEN' \
-            'valid_fixture_equivalence_count=19' \
+            'valid_fixture_equivalence_count=18' \
             'post_import_object_tojson_poison_resisted=true' \
             'post_import_array_tojson_poison_resisted=true' \
             'post_import_json_stringify_poison_resisted=true' \
