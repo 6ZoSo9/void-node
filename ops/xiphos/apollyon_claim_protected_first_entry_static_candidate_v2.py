@@ -100,7 +100,7 @@ MIN_BINARY_BYTES = 100_000
 MAX_BINARY_BYTES = 4 * 1024 * 1024
 
 ACCEPTED_V1_CANDIDATE_ID = (
-    "apollyon_claim_protected_first_entry_static_candidate_v2:"
+    "apollyon_claim_protected_first_entry_static_candidate_v1:"
     "81613bf7887ef287f6aa7cbb4a1bbe8ed0f180981fb8fe9538f6f0ab122855d9"
 )
 ACCEPTED_V1_BINARY_BYTES = 808472
