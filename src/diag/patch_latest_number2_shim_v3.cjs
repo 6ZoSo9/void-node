@@ -106,19 +106,66 @@
     return fn;
   }
 
-  function tryMount(app){
+  const VOID_LATEST_NUMBER2_SHIM_V3_MOUNT_STATE_KEY = "__void_number2_shim_v3_mount_state";
+
+  function inspectVoidLatestNumber2ShimV3RetentionV1(app, handler){
     try{
-      if (!app || typeof app.use !== "function") return false;
-      if (G.__void_number2_shim_v3_installed) return true;
-      const h = makeHandler();
+      const router = app && app._router;
+      const stack = router && router.stack;
+      if (!Array.isArray(stack)) return "unknown";
+      return stack.some((layer) => layer === handler || (layer && layer.handle === handler))
+        ? "retained"
+        : "not_retained";
+    }catch{
+      return "unknown";
+    }
+  }
+
+  function tryMount(app){
+    if (!app || typeof app.use !== "function") return false;
+    if (G.__void_number2_shim_v3_installed) {
+      G[VOID_LATEST_NUMBER2_SHIM_V3_MOUNT_STATE_KEY] = "mounted";
+      return true;
+    }
+
+    const priorState = G[VOID_LATEST_NUMBER2_SHIM_V3_MOUNT_STATE_KEY];
+    if (priorState === "mounted" || priorState === "ambiguous") return true;
+    if (priorState === "mounting") {
+      G[VOID_LATEST_NUMBER2_SHIM_V3_MOUNT_STATE_KEY] = "ambiguous";
+      recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1(
+        "VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_REENTRANT_MOUNT",
+        new Error("number2_shim_mount_reentered")
+      );
+      return true;
+    }
+
+    const h = makeHandler();
+    G[VOID_LATEST_NUMBER2_SHIM_V3_MOUNT_STATE_KEY] = "mounting";
+    try{
       // Preserve normal Express registration order. Storage-derived route readiness
       // middleware registered before this compatibility handler must remain authoritative.
       app.use(h);
       G.__void_number2_shim_v3_installed = true;
+      G[VOID_LATEST_NUMBER2_SHIM_V3_MOUNT_STATE_KEY] = "mounted";
       try{ console.error("[compat] number2 shim v3 installed (file-first, fallback /blocks/latest/number; normal route order)"); }catch(installedLogErr){ recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1("VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_INSTALLED_LOG", installedLogErr); }
       return true;
-    }catch{
-      return false;
+    }catch(mountErr){
+      const retention = inspectVoidLatestNumber2ShimV3RetentionV1(app, h);
+      recordVoidLatestNumber2ShimV3EmptyCatchVisibilityV1(
+        "VOID_LATEST_NUMBER2_SHIM_V3_EMPTY_CATCH_VISIBILITY_V1_SITE_APP_USE",
+        mountErr
+      );
+      if (retention === "retained") {
+        G.__void_number2_shim_v3_installed = true;
+        G[VOID_LATEST_NUMBER2_SHIM_V3_MOUNT_STATE_KEY] = "mounted";
+        return true;
+      }
+      if (retention === "not_retained") {
+        G[VOID_LATEST_NUMBER2_SHIM_V3_MOUNT_STATE_KEY] = "idle";
+        return false;
+      }
+      G[VOID_LATEST_NUMBER2_SHIM_V3_MOUNT_STATE_KEY] = "ambiguous";
+      return true;
     }
   }
 
