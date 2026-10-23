@@ -31,6 +31,7 @@ const OWN_KEYS=Reflect.ownKeys;
 const GET_PROTOTYPE_OF=Object.getPrototypeOf;
 const GET_OWN_PROPERTY_NAMES=Object.getOwnPropertyNames;
 const GET_OWN_PROPERTY_DESCRIPTOR=Object.getOwnPropertyDescriptor;
+const HAS_OWN=Object.hasOwn;
 const ARRAY_IS_ARRAY=Array.isArray;
 const NUMBER_IS_SAFE_INTEGER=Number.isSafeInteger;
 const ARRAY_SORT=Array.prototype.sort;
@@ -105,9 +106,9 @@ function exactDataDescriptor(value,key,code){
   const descriptor=GET_OWN_PROPERTY_DESCRIPTOR(value,key);
   if(
     !descriptor||
-    !Object.hasOwn(descriptor,"value")||
-    Object.hasOwn(descriptor,"get")||
-    Object.hasOwn(descriptor,"set")
+    !HAS_OWN(descriptor,"value")||
+    HAS_OWN(descriptor,"get")||
+    HAS_OWN(descriptor,"set")
   ){
     fail(code);
   }
@@ -182,7 +183,8 @@ function serializeObject(value,depth,stack){
   ){
     fail("apollyon_claim_canonical_v2_object_shape_invalid");
   }
-  for(const key of names){
+  for(let index=0;index<names.length;index+=1){
+    const key=names[index];
     const descriptor=exactDataDescriptor(
       value,key,"apollyon_claim_canonical_v2_object_shape_invalid",
     );
