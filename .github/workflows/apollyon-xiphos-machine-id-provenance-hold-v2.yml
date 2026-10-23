@@ -39,7 +39,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          PARENT=430e6d8630100cad897a292c8694d80ec98557a6
+          PARENT=4f534e00370882b1fbcf03568ddf355275562f57
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$PARENT" "$EXPECTED_HEAD"
 
@@ -55,19 +55,19 @@ jobs:
             | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/security/apollyon-xiphos-machine-id-provenance-hold-v2.json)" = 23b56ba9f8abfb55e30e2706f25b6ee9c996ff7b
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v2.py)" = 89b3c3daaf78af9588be7ecee43e840127b35759
-          test "$(git rev-parse HEAD:docs/security/apollyon-xiphos-machine-id-provenance-hold-v2.md)" = aab50c3769bdda67e7b35fdbcc3e1c8f0a4e751f
+          test "$(git rev-parse HEAD:ops/security/apollyon-xiphos-machine-id-provenance-hold-v2.json)" = b97c44976b33e21271b6525d4caeffc54c366c1e
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v2.py)" = 8ef3e9ff01fc7c84ab8ec3b37b5522c253b00e26
+          test "$(git rev-parse HEAD:docs/security/apollyon-xiphos-machine-id-provenance-hold-v2.md)" = 3a7cd6462434495b1790bae565673e25091e865d
 
           test "$(git rev-parse HEAD:.github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml)" = c8737fe68f15894bd15af0e775fc79cb2b50d9bb
           test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-machine-identity-binding-v1.md)" = 24cc4b6ce92931d9be9d39a46afb5a1c76e267fb
           test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26
           test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 45ab6a6cbfea05d61617de294d18ed7dec07fae9
 
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-protected-store-first-host-collector-v1.yml)" = 7477b5eb2d67e9a937fdae22ed16992780710fc4
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = 02af98e4dce3eae9e76b132344e4b7c0c8f5d45c
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-protected-store-first-host-collector-v1.yml)" = dde72db084eed198c42a4183463eab593fa209ba
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = 286a5b0528bdf1cd8cd6a1a3628222f6a3b5dbb9
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_protected_store_first_host_collector_v1.py)" = 36f77c85a2716989726af77679160de2b9e48f76
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = 40d34dfa2a8bc36c7f11824fbbf93a623839035d
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = 67a73d6da5018944bc79e5ed07460f7e6512e57e
 
           test "$(git rev-parse HEAD:.github/workflows/apollyon-xiphos-machine-id-provenance-hold-v1.yml)" = e526570137e1d50d41c1876feb79b07c665017a1
           test "$(git rev-parse HEAD:docs/security/apollyon-xiphos-machine-id-provenance-hold-v1.md)" = fb6fdba3e8cba4f471daa09cef3469de0c0dd24d
@@ -93,7 +93,7 @@ jobs:
           out="$RUNNER_TEMP/apollyon-xiphos-machine-id-provenance-hold-v2.log"
           python3 -I -B scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v2.py --self-test | tee "$out"
           grep -Fx 'VOID_APOLLYON_XIPHOS_MACHINE_ID_PROVENANCE_HOLD_V2_PROOF_GREEN' "$out"
-          grep -Fx 'plan_id=voidapollyonxiphosprovenancehold2_7adcb02eddae02b6dc9443fe010c8826196984fec303df46123dd6ede8f9a6eb' "$out"
+          grep -Fx 'plan_id=voidapollyonxiphosprovenancehold2_1ee4af4279e852299e19e0aecd63c2cc636e5bb1c32fce7e204d996ca4214cb7' "$out"
           grep -Fx 'observed_normalized_machine_id_sha256=543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057' "$out"
           grep -Fx 'raw_machine_id_absent_from_repository=true' "$out"
           grep -Fx 'digest_internal_consistency_proven=true' "$out"
@@ -114,5 +114,5 @@ jobs:
       - name: Final diff hygiene
         run: |
           set -euo pipefail
-          git diff --check 430e6d8630100cad897a292c8694d80ec98557a6 HEAD
+          git diff --check 4f534e00370882b1fbcf03568ddf355275562f57 HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
