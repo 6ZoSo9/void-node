@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "fa517d708666b630b235d104402e1919bbd1079a"
+EXPECTED_SOURCE_BLOB = "d3c648df3f43ab642d60b8eacedb05c851e4fd2c"
 
 
 def git_blob(raw: bytes) -> str:
@@ -158,6 +158,24 @@ with tempfile.TemporaryDirectory(
     finally:
         module.PROC = original_proc
 
+    parent_fd, _ = module._open_bound_directory(target)
+    try:
+        before_file = os.stat("one", dir_fd=parent_fd, follow_symlinks=False)
+        wrong_mount_id = module._fd_mount_id(parent_fd) + 1
+        try:
+            module._observe_target_regular_at(
+                parent_fd,
+                "one",
+                before_file,
+                wrong_mount_id,
+            )
+        except module.CensusHold as exc:
+            assert "target_cross_mount_file_forbidden" in str(exc)
+        else:
+            raise AssertionError("file mount-id mismatch was accepted")
+    finally:
+        os.close(parent_fd)
+
     before_snapshot = module.target_identity_set(target)
     replacement = base / "replacement-file"
     replacement.write_bytes(b"replacement")
@@ -208,6 +226,9 @@ for required in (
     "target_snapshot_stable",
     "target_rescan_each_attempt",
     "target_snapshot_stable_required",
+    "_observe_target_regular_at",
+    "target_cross_mount_file_forbidden",
+    "snapshot_matches_selected_attempt",
     "all_process_reference_absence_proven",
     "privileged_all_process_scan",
     "custody_principal_process_scan_performed",
@@ -237,6 +258,8 @@ print("target_snapshot_change_fail_closed=true")
 print("target_replacement_race_regression=true")
 print("target_rescan_each_attempt=true")
 print("target_snapshot_stable_required=true")
+print("regular_file_mount_id_checked=true")
+print("receipt_target_bound_to_selected_attempt=true")
 print("legacy_tree_entry_limit=32768")
 print("proc_cmdline_read=false")
 print("proc_environ_read=false")
