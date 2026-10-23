@@ -140,6 +140,7 @@ clean_rows = [
         "task_count": 1,
         "live_task_count": 1,
         "task_inventory_stable": True,
+        "task_mount_namespace_inventory_stable": True,
         "task_generation_digest": "0" * 64,
         "reference_count": 0,
         "references": {"cwd": 0, "root": 0, "exe": 0, "fd": 0, "maps": 0},
