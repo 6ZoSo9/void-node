@@ -702,7 +702,9 @@ export function encodeApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(
   input,
 ){
   const value=qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(input);
-  return APPLY(BUFFER_FROM,BUFFER_CTOR,[frameRecord(value,true)]);
+  // frameRecord() already returns a newly allocated private Buffer. A redundant
+  // Buffer.from(Buffer) copy would re-read the live Buffer length surface.
+  return frameRecord(value,true);
 }
 
 export const APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_MATERIAL_KEYS_V2 =
