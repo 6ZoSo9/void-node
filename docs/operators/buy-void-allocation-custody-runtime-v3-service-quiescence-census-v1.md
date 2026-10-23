@@ -86,6 +86,8 @@ It never connects to or unlinks the socket.
 
 A **service quiescence candidate** requires:
 
+- `LoadState=loaded` or `LoadState=not-found`; failed, malformed or
+  unknown load states such as `error` / `bad-setting` are a hard HOLD;
 - `ActiveState=inactive`;
 - `SubState=dead` or `exited`;
 - `MainPID=0`;
@@ -114,7 +116,8 @@ any replacement ceremony.
 
 ## Invocation
 
-After source/CI qualification:
+After source/CI qualification, the no-bytecode flag is mandatory because the
+production receipt claims no filesystem writes before ordinary module imports:
 
 ```bash
 python3 -I -B \
@@ -122,7 +125,9 @@ python3 -I -B \
   --census
 ```
 
-No sudo is required or authorized.
+No sudo is required or authorized. Omitting `-B` is a bootstrap HOLD before
+the normal census imports; an invocation without no-bytecode mode cannot emit a
+successful write-free production census.
 
 The **production `--census` path** performs no filesystem write. The
 `--self-test` path and standalone source proof intentionally create and remove
