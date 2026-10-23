@@ -22,7 +22,7 @@ function requireResultPayloadOutsideLiveAncestors(html) {
 
   const prefix = html.slice(0, resultIndex);
   const liveAttributeCount =
-    (prefix.match(/\s(?:role|aria-live)\s*=/giu) ?? []).length;
+    (prefix.match(/(?:\s|\/)(?:role|aria-live)\s*=/giu) ?? []).length;
   assert.equal(
     liveAttributeCount,
     6,
@@ -289,6 +289,14 @@ const negativeMutations = [
     error: /must not be nested inside a live region/u,
   },
   {
+    name: "result_payload_slash_delimited_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<div/role=status>\n<pre id="resultBox">No result yet.</pre></div>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
     name: "result_payload_multitoken_role_live_ancestor",
     html: source.replace(
       '<section class="card mt">\n      <h2>Latest Result</h2>',
@@ -412,5 +420,6 @@ console.log("script_data_live_ancestor_rejected=true");
 console.log("script_double_escaped_live_ancestor_rejected=true");
 console.log("foreign_cdata_live_ancestor_rejected=true");
 console.log("table_scope_live_ancestor_rejected=true");
+console.log("slash_delimited_live_ancestor_rejected=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=30");
+console.log("negative_mutations=31");
