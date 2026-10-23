@@ -173,3 +173,33 @@ The production manifest remains unaccepted. No root execution or staging apply
 is authorized by this rebind.
 
 PROTECT THE CORE.
+
+## Reviewed historical V4 workflow integration — exact branch scope
+
+After the original four-path launcher source qualification, the reviewed
+historical V4 proof integration from #3723 (head
+`05508e433831d16629e989096b9a73d3731ef40c`) was landed on this
+same feature branch as commit
+`f9748c632fc5c47dc70c4f76e55ab8f21fdeb0a5`.
+The branch therefore contains **five** changed paths against the original
+#3720 base `d162c564f72666530f48c604c8f9a7b13aa04495`.
+
+The additional modified path is exactly
+`.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml`:
+- exact original parent Git blob: `231f5697c23e7f234e566877da9738093a091313`;
+- exact reviewed historical V4 Git blob: `b82f0d1ea2f9c101343c2023bbf88516c948fa67`;
+- historical reviewed source: #3723 at `05508e433831d16629e989096b9a73d3731ef40c`.
+
+The focused launcher workflow MUST require **all five** exact modified
+paths, pin the inherited V4 workflow blob in the checked-out head, pin its
+original parent blob, and reject any sixth unexpected path. This source-only
+scope reconciliation does not alter the historical workflow, accepted
+source/receipt installers, launcher C bytes, or the launcher proof itself.
+It is **not** independent approval of the historical workflow as a new
+economic-authority surface. Existing source/stage/runtime/manifest acceptance,
+root/privileged execution, launch, presale and funds HOLDs remain unchanged.
+
+Passing this scoped workflow is only CI proof for the pinned branch generation;
+it is not a license to rebase the broader stale V7 feature stack onto main.
+
+**PROTECT THE CORE.**
