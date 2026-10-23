@@ -33,7 +33,7 @@ PINS = {
     ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml":
         "c8737fe68f15894bd15af0e775fc79cb2b50d9bb",
     SOURCE_REL:
-        "012f1b007c82b0b529e55ce1911dc2375d7a6894",
+        "493945e73b7f718c728e17a4f14e04dc4a32edf4",
 }
 SELF = "scripts/prove_apollyon_protected_store_first_host_collector_v1.py"
 DOC = "docs/security/apollyon-protected-store-first-host-collector-v1.md"
@@ -349,7 +349,15 @@ def _install_inert(
     mod._read_exact_regular = lambda *a, **k: b"not-exposed"
     mod._ancestor_observation = lambda: {"ancestors": "stable"}
 
-    paths = list(path_values or [{"paths": "stable"}, {"paths": "stable"}])
+    absent_paths = {
+        "claim_state_root": {"present": False},
+        "consumption_directory": {"present": False},
+        "claim_socket_parent": {"present": False},
+        "service_unit": {"present": False},
+        "service_source_root": {"present": False},
+        "publisher_source_root": {"present": False},
+    }
+    paths = list(path_values or [absent_paths.copy(), absent_paths.copy()])
     mounts = list(mount_values or [{"mounts": "stable"}, {"mounts": "stable"}])
     services = list(service_values or [_service_base.copy(), _service_base.copy()])
     processes = list(process_values or [None, None])
@@ -369,6 +377,12 @@ try:
     simulated = mod.run_host_pass()
     need(simulated["machine_identity_match"] is True, "simulated_machine_bind_failed")
     need(simulated["authority"]["host_pass_performed"] is True, "simulated_pass_missing")
+    need(
+        simulated["installed_source_generation_metadata_observed"] is False
+        and simulated["installed_package_runtime_metadata_observed"] is False
+        and simulated["installed_service_process_identity_observed"] is False,
+        "absence_promoted_installed_metadata",
+    )
     for key in (
         "protected_store_origin_proven",
         "writer_invocation_authorized",
@@ -426,6 +440,7 @@ print("ambiguous_stacked_mount_rejected=true")
 print("systemctl_show_only_contract=true")
 print("inert_full_pass_orchestration_executed=true")
 print("whole_pass_drift_adversaries_rejected=true")
+print("absence_does_not_promote_installed_metadata=true")
 print("host_pass_performed=false")
 print("filesystem_mutation=false")
 print("service_mutation=false")
