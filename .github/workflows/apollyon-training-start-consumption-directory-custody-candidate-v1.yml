@@ -5,6 +5,10 @@ on:
     paths:
       - "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
       - "scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs"
+      - "scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs"
+      - "docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md"
+      - ".github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml"
       - "docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md"
       - ".github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml"
       - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
@@ -20,6 +24,10 @@ on:
     paths:
       - "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
       - "scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs"
+      - "scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs"
+      - "docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md"
+      - ".github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml"
       - "docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md"
       - ".github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml"
       - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
@@ -80,6 +88,10 @@ jobs:
                 'scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs' \
                 'tools/apollyon-training-start-consumption-protected-writer-v1.mjs' \
                 'tools/apollyon-training-start-store-revalidation-request-v1.mjs' \
+                'tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs' \
+                'scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs' \
+                'docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md' \
+                '.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml' \
                 | LC_ALL=C sort > "$expected"
               if [ "$PR_BASE" = "$stacked_parent" ]; then
                 printf '%s\n' \
@@ -87,7 +99,11 @@ jobs:
                   'docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md' \
                   'ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
                   'scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py' \
-                  | LC_ALL=C sort > "$expected"
+                  'tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs' \
+                'scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs' \
+                'docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md' \
+                '.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml' \
+                | LC_ALL=C sort > "$expected"
               fi
               if [ "$PR_BASE" = "$cleanup_parent" ]; then
                 printf '%s\n' \
@@ -102,7 +118,11 @@ jobs:
                   'scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs' \
                   'tools/apollyon-training-start-consumption-protected-writer-v1.mjs' \
                   'tools/apollyon-training-start-store-revalidation-request-v1.mjs' \
-                  | LC_ALL=C sort > "$expected"
+                  'tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs' \
+                'scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs' \
+                'docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md' \
+                '.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml' \
+                | LC_ALL=C sort > "$expected"
               fi
               git diff --no-renames --name-only "$base" "$HEAD_SHA" -- \
                 | LC_ALL=C sort > "$actual"
@@ -127,6 +147,11 @@ jobs:
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md)" = 3d75fbd2f2e2bf939895edfd0c0d4b5c6b884a0b
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 76f5a6bcbc9854a1133cd1324eb862cb50102c0e
           test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 079576db7f880872f2d4dea8e7759bd536161516
+
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 4c78459826c25cab43870b0b322b566575d18667
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 62ff7e94e57a6333cdcfc78f6f63d8ef67288a20
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 16eb15388c6cc5d12097cbf69f1d04c9bc6c10d3
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml)" = 12ae0543cc714e3b9e5fe6e6fdf9d6b67b0fac9f
 
           git diff --check "$base" "$HEAD_SHA"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
