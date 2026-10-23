@@ -11,7 +11,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "b396aa65ce1b130eea9813819c1a240037b72106"
+EXPECTED_SOURCE_BLOB = "b47c9c0d97d29754d2f259d275e4cad2aa1c51c7"
 
 def git_blob(raw: bytes) -> str:
     prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
@@ -155,6 +155,11 @@ assert socket_result["service_quiescence_candidate"] is False
 module.self_test()
 
 source = TARGET.read_text(encoding="utf-8")
+assert 'print("read_only=true")' not in source
+assert 'print("filesystem_write=false")' not in source
+assert 'print("production_read_only=true")' in source
+assert 'print("production_filesystem_write=false")' in source
+assert 'self_test_temporary_filesystem_write=' in source
 pre_self_test = source.split("def self_test()", 1)[0]
 systemctl_block = pre_self_test.split("def systemctl_show()", 1)[1].split(
     "def observe_path(", 1
