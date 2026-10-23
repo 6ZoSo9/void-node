@@ -1,4 +1,5 @@
-name: VOID V7 V5 stage manifest-candidate source acceptance v1
+name: VOID V7 V5 stage manifest-candidate acceptance repair v1
+
 on:
   pull_request:
     paths:
@@ -7,49 +8,75 @@ on:
       - "ops/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.json"
       - "scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs"
   workflow_dispatch:
+
 permissions:
   contents: read
+
 jobs:
   prove:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         node: [22, 24, 26]
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Checkout exact repaired acceptance head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Bind exact four-file acceptance scope
+
+      - name: Bind exact four-modified-path repair scope
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          BASE=05508e433831d16629e989096b9a73d3731ef40c
+          BASE=0cf12c7cee73a68fcd8bb6a060c8a5572c3b8407
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
-          cat > "$RUNNER_TEMP/expected" <<'EOF'
-          A	.github/workflows/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.yml
-          A	docs/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.md
-          A	ops/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.json
-          A	scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs
-          EOF
-          git diff --name-status "$BASE" HEAD -- | sort > "$RUNNER_TEMP/actual"
-          sort "$RUNNER_TEMP/expected" > "$RUNNER_TEMP/expected.sorted"
-          diff -u "$RUNNER_TEMP/expected.sorted" "$RUNNER_TEMP/actual"
-          test "$(git rev-parse HEAD:ops/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.json)" = "63df08d8574043e07cbbbb0c9a9fe9f0df634af5"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs)" = "650b2d19da6042de3de37c8d64ba6848ed0a97ba"
-          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.md)" = "a36bc2d116af8fa71a4769105888e2541cc52e67"
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | sort)
+          expected=(
+            $'M\t.github/workflows/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.yml'
+            $'M\tdocs/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.md'
+            $'M\tops/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.json'
+            $'M\tscripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          test "$(git rev-parse HEAD:ops/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.json)" = "748867d4c77a0568e1123c16836c2ca4b56cedcc"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs)" = "46c3d8e931ab72aa470b21900a8cb5f2d6186ded"
+          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.md)" = "f11754271da565990666c2986979fc6bf4cb32ca"
           git diff --check "$BASE" HEAD
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
-      - name: Prove source-review acceptance
+
+      - name: Prove narrowed acceptance and hardened input read
+        shell: bash
         run: |
           set -euo pipefail
           node --check scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs
-          node scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs
+          out="$RUNNER_TEMP/manifest-acceptance-repair.log"
+          node scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs | tee "$out"
+          grep -Fx 'VOID_V7_V5_STAGE_MANIFEST_CANDIDATE_SOURCE_ACCEPTANCE_V1_GREEN' "$out"
+          grep -Fx 'acceptance_read_descriptor_bound=true' "$out"
+          grep -Fx 'acceptance_read_git_blob_bytes_authenticated=true' "$out"
+          grep -Fx 'acceptance_fifo_substitution_nonblocking_rejected=true' "$out"
+          grep -Fx 'acceptance_same_length_swap_rejected=true' "$out"
+          grep -Fx 'acceptance_symlink_substitution_rejected=true' "$out"
+          grep -Fx 'acceptance_oversized_and_growth_reads_rejected=true' "$out"
+          grep -Fx 'launcher_source_identity_bound_for_manifest_candidate_derivation=true' "$out"
+          grep -Fx 'hardened_launcher_source_review_accepted=false' "$out"
+          grep -Fx 'launcher_p1_manifest_root_of_trust_binding_gap=true' "$out"
+          grep -Fx 'staging_pair_qualifier_exact_head_ci_green=true' "$out"
+          grep -Fx 'payload_manifest_candidate_generation_authorized=true' "$out"
+          grep -Fx 'payload_manifest_candidate_is_repair_input=true' "$out"
+          grep -Fx 'static_runtime_identity_currently_accepted=false' "$out"
+          grep -Fx 'payload_manifest_accepted=false' "$out"
+          grep -Fx 'root_execution_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
