@@ -14,7 +14,7 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "a418c82155bde78ad50f2a28821ac0ac50b2c54e"
+EXPECTED_SOURCE_BLOB = "dabf11d2b1277b071922a6566941998ce6387daf"
 
 
 def git_blob(raw: bytes) -> str:
@@ -245,6 +245,7 @@ for required in (
     "PF_KTHREAD",
     "kernel_thread_skipped",
     "target_pre_post_identity_recheck",
+    "regular_file_mount_id_checked",
     "task_inventory_generation_stability_required",
     "per_thread_files_fs_reference_scan_required",
     "MAX_TASKS_PER_PROCESS",
@@ -284,6 +285,7 @@ print("per_thread_files_fs_reference_scan_required=true")
 print("bounded_task_inventory_required=true")
 print("nonleader_thread_fd_reference_detected=true")
 print("task_generation_churn_detected=true")
+print("regular_file_mount_id_checked=true")
 print("target_pre_post_identity_recheck=true")
 print("proc_cmdline_read=false")
 print("proc_environ_read=false")
