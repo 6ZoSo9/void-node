@@ -18,7 +18,7 @@ import {
 
 const SOURCE =
   "tools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs";
-const EXPECTED_SOURCE_BLOB = "5b1d88f3cf3e7125e979700fe7c3dcb1d9bfaa8f";
+const EXPECTED_SOURCE_BLOB = "6aefcbccc250ba393f59d7c5f1bcd54905d8ac46";
 
 function gitBlob(bytes) {
   return crypto
@@ -205,6 +205,10 @@ function processReceipt(overrides = {}) {
       all_process_reference_absence_proven: false,
       privileged_all_process_scan: false,
       custody_principal_process_scan_performed: false,
+      target_snapshot_stable_required: true,
+      fd_table_stability_proven: false,
+      mapping_set_stability_proven: false,
+      live_at_use_reverification_required: true,
     },
     read_only: true,
     host_pid_namespace_external_lease_required: true,
@@ -448,6 +452,29 @@ for (const [field, bad] of Object.entries(quiescenceContractFlips)) {
   assert.equal(rejected.replacement_apply_authorized, false);
 }
 
+const nestedProcessContractFlips = Object.freeze({
+  target_snapshot_stable_required: false,
+  fd_table_stability_proven: true,
+  mapping_set_stability_proven: true,
+  live_at_use_reverification_required: false,
+});
+for (const [field, bad] of Object.entries(nestedProcessContractFlips)) {
+  const rejected = classify({
+    process: processReceipt({
+      process: {
+        ...processReceipt().process,
+        [field]: bad,
+      },
+    }),
+  });
+  assert.equal(
+    rejected.status,
+    "HOLD",
+    "nested process contract flip accepted: " + field,
+  );
+  assert.equal(rejected.replacement_apply_authorized, false);
+}
+
 const processContractFlips = Object.freeze({
   read_only: false,
   pid1_namespace_direct_read: true,
@@ -533,6 +560,7 @@ console.log("forged_quiescence_proof_rejected=true");
 console.log("forged_all_process_proof_rejected=true");
 console.log("caller_apply_authority_injection_rejected=true");
 console.log("receipt_contract_mutation_overclaims_rejected=true");
+console.log("nested_process_contract_overclaims_rejected=true");
 console.log("repaired_prestate_process_sources_bound=true");
 console.log("privileged_all_process_reference_absence_required=true");
 console.log("live_node_binary_identity_verification_required=true");
