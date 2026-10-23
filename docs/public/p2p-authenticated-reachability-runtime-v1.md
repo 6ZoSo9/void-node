@@ -28,6 +28,9 @@ semantics remain authoritative:
   unreachability;
 - direct confirmation still requires at least two observer identities and two
   declared failure domains;
+- each observer counted toward independence must use one consistent declared
+  failure domain across all fresh successful dialbacks; conflicting labels
+  exclude that observer from the independence counts;
 - DNS, Tor, and future relay addresses do not become direct-IP evidence.
 
 The historical content-addressed record contract continues to carry
@@ -101,7 +104,9 @@ declared failure-domain label. Missing/invalid configuration becomes
 `unclassified`.
 
 This is intentionally conservative: multiple `unclassified` observers cannot
-satisfy the two-independent-failure-domain gate.
+satisfy the two-independent-failure-domain gate. An authenticated observer that
+appears with conflicting fresh failure-domain labels is also excluded from both
+independence counts, so rotating a self-declared label cannot satisfy the gate.
 
 ## Non-goals
 
