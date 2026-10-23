@@ -120,12 +120,20 @@ production_gate_ready=false
 funds_movement=false
 ```
 
-The only filesystem write performed by `--package` is create-only publication
-of the build artifact into a caller-selected already-private directory. The
-output parent is itself traversed and retained through descriptor-relative
-`O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK` opens; a symlinked or rebound parent is
-rejected before artifact creation, and the parent generation is revalidated
-after the write. No systemd action, target replacement, permission mutation, request/customer
+The only filesystem writes performed by `--package` are within a caller-selected
+already-private build directory. Archive bytes are first written create-only to
+a hidden same-directory staging inode. Any partial write is removed before the
+command returns failure. The staged archive is then fully re-inspected and
+rebound to the exact accepted V3 candidate before publication. Only after that
+validation succeeds is the same inode linked create-only into the final archive
+name; the staging name is removed and the parent directory is fsynced. Failed
+validation therefore leaves no final archive path, and an existing final path is
+never overwritten.
+
+The output parent is traversed and retained through descriptor-relative
+`O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK` opens; symlinked or rebound parents are
+rejected, and parent identity is revalidated around cleanup/publication. No
+systemd action, target replacement, permission mutation, request/customer
 history read, custody reserve/recover, key/wallet access, RPC, transaction or
 funds movement is performed.
 
