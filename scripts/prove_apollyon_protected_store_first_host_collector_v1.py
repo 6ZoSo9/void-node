@@ -15,7 +15,7 @@ import types
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_REL = "ops/xiphos/apollyon_protected_store_first_host_collector_v1.py"
 SOURCE = ROOT / SOURCE_REL
-PARENT_HEAD = "fe751eb56e18ec134b96cb7a4d03738e86379c0d"
+PARENT_HEAD = "819031d8e9f1dfe4863a0df06fd2420a00c1cad8"
 EXPECTED_MACHINE_ID_SHA256 = (
     "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057"
 )
@@ -32,8 +32,16 @@ PINS = {
         "24cc4b6ce92931d9be9d39a46afb5a1c76e267fb",
     ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml":
         "c8737fe68f15894bd15af0e775fc79cb2b50d9bb",
+    "ops/security/apollyon-xiphos-machine-id-provenance-hold-v1.json":
+        "e0c7aa5d26639caee4c293da1846544bb07ca903",
+    "scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v1.py":
+        "d848808585934e6609f0c84c09adcba18339a583",
+    "docs/security/apollyon-xiphos-machine-id-provenance-hold-v1.md":
+        "fb6fdba3e8cba4f471daa09cef3469de0c0dd24d",
+    ".github/workflows/apollyon-xiphos-machine-id-provenance-hold-v1.yml":
+        "e526570137e1d50d41c1876feb79b07c665017a1",
     SOURCE_REL:
-        "493945e73b7f718c728e17a4f14e04dc4a32edf4",
+        "36f77c85a2716989726af77679160de2b9e48f76",
 }
 SELF = "scripts/prove_apollyon_protected_store_first_host_collector_v1.py"
 DOC = "docs/security/apollyon-protected-store-first-host-collector-v1.md"
