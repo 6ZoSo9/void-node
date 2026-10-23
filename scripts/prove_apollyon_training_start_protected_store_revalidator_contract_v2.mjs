@@ -32,7 +32,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE_REL=
   "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs";
 const PINS=Object.freeze({
-  [SOURCE_REL]:"de63f8801abfe483b5ce63c56581ed52d2c2aadd",
+  [SOURCE_REL]:"f03d1fbcd49113acb03772ab16664ab1ddc68870",
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
     "079576db7f880872f2d4dea8e7759bd536161516",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
@@ -196,12 +196,28 @@ assert.equal(
 );
 assert.equal(
   candidate.reviewed_canonicalizer_v2_head,
-  "4306d608fbf5b13a8e20b02d8d416b9f55726b8f",
+  "1f5dbd8f505d90ed197e80a97015066c567e8ced",
 );
 assert.equal(
   candidate.reviewed_canonicalizer_v2_blob_sha1,
-  "6e8056287ae4ac8c73b9230679a6a4b570d8eac8",
+  "4d4b970fa2df3a3e7cae176b18c62aff52e94adc",
 );
+{
+  const superseded={
+    ...candidate,
+    reviewed_canonicalizer_v2_head:
+      "4306d608fbf5b13a8e20b02d8d416b9f55726b8f",
+    reviewed_canonicalizer_v2_blob_sha1:
+      "6e8056287ae4ac8c73b9230679a6a4b570d8eac8",
+  };
+  assert.throws(
+    ()=>qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(
+      superseded,
+    ),
+    /v2_candidate_invalid/u,
+  );
+}
+
 assert.equal(
   candidate.fixed_claim_state_root,
   "/var/lib/void-apollyon-attempt-claim-v2",
@@ -423,6 +439,9 @@ assert.equal(
     Object.getOwnPropertyDescriptor(Array.prototype,"0");
   const originalIsProxy=utilTypes.isProxy;
   const originalRegExpTest=RegExp.prototype.test;
+  const originalRegExpExec=RegExp.prototype.exec;
+  const originalBufferLength=
+    originalGetOwnPropertyDescriptor(Buffer.prototype,"length");
   const hashPrototype=Object.getPrototypeOf(crypto.createHash("sha256"));
   const originalHashUpdate=hashPrototype.update;
   const originalHashDigest=hashPrototype.digest;
@@ -460,6 +479,11 @@ assert.equal(
   };
   utilTypes.isProxy=()=>{throw new Error("poisoned isProxy");};
   RegExp.prototype.test=()=>{throw new Error("poisoned RegExp.test");};
+  RegExp.prototype.exec=()=>{throw new Error("poisoned RegExp.exec");};
+  originalDefineProperty(Buffer.prototype,"length",{
+    configurable:true,
+    get(){throw new Error("poisoned Buffer.length");},
+  });
   hashPrototype.update=()=>{throw new Error("poisoned Hash.update");};
   hashPrototype.digest=()=>{throw new Error("poisoned Hash.digest");};
   Buffer.from=()=>{throw new Error("poisoned Buffer.from");};
@@ -486,6 +510,12 @@ assert.equal(
     Buffer.from=originalBufferFrom;
     hashPrototype.digest=originalHashDigest;
     hashPrototype.update=originalHashUpdate;
+    if(originalBufferLength===undefined){
+      delete Buffer.prototype.length;
+    }else{
+      originalDefineProperty(Buffer.prototype,"length",originalBufferLength);
+    }
+    RegExp.prototype.exec=originalRegExpExec;
     RegExp.prototype.test=originalRegExpTest;
     utilTypes.isProxy=originalIsProxy;
     Array.prototype[Symbol.iterator]=originalArrayIterator;
@@ -590,6 +620,11 @@ for(const required of [
   "lease_loss_maps_to_hold_required:true",
   "indeterminate_close_maps_to_hold_required:true",
   "automatic_retry_forbidden:true",
+  "const REGEXP_EXEC=RegExp.prototype.exec;",
+  "const TYPED_ARRAY_LENGTH=",
+  "bufferLength(raw)",
+  "bufferLength(keyBytes)",
+  "bufferLength(payload)",
   "fixture_custody_receipt_authoritative:false",
   "protected_store_origin_proven:false",
   "writer_directory_capability_origin_proven:false",
@@ -656,6 +691,10 @@ console.log("flat_primitive_frame_hash_json_independent=true");
 console.log("post_import_json_tojson_poisoning_does_not_change_candidate_bytes=true");
 console.log("captured_reflection_primordials_bound=true");
 console.log("captured_frame_qualifier_primordials_bound=true");
+console.log("captured_regexp_exec_primordial_bound=true");
+console.log("captured_buffer_length_intrinsic_bound=true");
+console.log("current_canonicalizer_v2_generation_bound=true");
+console.log("superseded_canonicalizer_v2_generation_rejected=true");
 console.log("revoked_proxy_candidate_rejected=true");
 console.log("reviewed_canonicalizer_v2_future_host_required=true");
 console.log("full_3557_future_host_matrix_bound=true");
