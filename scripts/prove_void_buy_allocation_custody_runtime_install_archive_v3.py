@@ -138,7 +138,6 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
         if (
             not content_race_exercised[0]
             and stat.S_ISREG(module.os.fstat(fd).st_mode)
-            and content_race_path.exists()
         ):
             module.os.ftruncate(fd, 0)
             assert module.os.pwrite(fd, raw, 0) == len(raw)
@@ -159,7 +158,9 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
 
     partial_path = parent / "partial-write-proof.tar"
     original_write = module.os.write
+    original_link = module.os.link
     write_calls = [0]
+    publication_calls = [0]
 
     def fail_after_partial_write(fd: int, data: bytes) -> int:
         if write_calls[0] == 0:
@@ -167,7 +168,12 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
             return original_write(fd, data[: min(64, len(data))])
         raise OSError("synthetic_partial_archive_write_failure")
 
+    def count_publication(*args, **kwargs):
+        publication_calls[0] += 1
+        return original_link(*args, **kwargs)
+
     module.os.write = fail_after_partial_write
+    module.os.link = count_publication
     try:
         try:
             module.write_create_only(partial_path, raw)
@@ -177,6 +183,8 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
             raise AssertionError("partial write failure was not surfaced")
     finally:
         module.os.write = original_write
+        module.os.link = original_link
+    assert publication_calls[0] == 0, "partial write attempted final publication"
     assert not partial_path.exists(), "partial write left a discoverable output path"
 
     failed_publish = parent / "failed-validation-proof.tar"
@@ -342,7 +350,10 @@ for required in [
     "descriptor_bound_source_reads",
     "open_bound_private_directory",
     "inspect_archive_bytes",
-    "partial_output_cleanup_on_failure=true",
+    "unnamed_tmpfile_staging=true",
+    "partial_write_final_path_absent=true",
+    "failure_cleanup_unlink_not_used=true",
+    "atomic_create_only_link_publication=true",
     "archive_bytes_validated_before_final_publication=true",
     "failed_validation_final_path_absent=true",
     "single_create_only_final_publication_after_validation=true",
@@ -350,7 +361,7 @@ for required in [
     "successful_output_exact_readback=true",
     "output_generation_stable_across_file_fsync=true",
     "output_leaf_revalidated_after_parent_fsync=true",
-    "retained_parent_cleanup_survives_path_rebind=true",
+    "retained_parent_unnamed_staging_survives_path_rebind=true",
     "output_parent_not_private_or_bound",
     "archive_candidate_accepted",
     "existing_target_replaced",
@@ -379,7 +390,10 @@ print("full_runtime_record_identity_bound=true")
 print("accepted_v3_bundle_lock_bound=true")
 print("descriptor_bound_source_reads=true")
 print("descriptor_bound_create_only_output=true")
-print("partial_output_cleanup_on_failure=true")
+print("unnamed_tmpfile_staging=true")
+print("partial_write_final_path_absent=true")
+print("failure_cleanup_unlink_not_used=true")
+print("atomic_create_only_link_publication=true")
 print("archive_bytes_validated_before_final_publication=true")
 print("failed_validation_final_path_absent=true")
 print("single_create_only_final_publication_after_validation=true")
@@ -387,7 +401,7 @@ print("successful_output_parent_fsync=true")
 print("successful_output_exact_readback=true")
 print("output_generation_stable_across_file_fsync=true")
 print("output_leaf_revalidated_after_parent_fsync=true")
-print("retained_parent_cleanup_survives_path_rebind=true")
+print("retained_parent_unnamed_staging_survives_path_rebind=true")
 print("symlink_output_parent_rejected=true")
 print("fifo_substitution_rejected_without_blocking=true")
 print("forged_runtime_record_and_payload_rejected=true")
