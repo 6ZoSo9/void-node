@@ -4,6 +4,8 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -12,7 +14,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "52420cd888474558b1498454b30004779783a51f"
+EXPECTED_SOURCE_BLOB = "1643090f9d96a298809998c5648b6ffdc92bf48b"
 
 
 def git_blob(raw: bytes) -> str:
@@ -174,6 +176,33 @@ except module.CensusHold as exc:
 else:
     raise AssertionError("hidepid-restricted procfs was accepted")
 
+initial_namespace = {
+    "external_lease_required": True,
+    "lease_verified": True,
+    "dev": "12",
+    "ino": "34",
+    "pid1_namespace_matches_self": True,
+}
+initial_visibility = module.verify_complete_proc_visibility(visible_mountinfo)
+real_namespace_check = module.verify_host_pid_namespace_lease
+real_mountinfo_read = module.read_proc_mountinfo
+try:
+    module.verify_host_pid_namespace_lease = lambda expected: initial_namespace
+    module.read_proc_mountinfo = lambda: hidden_mountinfo
+    try:
+        module.revalidate_proc_scope(
+            "12:34",
+            initial_namespace,
+            initial_visibility,
+        )
+    except module.CensusHold as exc:
+        assert "proc_visibility_restricted:hidepid=2" in str(exc)
+    else:
+        raise AssertionError("terminal hidepid remount was accepted")
+finally:
+    module.verify_host_pid_namespace_lease = real_namespace_check
+    module.read_proc_mountinfo = real_mountinfo_read
+
 assert module.parse_dev_ino_lease("12:34") == (12, 34)
 for bad in ("", "0:1", "1:0", "1", "a:b", "1:2:3"):
     try:
@@ -216,8 +245,32 @@ else:
 
 module.self_test()
 
+without_b = subprocess.run(
+    [sys.executable, "-I", str(TARGET), "--self-test"],
+    cwd="/",
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=10,
+    env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+)
+assert without_b.returncode == 2, without_b
+assert (
+    "reason=python_isolated_unoptimized_nobytecode_mode_required"
+    in without_b.stdout
+), without_b.stdout
+assert "production_census_filesystem_write=false" in without_b.stdout
+assert "self_test_private_fixture_writes=false" in without_b.stdout
+
 source = TARGET.read_text(encoding="utf-8")
 production = source.split("def _write_status(", 1)[0]
+census_block = production.split("def census(", 1)[1]
+assert (
+    census_block.index("stable_uid_process_census(")
+    < census_block.index("revalidate_proc_scope(")
+), "proc scope must be revalidated after two-pass UID census"
 
 for required in (
     "parse_proc_status_uids",
@@ -227,7 +280,10 @@ for required in (
     "parse_dev_ino_lease",
     "verify_pid_namespace_lease_stats",
     "verify_host_pid_namespace_lease",
+    "revalidate_proc_scope",
     "host_pid_namespace_external_lease_required",
+    "host_pid_namespace_lease_revalidated_after_census",
+    "complete_proc_visibility_revalidated_after_census",
     "host_pid_namespace_lease_verified",
     "numeric_directory_names",
     "proc_numeric_names",
@@ -280,6 +336,11 @@ print("socket_runtime_policy_exact=true")
 print("four_uid_slots_classified=true")
 print("thread_uid_slots_classified=true")
 print("proc_visibility_verified_before_empty_candidate=true")
+print("proc_visibility_revalidated_after_two_pass_census=true")
+print("host_pid_namespace_revalidated_after_two_pass_census=true")
+print("terminal_hidepid_remount_rejected=true")
+print("python_no_bytecode_mode_required=true")
+print("without_dash_b_bootstrap_hold=true")
 print("hidepid_restricted_proc_holds=true")
 print("host_pid_namespace_external_lease_required=true")
 print("private_pid_namespace_rejected=true")
