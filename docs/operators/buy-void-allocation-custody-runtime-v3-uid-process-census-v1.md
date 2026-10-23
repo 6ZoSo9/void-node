@@ -38,6 +38,24 @@ If the account exists, the primary GID must match the canonical
 
 No account, group or membership is modified.
 
+## Host PID namespace lease
+
+A zero visible process set is meaningful only when the census is bound to the
+reviewed host PID namespace. The production census therefore requires an
+**externally supplied** PID-namespace identity in `dev:ino` form.
+
+The census reads metadata only from `/proc/self/ns/pid` and
+`/proc/1/ns/pid`, requires both namespace objects to have the same
+device/inode identity, and requires that identity to equal the external lease.
+A missing lease, a private PID namespace, an unreadable namespace object, or a
+lease mismatch HOLDs before process enumeration can produce a quiescence
+candidate.
+
+The expected lease must come from a separately reviewed host-boundary
+observation. It must not be derived from the same potentially isolated process
+and then fed back as self-asserted authority. This mirrors VOID's existing
+external namespace-lease pattern for host process censuses.
+
 ## Process observation
 
 Before an empty result can become a candidate, the census reads bounded
@@ -118,7 +136,8 @@ After focused source/CI qualification:
 ```bash
 python3 -I -B \
   ops/precision/void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py \
-  --census
+  --census \
+  --expected-host-pid-namespace-dev-ino '<reviewed-dev>:<reviewed-ino>'
 ```
 
 No sudo is required or authorized.
@@ -130,6 +149,8 @@ read_only=true
 proc_status_uid_only=true
 proc_thread_status_uid_only=true
 complete_proc_visibility_verified=true
+host_pid_namespace_external_lease_required=true
+host_pid_namespace_lease_verified=true
 process_cmdline_read=false
 process_environment_read=false
 process_executable_read=false
@@ -154,5 +175,6 @@ service, inspect customer/payment/custody data, install anything, or move
 funds. The `--self-test` and independent source proof intentionally create
 private temporary synthetic proc/status fixtures; those test-only writes are
 not host-census authority and are reported separately as fixture writes.
+The production census does not create or refresh its own namespace lease.
 
 **PROTECT THE CORE.**
