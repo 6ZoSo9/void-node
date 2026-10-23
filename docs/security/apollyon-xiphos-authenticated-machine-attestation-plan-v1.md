@@ -126,6 +126,16 @@ Digest conventions are exact and shared with the reviewed custody transport:
 - the client invokes exactly one reviewed `-i <identity-file>` path and binds
   its parent custody and mode 0600; implicit/default identity-file selection is
   not accepted;
+- the retained identity file must be an Ed25519 private identity; an exact
+  source-bound derivation method must derive its SSH public-key blob, and that
+  derived blob's SHA-256 must equal the independently bound
+  `client_public_key_sha256`;
+- the identity file's inode/device, owner/group, mode, link count, size and
+  relevant generation timestamps must remain stable from pre-derivation through
+  the completed SSH use; a separately claimed public key cannot substitute for
+  the key actually used by `-i`;
+- the eventual attestation receipt binds the **derived** client public-key
+  digest in addition to the transport-policy/client-key field;
 - the dedicated known-hosts path is source-bound, its parent is root-owned and
   non-writable, and the file is root-owned/read-only;
 - that file contains exactly one canonical `xiphos ssh-ed25519 <key>` entry
@@ -232,13 +242,13 @@ The proof:
 - requires all transport identities to remain null/unbound;
 - requires all authority fields false;
 - validates content-addressed plan ID
-  `voidapollyonxiphosattestplan1_94bd8442fd1904563e9273bc4de6e38417f6a2146978af4a8660fd0f29eb819d`;
-- executes **127 semantic adversaries**; and
+  `voidapollyonxiphosattestplan1_b7d9c1600cfe03fd41d4a36f801f82d49d6da72f3ea378c291a12af8bd581d60`;
+- executes **133 semantic adversaries**; and
 - performs no network or host access.
 
-Plan blob: `42175f4a3b86faede67a8d45a8173d8a059e1ebe`.
+Plan blob: `519399adc85c70a3e7257ad023b7f954b333385a`.
 
-Proof blob: `38342083abda7348a5db6b626cf51c19e5a967b1`.
+Proof blob: `fdbb54c90919afb151c554f91340c1c8a112cf2d`.
 
 ## Next gate
 
