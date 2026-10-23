@@ -66,9 +66,13 @@ revalidated against the visible generation before the metadata record is used.
 
 The tree may contain ordinary directories, regular files and symlinks.
 Directory names are enumerated lazily through descriptor-relative
-`os.scandir(fd)`; at most the remaining global entry budget is retained before
-sorting, so a huge directory cannot allocate an unbounded name list ahead of
-the 32,768-entry HOLD. Symlinks are treated as opaque legacy entries: the census
+`os.scandir(fd)`. Before any name is appended to a frame-local list, it
+reserves one slot from a shared global counter. The invariant
+`processed_entries + reserved_names <= 32,768` therefore covers **all live
+ancestor and descendant name lists together**, not merely each recursion frame.
+A name reservation is consumed before that entry is processed. This prevents a
+deep/wide tree from multiplying the retained-name memory bound across recursion.
+Symlinks are treated as opaque legacy entries: the census
 never follows them, records only their metadata plus the byte length and
 SHA-256 of the link text, and never prints the link target. FIFOs, sockets,
 devices and other special files HOLD.
@@ -126,7 +130,11 @@ bootstrap HOLD before the normal census imports and cannot emit a successful
 write-free production receipt.
 
 The command emits one canonical JSON record with a content-addressed
-`prestate_id`. On any ambiguity it exits HOLD.
+`prestate_id`. Successful production receipts use the scoped keys
+`production_census_read_only=true` and
+`production_census_filesystem_write=false`; the older ambiguous
+`read_only` / `filesystem_write` aliases are not emitted. On any ambiguity
+it exits HOLD.
 
 ## Authority remains false
 
