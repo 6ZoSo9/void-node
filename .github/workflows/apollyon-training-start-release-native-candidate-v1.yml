@@ -1,0 +1,164 @@
+name: Apollyon training start release native candidate v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_training_start_release_native_candidate_v1.c"
+      - "scripts/prove_apollyon_training_start_release_native_candidate_v1.py"
+      - "docs/security/apollyon-training-start-release-native-candidate-v1.md"
+      - ".github/workflows/apollyon-training-start-release-native-candidate-v1.yml"
+      - "tools/apollyon-training-start-release-binding-v1.mjs"
+      - "scripts/prove_apollyon_training_start_release_binding_v1.mjs"
+      - ".github/workflows/apollyon-training-start-release-binding-v1.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/xiphos/apollyon_training_start_release_native_candidate_v1.c"
+      - "scripts/prove_apollyon_training_start_release_native_candidate_v1.py"
+      - "docs/security/apollyon-training-start-release-native-candidate-v1.md"
+      - ".github/workflows/apollyon-training-start-release-native-candidate-v1.yml"
+      - "tools/apollyon-training-start-release-binding-v1.mjs"
+      - "scripts/prove_apollyon_training_start_release_binding_v1.mjs"
+      - ".github/workflows/apollyon-training-start-release-binding-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_native_candidate_v1.c)" = \
+            098276fc92c247fa1465c11c6403c2c50a61629a
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_native_candidate_v1.py)" = \
+            7a90c2b30e90416411ef08fc2b26f2636d81d486
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-native-candidate-v1.md)" = \
+            36a51d3caf4445d5abbbdd6e8e09100cfce11210
+
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-release-binding-v1.mjs)" = \
+            b83b9e72a2c0e139bf677e6d045a0b31100d733a
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_binding_v1.mjs)" = \
+            021ebdf3b84aefb12e05abfee5667e243a23b1df
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-training-start-release-binding-v1.yml)" = \
+            bd743b470826b5b96638c690406bd4548d66092f
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test "$PR_BASE" = caf363e7ab1e7de21f6ba44e4eaa8c7cdb5980e1
+              git merge-base --is-ancestor "$PR_BASE" "$HEAD"
+              expected="$RUNNER_TEMP/expected-scope.txt"
+              actual="$RUNNER_TEMP/actual-scope.txt"
+              printf '%s\n' \
+                '.github/workflows/apollyon-release-pipe-pair-generation-v1.yml' \
+                '.github/workflows/apollyon-training-start-release-native-candidate-v1.yml' \
+                '.github/workflows/apollyon-training-start-release-releaser-integration-v1.yml' \
+                'docs/security/apollyon-release-pipe-pair-generation-v1.md' \
+                'docs/security/apollyon-training-start-release-native-candidate-v1.md' \
+                'docs/security/apollyon-training-start-release-releaser-integration-v1.md' \
+                'ops/xiphos/apollyon_release_pipe_pair_generation_v1.c' \
+                'ops/xiphos/apollyon_training_start_release_native_candidate_v1.c' \
+                'ops/xiphos/apollyon_training_start_release_releaser_integration_v1.c' \
+                'scripts/prove_apollyon_release_pipe_pair_generation_v1.py' \
+                'scripts/prove_apollyon_training_start_release_native_candidate_v1.py' \
+                'scripts/prove_apollyon_training_start_release_releaser_integration_v1.py' \
+                | sort > "$expected"
+              git diff --name-only "$PR_BASE" "$HEAD" -- | sort > "$actual"
+              diff -u "$expected" "$actual"
+              git diff --check "$PR_BASE" "$HEAD"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              git merge-base --is-ancestor "$PUSH_BEFORE" "$HEAD"
+              git diff --check "$PUSH_BEFORE" "$HEAD"
+              ;;
+            workflow_dispatch)
+              git diff --check "$HEAD^1" "$HEAD"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Syntax check proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          relative = "scripts/prove_apollyon_training_start_release_native_candidate_v1.py"
+          compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_APOLLYON_TRAINING_START_RELEASE_NATIVE_CANDIDATE_V1_PYTHON_SYNTAX_GREEN")
+          PY
+
+      - name: Prove native release candidate
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/apollyon-training-start-release-native-v1.log"
+          python3 -I -B scripts/prove_apollyon_training_start_release_native_candidate_v1.py |
+            tee "$out"
+          markers=(
+            "VOID_APOLLYON_TRAINING_START_RELEASE_NATIVE_CANDIDATE_V1_PROOF_GREEN"
+            "parent_release_binding_blob_bound=true"
+            "candidate_static=true"
+            "candidate_no_pt_interp=true"
+            "candidate_no_needed=true"
+            "candidate_reproducible_bytes=true"
+            "candidate_three_build_equality=true"
+            "x32_syscall_namespace_rejected=true"
+            "release_fd3_exact_allowlist_bound=true"
+            "release_fd_anonymous_pipe_identity_bound=true"
+            "release_frame_short_extra_timeout_adversaries=true"
+            "held_duplicate_writer_timeout_adversary=true"
+            "trainer_nnp_capability_adversaries=true"
+            "trainer_pidfd_retained_and_revalidated=true"
+            "procfs_super_magic_and_self_generation_bound=true"
+            "fake_proc_root_adversary_rejected=true"
+            "actual_run_gate_positive_harness=true"
+            "actual_run_gate_fd3_inherited_across_exec=true"
+            "actual_run_gate_exact_fd3_frame_eof=true"
+            "post_first_entry_noexec_barrier_proven=true"
+            "release_pipe_identity_observed_but_writer_origin_unproven=true"
+            "private_release_channel_origin_proven=false"
+            "release_writer_exclusivity_proven=false"
+            "trainer_releaser_lineage_proven=false"
+            "trainer_release_authorized=false"
+            "trainer_release_performed=false"
+            "training_execution_authorized=false"
+            "training_execution_performed=false"
+            "candidate_weight_mutation_performed=false"
+            "automatic_retry_authorized=false"
+            "filesystem_write=false"
+            "service_action=false"
+            "socket_action=false"
+            "production_signing=false"
+            "transaction_broadcast=false"
+            "funds_movement=false"
+            "next_gate=apollyon_training_start_release_releaser_integration_v1"
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - run: git diff --check
