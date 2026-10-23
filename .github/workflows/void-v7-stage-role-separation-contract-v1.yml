@@ -38,7 +38,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b"
           test "$(git rev-parse HEAD:ops/security/void_v7_v5_stage_role_separation_contract_v1.json)" = "1dccc0f7fd1c74005b519113b0728ebd25477ad5"
           test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_role_separation_contract_v1.py)" = "57ea99ffad3ed75a64e83a82ed8e35fd4d252d18"
-          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-role-separation-contract-v1.md)" = "194a8e022d6a4d5b100076a6622f0fe6a9ef5275"
+          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-role-separation-contract-v1.md)" = "1abe41995d46a26f90e75c6c6a5d22bb205fbdbd"
           git merge-base --is-ancestor 555db189091321a727b98d5177c7428430fd23a1 "$EXPECTED_HEAD"
           BASE="${{ github.event.pull_request.base.sha }}"
           test "$BASE" = "555db189091321a727b98d5177c7428430fd23a1"
