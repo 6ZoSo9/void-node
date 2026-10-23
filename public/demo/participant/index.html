@@ -54,6 +54,10 @@
     }
     .list { display:grid; gap:10px; }
     .item { background:#0e1630; border:1px solid var(--border); border-radius:12px; padding:12px; }
+    .sr-only {
+      position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+      overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+    }
     @media (max-width:900px) {
       .grid, .stats { grid-template-columns:1fr; }
       .hero { flex-direction:column; }
@@ -139,11 +143,13 @@ ops/voidctl doctor</pre>
     <div class="grid" style="margin-top:16px;">
       <div class="card">
         <h2>Latest DataNet object</h2>
-        <div id="latestDataset" class="list" role="status" aria-live="polite" aria-atomic="true"></div>
+        <div id="latestDatasetStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true">Dataset summary not loaded.</div>
+        <div id="latestDataset" class="list"></div>
       </div>
       <div class="card">
         <h2>Latest agent job</h2>
-        <div id="latestAgent" class="list" role="status" aria-live="polite" aria-atomic="true"></div>
+        <div id="latestAgentStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true">Agent summary not loaded.</div>
+        <div id="latestAgent" class="list"></div>
       </div>
     </div>
 
@@ -177,8 +183,9 @@ ops/voidctl doctor</pre>
       el.className = ("pill " + (cls || "")).trim();
     }
 
-    function renderLatestRecord(id, lines, emptyMessage){
+    function renderLatestRecord(id, statusId, lines, emptyMessage, updatedMessage){
       const container = document.getElementById(id);
+      const status = document.getElementById(statusId);
       const item = document.createElement("div");
       item.className = "item";
 
@@ -195,6 +202,7 @@ ops/voidctl doctor</pre>
       }
 
       container.replaceChildren(item);
+      status.textContent = lines ? updatedMessage : emptyMessage;
     }
 
     async function loadSummary(){
@@ -218,7 +226,7 @@ ops/voidctl doctor</pre>
       setText("sigReason", String(u.verification_reason ?? ""));
 
       const ds = ((s.datanet || {}).latest_dataset || null);
-      renderLatestRecord("latestDataset", ds ? [
+      renderLatestRecord("latestDataset", "latestDatasetStatus", ds ? [
         { className: "k", text: "Dataset ID" },
         { className: "v", text: ds.id || "" },
         {
@@ -231,10 +239,10 @@ ops/voidctl doctor</pre>
           marginTop: "6px",
           text: `sha256=${ds.sha256 || ""}`,
         },
-      ] : null, "No dataset found.");
+      ] : null, "No dataset found.", "Latest dataset updated.");
 
       const job = (a.latest_job || null);
-      renderLatestRecord("latestAgent", job ? [
+      renderLatestRecord("latestAgent", "latestAgentStatus", job ? [
         { className: "k", text: "Job ID" },
         { className: "v", text: job.id || "" },
         {
@@ -247,7 +255,7 @@ ops/voidctl doctor</pre>
           marginTop: "6px",
           text: `result_hash=${job.result_hash || ""}`,
         },
-      ] : null, "No job found.");
+      ] : null, "No job found.", "Latest agent job updated.");
 
       setPill("healthPill", "health: ok", "ok");
     }
