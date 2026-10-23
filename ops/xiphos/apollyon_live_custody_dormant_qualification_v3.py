@@ -1060,21 +1060,11 @@ def exact_custody_node_executable(
     if not same_executable_inode(live_st,expected_st):
         hold("custody_node_executable_inode_mismatch")
 
-def live_observation(ids:dict[str,int])->dict[str,object]:
-    # Type=simple permits systemd to report active before ExecStart execve().
-    # The audited Node service publishes the AF_UNIX socket during startup.
-    # Require publication before inspecting MainPID's executable/credentials.
-    # A failed or absent socket times out and invokes guarded cleanup.
-    wait_unit(SERVICE_UNIT,"active")
-    wait_unit(TARGET_UNIT,"active")
-    wait_socket(True)
-    service=wait_unit(SERVICE_UNIT,"active")
-    target=wait_unit(TARGET_UNIT,"active")
-    raw=service.get("MainPID","")
-    if not raw.isdigit() or int(raw)<=0:hold("custody_mainpid_invalid")
-    pid=int(raw)
-    start_ticks=proc_start_ticks(pid)
-    exact_custody_node_executable(pid)
+def validated_custody_live_subject(
+    pid:int,ids:dict[str,int]
+)->dict[str,object]:
+    # Every sample independently validates the full custody subject:
+    # exact arguments, credentials, capabilities, thread set, and global role map.
     status=proc_status(pid)
     uid_slots=status.get("Uid","").split()
     gid_slots=status.get("Gid","").split()
@@ -1099,6 +1089,48 @@ def live_observation(ids:dict[str,int])->dict[str,object]:
     argv=cmd[:-1].decode("utf-8").split("\0")
     if argv!=expected_live_argv(ids):hold("custody_argv_exact_mismatch")
 
+    thread_inventory=custody_thread_inventory(pid,ids)
+    if not no_training_uid_processes(ids["training_uid"]):
+        hold("training_uid_process_observed")
+    validated_tids=tuple(
+        int(subject["tid"]) for subject in thread_inventory
+    )
+    custody_processes=stable_uid_thread_process_map(ids["custody_uid"])
+    if not exact_live_custody_process_set(
+        custody_processes,pid,validated_tids
+    ):
+        hold("custody_uid_process_exclusivity_failed")
+    # Only security-relevant, stable procfs fields are compared. Volatile
+    # accounting fields (RSS, context switches, etc.) are intentionally omitted.
+    security_fields=(
+        "Uid","Gid","Groups","CapInh","CapPrm","CapEff","CapAmb",
+        "CapBnd","NoNewPrivs","Seccomp","Seccomp_filters",
+    )
+    return {
+        "security_status":{key:status.get(key) for key in security_fields},
+        "cmdline_raw":cmd,
+        "argv":tuple(argv),
+        "thread_inventory":thread_inventory,
+        "validated_tids":validated_tids,
+        "custody_processes":custody_processes,
+    }
+
+def live_observation(ids:dict[str,int])->dict[str,object]:
+    # Type=simple permits systemd to report active before ExecStart execve().
+    # The audited Node service publishes the AF_UNIX socket during startup.
+    # Require publication before inspecting MainPID's executable/credentials.
+    # A failed or absent socket times out and invokes guarded cleanup.
+    wait_unit(SERVICE_UNIT,"active")
+    wait_unit(TARGET_UNIT,"active")
+    wait_socket(True)
+    service=wait_unit(SERVICE_UNIT,"active")
+    target=wait_unit(TARGET_UNIT,"active")
+    raw=service.get("MainPID","")
+    if not raw.isdigit() or int(raw)<=0:hold("custody_mainpid_invalid")
+    pid=int(raw)
+    start_ticks=proc_start_ticks(pid)
+    exact_custody_node_executable(pid)
+    initial_subject=validated_custody_live_subject(pid,ids)
     st=os.lstat(SOCKET_PATH)
     if (
         not stat.S_ISSOCK(st.st_mode) or st.st_uid!=ids["custody_uid"] or
@@ -1111,17 +1143,6 @@ def live_observation(ids:dict[str,int])->dict[str,object]:
     finally:
         probe.close()
 
-    thread_inventory=custody_thread_inventory(pid,ids)
-    if not no_training_uid_processes(ids["training_uid"]):
-        hold("training_uid_process_observed")
-    validated_tids=tuple(
-        int(subject["tid"]) for subject in thread_inventory
-    )
-    custody_processes=stable_uid_thread_process_map(ids["custody_uid"])
-    if not exact_live_custody_process_set(
-        custody_processes,pid,validated_tids
-    ):
-        hold("custody_uid_process_exclusivity_failed")
     if proc_start_ticks(pid)!=start_ticks:
         hold("custody_mainpid_generation_changed")
     latest=wait_unit(SERVICE_UNIT,"active")
@@ -1132,6 +1153,23 @@ def live_observation(ids:dict[str,int])->dict[str,object]:
     exact_custody_node_executable(pid)
     if proc_start_ticks(pid)!=start_ticks:
         hold("custody_mainpid_generation_changed_after_executable_recheck")
+    # PID/start ticks and executable inode survive same-binary execve().
+    # Require a second fully validated, byte-exact subject/argv/TID/UID snapshot
+    # after the final MainPID/executable inspection. Any drift fails closed.
+    final_subject=validated_custody_live_subject(pid,ids)
+    if final_subject!=initial_subject:
+        hold("custody_mainpid_live_snapshot_changed")
+    if proc_start_ticks(pid)!=start_ticks:
+        hold("custody_mainpid_generation_changed_after_snapshot")
+    final_service=wait_unit(SERVICE_UNIT,"active")
+    if final_service.get("MainPID")!=raw:
+        hold("custody_mainpid_changed_after_snapshot")
+    exact_custody_node_executable(pid)
+    if proc_start_ticks(pid)!=start_ticks:
+        hold("custody_mainpid_generation_changed_final")
+    validated_tids=initial_subject["validated_tids"]
+    custody_processes=initial_subject["custody_processes"]
+    thread_inventory=initial_subject["thread_inventory"]
 
     return {
         "pid":pid,"start_ticks":start_ticks,
