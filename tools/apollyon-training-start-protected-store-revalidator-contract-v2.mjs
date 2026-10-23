@@ -14,8 +14,8 @@ export const APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_PARENT_V2 =
     revalidation_request_blob_sha1:"079576db7f880872f2d4dea8e7759bd536161516",
     protected_writer_blob_sha1:"76f5a6bcbc9854a1133cd1324eb862cb50102c0e",
     directory_custody_source_blob_sha1:"ed6eb47c2f83b35b489d0e9034a4b87c2d10b9dd",
-    reviewed_canonicalizer_v2_head:"4306d608fbf5b13a8e20b02d8d416b9f55726b8f",
-    reviewed_canonicalizer_v2_blob_sha1:"6e8056287ae4ac8c73b9230679a6a4b570d8eac8",
+    reviewed_canonicalizer_v2_head:"1f5dbd8f505d90ed197e80a97015066c567e8ced",
+    reviewed_canonicalizer_v2_blob_sha1:"4d4b970fa2df3a3e7cae176b18c62aff52e94adc",
   });
 
 export const VOID_APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_AUTHORITY_V2 =
@@ -295,7 +295,7 @@ function sha256(raw){
   return APPLY(HASH_DIGEST,hash,["hex"]);
 }
 function matches(pattern,value){
-  return APPLY(REGEXP_TEST,pattern,[value]);
+  return APPLY(REGEXP_EXEC,pattern,[value])!==null;
 }
 const APPLY=Reflect.apply;
 const REFLECT_OWN_KEYS=Reflect.ownKeys;
@@ -312,7 +312,7 @@ const ARRAY_CTOR=Array;
 const ARRAY_IS_ARRAY=Array.isArray;
 const IS_SAFE_INTEGER=Number.isSafeInteger;
 const IS_PROXY=utilTypes.isProxy;
-const REGEXP_TEST=RegExp.prototype.test;
+const REGEXP_EXEC=RegExp.prototype.exec;
 const PRIMITIVE_STRING=String;
 const CREATE_HASH=crypto.createHash;
 const HASH_PROTOTYPE=GET_PROTOTYPE_OF(APPLY(CREATE_HASH,crypto,["sha256"]));
@@ -323,6 +323,12 @@ const BUFFER_FROM=Buffer.from;
 const BUFFER_CONCAT=Buffer.concat;
 const BUFFER_ALLOC=Buffer.alloc;
 const WRITE_U32=Buffer.prototype.writeUInt32BE;
+const TYPED_ARRAY_PROTOTYPE=GET_PROTOTYPE_OF(Uint8Array.prototype);
+const TYPED_ARRAY_LENGTH=
+  GET_OWN_PROPERTY_DESCRIPTOR(TYPED_ARRAY_PROTOTYPE,"length").get;
+function bufferLength(value){
+  return APPLY(TYPED_ARRAY_LENGTH,value,[]);
+}
 function bytes(text,encoding="utf8"){
   return APPLY(BUFFER_FROM,BUFFER_CTOR,[text,encoding]);
 }
@@ -337,14 +343,14 @@ function u32(value){
 function primitivePayload(value){
   if(typeof value==="string"){
     const raw=bytes(value);
-    return APPLY(BUFFER_CONCAT,BUFFER_CTOR,[[bytes("s","ascii"),u32(raw.length),raw]]);
+    return APPLY(BUFFER_CONCAT,BUFFER_CTOR,[[bytes("s","ascii"),u32(bufferLength(raw)),raw]]);
   }
   if(typeof value==="boolean"){
     return bytes(value?"b1":"b0","ascii");
   }
   if(typeof value==="number"&&IS_SAFE_INTEGER(value)){
     const raw=bytes(PRIMITIVE_STRING(value),"ascii");
-    return APPLY(BUFFER_CONCAT,BUFFER_CTOR,[[bytes("i","ascii"),u32(raw.length),raw]]);
+    return APPLY(BUFFER_CONCAT,BUFFER_CTOR,[[bytes("i","ascii"),u32(bufferLength(raw)),raw]]);
   }
   fail("apollyon_training_start_protected_store_revalidator_v2_frame_value_invalid");
 }
@@ -363,9 +369,9 @@ function frameRecord(value,withId){
     const key=keys[index];
     const keyBytes=bytes(key);
     const payload=primitivePayload(snapshot[key]);
-    put(offset,u32(keyBytes.length));
+    put(offset,u32(bufferLength(keyBytes)));
     put(offset+1,keyBytes);
-    put(offset+2,u32(payload.length));
+    put(offset+2,u32(bufferLength(payload)));
     put(offset+3,payload);
     offset+=4;
   }
