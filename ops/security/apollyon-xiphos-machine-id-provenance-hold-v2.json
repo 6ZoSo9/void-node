@@ -1,0 +1,60 @@
+{
+  "schema": "void_apollyon_xiphos_machine_id_provenance_hold_v2",
+  "marker": "VOID_APOLLYON_XIPHOS_MACHINE_ID_PROVENANCE_HOLD_V2",
+  "version": 2,
+  "repository": "6ZoSo9/void-node",
+  "parent_lineage": {
+    "collector_repair_pr": 3767,
+    "collector_repair_head": "92eea4f9b13e8b40df8a859d6ebea77e3e25c6a0",
+    "historical_v1_hold_pr": 3763,
+    "historical_v1_hold_head": "129e294cc35f930a22b15efd313ed541bcbd8306",
+    "historical_v1_hold_merge_commit": "819031d8e9f1dfe4863a0df06fd2420a00c1cad8",
+    "observed_normalized_machine_id_sha256": "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057",
+    "machine_binding_blobs": {
+      ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml": "c8737fe68f15894bd15af0e775fc79cb2b50d9bb",
+      "docs/security/apollyon-protected-store-machine-identity-binding-v1.md": "24cc4b6ce92931d9be9d39a46afb5a1c76e267fb",
+      "ops/security/apollyon-protected-store-machine-identity-binding-v1.json": "0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26",
+      "scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py": "45ab6a6cbfea05d61617de294d18ed7dec07fae9"
+    },
+    "repaired_collector_blobs": {
+      ".github/workflows/apollyon-protected-store-first-host-collector-v1.yml": "4ddf75e7a3da7186e9865fe58e08ddfc0e03f469",
+      "docs/security/apollyon-protected-store-first-host-collector-v1.md": "a9a751c9c76653f3d3f4c82a4bd32ce3047a176d",
+      "ops/xiphos/apollyon_protected_store_first_host_collector_v1.py": "160ad246b36eb2ee6680acc411686ff43a25bef9",
+      "scripts/prove_apollyon_protected_store_first_host_collector_v1.py": "c0e05dacfb557956f6d2fa79522ccf18cb1f6d1f"
+    },
+    "historical_v1_hold_blobs": {
+      ".github/workflows/apollyon-xiphos-machine-id-provenance-hold-v1.yml": "e526570137e1d50d41c1876feb79b07c665017a1",
+      "docs/security/apollyon-xiphos-machine-id-provenance-hold-v1.md": "fb6fdba3e8cba4f471daa09cef3469de0c0dd24d",
+      "ops/security/apollyon-xiphos-machine-id-provenance-hold-v1.json": "e0c7aa5d26639caee4c293da1846544bb07ca903",
+      "scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v1.py": "d848808585934e6609f0c84c09adcba18339a583"
+    }
+  },
+  "provenance_assessment": {
+    "normalized_machine_id_digest_observed": true,
+    "raw_machine_id_absent_from_repository": true,
+    "digest_internal_consistency_proven": true,
+    "collector_complete_mountinfo_cover_row_bound": true,
+    "historical_v1_provenance_hold_preserved": true,
+    "authenticated_transport_attestation_present": false,
+    "signed_machine_identity_attestation_present": false,
+    "authenticated_xiphos_machine_identity_proven": false,
+    "merged_binding_machine_identity_bound_claim_accepted_for_host_authority": false,
+    "collector_machine_identity_prerequisite_satisfied_for_host_execution": false
+  },
+  "authority": {
+    "host_pass_authorized": false,
+    "protected_store_origin_proven": false,
+    "writer_invocation_authorized": false,
+    "claim_publication_authorized": false,
+    "consumption_publication_authorized": false,
+    "trainer_release_authorized": false,
+    "training_execution_authorized": false,
+    "credential_access_authorized": false,
+    "private_key_or_wallet_access_authorized": false,
+    "signing_authorized": false,
+    "transaction_authorized": false,
+    "funds_movement_authorized": false
+  },
+  "next_gate": "PRODUCE_SEPARATE_AUTHENTICATED_XIPHOS_MACHINE_ID_ATTESTATION_THEN_REBIND_COLLECTOR_HOST_AUTHORITY",
+  "plan_id": "voidapollyonxiphosprovenancehold2_df2f6157c36752460ca187c7f77da175bc9e0237e2c35baeacaae571f43fc890"
+}
