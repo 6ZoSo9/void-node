@@ -95,7 +95,10 @@ a SHA-256 of the **complete selected kernel `/proc/self/mountinfo` row**,
 exact-mountpoint status, and the count of mount rows sharing the same
 root/device. The digest therefore binds the selected row's mount options,
 optional propagation fields, filesystem type, mount source, and super-options
-without emitting the raw row or unrelated mount paths. A remount or source/
+without emitting the raw row or unrelated mount paths. The disposable proof
+uses distinct sentinel material in each adversarial mount-options, mount-source,
+and super-options row and inspects the **returned adversarial receipt itself**;
+none of that raw material may appear outside the digest. A remount or source/
 super-option change between the first and second pass changes the digest and
 HOLDs.
 
@@ -186,7 +189,7 @@ No Xiphos host pass is performed by CI.
 
 Source blob: `36f77c85a2716989726af77679160de2b9e48f76`.
 
-Proof blob: `67a73d6da5018944bc79e5ed07460f7e6512e57e`.
+Proof blob: `cb64889f227c3a8e810c51156ae572fdfd806d08`.
 
 ## Next gate
 
