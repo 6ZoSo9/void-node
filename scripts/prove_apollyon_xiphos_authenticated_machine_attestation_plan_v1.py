@@ -20,7 +20,7 @@ OBSERVED_DIGEST = "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f
 PINS = {
     "ops/security/apollyon-xiphos-machine-id-provenance-hold-v2.json":
         "bd75e2606cb13beb3ba1c6f80f596e2729709c37",
-    "scripts/prove_apollyon-xiphos-machine-id-provenance-hold-v2.py":
+    "scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v2.py":
         "5a105aa167488e864b93c4490ddb58e99e70b784",
     "docs/security/apollyon-xiphos-machine-id-provenance-hold-v2.md":
         "f98a2a2dc14f16b760185ed1dcdc55c048e5ae74",
