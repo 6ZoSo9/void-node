@@ -49,7 +49,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
             "25c0e32ae85da4569fb9521a0812e10ab0fcede3"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "ba7c447a94177c45f255f47b807628272446af0c"
+            "5fa8111245a875ce28a615f1ffd365f9c997de88"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" = \
             "f23d4e19b786db42feee5c7134fdc42719df395f"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
@@ -141,6 +141,7 @@ jobs:
             'root_owned_nonwritable_ancestry_required=true' \
             'root_execution_required=true' \
             'mutable_checkout_privileged_execution_rejected=true' \
+            'protected_admission_precedes_privileged_scan=true' \
             'target_identity_metadata_only=true' \
             'all_numeric_pids_scope=true' \
             'kernel_thread_explicit_skip=true' \
