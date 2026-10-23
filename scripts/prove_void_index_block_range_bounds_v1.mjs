@@ -7,6 +7,7 @@ import {
   ATTACH_BLOCK_RANGE_MAX_SPAN,
   attachBlockRangeErrorV1,
   parseAttachBlockRange,
+  resolveAttachBlockRangeAliasV1,
 } from "../src/http/api_attach.ts";
 
 const indexSource = readFileSync("src/index.ts", "utf8");
@@ -20,18 +21,25 @@ const route = indexSource.slice(routeStart, routeEnd);
 
 assert.match(
   indexSource,
-  /import \{ attachBlockRangeErrorV1, parseAttachBlockRange \} from "\.\/http\/api_attach\.js";/,
+  /import \{ attachBlockRangeErrorV1, parseAttachBlockRange, resolveAttachBlockRangeAliasV1 \} from "\.\/http\/api_attach\.js";/,
   "public entrypoint must reuse the reviewed canonical parser and error contract",
 );
 assert.match(
   route,
-  /parseAttachBlockRange\(\s*req\.query\.from \?\? req\.query\.start,\s*req\.query\.to \?\? req\.query\.end,\s*head,?\s*\)/s,
-  "public route must preserve from/start and to/end aliases through the canonical parser",
+  /resolveAttachBlockRangeAliasV1\(\s*req\.query\.from,\s*req\.query\.start/s,
+  "public route must resolve from/start through the fail-closed alias helper",
 );
+assert.match(
+  route,
+  /resolveAttachBlockRangeAliasV1\(\s*req\.query\.to,\s*req\.query\.end/s,
+  "public route must resolve to/end through the fail-closed alias helper",
+);
+assert.match(route, /fromAlias\.ok && toAlias\.ok/);
+assert.match(route, /parseAttachBlockRange\(fromRaw, toRaw, head\)/);
 assert.match(route, /if \(!range\)[\s\S]*status\(400\)/);
-assert.match(route, /attachBlockRangeErrorV1\(/);
-assert.match(route, /req\.query\.from \?\? req\.query\.start/);
-assert.match(route, /req\.query\.to \?\? req\.query\.end/);
+assert.match(route, /attachBlockRangeErrorV1\(fromRaw, toRaw, head\)/);
+assert.doesNotMatch(route, /req\.query\.from \?\? req\.query\.start/);
+assert.doesNotMatch(route, /req\.query\.to \?\? req\.query\.end/);
 assert.match(route, /for \(let i = range\.from; i <= range\.to; i\+\+\)/);
 assert.doesNotMatch(
   route,
@@ -45,6 +53,24 @@ assert.doesNotMatch(
 );
 
 assert.equal(ATTACH_BLOCK_RANGE_MAX_SPAN, 250);
+assert.deepEqual(
+  resolveAttachBlockRangeAliasV1("0", undefined),
+  { ok: true, value: "0" },
+);
+assert.deepEqual(
+  resolveAttachBlockRangeAliasV1(undefined, "0"),
+  { ok: true, value: "0" },
+);
+assert.equal(
+  resolveAttachBlockRangeAliasV1("0", "100").ok,
+  false,
+  "conflicting from/start aliases must fail closed",
+);
+assert.equal(
+  resolveAttachBlockRangeAliasV1("1", "1").ok,
+  false,
+  "dual to/end aliases are rejected even when textually equal",
+);
 assert.deepEqual(parseAttachBlockRange(undefined, undefined, 7), {
   from: 0,
   to: 7,
@@ -177,4 +203,5 @@ assert.deepEqual(
 console.log("void_index_block_range_bounds_v1=PASS");
 console.log("canonical_parser_reused=true");
 console.log("public_aliases_preserved=true");
+console.log("conflicting_aliases_rejected=true");
 console.log("raw_range_iteration=false");
