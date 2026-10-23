@@ -263,4 +263,3 @@ funds_movement=false
 ```
 
 PROTECT THE CORE.
-
