@@ -60,9 +60,15 @@ file. Existing descriptor metadata/generation checks remain in force.
 This availability hardening does not change allocation policy, payment
 verification, quote rules, customer identity, token delivery, or monetary policy.
 
-## Authority remains false
+## Authority split remains fail-closed
+
+The frozen V2 lock's accepted identity is preserved only as historically scoped
+predecessor evidence. It must not be interpreted as acceptance of this changed
+V3 source generation.
 
 ```text
+historical_v2_candidate_enforcement_identity_accepted=true
+candidate_enforcement_identity_accepted=false
 verified_payment_v2_route_mounted=false
 payment_allocation_custody_authority=false
 source_finality_authentication_verified=false
