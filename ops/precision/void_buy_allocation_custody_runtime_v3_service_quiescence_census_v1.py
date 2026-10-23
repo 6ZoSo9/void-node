@@ -6,20 +6,21 @@ _BOOTSTRAP_MARKER = "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_SERVICE_QUIESCENCE_CENSUS_
 if (
     _bootstrap_sys.flags.isolated != 1
     or not getattr(_bootstrap_sys.flags, "safe_path", False)
+    or _bootstrap_sys.flags.dont_write_bytecode != 1
     or _bootstrap_sys.flags.optimize != 0
     or not __debug__
 ):
     if __name__ == "__main__":
         print(_BOOTSTRAP_MARKER)
         print("status=HOLD")
-        print("reason=python_isolated_unoptimized_mode_required")
+        print("reason=python_isolated_unoptimized_nobytecode_mode_required")
         print("service_mutation=false")
         print("production_read_only=true")
         print("production_filesystem_write=false")
         print("self_test_temporary_filesystem_write=false")
         print("funds_movement=false")
         raise SystemExit(2)
-    raise RuntimeError("python_isolated_unoptimized_mode_required")
+    raise RuntimeError("python_isolated_unoptimized_nobytecode_mode_required")
 
 import argparse
 import hashlib
@@ -320,6 +321,9 @@ def classify(
     runtime_dir: dict[str, Any],
     socket_path: dict[str, Any],
 ) -> dict[str, Any]:
+    load_state = properties["LoadState"]
+    if load_state not in ("loaded", "not-found"):
+        hold("systemctl_load_state_unsafe:" + load_state)
     main_pid = int(properties["MainPID"])
     control_pid = int(properties["ControlPID"])
     inactive_observed = (
@@ -329,7 +333,7 @@ def classify(
         and control_pid == 0
     )
     unit_absent_observed = (
-        properties["LoadState"] == "not-found"
+        load_state == "not-found"
         and inactive_observed
     )
     socket_absent_observed = socket_path["state"] == "absent"
@@ -350,7 +354,8 @@ def classify(
     )
     return {
         "unit_name": UNIT,
-        "load_state": properties["LoadState"],
+        "load_state": load_state,
+        "load_state_safe_observed": True,
         "active_state": properties["ActiveState"],
         "sub_state": properties["SubState"],
         "unit_file_state": properties["UnitFileState"],
@@ -467,8 +472,25 @@ def self_test() -> None:
     loaded["LoadState"] = "loaded"
     loaded["UnitFileState"] = "disabled"
     loaded_result = classify(loaded, runtime_absent, absent)
-    if loaded_result["service_quiescence_candidate"] is not True:
+    if (
+        loaded_result["service_quiescence_candidate"] is not True
+        or loaded_result["load_state_safe_observed"] is not True
+    ):
         hold("self_test_loaded_inactive_candidate_invalid")
+
+    for unsafe_load_state in ("error", "bad-setting", "future-unknown"):
+        unsafe = dict(loaded)
+        unsafe["LoadState"] = unsafe_load_state
+        try:
+            classify(unsafe, runtime_absent, absent)
+        except CensusHold as exc:
+            if (
+                "systemctl_load_state_unsafe:" + unsafe_load_state
+                not in str(exc)
+            ):
+                raise
+        else:
+            hold("self_test_unsafe_load_state_accepted:" + unsafe_load_state)
 
     enabled = dict(loaded)
     enabled["UnitFileState"] = "enabled"
@@ -549,6 +571,8 @@ def self_test() -> None:
     print("canonical_socket_path_bound=true")
     print("systemctl_show_only=true")
     print("inactive_service_candidate_classified=true")
+    print("unsafe_systemd_load_states_rejected=true")
+    print("python_no_bytecode_mode_required=true")
     print("enabled_unit_rejected=true")
     print("pending_daemon_reload_rejected=true")
     print("lingering_runtime_directory_rejected=true")
