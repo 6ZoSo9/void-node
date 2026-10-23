@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_host_namespace_lease_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "132c34244c795e886f5e2bc729e5e05697f06486"
+EXPECTED_SOURCE_BLOB = "ce6e416f5cccd79d421e9404f6f4fa12a416fc6a"
 
 
 def git_blob(raw: bytes) -> str:
@@ -140,11 +140,15 @@ for required in (
     "1/ns/mnt",
     "_parse_proc_mountinfo",
     "hidepid=",
+    "proc_mount_contract_changed",
     "_boot_id_sha256",
     "retained_procfs_view_revalidated",
     "namespace_lease_is_install_authority",
+    "namespace_values_candidate_only",
+    "host_initial_namespace_authority_proven",
     "namespace_lease_external_review_completed",
     "automatic_process_census_feed_authorized",
+    "process_census_consumption_authorized",
     "replacement_apply_authorized",
     "payment_acceptance",
     "public_presale_activation",
@@ -163,6 +167,7 @@ print("pid1_mount_namespace_equality_required=true")
 print("procfs_type_required=true")
 print("complete_proc_visibility_required=true")
 print("hidepid_restricted_proc_holds=true")
+print("proc_mount_contract_revalidated=true")
 print("boot_id_same_boot_binding=true")
 print("descriptor_relative_bounded_reader_tested=true")
 print("python_no_bytecode_mode_required=true")
@@ -171,8 +176,11 @@ print("host_collection_not_executed_in_ci=true")
 print("production_filesystem_write=false")
 print("test_fixture_filesystem_write=true")
 print("namespace_lease_is_install_authority=false")
+print("namespace_values_candidate_only=true")
+print("host_initial_namespace_authority_proven=false")
 print("namespace_lease_external_review_completed=false")
 print("automatic_process_census_feed_authorized=false")
+print("process_census_consumption_authorized=false")
 print("replacement_apply_authorized=false")
 print("runtime_integration=false")
 print("payment_acceptance=false")
