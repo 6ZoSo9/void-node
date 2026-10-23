@@ -516,7 +516,7 @@ export function buildVoidBuyVoidCustodyRuntimeBundleCandidateV3(
   const body = {
     schema: VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_SCHEMA_V3,
     marker: VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_CANDIDATE_V3,
-    version: 2,
+    version: 3,
     repository: "6ZoSo9/void-node",
     predecessor_v2: VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_PREDECESSOR_V2,
     predecessor_v2_sources: predecessorSources,
@@ -566,7 +566,7 @@ export function verifyVoidBuyVoidCustodyRuntimeBundleCandidateV3(candidate) {
   if (
     body.schema !== VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_SCHEMA_V3 ||
     body.marker !== VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_CANDIDATE_V3 ||
-    body.version !== 2 ||
+    body.version !== 3 ||
     body.repository !== "6ZoSo9/void-node" ||
     body.entrypoint !== ENTRY ||
     body.runtime_layout !== "repository_relative_package_free_v1" ||
