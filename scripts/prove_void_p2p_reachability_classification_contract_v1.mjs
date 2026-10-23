@@ -139,6 +139,36 @@ assert.equal(
   1,
 );
 
+mustThrow(
+  () => classifyReachability(
+    [
+      obs({ observer: OBSERVER_A, domain: "isp-a" }),
+      obs({ observer: OBSERVER_B, domain: "isp-b", at: NOW - 40_000 }),
+    ],
+    {
+      nowMs: NOW,
+      domainConsistencyObservations: [
+        obs({ observer: OBSERVER_A, domain: "isp-a" }),
+        obs({ observer: OBSERVER_A, domain: "isp-a" }),
+        obs({ observer: OBSERVER_B, domain: "isp-b", at: NOW - 40_000 }),
+      ],
+    },
+  ),
+  /domain-consistency evidence contains a duplicate observation ID/u,
+);
+const scopedA = obs({ observer: OBSERVER_A, domain: "isp-a" });
+const scopedB = obs({ observer: OBSERVER_B, domain: "isp-b", at: NOW - 40_000 });
+mustThrow(
+  () => classifyReachability(
+    [scopedA, scopedB],
+    {
+      nowMs: NOW,
+      domainConsistencyObservations: [scopedA],
+    },
+  ),
+  /domain-consistency scope omits classified evidence/u,
+);
+
 const outboundOnly = classifyReachability([
   obs({ observer: OBSERVER_A, domain: "isp-a", kind: "authenticated_outbound_seen" }),
   obs({ observer: OBSERVER_B, domain: "isp-b", kind: "authenticated_dialback", outcome: "failure", at: NOW - 40_000 }),
@@ -219,6 +249,8 @@ console.log("conflicting_observer_failure_domains_direct_confirmed=false");
 console.log("failed_dialback_domain_rotation_withholds_independence=true");
 console.log("outbound_domain_rotation_withholds_independence=true");
 console.log("cross_candidate_domain_rotation_withholds_independence=true");
+console.log("domain_consistency_duplicate_evidence_rejected=true");
+console.log("domain_consistency_incomplete_scope_rejected=true");
 console.log("failed_dialback_nat_type_inferred=false");
 console.log("failed_dialback_relay_requirement_inferred=false");
 console.log("outbound_only_classified_without_unreachable_claim=true");
