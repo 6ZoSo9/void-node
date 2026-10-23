@@ -441,6 +441,10 @@ def parse_mountinfo(raw: bytes, targets: tuple[Path, ...]) -> dict[str, Any]:
         tail = right.split()
         if len(fields) < 6 or len(tail) < 3:
             hold("mountinfo_line_invalid")
+        # Preserve the complete kernel-emitted row for the drift digest.
+        # Matching still uses decoded root/mount-point fields, but reducing the
+        # digest to those fields would miss remount option/source/super-option
+        # changes that can alter the security boundary during one host pass.
         rows.append({
             "mount_id": fields[0],
             "parent_id": fields[1],
@@ -448,6 +452,7 @@ def parse_mountinfo(raw: bytes, targets: tuple[Path, ...]) -> dict[str, Any]:
             "root": _decode_mount_path(fields[3]),
             "mount_point": _decode_mount_path(fields[4]),
             "fs_type": tail[0],
+            "_complete_row": line,
         })
     if not rows:
         hold("mountinfo_empty")
@@ -474,7 +479,10 @@ def parse_mountinfo(raw: bytes, targets: tuple[Path, ...]) -> dict[str, Any]:
             if row["major_minor"] == cover["major_minor"]
             and row["root"] == cover["root"]
         )
-        material = json.dumps(cover, sort_keys=True, separators=(",", ":")).encode()
+        # Hash the complete selected mountinfo row exactly as emitted by
+        # procfs. Do not emit the raw row: it can contain source/path metadata
+        # outside the narrow public receipt surface.
+        material = cover["_complete_row"].encode("utf-8", "strict")
         out[name] = {
             "cover_mount_point": cover["mount_point"],
             "fs_type": cover["fs_type"],
