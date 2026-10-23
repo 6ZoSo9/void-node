@@ -45,11 +45,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs)" = \
-            "e761f3636277dc578669b09788743d22cfa459ba"
+            "01636feac235833d49c1b6253808bea43abf6601"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_protected-procref-install-plan-v1.mjs)" = \
-            "a7e067d23e1cce8f5f739b522f1806cfa64c2dbc"
+            "8b81fe7e971468fb0a7f092456d0476068278925"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-protected-procref-install-plan-v1.md)" = \
-            "b85d447ce085a462ff1259041f2371456844deac"
+            "ba18b624d4db8be976659b6feb6e2a8f37e8a08d"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
             "25c0e32ae85da4569fb9521a0812e10ab0fcede3"
 
@@ -86,10 +86,14 @@ jobs:
             'absence_precheck_not_publication_authority=true' \
             'same_filesystem_root_staging_required=true' \
             'stage_directory_exact_metadata_bound=true' \
-            'stage_root_root_mode_0700_bound=true' \
+            'stage_root_root_mode_0755_bound=true' \
+            'stage_group_world_writable_false_bound=true' \
             'stage_nlink_2_bound=true' \
+            'stage_exact_single_entry_set_bound=true' \
+            'protected_root_exact_single_entry_set_bound=true' \
             'stage_descriptor_relative_creation_required=true' \
             'stage_parent_descriptor_retention_required=true' \
+            'stage_descriptor_retention_required=true' \
             'stage_same_mount_revalidation_required=true' \
             'stage_direct_ancestry_required=true' \
             'stage_symlink_free_ancestry_required=true' \
@@ -135,12 +139,19 @@ jobs:
           if(p.install_contract.ordinary_rename_publication_forbidden!==true) throw new Error("ordinary_rename");
           if(p.install_contract.stage_parent!=="/opt") throw new Error("stage_parent");
           if(p.install_contract.stage_uid!==0 || p.install_contract.stage_gid!==0) throw new Error("stage_owner");
-          if(p.install_contract.stage_mode!=="0700") throw new Error("stage_mode");
+          if(p.install_contract.stage_mode!=="0755") throw new Error("stage_mode");
+          if(p.install_contract.stage_group_world_writable!==false) throw new Error("stage_writable");
           if(p.install_contract.stage_nlink!==2) throw new Error("stage_nlink");
+          if(p.install_contract.stage_expected_entry_count!==1) throw new Error("stage_entry_count");
+          if(p.install_contract.stage_source_name!=="void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py") throw new Error("stage_source_name");
+          if(p.install_contract.stage_unexpected_entries_forbidden!==true) throw new Error("stage_unexpected");
+          if(p.install_contract.protected_root_expected_entry_count!==1) throw new Error("root_entry_count");
+          if(p.install_contract.protected_root_unexpected_entries_forbidden!==true) throw new Error("root_unexpected");
           if(p.install_contract.stage_directory!==true || p.install_contract.stage_symlink!==false) throw new Error("stage_type");
           if(p.install_contract.stage_same_mount_as_install_parent!==true) throw new Error("stage_mount");
           if(p.install_contract.stage_descriptor_relative_creation_required!==true) throw new Error("stage_creation");
           if(p.install_contract.stage_parent_descriptor_retained_through_publication_required!==true) throw new Error("stage_parent_retention");
+          if(p.install_contract.stage_descriptor_retained_through_publication_required!==true) throw new Error("stage_retention");
           if(p.install_contract.stage_direct_child_of_install_parent_required!==true) throw new Error("stage_ancestry");
           if(p.install_contract.stage_symlink_free_ancestry_required!==true) throw new Error("stage_symlink_ancestry");
           if(p.install_contract.stage_revalidation_before_publication_required!==true) throw new Error("stage_revalidation");
