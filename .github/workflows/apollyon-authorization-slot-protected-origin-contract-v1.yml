@@ -1,0 +1,122 @@
+name: Apollyon authorization slot protected origin contract v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
+      - "scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs"
+      - "docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md"
+      - ".github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
+      - "scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs"
+      - "docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md"
+      - ".github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind protected-origin contract generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          test "$(git rev-parse HEAD)" = "$HEAD"
+
+          test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = \
+            638897cd9c60f519c29b3019dbdbd27fdc59fdd9
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs)" = \
+            a0da1bc21221234db8e984e2093778f4ee822de7
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md)" = \
+            7a0f2a851948557e2e93e960650b410fb5b21288
+
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
+            25629371f6da164e12fecfc08c5f26815418e3a8
+          test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = \
+            f97fafb0148527ae3a954e2752faef8c7fc9e88e
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs)" = \
+            87019ae1245a2054407dd47835b0b7a891d4d9a2
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              base="$PR_BASE"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE"
+              test "$PUSH_BEFORE" != 0000000000000000000000000000000000000000
+              base="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+          git merge-base --is-ancestor "$base" "$HEAD"
+          git diff --check "$base" "$HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove protected authorization-slot origin boundary
+        run: |
+          set -euo pipefail
+
+          node --check tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs
+          node --check scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs
+          node scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs \
+            | tee /tmp/apollyon-authorization-slot-origin-proof.txt
+
+          grep -Fx 'VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_CONTRACT_V1_PROOF_GREEN' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'caller_supplied_slot_record_sufficient=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'protected_authorization_slot_store_required=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'protected_authorization_slot_store_proven=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'protected_authorization_slot_origin_required=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'protected_authorization_slot_origin_proven=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'authorization_slot_revalidation_required=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'authorization_slot_revalidation_performed=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'slot_unknown_graph_rejected_before_parent_clone=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'slot_accessor_rejected_before_read=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'candidate_accessor_rejected_before_read=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'requirements_accessor_rejected_before_read=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'slot_revoked_proxy_namespaced_rejection=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'candidate_revoked_proxy_namespaced_rejection=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'requirements_revoked_proxy_namespaced_rejection=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'regex_coercion_rejected=true' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'activation_capability_issuance_authorized=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'activation_capability_issuance_performed=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'training_start_consumption_performed=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'training_start_admission=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'training_release_authorized=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'training_execution_authorized=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'service_action=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+          grep -Fx 'funds_movement=false' /tmp/apollyon-authorization-slot-origin-proof.txt
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

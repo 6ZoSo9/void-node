@@ -1,0 +1,182 @@
+name: Apollyon authorization-slot protected-origin implementation v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py"
+      - "scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py"
+      - "docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md"
+      - ".github/workflows/apollyon-authorization-slot-protected-origin-implementation-v1.yml"
+      - "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
+      - ".github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml"
+      - "scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs"
+      - "docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py"
+      - "scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py"
+      - "docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md"
+      - ".github/workflows/apollyon-authorization-slot-protected-origin-implementation-v1.yml"
+      - "tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs"
+      - ".github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml"
+      - "scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs"
+      - "docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact implementation generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          STACK_PARENT=62c2bbfd7ca1a871159d036b2cd1391f2d728df5
+          # Fresh synchronize event after base retarget; require the exact current #3526 base.
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$STACK_PARENT" "$EXPECTED_HEAD"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              test "$PR_BASE" = "$STACK_PARENT"
+              base="$PR_BASE"
+              expected="$RUNNER_TEMP/expected.txt"
+              actual="$RUNNER_TEMP/actual.txt"
+              printf '%s\n' \
+                '.github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml' \
+                '.github/workflows/apollyon-authorization-slot-protected-origin-implementation-v1.yml' \
+                'docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md' \
+                'docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md' \
+                'ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py' \
+                'scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs' \
+                'scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py' \
+                'tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs' \
+                | LC_ALL=C sort > "$expected"
+              git diff --no-renames --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
+              diff -u "$expected" "$actual"
+              ;;
+            push)
+              base="$PUSH_BEFORE"
+              test -n "$base"
+              test "$base" != 0000000000000000000000000000000000000000
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 37ec91b9e90b21b4d582825942fe098359ad0160
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py)" = 582486f0151290297e03362bde05f1e8526b9ef1
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-implementation-v1.md)" = fa3d2a8b1fdf177080996f36322982c744061bfd
+          test "$(git rev-parse HEAD:tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs)" = 638897cd9c60f519c29b3019dbdbd27fdc59fdd9
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs)" = a0da1bc21221234db8e984e2093778f4ee822de7
+          test "$(git rev-parse HEAD:docs/security/apollyon-authorization-slot-protected-origin-contract-v1.md)" = 7a0f2a851948557e2e93e960650b410fb5b21288
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-authorization-slot-protected-origin-contract-v1.yml)" = fa086bfe741fbe9d30eb6c168b4535e28ca18cb9
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs)" = 87019ae1245a2054407dd47835b0b7a891d4d9a2
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = 25629371f6da164e12fecfc08c5f26815418e3a8
+          test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Reprove protected authorization-slot origin contract
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-authorization-slot-protected-origin-contract-v1.mjs
+          node --check scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs
+          out="$RUNNER_TEMP/apollyon-origin-contract.log"
+          node scripts/prove_apollyon_authorization_slot_protected_origin_contract_v1.mjs | tee "$out"
+          grep -Fx 'VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_CONTRACT_V1_PROOF_GREEN' "$out"
+          grep -Fx 'protected_authorization_slot_store_proven=false' "$out"
+          grep -Fx 'protected_authorization_slot_origin_proven=false' "$out"
+          grep -Fx 'activation_capability_issuance_authorized=false' "$out"
+          grep -Fx 'training_execution_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Syntax check
+        run: |
+          set -euo pipefail
+          python3 -I -B -m py_compile ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py
+
+      - name: Run disposable protected-slot proof
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/protected-origin-implementation-v1.log"
+          python3 -I -B scripts/prove_apollyon_authorization_slot_protected_origin_implementation_v1.py | tee "$out"
+          for marker in \
+            'VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_IMPLEMENTATION_V1_PROOF_GREEN' \
+            'fixed_claim_state_root=true' \
+            'fixed_authorization_slot_directory=true' \
+            'descriptor_relative_slot_read=true' \
+            'slot_fifo_nonblocking_rejected=true' \
+            'slot_opath_admission_precedes_data_open=true' \
+            'slot_data_open_uses_held_regular_inode=true' \
+            'visible_special_replacement_not_data_opened=true' \
+            'recursive_json_rejected_fail_closed=true' \
+            'same_bytes_path_replacement_rejected=true' \
+            'post_second_reread_path_replacement_rejected=true' \
+            'visible_slot_directory_replacement_rejected=true' \
+            'host_io_errors_normalized_to_hold=true' \
+            'rejected_root_descriptor_cleanup_verified=true' \
+            'root_traversal_close_uncertainty_disclosed=true' \
+            'isolated_python_preimport_guard=true' \
+            'nonisolated_checkout_module_not_executed=true' \
+            'trusted_ancestor_posix_acl_required=true' \
+            'descriptor_stable_slot_reread=true' \
+            'protected_origin_completion_required=true' \
+            'claim_service_only_writer_proven=false' \
+            'protected_authorization_slot_origin_proven=false' \
+            'activation_capability_issuance_authorized=false' \
+            'training_start_consumption_authorized=false' \
+            'training_execution_authorized=false' \
+            'filesystem_write=false' \
+            'service_action=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Verify real CLI self-test
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/protected-origin-self-test.log"
+          python3 -I -B ops/xiphos/apollyon_authorization_slot_protected_origin_implementation_v1.py --self-test | tee "$out"
+          grep -Fx 'VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_IMPLEMENTATION_V1_SELF_TEST=GREEN' "$out"
+          grep -Fx 'isolated_python_preimport_guard=true' "$out"
+          grep -Fx 'slot_leaf_nonblocking_nofollow_open=true' "$out"
+          grep -Fx 'slot_leaf_opath_admission_required=true' "$out"
+          grep -Fx 'slot_data_open_from_held_regular_inode=true' "$out"
+          grep -Fx 'final_visible_generation_revalidation_required=true' "$out"
+          grep -Fx 'visible_slot_directory_revalidation_required=true' "$out"
+          grep -Fx 'host_io_errors_normalized_to_hold=true' "$out"
+          grep -Fx 'protected_origin_completion_required=true' "$out"
+          grep -Fx 'protected_authorization_slot_origin_proven=false' "$out"
+          grep -Fx 'activation_capability_issuance_authorized=false' "$out"
+          grep -Fx 'training_execution_authorized=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"

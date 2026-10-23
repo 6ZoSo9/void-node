@@ -1,0 +1,250 @@
+# Apollyon authorization-slot protected-origin implementation V1
+
+Marker: `VOID_APOLLYON_AUTHORIZATION_SLOT_PROTECTED_ORIGIN_IMPLEMENTATION_V1`.
+
+Status: **source/read-only implementation candidate; complete protected origin remains unproven**.
+
+## October 19 current #3357 caller-preflight rebind
+
+- Direct parent #3357: `62c2bbfd7ca1a871159d036b2cd1391f2d728df5`.
+- Rebound protected-origin contract blob: `638897cd9c60f519c29b3019dbdbd27fdc59fdd9`.
+- Rebound authorization-slot source blob: `25629371f6da164e12fecfc08c5f26815418e3a8`.
+- Held-inode admission, rejected-traversal cleanup and pre-import isolated-Python protections are unchanged.
+- Claim-service-only writer provenance, current store/claim/terminal/request revalidation, complete protected origin, capability issuance and training remain false/unproven.
+
+## Flattened current source generation (October 19, 2026)
+
+This PR now directly targets the current #3526 protected-origin contract at
+`db8c56d7ebe73e0646355bc6fcb4a5141ef7422f`. The resulting parent-relative
+scope is exactly these four added implementation/proof/document/workflow files;
+there is no longer a separate #3531 source dependency.
+
+The flattened generation preserves all earlier reader hardening in one source:
+held-inode `O_PATH` admission before data-open, visible-generation rereads,
+rejected-child descriptor cleanup, and the pre-import isolated-Python guard.
+This consolidation changes PR ancestry only; it does not widen authority or
+establish claim-service-only writer provenance, protected origin, capability
+issuance, or training authority.
+
+## Flattened protected-origin contract + reader PR generation
+
+This PR now directly targets #3357 at
+`1b60642d980b76c13130d5124d83a22c2c01ec30`. Its direct scope is the
+complete eight-file protected-origin layer: four source-only contract files plus
+four hardened read-only implementation files.
+
+The focused reader workflow re-proves the protected-origin contract before the
+filesystem reader proof. The separate contract workflow remains present and
+continues to watch the claim-slot/store-candidate dependency closure. This
+consolidation changes PR stacking only; claim-service-only writer provenance,
+current store/claim/terminal/request revalidation and activation authority remain
+unproven.
+
+## Parent and scope
+
+Parent: #3526 exact head
+`db8c56d7ebe73e0646355bc6fcb4a5141ef7422f`.
+
+This child implements the fixed protected-slot reader/reread boundary named by
+the #3526 contract. It does not issue an activation capability.
+
+## Fixed read boundary
+
+Future live mode is fixed to:
+
+`/var/lib/void-apollyon-attempt-claim-v2/authorization-slots-v1`.
+
+The caller can supply only an expected authorization-slot ID and expected
+non-root claim UID/GID. The root and slot-directory paths are not selectable.
+
+Traversal is descriptor-relative from `/` with no-follow directory opens.
+Trusted ancestors must be root-owned/root-group, not group/world writable, and
+must expose no POSIX access/default ACL. The final claim root and slot directory
+must be exact mode 0700 and owned by the expected claim identity, also without
+POSIX ACLs.
+
+The slot leaf is derived only from the validated authorization-slot ID. The
+reader first acquires the visible leaf with Linux `O_PATH|O_NOFOLLOW|O_CLOEXEC`
+and proves that held inode is the exact regular mode-0600, single-link generation
+owned by the expected claim identity and bounded to 64 KiB. Only after that
+admission does it data-open `/proc/self/fd/<held-fd>` with
+`O_RDONLY|O_CLOEXEC|O_NONBLOCK`. The data-open therefore targets the retained
+already-admitted regular inode, never a pathname replacement such as a FIFO or
+device node. The reopened descriptor must match the held and still-visible
+generation and expose no POSIX ACL.
+
+## Descriptor-stable reread
+
+The reader:
+
+1. binds root, slot directory and visible slot inode;
+2. reads exact canonical bytes through the retained slot descriptor;
+3. validates the #3357 slot schema and content-addressed record identity;
+4. revalidates retained and visible root/directory/slot generations;
+5. rereads the same retained descriptor and requires identical bytes; and
+6. revalidates the retained descriptors **and the visible slot-file, slot-directory,
+   and claim-root bindings again** after the second reread.
+
+The visible `authorization-slots-v1` binding is checked from the retained claim-root
+descriptor both before and after the second reread. Renaming that directory out of
+the protected root and replacing it with another directory therefore cannot turn a
+stale detached-directory observation into a current receipt.
+
+Host filesystem `OSError` failures from the protected root/slot observation path
+are normalized to machine-readable `Hold` results rather than escaping as Python
+tracebacks.
+
+Same-byte pathname replacement before or after the second reread therefore
+HOLDs.
+
+Malformed UTF-8/JSON, duplicate keys, noncanonical framing, recursive/resource
+JSON failures, slot-ID drift, hard links, ACL/mode drift, symlinks and
+special-file substitution fail closed.
+
+## Deliberate partial result
+
+A GREEN source/read-only receipt can prove only the fixed protected-root
+metadata/custody checks, one retained protected root during the observation,
+descriptor-stable slot reread, and exact canonical slot bytes/content address.
+
+These #3526 requirements remain false/unperformed:
+
+```text
+claim_service_only_writer_proven=false
+current_store_generation_revalidation_performed=false
+exact_claim_record_revalidation_performed=false
+exact_terminal_receipt_revalidation_performed=false
+exact_publish_request_revalidation_performed=false
+protected_authorization_slot_origin_proven=false
+activation_capability_issuance_authorized=false
+activation_capability_issuance_performed=false
+training_start_consumption_authorized=false
+training_start_consumption_performed=false
+training_release_authorized=false
+training_execution_authorized=false
+training_execution=false
+filesystem_write=false
+network_access=false
+service_action=false
+socket_action=false
+credential_access=false
+private_key_access=false
+signing=false
+wallet_access=false
+transaction=false
+funds_movement=false
+```
+
+Because those requirements remain open, the next gate is **not** capability
+issuance. It is:
+
+`apollyon_authorization_slot_protected_origin_claim_service_revalidation_v1`.
+
+That gate must bind reviewed claim-service writer/origin plus current store
+generation, exact claim record, terminal receipt and publish request before
+complete protected origin can become true.
+
+## Hosted proof
+
+Hosted CI uses disposable temporary directories under the ordinary runner
+UID/GID only. It performs no Xiphos access.
+
+Adversaries cover wrong root/slot/file modes, hard links, symlinks, FIFO
+substitution, missing slot paths, noncanonical and recursively nested JSON,
+slot-ID/content-address drift, same-byte visible slot replacement after the first
+read, visible slot-directory replacement while the old directory remains retained,
+same-byte visible slot replacement after the second reread, and a visible
+regular-to-FIFO replacement immediately before data-open. That last fixture
+requires the data-open target to be only the retained `/proc/self/fd/<held-fd>`
+inode and proves zero data-open attempt on the replacement pathname.
+
+No protected store, service, capability, training, credential, transaction or
+funds action occurs.
+
+**PROTECT THE CORE.**
+
+
+## Current contract-origin parent (October 18, 2026)
+
+The current source-only parent is #3526 at
+`db8c56d7ebe73e0646355bc6fcb4a5141ef7422f`, with the protected-origin
+contract Git blob `638897cd9c60f519c29b3019dbdbd27fdc59fdd9` and underlying
+authorization-slot source `25629371f6da164e12fecfc08c5f26815418e3a8`.
+A full untruncated prior/current parent tree comparison yielded 362 changed
+paths and **zero overlap** with this child's four ADD-only files. The accepted
+historical direct parent `e496f4391b2b4e9be006695fcd8845669059a48f`
+remains preserved in first-parent history.
+
+The current Python reader also repairs the privileged leaf-open boundary: it
+uses O_PATH admission before any data-open and then reopens only the held,
+already-proven regular inode. It retains its fixed root, ACL/path validation,
+descriptor-held rereads, and final visible name and directory generation
+checks. Disposable proofs use the current pins; no Xiphos protected state is
+observed. Parent contract validity, read-only slot shape and stable inode
+observation still do not prove complete claim-service protected origin.
+Activation-capability issuance and training remain forbidden.
+
+## Prior revoked-Proxy error-normalization rebind (historical)
+
+This generation is rebound to #3526 `e496f4391b2b4e9be006695fcd8845669059a48f`, whose public slot/candidate/requirements preflights reject active and revoked Proxy inputs through their exact namespaced schema errors before `Array.isArray`. The protected reader semantics in this child are otherwise unchanged; complete protected origin and capability issuance remain false.
+
+## Rejected traversal descriptor cleanup and privileged Python isolation (October 19, 2026)
+
+This follow-up keeps the current held-inode slot admission/reread semantics and
+adds two fail-closed entry-boundary repairs.
+
+Every child directory opened during protected-root traversal remains locally
+owned until identity, custody and ACL checks succeed. Rejection closes that
+child once before propagating the original HOLD/error. After validation,
+ownership transfers to the retained `current` descriptor before closing the
+old parent. Repeated wrong-mode and injected ACL failures must leave the
+complete `/proc/self/fd` set unchanged.
+
+The root-capable source also requires isolated Python before any
+checkout-resolved import. Immediately after the built-in `sys` import it
+requires `isolated=1`, `ignore_environment=1`, `no_user_site=1`,
+`dont_write_bytecode=1`, and `safe_path=1`; otherwise it emits
+`HOLD=isolated_python_required` and exits before importing `json`,
+`argparse`, or other path-resolved modules. Hosted proof copies the source next
+to a malicious sentinel `json.py`, invokes it without `-I`, and requires the
+sentinel never to execute; the same copy self-tests successfully under
+`python -I -B`.
+
+These repairs do not establish installed Xiphos source custody,
+claim-service-only writer provenance, current store/claim/terminal/publish-request
+revalidation, capability issuance, trainer admission, training, credential/key
+access, transactions, or funds authority.
+
+## October 19 — explicit root descriptor close-uncertainty HOLD
+
+This draft child of the flattened #3537 generation `7850afc995608e188668dce2ea568eba99d23690`
+adds a narrow negative-result diagnostic to the existing protected root reader.
+
+Previously `open_root()` silently discarded `OSError` from `os.close(child)`
+on a rejected child, and from outer `os.close(current)` cleanup. A close
+failure is inherently ambiguous: the kernel may already have closed the FD
+or it may still be open. The initial metadata/ACL HOLD alone did not disclose
+that custody uncertainty. Likewise, failure closing a previous parent after
+ownership transfer became only a generic host-I/O HOLD.
+
+The three exact new HOLD reasons are:
+
+- `claim_root_rejected_child_close_uncertain`: rejected child FD close failed.
+- `claim_root_prior_parent_close_uncertain`: prior parent close failed after
+  the validated child became the retained `current` FD.
+- `claim_root_traversal_close_uncertain`: outer retained-current close failed.
+
+Each close is attempted only once. A cleanup uncertainty HOLD takes precedence
+over an earlier validation reason, with the exception chain retained. No
+retry or false success occurs. The observable result is **more conservative**
+rather than a new authorization.
+
+The disposable proof injects an `OSError` after a *real* kernel close on
+each of the three paths. It requires the matching distinct HOLD and a stable
+`/proc/self/fd` census, without intentionally leaking a live descriptor.
+This test verifies diagnostic honesty, not every possible Linux close failure.
+
+The existing held-regular-inode slot reader, content-address validation,
+isolated-Python preimport guard, and all negative host/capability/training
+authority flags remain unchanged. No protected Xiphos access or privileged
+host installation occurs. **PROTECT THE CORE.**
