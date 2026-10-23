@@ -33,8 +33,10 @@ jobs:
           BASE_REF: ren/custody-runtime-v3-process-reference-census-v1-20261023
         run: |
           set -euo pipefail
+          git fetch --no-tags origin \
+            "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
           BASE="$(git rev-parse "refs/remotes/origin/$BASE_REF")"
-          test "$BASE" = "9c95a400add17d7cc45866f4129602755f2f92ac"
+          test "$BASE" = "0a09df2649b4db27ed32865915b04f18530fd925"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
@@ -49,15 +51,15 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "f2288b01fa37d6facf7cc223db2604f9bc30fd57"
+            "3fc9ff1878001dacc01cc8f951c910dfc3dc5b28"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "cc322e3fa9396cf82cae15e1beede49259b44dd7"
+            "c60515fb79319002c64bdd7009b190285f52e3db"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" = \
-            "ef1edde41785e35ee4be74c0d7a9c757894ecec3"
+            "da5657e5082e703b637232716b670ddd6098c047"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "6bf476e3383b7b18966320df13b4041da9c8c11f"
+            "2a064c670bd3fafc44d3a3b213c6672df533f72b"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "e32ebd94ad09cd80e03489079e74657aab159d7a"
+            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
