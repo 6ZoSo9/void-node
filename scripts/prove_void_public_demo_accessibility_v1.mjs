@@ -15,15 +15,10 @@ const liveRoles = new Set([
 ]);
 
 function htmlAttributeValue(tag, name) {
-  const escaped = name.replace(/[.*+?^$\{\}()|[\]\\]/gu, "\\const voidElements = new Set([
-  "area", "base", "br", "col", "embed", "hr", "img", "input",
-  "link", "meta", "param", "source", "track", "wbr",
-]);
-
-");
+  assert.ok(name === "role" || name === "aria-live");
   const pattern = new RegExp(
-    "\\b" + escaped +
-      "\\s*=\\s*(?:\\\"([^\\\"]*)\\\"|'([^']*)'|([^\\s\\\"'<>]+))",
+    "\\b" + name +
+      "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s\"'<>]+))",
     "iu",
   );
   const match = tag.match(pattern);
@@ -36,7 +31,7 @@ function tagCreatesLiveRegion(tag) {
     const tokens = role
       .trim()
       .toLowerCase()
-      .split(/[\\t\\n\\f\\r ]+/u)
+      .split(/[\t\n\f\r ]+/u)
       .filter(Boolean);
     if (tokens.some(token => liveRoles.has(token))) return true;
   }
@@ -314,4 +309,4 @@ console.log("result_payload_live_ancestor=false");
 console.log("result_status_bounded=true");
 console.log("result_submission_timeout_status_bounded=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=17");
+console.log("negative_mutations=19");
