@@ -45,11 +45,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "f5e2c3cfd76c9af43d0758a4e7c8a0b6521c5628"
+            "a1072b863ce1453f804a89a2f8b71cd0d0a7145a"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "28f79d9f112b8847ecd1f64ce3c48d824ee038a5"
+            "edc5323632855c2f7e1795493c81ec79ebe8d5bd"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-install-prestate-census-v1.md)" = \
-            "ecc13d59523aba6876fa44370ae9883504607acd"
+            "0d282a8b12140c7a0f1627a51817e6ba74a7aa70"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
@@ -76,7 +76,8 @@ jobs:
           for marker in \
             'archive_lock_exact=true' \
             'descriptor_bound_tree_scan=true' \
-            'target_tree_content_metadata_digest=true' \
+            'target_tree_metadata_digest=true' \
+            'legacy_regular_file_content_read=false' \
             'nested_mount_rejection_bound=true' \
             'mount_id_boundary_bound=true' \
             'symlink_opaque_identity_bound=true' \
@@ -112,7 +113,8 @@ jobs:
           for marker in \
             'archive_lock_exact=true' \
             'descriptor_bound_tree_scan=true' \
-            'target_tree_content_metadata_digest=true' \
+            'target_tree_metadata_digest=true' \
+            'legacy_regular_file_content_read=false' \
             'nested_mount_rejection_bound=true' \
             'mount_id_boundary_bound=true' \
             'symlink_opaque_identity_bound=true' \
