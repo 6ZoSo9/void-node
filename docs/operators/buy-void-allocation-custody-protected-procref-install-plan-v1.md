@@ -41,6 +41,19 @@ install_parent=/opt
 protected_root=/opt/void-buy-allocation-custody-procref-v1
 stage_path=/opt/.void-buy-allocation-custody-procref-v1.stage-v1
 
+stage_parent=/opt
+stage uid/gid=0/0
+stage mode=0700
+stage nlink=2
+stage directory=true
+stage symlink=false
+stage same mount as install parent=true
+stage descriptor-relative creation required=true
+stage parent descriptor retained through publication=true
+stage direct child of install parent required=true
+stage symlink-free ancestry required=true
+stage revalidation before publication required=true
+
 install_parent uid/gid=0/0
 install_parent group/world writable=false
 
@@ -58,8 +71,15 @@ publication_flag=RENAME_NOREPLACE
 ordinary_rename_publication_forbidden=true
 ```
 
-These are future apply requirements, not observed host facts. The initial
-target-absence check is not publication authority: a competing creator may win
+These are future apply requirements, not observed host facts. The stage is
+deliberately stricter than the final protected root: it is an exact root-owned
+mode-0700 direct child of /opt with nlink=2, no symlink identity, and the same
+mount as the retained install-parent descriptor. A future installer must create
+it descriptor-relative to that retained parent, retain/revalidate the parent and
+stage identities through publication, and reject any ancestry/type/owner/mode/
+link/mount drift.
+
+The initial target-absence check is not publication authority: a competing creator may win
 after that check. The final publication must therefore use kernel-atomic
 `renameat2(RENAME_NOREPLACE)` semantics and fail closed if the destination
 exists. An ordinary replace-capable rename is forbidden.
@@ -71,15 +91,20 @@ A separately reviewed installer must perform this order:
 1. verify the exact reviewed Git-object bytes;
 2. verify `/opt` root custody and mount identity;
 3. require both protected target and stage names absent;
-4. materialize the exact bytes into a root-owned same-filesystem stage;
-5. fsync the staged source and stage directory;
-6. reverify staged bytes, owner, mode, link count, and ancestry;
-7. publish with `renameat2(RENAME_NOREPLACE)`; the earlier absence check alone
+4. create the stage directory descriptor-relative to the retained /opt
+   descriptor and require exact root:root, mode 0700, nlink 2, direct-directory,
+   non-symlink, same-mount and symlink-free-direct-ancestry identity;
+5. revalidate the retained install-parent and stage identities;
+6. materialize the exact bytes into that stage;
+7. fsync the staged source and stage directory;
+8. reverify both stage-directory identity and staged source bytes/metadata/
+   ancestry before publication;
+9. publish with `renameat2(RENAME_NOREPLACE)`; the earlier absence check alone
    is not authority and an existing destination must make publication fail;
-8. fsync the install parent;
-9. reverify installed bytes, metadata, and ancestry;
-10. emit a content-addressed install receipt;
-11. **stop before root census execution**.
+10. fsync the install parent;
+11. reverify installed bytes, metadata, and ancestry;
+12. emit a content-addressed install receipt;
+13. **stop before root census execution**.
 
 The protected install receipt must receive separate external review before the
 root all-process census is considered.
@@ -131,6 +156,12 @@ atomic_noreplace_publication_required=true
 renameat2_rename_noreplace_required=true
 absence_precheck_is_not_publication_authority=true
 root_owned_same_filesystem_staging_required=true
+stage_directory_exact_metadata_required=true
+stage_descriptor_relative_creation_required=true
+stage_parent_descriptor_retention_required=true
+stage_same_mount_revalidation_required=true
+stage_ancestry_revalidation_required=true
+stage_revalidation_before_publication_required=true
 source_file_fsync_required=true
 stage_directory_fsync_required=true
 install_parent_fsync_required=true
