@@ -26,7 +26,7 @@ as authenticated evidence.
 ## Exact lineage
 
 Parent: Draft #3767 exact head
-`430e6d8630100cad897a292c8694d80ec98557a6`.
+`4f534e00370882b1fbcf03568ddf355275562f57`.
 
 Historical V1 truth-HOLD:
 
@@ -48,11 +48,11 @@ Repaired collector #3767:
 - source:
   `36f77c85a2716989726af77679160de2b9e48f76`;
 - proof:
-  `40d34dfa2a8bc36c7f11824fbbf93a623839035d`;
+  `67a73d6da5018944bc79e5ed07460f7e6512e57e`;
 - document:
-  `02af98e4dce3eae9e76b132344e4b7c0c8f5d45c`;
+  `286a5b0528bdf1cd8cd6a1a3628222f6a3b5dbb9`;
 - workflow:
-  `7477b5eb2d67e9a937fdae22ed16992780710fc4`.
+  `dde72db084eed198c42a4183463eab593fa209ba`.
 
 The original #3760 machine-binding artifacts remain pinned as historical input.
 They are not accepted as authenticated host authority.
@@ -123,14 +123,14 @@ The proof:
 - binds the exact four repaired #3767 collector blobs;
 - binds the exact four historical #3763 V1 HOLD blobs;
 - validates content-addressed plan ID
-  `voidapollyonxiphosprovenancehold2_7adcb02eddae02b6dc9443fe010c8826196984fec303df46123dd6ede8f9a6eb`;
+  `voidapollyonxiphosprovenancehold2_1ee4af4279e852299e19e0aecd63c2cc636e5bb1c32fce7e204d996ca4214cb7`;
 - executes 30 semantic adversaries across provenance, authority, lineage,
   blob maps, content identity, duplicate keys and non-finite constants; and
 - performs no host read.
 
-Plan blob: `23b56ba9f8abfb55e30e2706f25b6ee9c996ff7b`.
+Plan blob: `b97c44976b33e21271b6525d4caeffc54c366c1e`.
 
-Proof blob: `89b3c3daaf78af9588be7ecee43e840127b35759`.
+Proof blob: `8ef3e9ff01fc7c84ab8ec3b37b5522c253b00e26`.
 
 ## Next gate
 
