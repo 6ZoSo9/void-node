@@ -211,6 +211,46 @@ need(
     mounts["/var/lib/void-apollyon-attempt-claim-v2"]["exact_mount_point"] is True,
     "mount_exact_positive_invalid",
 )
+target_name = "/var/lib/void-apollyon-attempt-claim-v2"
+baseline_cover = mounts[target_name]
+baseline_hash = baseline_cover["cover_row_sha256"]
+
+for label, changed_line in (
+    (
+        "mount_options",
+        "37 36 0:32 / /var/lib/void-apollyon-attempt-claim-v2 ro - ext4 /dev/root rw",
+    ),
+    (
+        "mount_source",
+        "37 36 0:32 / /var/lib/void-apollyon-attempt-claim-v2 rw - ext4 /dev/mapper/voidroot rw",
+    ),
+    (
+        "super_options",
+        "37 36 0:32 / /var/lib/void-apollyon-attempt-claim-v2 rw - ext4 /dev/root ro,nosuid",
+    ),
+):
+    variant = (
+        "36 25 0:32 / / rw - ext4 /dev/root rw\n"
+        + changed_line + "\n"
+    ).encode()
+    observed = mod.parse_mountinfo(
+        variant,
+        (Path(target_name),),
+    )[target_name]
+    need(
+        observed["cover_mount_point"] == baseline_cover["cover_mount_point"]
+        and observed["fs_type"] == baseline_cover["fs_type"]
+        and observed["exact_mount_point"] is True,
+        "mount_" + label + "_safe_summary_changed",
+    )
+    need(
+        observed["cover_row_sha256"] != baseline_hash,
+        "mount_" + label + "_drift_not_bound",
+    )
+
+need("/dev/root" not in json.dumps(mounts), "mount_source_leaked_to_receipt")
+need("ro,nosuid" not in json.dumps(mounts), "mount_super_options_leaked_to_receipt")
+
 ambiguous_mount_sample = (
     "36 25 0:32 / / rw - ext4 /dev/root rw\n"
     "37 36 0:32 / /var/lib/void-apollyon-attempt-claim-v2 rw - ext4 /dev/root rw\n"
@@ -437,6 +477,11 @@ print("directory_enumeration_not_required=true")
 print("acl_adversary_rejected=true")
 print("terminal_metadata_drift_rejected=true")
 print("ambiguous_stacked_mount_rejected=true")
+print("complete_mountinfo_cover_row_bound=true")
+print("mount_options_drift_bound=true")
+print("mount_source_drift_bound=true")
+print("mount_super_options_drift_bound=true")
+print("raw_mount_source_not_emitted=true")
 print("systemctl_show_only_contract=true")
 print("inert_full_pass_orchestration_executed=true")
 print("whole_pass_drift_adversaries_rejected=true")
