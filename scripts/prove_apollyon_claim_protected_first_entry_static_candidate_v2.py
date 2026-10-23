@@ -11,7 +11,7 @@ import types
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_REL = "ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v2.py"
 TARGET = ROOT / TARGET_REL
-TARGET_BLOB = "ddb1e50fc48dcf812efdec7223e1eea8c055cb6f"
+TARGET_BLOB = "74b45b9f23ce3307b59a98fa9703d5c0a2494bad"
 FIXED_SELF = (
     "/opt/void-apollyon-claim-protected-first-entry-v1/bin/"
     "apollyon_claim_protected_first_entry_v1"
