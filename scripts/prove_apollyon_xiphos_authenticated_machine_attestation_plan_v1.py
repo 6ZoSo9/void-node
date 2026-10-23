@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json"
 MARKER = "VOID_APOLLYON_XIPHOS_AUTHENTICATED_MACHINE_ATTESTATION_PLAN_V1_PROOF"
 PARENT_HEAD = "d7c3145dd202a4a7c3914732c8a8920c33a904ef"
-PLAN_ID = "voidapollyonxiphosattestplan1_bb22aae1db88ec8dbfaaf4a40d952e8b67d25754b0a060ecf6a439c263081fab"
+PLAN_ID = "voidapollyonxiphosattestplan1_e3f13c2059ead38ee0c8ec05101d575976439a2f3381a035f8a6b35ddbaee5ff"
 OBSERVED_DIGEST = "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057"
 
 PINS = {
@@ -71,6 +71,18 @@ TRANSPORT_REQUIREMENTS = {
     "host_key_sha256_raw_ssh_public_key_blob_required": True,
     "client_public_key_sha256_raw_ssh_public_key_blob_required": True,
     "known_hosts_sha256_exact_file_bytes_required": True,
+    "remote_authorized_key_restrict_required": True,
+    "remote_authorized_key_exact_client_public_key_required": True,
+    "remote_authorized_key_exact_forced_command_required": True,
+    "remote_authorized_key_environment_options_forbidden": True,
+    "remote_authorized_keys_file_custody_required": True,
+    "remote_forced_command_rejects_nonempty_original_command_required": True,
+    "remote_sshd_permit_user_environment_no_required": True,
+    "remote_sshd_permit_user_rc_no_required": True,
+    "remote_sshd_accept_env_empty_required": True,
+    "remote_account_shell_exact_root_owned_reviewed_required": True,
+    "remote_system_sshrc_absent_or_exact_reviewed_required": True,
+    "remote_forced_command_handler_root_owned_nonwritable_required": True,
     "known_hosts_parent_root_owned_nonwritable_required": True,
     "known_hosts_file_root_owned_readonly_required": True,
     "global_known_hosts_disabled_required": True,
@@ -404,7 +416,7 @@ def main() -> None:
     plan = validate(parse_json(read_regular(PLAN, 256 * 1024)))
     verify_parent_blobs()
     rejected = adversaries(plan)
-    need(rejected == 106, "semantic_adversary_count_invalid")
+    need(rejected == 118, "semantic_adversary_count_invalid")
     print(MARKER + "_GREEN")
     print("plan_id=" + PLAN_ID)
     print("source_only=true")
@@ -420,6 +432,18 @@ def main() -> None:
     print("host_key_sha256_raw_ssh_public_key_blob_required=true")
     print("client_public_key_sha256_raw_ssh_public_key_blob_required=true")
     print("known_hosts_sha256_exact_file_bytes_required=true")
+    print("remote_authorized_key_restrict_required=true")
+    print("remote_authorized_key_exact_client_public_key_required=true")
+    print("remote_authorized_key_exact_forced_command_required=true")
+    print("remote_authorized_key_environment_options_forbidden=true")
+    print("remote_authorized_keys_file_custody_required=true")
+    print("remote_forced_command_rejects_nonempty_original_command_required=true")
+    print("remote_sshd_permit_user_environment_no_required=true")
+    print("remote_sshd_permit_user_rc_no_required=true")
+    print("remote_sshd_accept_env_empty_required=true")
+    print("remote_account_shell_exact_root_owned_reviewed_required=true")
+    print("remote_system_sshrc_absent_or_exact_reviewed_required=true")
+    print("remote_forced_command_handler_root_owned_nonwritable_required=true")
     print("remote_measurement_runtime_provenance_required=true")
     print("attestation_execution_authorized=false")
     print("authenticated_transport_attestation_present=false")
