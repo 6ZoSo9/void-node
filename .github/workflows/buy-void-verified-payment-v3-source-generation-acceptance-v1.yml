@@ -55,7 +55,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v3_current_generation_dispatch_v1.mjs)" = "00f8342744d1bf9035b37479cf776e6516a20bfe"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v3_current_generation_dispatch_v1.mjs)" = "c760e1b11f6d437796d7eb1cbece297c88d8b2a6"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v3_trigger_closure_v1.mjs)" = "95198a897d3021cf4ffcb4e068ddd9d7fa574594"
           test "$(git rev-parse HEAD:docs/architecture/buy-void-verified-payment-v3-source-generation-acceptance-v1.md)" = "e4ba4d7a9b2bbd3e565ad7045c20ee10a83c3f76"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_capacity_fifo_nonblocking_v2.ts)" = "1b3d72c2eda967f5cd84d929cd80c62508cce16e"
