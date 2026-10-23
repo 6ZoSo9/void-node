@@ -1039,6 +1039,56 @@ def _task_inventory_digest(
     return sha256(canonical(material))
 
 
+def _task_mount_namespace(
+    pid: int,
+    tid: int,
+    proc_fd: int | None = None,
+) -> tuple[int, int] | None:
+    try:
+        st = (
+            os.stat(
+                PROC / str(pid) / "task" / str(tid) / "ns" / "mnt",
+                follow_symlinks=True,
+            )
+            if proc_fd is None
+            else os.stat(
+                f"{pid}/task/{tid}/ns/mnt",
+                dir_fd=proc_fd,
+                follow_symlinks=True,
+            )
+        )
+    except OSError as exc:
+        if exc.errno in (errno.ENOENT, errno.ESRCH, errno.EACCES, errno.EPERM):
+            return None
+        raise
+    return int(st.st_dev), int(st.st_ino)
+
+
+def _task_mount_namespace_inventory(
+    pid: int,
+    inventory: dict[int, tuple[str, str]],
+    expected_host_mount_namespace: tuple[int, int],
+    proc_fd: int | None = None,
+) -> tuple[dict[int, tuple[int, int]] | None, int | None]:
+    if (
+        type(expected_host_mount_namespace) is not tuple
+        or len(expected_host_mount_namespace) != 2
+        or any(type(value) is not int or value <= 0 for value in expected_host_mount_namespace)
+    ):
+        hold("host_mount_namespace_identity_invalid")
+    observed: dict[int, tuple[int, int]] = {}
+    for tid, (state, _start_ticks) in sorted(inventory.items()):
+        if state in ("Z", "X"):
+            continue
+        namespace = _task_mount_namespace(pid, tid, proc_fd)
+        if namespace is None:
+            return None, None
+        if namespace != expected_host_mount_namespace:
+            return observed, tid
+        observed[tid] = namespace
+    return observed, None
+
+
 def _matches(st: os.stat_result, identities: set[tuple[int, int]]) -> bool:
     return (st.st_dev, st.st_ino) in identities
 
@@ -1220,6 +1270,7 @@ def _scan_maps(
 def scan_process(
     pid: int,
     identities: set[tuple[int, int]],
+    expected_host_mount_namespace: tuple[int, int],
     proc_fd: int | None = None,
 ) -> dict[str, Any]:
     before = _proc_stat(pid, proc_fd)
@@ -1237,6 +1288,26 @@ def scan_process(
             "status": "task_inventory_changed_or_unreadable",
             "start_ticks": before["start_ticks"],
         }
+    mount_namespaces_before, divergent_tid = _task_mount_namespace_inventory(
+        pid, tasks_before, expected_host_mount_namespace, proc_fd
+    )
+    if divergent_tid is not None:
+        return {
+            "pid": pid,
+            "status": "task_mount_namespace_diverged",
+            "start_ticks": before["start_ticks"],
+            "task_count": len(tasks_before),
+            "divergent_tid": divergent_tid,
+            "task_mount_namespace_inventory_stable": False,
+        }
+    if mount_namespaces_before is None:
+        return {
+            "pid": pid,
+            "status": "task_mount_namespace_changed_or_unreadable",
+            "start_ticks": before["start_ticks"],
+            "task_count": len(tasks_before),
+            "task_mount_namespace_inventory_stable": False,
+        }
 
     if before["state"] in ("Z", "X"):
         live_tasks = [
@@ -1253,8 +1324,30 @@ def scan_process(
                 "task_inventory_stable": False,
             }
         tasks_after = _task_inventory(pid, proc_fd)
+        mount_namespaces_after, divergent_tid = (
+            (None, None)
+            if tasks_after is None
+            else _task_mount_namespace_inventory(
+                pid, tasks_after, expected_host_mount_namespace, proc_fd
+            )
+        )
         after = _proc_stat(pid, proc_fd)
-        if after != before or tasks_after is None or tasks_after != tasks_before:
+        if divergent_tid is not None:
+            return {
+                "pid": pid,
+                "status": "task_mount_namespace_diverged",
+                "start_ticks": before["start_ticks"],
+                "task_count": len(tasks_before),
+                "divergent_tid": divergent_tid,
+                "task_mount_namespace_inventory_stable": False,
+            }
+        if (
+            after != before
+            or tasks_after is None
+            or tasks_after != tasks_before
+            or mount_namespaces_after is None
+            or mount_namespaces_after != mount_namespaces_before
+        ):
             return {
                 "pid": pid,
                 "status": "generation_changed_or_vanished",
@@ -1268,6 +1361,7 @@ def scan_process(
             "task_count": len(tasks_before),
             "live_task_count": 0,
             "task_inventory_stable": True,
+            "task_mount_namespace_inventory_stable": True,
             "task_generation_digest": _task_inventory_digest(tasks_before),
         }
 
@@ -1297,12 +1391,30 @@ def scan_process(
         incomplete += task_incomplete
 
     tasks_after = _task_inventory(pid, proc_fd)
+    mount_namespaces_after, divergent_tid = (
+        (None, None)
+        if tasks_after is None
+        else _task_mount_namespace_inventory(
+            pid, tasks_after, expected_host_mount_namespace, proc_fd
+        )
+    )
     after = _proc_stat(pid, proc_fd)
+    if divergent_tid is not None:
+        return {
+            "pid": pid,
+            "status": "task_mount_namespace_diverged",
+            "start_ticks": before["start_ticks"],
+            "task_count": len(tasks_before),
+            "divergent_tid": divergent_tid,
+            "task_mount_namespace_inventory_stable": False,
+        }
     if (
         after is None
         or after != before
         or tasks_after is None
         or tasks_after != tasks_before
+        or mount_namespaces_after is None
+        or mount_namespaces_after != mount_namespaces_before
     ):
         return {
             "pid": pid,
@@ -1318,6 +1430,7 @@ def scan_process(
         "task_count": len(tasks_before),
         "live_task_count": live_tasks,
         "task_inventory_stable": True,
+        "task_mount_namespace_inventory_stable": True,
         "task_generation_digest": _task_inventory_digest(tasks_before),
         "reference_count": sum(refs.values()),
         "references": refs,
@@ -1352,10 +1465,15 @@ def classify_attempt(
     task_inventory_stable = all(
         row.get("task_inventory_stable") is True for row in scanned_rows
     )
+    task_mount_namespace_inventory_stable = all(
+        row.get("task_mount_namespace_inventory_stable") is True
+        for row in scanned_rows
+    )
     clean = (
         pid_stable
         and target_stable
         and task_inventory_stable
+        and task_mount_namespace_inventory_stable
         and len(rows) == len(start_pids)
         and not referenced
         and not incomplete
@@ -1364,6 +1482,8 @@ def classify_attempt(
         "pid_count": len(start_pids),
         "pid_set_stable": pid_stable,
         "task_inventory_stable": task_inventory_stable,
+        "task_mount_namespace_inventory_stable":
+            task_mount_namespace_inventory_stable,
         "task_count": sum(int(row.get("task_count", 0)) for row in rows),
         "target_identity_set_stable": target_stable,
         "referenced_process_count": len(referenced),
@@ -1384,6 +1504,9 @@ def classify_attempt(
         "mount_namespace_reference_absence_proven": False,
         "task_inventory_generation_stability_required": True,
         "per_thread_files_fs_reference_scan_required": True,
+        "per_thread_host_mount_namespace_required": True,
+        "task_mount_namespace_generation_stability_required": True,
+        "private_task_mount_namespace_rejected": True,
         "process_reference_snapshot_race_free": False,
         "live_at_use_reverification_required": True,
     }
@@ -1403,6 +1526,10 @@ def all_process_census(
         host_root_fd, host_root_scope = open_retained_host_root(
             proc_fd, proc_scope
         )
+        expected_host_mount_namespace = (
+            int(proc_scope["host_mount_namespace_dev"]),
+            int(proc_scope["host_mount_namespace_ino"]),
+        )
         attempts: list[dict[str, Any]] = []
         for attempt in range(1, MAX_SCAN_ATTEMPTS + 1):
             target_before = target_snapshot(
@@ -1413,7 +1540,12 @@ def all_process_census(
             rows: list[dict[str, Any]] = []
             total_tasks = 0
             for pid in start_pids:
-                row = scan_process(pid, identities, proc_fd)
+                row = scan_process(
+                    pid,
+                    identities,
+                    expected_host_mount_namespace,
+                    proc_fd,
+                )
                 total_tasks += int(row.get("task_count", 0))
                 if total_tasks > MAX_TOTAL_TASKS:
                     hold("proc_total_task_limit_exceeded")
@@ -1470,6 +1602,9 @@ def all_process_census(
             "mount_namespace_reference_absence_proven": False,
             "task_inventory_generation_stability_required": True,
             "per_thread_files_fs_reference_scan_required": True,
+            "per_thread_host_mount_namespace_required": True,
+            "task_mount_namespace_generation_stability_required": True,
+            "private_task_mount_namespace_rejected": True,
             "process_reference_snapshot_race_free": False,
             "live_at_use_reverification_required": True,
         }
@@ -1530,6 +1665,9 @@ def census(
         "proc_maps_path_text_retained": False,
         "mount_namespace_reference_scan_performed": False,
         "mount_namespace_reference_absence_proven": False,
+        "per_thread_host_mount_namespace_required": True,
+        "task_mount_namespace_generation_stability_required": True,
+        "private_task_mount_namespace_rejected": True,
         "service_mutation": False,
         "systemd_mutation": False,
         "install_target_selected": False,
@@ -1555,6 +1693,7 @@ def self_test() -> None:
             "task_count": 1,
             "live_task_count": 1,
             "task_inventory_stable": True,
+            "task_mount_namespace_inventory_stable": True,
             "task_generation_digest": "0" * 64,
             "reference_count": 0,
             "references": {"cwd": 0, "root": 0, "exe": 0, "fd": 0, "maps": 0},
@@ -1727,6 +1866,9 @@ def self_test() -> None:
     print("all_process_target_reference_absent_observed=false")
     print("task_inventory_generation_stability_required=true")
     print("per_thread_files_fs_reference_scan_required=true")
+    print("per_thread_host_mount_namespace_required=true")
+    print("task_mount_namespace_generation_stability_required=true")
+    print("private_task_mount_namespace_rejected=true")
     print("bounded_task_inventory_required=true")
     print("zombie_leader_live_worker_rejected=true")
     print("target_pre_post_identity_recheck=true")
