@@ -647,15 +647,20 @@ def write_create_only(path: Path, raw: bytes) -> os.stat_result:
             if written <= 0:
                 hold("archive_write_failed")
             total += written
-        os.fsync(fd)
-        opened_before_readback = os.fstat(fd)
+        opened_before_fsync = os.fstat(fd)
         if (
-            not stat.S_ISREG(opened_before_readback.st_mode)
-            or opened_before_readback.st_nlink != 1
-            or stat.S_IMODE(opened_before_readback.st_mode) & 0o077
-            or opened_before_readback.st_size != len(raw)
+            not stat.S_ISREG(opened_before_fsync.st_mode)
+            or opened_before_fsync.st_nlink != 1
+            or stat.S_IMODE(opened_before_fsync.st_mode) & 0o077
+            or opened_before_fsync.st_size != len(raw)
         ):
             hold("archive_output_or_parent_generation_invalid")
+        os.fsync(fd)
+        opened_before_readback = os.fstat(fd)
+        if not _same_file_generation(
+            opened_before_fsync, opened_before_readback
+        ):
+            hold("archive_output_generation_changed_during_file_fsync")
 
         readback = bytearray()
         read_offset = 0
@@ -790,7 +795,7 @@ def self_test() -> None:
         original_content_race_fsync = os.fsync
         content_race_exercised = False
 
-        def truncate_after_file_fsync(fd: int) -> None:
+        def rewrite_after_file_fsync(fd: int) -> None:
             nonlocal content_race_exercised
             original_content_race_fsync(fd)
             if (
@@ -798,15 +803,17 @@ def self_test() -> None:
                 and stat.S_ISREG(os.fstat(fd).st_mode)
                 and content_race.exists()
             ):
-                os.ftruncate(fd, 7)
+                os.ftruncate(fd, 0)
+                if os.pwrite(fd, raw, 0) != len(raw):
+                    hold("self_test_output_content_race_rewrite_short")
                 content_race_exercised = True
 
-        os.fsync = truncate_after_file_fsync
+        os.fsync = rewrite_after_file_fsync
         try:
             try:
                 write_create_only(content_race, raw)
             except ArchiveHold as exc:
-                if "archive_output_or_parent_generation_invalid" not in str(exc):
+                if "archive_output_generation_changed_during_file_fsync" not in str(exc):
                     raise
             else:
                 hold("self_test_output_content_race_accepted")
@@ -1023,6 +1030,7 @@ def main(argv: list[str]) -> int:
         print("single_create_only_final_publication_after_validation=true")
         print("successful_output_parent_fsync=true")
         print("successful_output_exact_readback=true")
+        print("output_generation_stable_across_file_fsync=true")
         print("output_leaf_revalidated_after_parent_fsync=true")
         print("retained_parent_cleanup_survives_path_rebind=true")
         print("symlink_output_parent_rejected=true")
