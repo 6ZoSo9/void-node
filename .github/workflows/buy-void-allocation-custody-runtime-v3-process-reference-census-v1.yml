@@ -46,11 +46,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "65916e49b7297e3b592049a3878683141d364152"
+            "bd5d4b940b30f3d8299d423daaa66718e7e16095"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "554ffb2a2bd57c3972dcdc40484c0922ec756cce"
+            "8345513750f85c5b612da7a814e6fe8ca9131be5"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.md)" = \
-            "7fa8924f32c433132c67d8b9e68ac79e3180575f"
+            "de792eaa816ffce3cf90c35ab95cbda0f23f71b0"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
             "c2e0c53336665578e4ab26204f7d67908c66ad3f"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
@@ -95,6 +95,10 @@ jobs:
             'receipt_target_bound_to_selected_attempt=true' \
             'legacy_tree_entry_limit=32768' \
             'python_no_bytecode_mode_required=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'host_pid_namespace_mismatch_fail_closed=true' \
+            'pid1_namespace_match_required=true' \
+            'canonical_procfs_no_hidepid_required=true' \
             'root_execution_forbidden=true' \
             'all_process_reference_absence_proven=false' \
             'privileged_all_process_scan=false' \
@@ -138,6 +142,13 @@ jobs:
             'legacy_tree_entry_limit=32768' \
             'python_no_bytecode_mode_required=true' \
             'without_dash_b_bootstrap_hold=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'host_pid_namespace_lease_parser_tested=true' \
+            'private_pid_namespace_mismatch_rejected=true' \
+            'wrong_host_pid_namespace_lease_rejected=true' \
+            'canonical_procfs_no_hidepid_required=true' \
+            'hidepid_procfs_rejected=true' \
+            'host_procfs_revalidated_each_attempt=true' \
             'proc_cmdline_read=false' \
             'proc_environ_read=false' \
             'proc_fd_target_text_read=false' \
