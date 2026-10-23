@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { attachBlockRangeErrorV1, parseAttachBlockRange } from "./http/api_attach.js";
+import { attachBlockRangeErrorV1, parseAttachBlockRange, resolveAttachBlockRangeAliasV1 } from "./http/api_attach.js";
 import { listDirectDirectoryNamesV1 as ldn, readDirectRegularFileV1 as rf } from "./http/public_node_local_data_drop_file_v1.js";
 import { classifyVoidDemo003PublicServingSetV1, VOID_DEMO003_CANONICAL_PAYLOADS_V1 as d3p, VOID_DEMO003_CONTROL_MAX_BYTES_V1 as d3c } from "./http/void_demo003_public_serving_contract_v1.js";
 import {
@@ -8645,18 +8645,23 @@ void_lastseal_txs ${Number.isFinite(r.txs)?r.txs:0}
 
   app.get("/blocks/range", (req, res) => {
     const head = (((globalThis as any).__void_node || (globalThis as any).node) as any).store.loadHeadNumber();
-    const range = parseAttachBlockRange(
-      req.query.from ?? req.query.start,
-      req.query.to ?? req.query.end,
-      head,
+    const fromAlias = resolveAttachBlockRangeAliasV1(
+      req.query.from,
+      req.query.start,
     );
+    const toAlias = resolveAttachBlockRangeAliasV1(
+      req.query.to,
+      req.query.end,
+    );
+    const fromRaw = fromAlias.ok ? fromAlias.value : null;
+    const toRaw = toAlias.ok ? toAlias.value : null;
+    const range =
+      fromAlias.ok && toAlias.ok
+        ? parseAttachBlockRange(fromRaw, toRaw, head)
+        : null;
     if (!range) {
       return res.status(400).json(
-        attachBlockRangeErrorV1(
-          req.query.from ?? req.query.start,
-          req.query.to ?? req.query.end,
-          head,
-        ),
+        attachBlockRangeErrorV1(fromRaw, toRaw, head),
       );
     }
     try {

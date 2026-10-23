@@ -1,0 +1,110 @@
+name: VOID V7 full-history source-release reseal v1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/precision/void_v7_source_release_full_history_reseal_v1.py'
+      - 'scripts/prove_void_v7_source_release_full_history_reseal_v1.py'
+      - 'docs/operators/void-v7-source-release-full-history-reseal-v1.md'
+      - '.github/workflows/void-v7-source-release-full-history-reseal-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reseal-source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact four-file scope and blobs
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v1.py)" = "b59b4ad0d2c31988908a281ad18f40ecbb3961ac"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v1.md)" = "1e53d9fc404e2711358dbad796ab913f1dc481da"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git merge-base --is-ancestor "${{ github.event.pull_request.base.sha }}" HEAD
+            cat > /tmp/expected <<'EOF'
+          A	.github/workflows/void-v7-source-release-full-history-reseal-v1.yml
+          A	docs/operators/void-v7-source-release-full-history-reseal-v1.md
+          A	ops/precision/void_v7_source_release_full_history_reseal_v1.py
+          A	scripts/prove_void_v7_source_release_full_history_reseal_v1.py
+          EOF
+            git diff --name-status "${{ github.event.pull_request.base.sha }}" HEAD -- | sort > /tmp/actual
+            sort /tmp/expected > /tmp/expected.sorted
+            diff -u /tmp/expected.sorted /tmp/actual
+          fi
+          git diff --check
+
+      - name: Syntax and source proof
+        run: |
+          set -euo pipefail
+          git switch -C main HEAD
+          test "$(git rev-parse --abbrev-ref HEAD)" = main
+          # actions/checkout may leave per-worktree config metadata. The
+          # production source contract intentionally rejects that delegation,
+          # so normalize only this disposable CI repository to the ordinary
+          # standalone-checkout shape used on Precision.
+          rm -f -- .git/config.worktree
+          git config --local --unset-all extensions.worktreeConfig || true
+          test ! -e .git/config.worktree
+          test "$(git rev-parse --is-shallow-repository)" = false
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for rel in (
+              "ops/precision/void_v7_source_release_full_history_reseal_v1.py",
+              "scripts/prove_void_v7_source_release_full_history_reseal_v1.py",
+          ):
+              raw = Path(rel).read_bytes()
+              compile(raw, rel, "exec", dont_inherit=True, optimize=0)
+          PY
+          python3 -I -B scripts/prove_void_v7_source_release_full_history_reseal_v1.py
+
+      - name: Build and verify disposable full-history candidate
+        run: |
+          set -euo pipefail
+          ACCOUNT_HOME="$(python3 -I -B - <<'PY'
+          import os, pwd
+          print(pwd.getpwuid(os.getuid()).pw_dir)
+          PY
+          )"
+          test -n "$ACCOUNT_HOME"
+          test -d "$ACCOUNT_HOME"
+          test ! -L "$ACCOUNT_HOME"
+          mkdir -p "$ACCOUNT_HOME/Downloads"
+          test -d "$ACCOUNT_HOME/Downloads"
+          test ! -L "$ACCOUNT_HOME/Downloads"
+          python3 -I -B ops/precision/void_v7_source_release_full_history_reseal_v1.py \
+            --build \
+            --output "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" \
+            | tee "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'status=FULL_HISTORY_RESEAL_CANDIDATE_GREEN' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'descriptor_bound_candidate_mutation=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'mountpoint_alias_rejection=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'candidate_cleanup_attempted=false' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'current_uid_filesystem_write_boundary=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'same_uid_namespace_relocation_isolation=false' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'intended_source_repository_mutation=false' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'intended_protected_filesystem_mutation=false' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'source_repository_mutation=unknown' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'protected_filesystem_mutation=unknown' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'pack_leaf_descriptors_retained=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'pack_leaf_generation_and_digest_revalidation=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'index_leaf_generation_and_digest_revalidation=true' "$RUNNER_TEMP/reseal.log"
+          grep -Fx 'network=false' "$RUNNER_TEMP/reseal.log"
+          test ! -e "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate/.git/shallow"
+          test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-parse --is-shallow-repository)" = false
+          test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-list --count 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb)" = 17931
+          test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-parse HEAD)" = 4c80887adc2b55e327f1aaec4f58a90d0bb1a3fb
+          test "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" rev-parse 'HEAD^{tree}')" = de12c9d2d5e475d435d21da3b047d7b63b69e2b7
+          test -z "$(git -C "$ACCOUNT_HOME/Downloads/void-v7-full-history-candidate" status --porcelain=v1 --untracked-files=all)"
