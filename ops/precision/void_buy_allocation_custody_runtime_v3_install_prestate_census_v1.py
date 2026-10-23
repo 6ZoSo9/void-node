@@ -64,6 +64,7 @@ PROPOSED_ROLLBACK = INSTALL_PARENT / PROPOSED_ROLLBACK_NAME
 MAX_TREE_ENTRIES = 4096
 MAX_FILE_BYTES = 32 * 1024 * 1024
 MAX_TOTAL_REGULAR_BYTES = 512 * 1024 * 1024
+MAX_SYMLINK_BYTES = 4096
 MAX_DEPTH = 64
 
 
@@ -303,6 +304,26 @@ def _entry_record(
     return result
 
 
+def _hash_symlink_at(
+    parent_fd: int,
+    name: str,
+    before: os.stat_result,
+) -> tuple[int, str]:
+    if not stat.S_ISLNK(before.st_mode):
+        hold("target_symlink_shape_invalid:" + name)
+    try:
+        target = os.readlink(name, dir_fd=parent_fd)
+    except OSError as exc:
+        hold("target_symlink_read_failed:" + name + ":" + str(exc.errno))
+    raw = os.fsencode(target)
+    if len(raw) > MAX_SYMLINK_BYTES:
+        hold("target_symlink_target_too_large:" + name)
+    after = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if _generation(before) != _generation(after):
+        hold("target_symlink_generation_changed:" + name)
+    return len(raw), sha256(raw)
+
+
 def _hash_regular_at(parent_fd: int, name: str, before: os.stat_result) -> str:
     if before.st_size < 0 or before.st_size > MAX_FILE_BYTES:
         hold("target_file_size_out_of_bounds:" + name)
@@ -405,6 +426,16 @@ def _scan_dir(
                 hold("target_tree_entry_limit_exceeded")
             if totals["bytes"] > MAX_TOTAL_REGULAR_BYTES:
                 hold("target_tree_byte_limit_exceeded")
+        elif stat.S_ISLNK(st.st_mode):
+            link_bytes, link_sha256 = _hash_symlink_at(fd, name, st)
+            record = _entry_record(relative, st, "symlink")
+            record["link_target_bytes"] = link_bytes
+            record["link_target_sha256"] = link_sha256
+            records.append(record)
+            totals["entries"] += 1
+            totals["symlinks"] += 1
+            if totals["entries"] > MAX_TREE_ENTRIES:
+                hold("target_tree_entry_limit_exceeded")
         else:
             hold("target_tree_special_file_forbidden:" + relative)
 
@@ -440,7 +471,13 @@ def scan_target_at(
             hold("target_root_cross_device_mount_forbidden")
 
         records: list[dict[str, Any]] = []
-        totals = {"entries": 0, "directories": 0, "files": 0, "bytes": 0}
+        totals = {
+            "entries": 0,
+            "directories": 0,
+            "files": 0,
+            "symlinks": 0,
+            "bytes": 0,
+        }
         _scan_dir(target_fd, "", records, totals, 0, opened.st_dev)
 
         final_opened = os.fstat(target_fd)
@@ -473,7 +510,7 @@ def scan_target_at(
                 "regular_bytes": totals["bytes"],
                 "content_metadata_sha256": tree_sha,
                 "special_files": 0,
-                "symlinks": 0,
+                "symlinks": totals["symlinks"],
             },
         }
     finally:
@@ -664,7 +701,20 @@ def self_test() -> None:
         ):
             hold("self_test_positive_prestate_invalid")
 
-        (target / "bad-link").symlink_to(target / "a.txt")
+        (target / "opaque-link").symlink_to("../outside-do-not-follow")
+        linked = collect_prestate(
+            parent,
+            TARGET_NAME,
+            PROPOSED_STAGE_NAME,
+            PROPOSED_ROLLBACK_NAME,
+            require_root_owned_parent=False,
+        )
+        if linked["target"]["tree"]["symlinks"] != 1:
+            hold("self_test_symlink_opaque_identity_missing")
+        (target / "opaque-link").unlink()
+
+        fifo = target / "bad-fifo"
+        os.mkfifo(fifo, 0o600)
         try:
             collect_prestate(
                 parent,
@@ -677,8 +727,8 @@ def self_test() -> None:
             if "target_tree_special_file_forbidden" not in str(exc):
                 raise
         else:
-            hold("self_test_symlink_target_entry_accepted")
-        (target / "bad-link").unlink()
+            hold("self_test_special_file_accepted")
+        fifo.unlink()
 
         stage = parent / PROPOSED_STAGE_NAME
         stage.mkdir(mode=0o700)
@@ -700,7 +750,8 @@ def self_test() -> None:
     print("descriptor_bound_tree_scan=true")
     print("target_tree_content_metadata_digest=true")
     print("nested_mount_rejection_bound=true")
-    print("symlink_and_special_file_rejection=true")
+    print("symlink_opaque_identity_bound=true")
+    print("special_file_rejection=true")
     print("stage_and_rollback_collision_observed=true")
     print("read_only=true")
     print("filesystem_write=false")
