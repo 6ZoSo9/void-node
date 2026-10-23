@@ -45,11 +45,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_host_namespace_lease_observation_v1.py)" = \
-            "9a420790377ce7c83a254460452a4f27676e1cbd"
+            "cdae4647f25a125acd4108f4dc29a4af4a83bf4d"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_host_namespace_lease_observation_v1.py)" = \
-            "e966aa284cca551e3f61ce62792413829bc92089"
+            "4b8089e8b0b8f93f0bda8dd79bd8f0713f5e5843"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-host-namespace-lease-observation-v1.md)" = \
-            "d18da6b16f04c7a0da7ec99019d1f9838b734e9a"
+            "e969ba444319e1fb893c173671a9a675b79d8f45"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
             "a5fa6ff22cc21df555e8a70c32500f07251dc4a8"
 
@@ -83,6 +83,7 @@ jobs:
             'complete_proc_visibility_required=true' \
             'hidepid_restricted_proc_holds=true' \
             'descriptor_relative_bounded_reader_tested=true' \
+            'proc_self_intermediate_symlink_supported=true' \
             'proc_fdinfo_zero_size_reader_tested=true' \
             'proc_mount_id_reader_tested=true' \
             'operator_observation_only=true' \
