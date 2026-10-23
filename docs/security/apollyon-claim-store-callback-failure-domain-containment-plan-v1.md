@@ -108,9 +108,46 @@ The **future** supervisor must therefore prove all thirteen additional propertie
     may resolve the record. UNKNOWN effects remain indeterminate and cannot
     authorize automatic retry or a second one-time consumption.
 
+### Exact reviewed resource ceilings
+
+The future worker envelope is not satisfied by merely claiming that a resource
+is "bounded". The plan fixes the maximum accepted configuration values below;
+an implementation that raises any of them requires a new reviewed plan
+generation.
+
+| Resource | Exact maximum |
+| --- | ---: |
+| worker deadline | 5,000 ms |
+| full worker-tree reap | 5,000 ms |
+| canonical success receipt frame | 65,536 bytes |
+| stdout capture | 8,192 bytes |
+| stderr capture | 8,192 bytes |
+| diagnostic capture | 8,192 bytes |
+| memory | 268,435,456 bytes (256 MiB) |
+| swap | 0 bytes |
+| process/thread PIDs | 32 |
+| CPU quota / period | 100,000 / 100,000 µs (1 CPU) |
+| open descriptors | 64 |
+| single-file size via RLIMIT_FSIZE | 1,048,576 bytes |
+| private writable filesystem | 16,777,216 bytes (16 MiB) |
+| read bandwidth | 16,777,216 bytes/s |
+| write bandwidth | 8,388,608 bytes/s |
+| read IOPS | 1,024/s |
+| write IOPS | 512/s |
+
+These ceilings are intentionally conservative and align with the already-bound
+source generation: publish requests are capped at 65,536 bytes, store records
+at 256 KiB, and the transaction-lease helper already uses a 5-second timeout
+and 8 KiB output buffer. The larger 1 MiB file ceiling leaves room for
+implementation metadata while remaining finite; the private filesystem and
+I/O ceilings prevent a hostile callback from converting a short request into
+host-scale disk consumption. Future implementation must enforce the CPU,
+memory/swap, PID, FD, file-size, filesystem-capacity and I/O limits before
+callback execution and must prevent descendants from escaping them.
+
 These are testable requirements for a subsequent implementation, **not**
-existing installed safeguards. Plan/proof CI only checks that omitting or
-reversing any of these requirements fails the content-addressed schema.
+existing installed safeguards. Plan/proof CI checks every exact ceiling
+independently as well as the boolean contract.
 Any future integration needs executable early-exit, inherited-descendant,
 timeout/kill/reap, fencing-loss, **supervisor SIGKILL with surviving old worker**,
 restart/reacquire denied until durable fencing and quiescence, post-exit-race,
@@ -148,7 +185,7 @@ cannot be substituted for `core`, `transaction_lease`, `native_bridge`
 or the two proofs. Two new negative cases swap core/lease roles and
 duplicate the bridge record under the core role; both must fail at
 `bound_source_role_invalid:core`, **not** at the final content hash.
-The earlier semantic-proof generation increased the source-only adversary count from 44 to **48**; the current supervisor-death requirement generation raises it to **50**, with explicit
+The earlier semantic-proof generation increased the source-only adversary count from 44 to **48**; the supervisor-death generation raised it to **50**. The current exact-ceiling generation adds 18 per-resource adversaries for **68** total, with explicit
 proof output `negative_cases_failed_at_semantic_gate=true` and
 `bound_source_role_identities_enforced=true`.
 
@@ -164,7 +201,7 @@ The plan requires a separate OS-process failure domain, one request per isolated
 custody, inherited-FD allowlisting, minimal environment, a post-callback event-loop
 checkpoint, clean-exit gating before success acknowledgement, abnormal-exit HOLD,
 **bounded canonical IPC receipt framing and independent stdout/stderr/log capture budgets**,
-pre-exec kernel memory/PID/CPU/FD quotas and quota/OOM-event fencing,
+pre-exec exact memory/swap/PID/CPU/FD/file-size/filesystem-capacity/I/O quotas and quota/OOM-event fencing,
 supervisor-crash old-worker quiescence and durable restart-era fencing,
 post-mutation indeterminate handling without automatic replay, and terminal revalidation of
 store generation, peer identity, and callback source identity.
