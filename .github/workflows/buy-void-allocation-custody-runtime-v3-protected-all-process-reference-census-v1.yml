@@ -47,11 +47,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "71ae96955f95c0e8096128b0f443cda9213572d3"
+            "20b0a1bae77ba5002cd07463c723e6bcd59ad57b"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "fe4b2dc1b6317c4a80c82050753ef4d25306a3c7"
+            "4d9dadcbe195e5b0406d1cfdf8d60ddaf648d637"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" = \
-            "8f7139a03f843e005671ab2d1ca4224b62d2b534"
+            "5144194cd5d92c10ca9ab5f71fb9e8d45efe7b2d"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
             "ded737a228a627a241a84131113db6d3521f635c"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
@@ -120,6 +120,8 @@ jobs:
             'all_process_reference_absence_proven=false' \
             'fd_table_stability_proven=false' \
             'mapping_set_stability_proven=false' \
+            'mount_namespace_reference_scan_performed=false' \
+            'mount_namespace_reference_absence_proven=false' \
             'process_reference_snapshot_race_free=false' \
             'live_at_use_reverification_required=true' \
             'production_filesystem_write=false' \
@@ -188,6 +190,8 @@ jobs:
             'all_process_reference_absence_proven=false' \
             'fd_table_stability_proven=false' \
             'mapping_set_stability_proven=false' \
+            'mount_namespace_reference_scan_performed=false' \
+            'mount_namespace_reference_absence_proven=false' \
             'process_reference_snapshot_race_free=false' \
             'live_at_use_reverification_required=true' \
             'protected_source_installed_in_ci=false' \
