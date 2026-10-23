@@ -32,7 +32,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          BASE="a42153631b0523fcefca12b9ed40a9a743c2fadd"
+          BASE="2f58b776c4ba5b4c1b309d122122bd3355e2abc9"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
@@ -47,15 +47,15 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "0567991abb05c121722d47485ab9e7410b8b8126"
+            "09fea72290cf88e2e31d31acfe97e2ca134af184"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "83f5d15dce02fb9d3d4c21d9cb3d29526b179ae6"
+            "9c8d4996a9d9fdaf8b4f6824616c06e4d40b01f6"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" = \
-            "5b01353cedcbb0b7385b4b2f77e8aba69f5212fe"
+            "c04ae3f8b04e3691a3dec1d53f2cd0b4d46bc918"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "86c493d7acbe539fe898024474ed3c8815760603"
+            "a5fa6ff22cc21df555e8a70c32500f07251dc4a8"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "feb6508133a1feda9bda793646a5c949f1fdc7f0"
+            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
@@ -87,6 +87,23 @@ jobs:
             'all_numeric_pids_scope=true' \
             'kernel_thread_explicit_skip=true' \
             'pid_generation_recheck=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'private_pid_namespace_rejected=true' \
+            'host_pid_namespace_lease_mismatch_rejected=true' \
+            'host_mount_namespace_external_lease_required=true' \
+            'private_mount_namespace_rejected=true' \
+            'host_mount_namespace_lease_mismatch_rejected=true' \
+            'complete_proc_visibility_required=true' \
+            'hidepid_restricted_proc_holds=true' \
+            'retained_procfs_view_required=true' \
+            'retained_procfs_view_descriptor_relative=true' \
+            'retained_procfs_view_revalidated_after_census=true' \
+            'target_resolved_in_host_mount_namespace=true' \
+            'host_namespace_lease_provenance_authenticated_by_census=false' \
+            'separately_reviewed_host_namespace_lease_required=true' \
+            'task_inventory_generation_stability_required=true' \
+            'per_thread_files_fs_reference_scan_required=true' \
+            'bounded_task_inventory_required=true' \
             'target_pre_post_identity_recheck=true' \
             'proc_cmdline_read=false' \
             'proc_environ_read=false' \
@@ -126,6 +143,25 @@ jobs:
             'all_numeric_pids_scope=true' \
             'kernel_thread_explicit_skip=true' \
             'pid_generation_recheck=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'private_pid_namespace_rejected=true' \
+            'host_pid_namespace_lease_mismatch_rejected=true' \
+            'host_mount_namespace_external_lease_required=true' \
+            'private_mount_namespace_rejected=true' \
+            'host_mount_namespace_lease_mismatch_rejected=true' \
+            'complete_proc_visibility_required=true' \
+            'hidepid_restricted_proc_holds=true' \
+            'retained_procfs_view_required=true' \
+            'retained_procfs_view_descriptor_relative=true' \
+            'retained_procfs_view_revalidated_after_census=true' \
+            'target_resolved_in_host_mount_namespace=true' \
+            'host_namespace_lease_provenance_authenticated_by_census=false' \
+            'separately_reviewed_host_namespace_lease_required=true' \
+            'task_inventory_generation_stability_required=true' \
+            'per_thread_files_fs_reference_scan_required=true' \
+            'bounded_task_inventory_required=true' \
+            'nonleader_thread_fd_reference_detected=true' \
+            'task_generation_churn_detected=true' \
             'target_pre_post_identity_recheck=true' \
             'proc_cmdline_read=false' \
             'proc_environ_read=false' \
