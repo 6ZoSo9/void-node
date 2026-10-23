@@ -18,8 +18,7 @@
     "required_root_mode": "0700",
     "required_operations": [
       "collect_plan",
-      "verify_candidate",
-      "copy_source_descriptor_custody"
+      "verify_candidate"
     ],
     "must_not_receive_root_owned_private_stage_acl": true
   },
@@ -76,7 +75,13 @@
     "named_acl_only_after_private_digest": true,
     "private_verifier_digest_before_acl_removal": true,
     "all_temporary_acl_removed_before_final_publication": true,
-    "atomically_publish_no_replace": true
+    "atomically_publish_no_replace": true,
+    "required_precondition": "_require_privileged_source_custody",
+    "required_operations": [
+      "_copy_candidate_to_stage",
+      "_seal_verified_stage_for_publication"
+    ],
+    "candidate_owner_executes_protected_copy": false
   },
   "site_plan": [
     {
