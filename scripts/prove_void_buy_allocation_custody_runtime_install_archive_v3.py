@@ -129,6 +129,33 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
     else:
         raise AssertionError("create-only archive output overwrote existing file")
 
+    content_race_path = parent / "content-race-proof.tar"
+    original_content_race_fsync = module.os.fsync
+    content_race_exercised = [False]
+
+    def truncate_after_file_fsync(fd: int) -> None:
+        original_content_race_fsync(fd)
+        if (
+            not content_race_exercised[0]
+            and stat.S_ISREG(module.os.fstat(fd).st_mode)
+            and content_race_path.exists()
+        ):
+            module.os.ftruncate(fd, 7)
+            content_race_exercised[0] = True
+
+    module.os.fsync = truncate_after_file_fsync
+    try:
+        try:
+            module.write_create_only(content_race_path, raw)
+        except module.ArchiveHold as exc:
+            assert "archive_output_or_parent_generation_invalid" in str(exc)
+        else:
+            raise AssertionError("output content race was accepted")
+    finally:
+        module.os.fsync = original_content_race_fsync
+    assert content_race_exercised[0]
+    assert not content_race_path.exists()
+
     partial_path = parent / "partial-write-proof.tar"
     original_write = module.os.write
     write_calls = [0]
@@ -319,6 +346,7 @@ for required in [
     "failed_validation_final_path_absent=true",
     "single_create_only_final_publication_after_validation=true",
     "successful_output_parent_fsync=true",
+    "successful_output_exact_readback=true",
     "output_leaf_revalidated_after_parent_fsync=true",
     "retained_parent_cleanup_survives_path_rebind=true",
     "output_parent_not_private_or_bound",
@@ -354,6 +382,7 @@ print("archive_bytes_validated_before_final_publication=true")
 print("failed_validation_final_path_absent=true")
 print("single_create_only_final_publication_after_validation=true")
 print("successful_output_parent_fsync=true")
+print("successful_output_exact_readback=true")
 print("output_leaf_revalidated_after_parent_fsync=true")
 print("retained_parent_cleanup_survives_path_rebind=true")
 print("symlink_output_parent_rejected=true")
