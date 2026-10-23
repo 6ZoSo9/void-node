@@ -5,6 +5,44 @@ import fs from "node:fs";
 const target = "public/demo/index.html";
 const source = fs.readFileSync(target, "utf8");
 
+const voidElements = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input",
+  "link", "meta", "param", "source", "track", "wbr",
+]);
+
+function requireResultPayloadOutsideLiveAncestors(html) {
+  const needle = '<pre id="resultBox">';
+  const resultIndex = html.indexOf(needle);
+  assert.notEqual(resultIndex, -1, "full result payload element must exist");
+
+  const stack = [];
+  const tagPattern = /<\/?([a-z][a-z0-9:-]*)(?:\s[^<>]*?)?>/giu;
+  for (const match of html.matchAll(tagPattern)) {
+    if (match.index >= resultIndex) break;
+    const tag = match[0];
+    const name = match[1].toLowerCase();
+    if (tag.startsWith("</")) {
+      for (let index = stack.length - 1; index >= 0; index -= 1) {
+        if (stack[index].name === name) {
+          stack.splice(index, 1);
+          break;
+        }
+      }
+      continue;
+    }
+    if (tag.endsWith("/>") || voidElements.has(name)) continue;
+    stack.push({ name, tag });
+  }
+
+  for (const ancestor of stack) {
+    assert.doesNotMatch(
+      ancestor.tag,
+      /\b(?:role\s*=\s*["'](?:status|alert|log|marquee|timer|progressbar)["']|aria-live\s*=\s*["'](?:polite|assertive)["'])/iu,
+      "full result payload must not be nested inside a live region",
+    );
+  }
+}
+
 function requireDemoAccessibility(html) {
   assert.match(
     html,
@@ -41,10 +79,21 @@ function requireDemoAccessibility(html) {
     /<pre id="resultBox">No result yet\.<\/pre>/u,
     "full result payload must remain outside live regions",
   );
+  requireResultPayloadOutsideLiveAncestors(html);
   assert.match(
     html,
     /\$\("resultBox"\)\.textContent = JSON\.stringify\(j, null, 2\);\s*\$\("resultStatusLabel"\)\.textContent = "Result ready\.";/u,
     "successful payloads must use a concise result-ready announcement",
+  );
+  assert.match(
+    html,
+    /\$\("resultStatusLabel"\)\.textContent = "Timed out waiting for result\.";/u,
+    "timeout must use a bounded result-status announcement",
+  );
+  assert.match(
+    html,
+    /\$\("resultStatusLabel"\)\.textContent = "Submitting job\.";/u,
+    "submission must use a bounded result-status announcement",
   );
   assert.match(
     html,
@@ -101,6 +150,14 @@ const negativeMutations = [
     error: /outside live regions/u,
   },
   {
+    name: "result_payload_live_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" role="status" aria-live="polite">\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
     name: "unbounded_result_payload_announcement",
     html: source.replace(
       '$("resultStatusLabel").textContent = "Result ready.";',
@@ -115,6 +172,22 @@ const negativeMutations = [
       '$("resultStatusLabel").textContent = String(e);',
     ),
     error: /concise failure announcement|must not receive unbounded/u,
+  },
+  {
+    name: "missing_timeout_result_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Timed out waiting for result.";',
+      "",
+    ),
+    error: /timeout must use a bounded result-status announcement/u,
+  },
+  {
+    name: "missing_submitting_result_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Submitting job.";',
+      "",
+    ),
+    error: /submission must use a bounded result-status announcement/u,
   },
   {
     name: "missing_health_subject",
@@ -152,6 +225,8 @@ console.log("health_status_live=true");
 console.log("submit_status_live=true");
 console.log("result_status_live=true");
 console.log("result_payload_live=false");
+console.log("result_payload_live_ancestor=false");
 console.log("result_status_bounded=true");
+console.log("result_submission_timeout_status_bounded=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=11");
+console.log("negative_mutations=14");
