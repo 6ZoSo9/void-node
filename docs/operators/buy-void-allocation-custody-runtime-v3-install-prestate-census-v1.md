@@ -60,8 +60,9 @@ retain that mount ID as read from `/proc/self/fdinfo/<fd>`; this rejects
 same-device bind mounts as well as cross-device mounts instead of absorbing
 either into rollback identity. The census walks the tree through retained
 `O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK` descriptors. Every regular file is opened
-with `O_NOFOLLOW|O_NONBLOCK`, hashed through its retained descriptor, and
-revalidated against its visible generation.
+with `O_NOFOLLOW|O_NONBLOCK` only to bind its type, mount and metadata
+generation; **file contents are never read or hashed**. The opened generation is
+revalidated against the visible generation before the metadata record is used.
 
 The tree may contain ordinary directories, regular files and symlinks.
 Symlinks are treated as opaque legacy entries: the census never follows them,
@@ -69,13 +70,15 @@ records only their metadata plus the byte length and SHA-256 of the link text,
 and never prints the link target. FIFOs, sockets, devices and other special
 files HOLD.
 
-The census emits a bounded content/metadata digest over relative path, type,
-UID, GID, mode and link count, plus file length/SHA-256 or opaque symlink-target
-length/SHA-256 as applicable. It also records the target root device/inode so a
-future rollback planner can bind a same-filesystem rename of that exact legacy
-root.
+The census emits a bounded **metadata digest** over relative path, type,
+device/inode, UID, GID, mode, link count and metadata timestamps, plus regular
+file length or opaque symlink-target length/SHA-256 as applicable. It also
+records the target root device/inode so a future rollback planner can bind a
+same-filesystem rename of that exact legacy root.
 
-No regular-file content or symlink target text is printed.
+No legacy regular-file content is read or printed. Symlink target text is read
+only as link metadata, is never followed, and is represented only by length and
+SHA-256 in the receipt.
 
 ## Proposed future names
 
@@ -92,7 +95,8 @@ A present legacy target is only a **rollback-rename candidate** when both names
 are absent and the target is on the same filesystem as `/opt`.
 
 An absent target is only a **create-only install candidate** when both names are
-absent.
+absent. In that state `same_filesystem_rename_candidate=false` because no
+existing target inode has been observed to rename.
 
 Neither status is installation authority.
 
