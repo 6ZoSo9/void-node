@@ -1057,6 +1057,9 @@ const intervalHandle = {
 let concurrentStartCollector:
   | VoidUdpSwarmPublicRelayIntroductionCollectorV1
   | undefined;
+let synchronousReentrantStart:
+  | ReturnType<VoidUdpSwarmPublicRelayIntroductionCollectorV1["start"]>
+  | undefined;
 try {
   globalThis.setInterval = ((callback: () => void) => {
     scheduledIntervals.push(callback);
@@ -1076,6 +1079,10 @@ try {
       intervalMs: 10_000,
       nowMs: () => NOW,
       async fetchIntroduction() {
+        if (!synchronousReentrantStart) {
+          assert(concurrentStartCollector);
+          synchronousReentrantStart = concurrentStartCollector.start();
+        }
         reportConcurrentStartFetchStarted();
         await concurrentStartFetchGate;
         return envelope();
@@ -1097,7 +1104,8 @@ try {
 
   const firstStart = concurrentStartCollector.start();
   await concurrentStartFetchStarted;
-  const secondStart = concurrentStartCollector.start();
+  assert(synchronousReentrantStart);
+  const secondStart = synchronousReentrantStart;
   releaseConcurrentStartFetch();
   const [firstOutcome, secondOutcome] = await Promise.all([
     firstStart,
@@ -1140,5 +1148,6 @@ console.log("zero_progress_transport_stream_rejected=true");
 console.log("settled_transport_read_failure_releases_reader=true");
 console.log("signal_ignoring_transport_read_deadline_owned=true");
 console.log("concurrent_start_single_scheduler=true");
+console.log("synchronous_reentrant_start_single_scheduler=true");
 console.log("nonsettling_transport_cancel_does_not_extend_deadline=true");
 console.log(MARKER);
