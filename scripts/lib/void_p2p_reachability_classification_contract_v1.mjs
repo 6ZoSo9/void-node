@@ -329,6 +329,7 @@ export function classifyReachability(rawObservations, {
   nowMs = Date.now(),
   maxAgeMs = DEFAULT_MAX_AGE_MS,
   recordValidityMs = DEFAULT_RECORD_VALIDITY_MS,
+  domainConsistencyObservations,
 } = {}) {
   if (!Array.isArray(rawObservations) || rawObservations.length < 1 || rawObservations.length > MAX_OBSERVATIONS) {
     throw new Error(`reachability classification requires 1 through ${MAX_OBSERVATIONS} observations`);
@@ -354,10 +355,35 @@ export function classifyReachability(rawObservations, {
   const dialbackFailures = fresh.filter((entry) => entry.kind === "authenticated_dialback" && entry.outcome === "failure");
   // Count an observer toward independence only when every fresh authenticated
   // observation from that identity agrees on one declared failure domain.
-  // Failures and outbound observations reveal label rotation but do not add
-  // dialback-success credit.
+  // A runtime caller can supply its complete observation set before candidate
+  // grouping so domain rotation on another candidate still disqualifies the
+  // observer from the independence counts.
+  const consistencyRaw = domainConsistencyObservations ?? rawObservations;
+  if (!Array.isArray(consistencyRaw) ||
+      consistencyRaw.length < 1 ||
+      consistencyRaw.length > MAX_OBSERVATIONS) {
+    throw new Error("reachability domain-consistency evidence count is invalid");
+  }
+  const consistencyValidated = consistencyRaw.map((entry) =>
+    validateReachabilityObservation(entry, { nowMs, maxAgeMs }));
+  const consistencyIds = new Set();
+  for (const entry of consistencyValidated) {
+    const id = entry.observation.observation_id;
+    if (consistencyIds.has(id)) {
+      throw new Error("reachability domain-consistency evidence contains a duplicate observation ID");
+    }
+    consistencyIds.add(id);
+  }
+  for (const entry of validated) {
+    if (!consistencyIds.has(entry.observation.observation_id)) {
+      throw new Error("reachability domain-consistency scope omits classified evidence");
+    }
+  }
+  const consistencyFresh = consistencyValidated
+    .filter((entry) => !entry.stale)
+    .map((entry) => entry.observation);
   const domainsByFreshObserver = new Map();
-  for (const entry of fresh) {
+  for (const entry of consistencyFresh) {
     const domains = domainsByFreshObserver.get(entry.observer_node_id) ?? new Set();
     domains.add(entry.observer_failure_domain);
     domainsByFreshObserver.set(entry.observer_node_id, domains);
