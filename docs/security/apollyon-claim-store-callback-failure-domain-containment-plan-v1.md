@@ -228,4 +228,27 @@ by treating a buffered success receipt as final.
 Next gate:
 `DISTINCT_REVIEW_FAILURE_DOMAIN_PLAN_THEN_BUILD_ISOLATED_RUNTIME_CANDIDATE_V1`.
 
+
+## Source identity: explicit UID/GID and hard-link count binding
+
+The proof's bounded no-follow `read_regular()` now compares `st_uid`,
+`st_gid` and `st_nlink` explicitly alongside device, inode, mode, size,
+mtime and ctime across the initial pathname observation, opened descriptor and
+terminal visible-path recheck. The initial regular-file and single-link
+requirement remains unchanged.
+
+Ordinary ownership or hard-link changes also alter ctime on Linux, so this is
+defense-in-depth rather than evidence of a practical bypass. Disposable
+temporary-file adversaries simulate UID, GID and hard-link-count drift only in
+the descriptor observation while leaving timestamps unchanged; each must fail
+closed as `source_generation_changed`. The proof uses no `chown`, protected
+pathname, elevated privilege or production-file mutation and restores
+`os.fstat` after every adversary.
+
+These checks do not authenticate directory ancestry, ACLs, mount namespace,
+executable identity, installed callback-process origin or the runtime
+containment plan itself. The current plan's durable fencing, resource ceilings,
+terminal winner/claim rereads, and all negative host/training/funds authority
+remain separate requirements.
+
 PROTECT THE CORE.
