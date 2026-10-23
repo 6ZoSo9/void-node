@@ -120,12 +120,10 @@ function assertNoProxy(value,code){
 }
 
 function withStack(stack,value,fn){
-  for(let index=0;index<stack.length;index+=1){
-    if(stack[index]===value)fail("apollyon_claim_canonical_v2_cycle_invalid");
+  for(let frame=stack;frame!==null;frame=frame.parent){
+    if(frame.value===value)fail("apollyon_claim_canonical_v2_cycle_invalid");
   }
-  stack[stack.length]=value;
-  try{return fn();}
-  finally{stack.length-=1;}
+  return fn({value,parent:stack});
 }
 
 function serializeArray(value,depth,stack){
@@ -150,7 +148,7 @@ function serializeArray(value,depth,stack){
     fail("apollyon_claim_canonical_v2_array_shape_invalid");
   }
 
-  return withStack(stack,value,()=>{
+  return withStack(stack,value,(nextStack)=>{
     let out="[";
     for(let index=0;index<length;index+=1){
       const key=""+index;
@@ -161,7 +159,7 @@ function serializeArray(value,depth,stack){
         fail("apollyon_claim_canonical_v2_array_shape_invalid");
       }
       if(index!==0)out+=",";
-      out+=serialize(descriptor.value,depth+1,stack);
+      out+=serialize(descriptor.value,depth+1,nextStack);
       bounded(out);
     }
     out+="]";
@@ -209,6 +207,9 @@ function serializeObject(value,depth,stack){
   }
   for(let index=0;index<names.length;index+=1){
     const key=names[index];
+    if(key==="__proto__"){
+      fail("apollyon_claim_canonical_v2_object_key_invalid");
+    }
     const descriptor=exactDataDescriptor(
       value,key,"apollyon_claim_canonical_v2_object_shape_invalid",
     );
@@ -222,7 +223,7 @@ function serializeObject(value,depth,stack){
   // (therefore lexicographic) order. Reproduce that order without stringify.
   APPLY(ARRAY_SORT,names,[compareCanonicalObjectKeys]);
 
-  return withStack(stack,value,()=>{
+  return withStack(stack,value,(nextStack)=>{
     let out="{";
     for(let index=0;index<names.length;index+=1){
       const key=names[index];
@@ -230,7 +231,7 @@ function serializeObject(value,depth,stack){
         value,key,"apollyon_claim_canonical_v2_object_shape_invalid",
       );
       if(index!==0)out+=",";
-      out+=quoteString(key)+":"+serialize(descriptor.value,depth+1,stack);
+      out+=quoteString(key)+":"+serialize(descriptor.value,depth+1,nextStack);
       bounded(out);
     }
     out+="}";
@@ -258,5 +259,5 @@ function serialize(value,depth,stack){
 }
 
 export function canonicalApollyonClaimContractJsonV2(value){
-  return serialize(value,0,[]);
+  return serialize(value,0,null);
 }
