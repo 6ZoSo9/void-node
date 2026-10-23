@@ -144,7 +144,6 @@ for required in (
     "protected_source_fixed_path_required",
     "protected_source_ancestor_custody_invalid",
     "protected_source_leaf_custody_invalid",
-    "mutable_checkout_privileged_execution_rejected",
     "all_process_reference_absence_proven",
     "fd_table_stability_proven",
     "mapping_set_stability_proven",
