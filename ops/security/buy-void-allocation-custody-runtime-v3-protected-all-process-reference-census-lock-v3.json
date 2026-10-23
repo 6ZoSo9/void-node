@@ -21,7 +21,7 @@
     "source_sha256": "f3ef0593eae77825f730609b85da51af66168ba11f39848d052a91942e4cc335",
     "source_sha256_freshly_derived": true,
     "proof_path": "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v3.py",
-    "proof_git_blob_sha1": "33c487b080e6af52c0de564e7d90908008cf3c2d",
+    "proof_git_blob_sha1": "ba1b8cc6c30c613c2d638e60f1bb61a288266227",
     "document_path": "docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.md",
     "document_git_blob_sha1": "86952328f67e74fe8ab600617692733cf1d0a24e"
   },
