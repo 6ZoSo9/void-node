@@ -89,12 +89,17 @@ A **service quiescence candidate** requires:
 - `ActiveState=inactive`;
 - `SubState=dead` or `exited`;
 - `MainPID=0`;
-- `ControlPID=0`; and
+- `ControlPID=0`;
+- `NeedDaemonReload=no`;
+- `UnitFileState` empty, `disabled`, `static` or `masked`;
+- the canonical runtime directory absent; and
 - the canonical socket path absent.
 
 A missing unit with those conditions is recorded separately as
-`unit_absent_observed=true`. A loaded but inactive unit may also be a
-quiescence candidate.
+`unit_absent_observed=true`. A loaded but inactive unit may be a candidate
+only when it is not enabled, no daemon reload is pending, and no runtime
+directory/socket generation remains. These are still advisory observations,
+not replacement authority.
 
 This generation deliberately reports:
 
@@ -118,6 +123,13 @@ python3 -I -B \
 ```
 
 No sudo is required or authorized.
+
+The **production `--census` path** performs no filesystem write. The
+`--self-test` path and standalone source proof intentionally create and remove
+temporary fixtures under the caller's temporary directory; their receipts
+therefore report `self_test_temporary_filesystem_write=true` /
+`test_fixture_filesystem_write=true` separately instead of describing those
+test executions as globally write-free.
 
 ## Authority remains false
 
