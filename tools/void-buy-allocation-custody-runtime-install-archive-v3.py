@@ -778,6 +778,37 @@ def self_test() -> None:
         ):
             hold("self_test_validated_publication_invalid")
 
+        moving_parent = parent / "moving-output-parent"
+        moved_parent = parent / "moved-output-parent"
+        moving_parent.mkdir(mode=0o700)
+        rebound_output = moving_parent / "rebound.tar"
+        original_write_rebind = os.write
+        rebound = False
+
+        def rebind_parent_during_write(fd: int, data: bytes) -> int:
+            nonlocal rebound
+            written = original_write_rebind(fd, data)
+            if not rebound:
+                moving_parent.rename(moved_parent)
+                moving_parent.mkdir(mode=0o700)
+                rebound = True
+            return written
+
+        os.write = rebind_parent_during_write
+        try:
+            try:
+                write_create_only(rebound_output, raw)
+            except ArchiveHold:
+                pass
+            else:
+                hold("self_test_output_parent_rebind_accepted")
+        finally:
+            os.write = original_write_rebind
+        if not rebound:
+            hold("self_test_output_parent_rebind_not_exercised")
+        if rebound_output.exists() or (moved_parent / "rebound.tar").exists():
+            hold("self_test_output_parent_rebind_left_partial")
+
         real_parent = parent / "real-output-parent"
         real_parent.mkdir(mode=0o700)
         linked_parent = parent / "linked-output-parent"
@@ -869,6 +900,7 @@ def main(argv: list[str]) -> int:
         print("archive_bytes_validated_before_final_publication=true")
         print("failed_validation_final_path_absent=true")
         print("single_create_only_final_publication_after_validation=true")
+        print("retained_parent_cleanup_survives_path_rebind=true")
         print("symlink_output_parent_rejected=true")
         print("fifo_substitution_rejected_without_blocking=true")
         print("archive_candidate_accepted=false")
