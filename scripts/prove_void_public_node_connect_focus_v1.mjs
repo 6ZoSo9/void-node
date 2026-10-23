@@ -12,37 +12,88 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const html = readFileSync(
-  resolve(ROOT, "public/public-node/connect/index.html"),
-  "utf8",
-);
+const pages = {
+  route: readFileSync(
+    resolve(ROOT, "public/public-node/connect/index.html"),
+    "utf8",
+  ),
+  pack: readFileSync(
+    resolve(
+      ROOT,
+      "public/public-node/connect/public-node-connect-pack-v1.html",
+    ),
+    "utf8",
+  ),
+};
 const workflow = readFileSync(
   resolve(ROOT, ".github/workflows/void-public-node-connect-focus-v1.yml"),
   "utf8",
 );
-const compact = html.replace(/\s+/gu, " ");
-
-assert.match(html, /<html lang="en">/u);
-assert.match(html, /<main>/u);
-assert.match(
-  compact,
-  /a:focus-visible \{ outline:3px solid #f8fafc; outline-offset:4px; \}/u,
-);
-assert.doesNotMatch(html, /outline\s*:\s*(?:0|none)\b/iu);
 
 const publicLinks = [
   "/public-node/connect/public-node-connect-pack-v1.json",
   "/public-node/connect/public-node-connect-pack-v1.html",
 ];
-assert.equal((html.match(/<a\b/gu) || []).length, publicLinks.length);
-for (const href of publicLinks) {
-  assert.ok(html.includes(`href="${href}"`), `missing public link: ${href}`);
+const dialCommand =
+  "curl --fail-with-body --silent --show-error -X POST -H 'content-type: application/json'";
+const requiredGuidance = [
+  "Run this only against a local node you administer.",
+  "This POST asks the local node to start an outgoing connection and may update its local peer state.",
+  "means the node accepted the dial request. It does not prove that the peer connected.",
+  "reports why the request was rejected. Do not retry blindly;",
+  "confirm the peer appears connected in the peer snapshot",
+];
+
+for (const [name, html] of Object.entries(pages)) {
+  const compact = html.replace(/\s+/gu, " ");
+
+  assert.match(html, /<html lang="en">/u, `${name} language missing`);
+  assert.match(html, /<main>/u, `${name} main landmark missing`);
+  assert.match(
+    compact,
+    /a:focus-visible \{ outline:3px solid #f8fafc; outline-offset:4px; \}/u,
+    `${name} link focus indicator missing`,
+  );
+  assert.doesNotMatch(
+    html,
+    /outline\s*:\s*(?:0|none)\b/iu,
+    `${name} removes focus indication`,
+  );
+  assert.doesNotMatch(
+    html,
+    /<script\b|<form\b|<input\b/iu,
+    `${name} must remain inert`,
+  );
+  assert.match(html, /This is not validator admission/u);
+  assert.match(html, /Public-safe node connection guidance only/u);
+  assert.ok(html.includes(dialCommand), `${name} dial command hides errors`);
+
+  for (const guidance of requiredGuidance) {
+    assert.ok(
+      compact.includes(guidance),
+      `${name} missing dial guidance: ${guidance}`,
+    );
+  }
+
+  assert.equal(
+    (html.match(/<a\b/gu) || []).length,
+    publicLinks.length,
+    `${name} public link count changed`,
+  );
+  for (const href of publicLinks) {
+    assert.ok(
+      html.includes(`href="${href}"`),
+      `${name} missing public link: ${href}`,
+    );
+  }
 }
 
-assert.doesNotMatch(html, /<script\b|<form\b|<input\b/iu);
-assert.match(html, /This is not validator admission/);
-assert.match(html, /Public-safe node connection guidance only/);
-
+assert.ok(
+  workflow.includes(
+    '"public/public-node/connect/public-node-connect-pack-v1.html"',
+  ),
+  "workflow must watch the alternate public HTML surface",
+);
 assert.ok(
   workflow.includes('merge_base="$(git merge-base "$BASE" "$HEAD")"'),
   "workflow must derive the common ancestor from the moving base tip",
@@ -139,6 +190,9 @@ try {
 console.log("VOID_PUBLIC_NODE_CONNECT_FOCUS_V1_PROOF_GREEN");
 console.log("explicit_keyboard_focus_indicator=true");
 console.log("focus_not_removed=true");
+console.log("public_html_surfaces=2");
+console.log("dial_side_effect_disclosed=true");
+console.log("dial_result_semantics_bounded=true");
 console.log("public_resource_links=2");
 console.log("moving_base_merge_base_hygiene=true");
 console.log("disjoint_base_advance_regression=true");
