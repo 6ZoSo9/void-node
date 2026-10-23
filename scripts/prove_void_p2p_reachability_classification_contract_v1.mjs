@@ -88,6 +88,28 @@ assert.equal(
   1,
 );
 
+const failedDomainRotation = classifyReachability([
+  obs({ observer: OBSERVER_A, domain: "isp-a" }),
+  obs({ observer: OBSERVER_A, domain: "isp-b", outcome: "failure", at: NOW - 50_000 }),
+  obs({ observer: OBSERVER_B, domain: "isp-b", at: NOW - 40_000 }),
+], { nowMs: NOW });
+assert.equal(failedDomainRotation.classification, "direct_observed_unconfirmed");
+assert.equal(failedDomainRotation.counts.dialback_successes, 2);
+assert.equal(failedDomainRotation.counts.dialback_failures, 1);
+assert.equal(failedDomainRotation.counts.independent_success_observers, 1);
+assert.equal(failedDomainRotation.counts.independent_success_domains, 1);
+
+const outboundDomainRotation = classifyReachability([
+  obs({ observer: OBSERVER_A, domain: "isp-a" }),
+  obs({ observer: OBSERVER_A, domain: "isp-b", kind: "authenticated_outbound_seen", at: NOW - 50_000 }),
+  obs({ observer: OBSERVER_B, domain: "isp-b", at: NOW - 40_000 }),
+], { nowMs: NOW });
+assert.equal(outboundDomainRotation.classification, "direct_observed_unconfirmed");
+assert.equal(outboundDomainRotation.counts.dialback_successes, 2);
+assert.equal(outboundDomainRotation.counts.outbound_successes, 1);
+assert.equal(outboundDomainRotation.counts.independent_success_observers, 1);
+assert.equal(outboundDomainRotation.counts.independent_success_domains, 1);
+
 const outboundOnly = classifyReachability([
   obs({ observer: OBSERVER_A, domain: "isp-a", kind: "authenticated_outbound_seen" }),
   obs({ observer: OBSERVER_B, domain: "isp-b", kind: "authenticated_dialback", outcome: "failure", at: NOW - 40_000 }),
@@ -165,6 +187,8 @@ console.log("single_observer_direct_confirmed=false");
 console.log("same_failure_domain_direct_confirmed=false");
 console.log("same_observer_multiple_domains_direct_confirmed=false");
 console.log("conflicting_observer_failure_domains_direct_confirmed=false");
+console.log("failed_dialback_domain_rotation_withholds_independence=true");
+console.log("outbound_domain_rotation_withholds_independence=true");
 console.log("failed_dialback_nat_type_inferred=false");
 console.log("failed_dialback_relay_requirement_inferred=false");
 console.log("outbound_only_classified_without_unreachable_claim=true");
