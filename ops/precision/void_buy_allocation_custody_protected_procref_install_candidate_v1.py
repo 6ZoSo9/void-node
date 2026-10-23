@@ -104,6 +104,18 @@ def sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def canonical(value: object) -> bytes:
+    return (
+        json.dumps(
+            value,
+            sort_keys=True,
+            ensure_ascii=True,
+            separators=(",", ":"),
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
 def _identity(st: os.stat_result) -> tuple[int, int, int, int, int, int]:
     return (
         st.st_dev,
@@ -193,6 +205,16 @@ def _open_production_parent() -> tuple[int, dict[str, int]]:
     root_fd = os.open("/", _directory_flags())
     parent_fd = -1
     try:
+        root_opened = os.fstat(root_fd)
+        root_visible = os.stat("/", follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(root_opened.st_mode)
+            or root_opened.st_uid != 0
+            or root_opened.st_gid != 0
+            or stat.S_IMODE(root_opened.st_mode) & 0o022
+            or _identity(root_opened) != _identity(root_visible)
+        ):
+            hold("filesystem_root_custody_invalid")
         before = os.stat("opt", dir_fd=root_fd, follow_symlinks=False)
         if (
             not stat.S_ISDIR(before.st_mode)
@@ -207,8 +229,11 @@ def _open_production_parent() -> tuple[int, dict[str, int]]:
         if _identity(before) != _identity(opened):
             hold("production_install_parent_rebound")
         root_after = os.fstat(root_fd)
-        root_visible = os.stat("/", follow_symlinks=False)
-        if _identity(root_after) != _identity(root_visible):
+        root_visible_after = os.stat("/", follow_symlinks=False)
+        if (
+            _identity(root_after) != _identity(root_opened)
+            or _identity(root_after) != _identity(root_visible_after)
+        ):
             hold("filesystem_root_changed_during_parent_open")
         record = _parent_record(
             parent_fd,
@@ -591,6 +616,46 @@ def _cleanup_stage(
             os.close(stage_fd)
 
 
+def _post_publication_checks(
+    parent_fd: int,
+    parent_initial: dict[str, int],
+    raw: bytes,
+    *,
+    expected_uid: int,
+    expected_gid: int,
+    target_name: str,
+    _fsync_fn: Any = os.fsync,
+    _verify_fn: Any = _verify_root_at,
+) -> None:
+    try:
+        _fsync_fn(parent_fd)
+    except BaseException as exc:
+        raise PublishedInstallHold(
+            "post_publication_parent_fsync_failed",
+            "parent_fsync",
+        ) from exc
+    try:
+        _revalidate_parent(
+            parent_fd,
+            parent_initial,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+        )
+        _verify_fn(
+            parent_fd,
+            target_name,
+            raw,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+            expected_mount_id=parent_initial["mount_id"],
+        )
+    except BaseException as exc:
+        raise PublishedInstallHold(
+            "post_publication_final_verification_failed",
+            "final_verification",
+        ) from exc
+
+
 def _publish_into_parent(
     parent_fd: int,
     raw: bytes,
@@ -626,6 +691,7 @@ def _publish_into_parent(
         created_stage = True
         stage_fd = os.open(stage_name, _directory_flags(), dir_fd=parent_fd)
         try:
+            os.fchmod(stage_fd, 0o755)
             stage_initial = _stage_record(
                 stage_fd,
                 expected_uid=expected_uid,
@@ -667,26 +733,37 @@ def _publish_into_parent(
         )
         _rename_noreplace(parent_fd, stage_name, target_name)
         published = True
-        os.fsync(parent_fd)
-        _revalidate_parent(
+        _post_publication_checks(
             parent_fd,
             parent_initial,
-            expected_uid=expected_uid,
-            expected_gid=expected_gid,
-        )
-        _verify_root_at(
-            parent_fd,
-            target_name,
             raw,
             expected_uid=expected_uid,
             expected_gid=expected_gid,
-            expected_mount_id=parent_initial["mount_id"],
+            target_name=target_name,
         )
-        return {
+        receipt_body = {
+            "schema": SCHEMA,
+            "marker": MARKER,
             "published": True,
             "final_verified": True,
+            "target_name": target_name,
+            "parent_dev": parent_initial["dev"],
+            "parent_ino": parent_initial["ino"],
             "parent_mount_id": parent_initial["mount_id"],
+            "source_git_blob_sha1": REVIEWED_SOURCE_GIT_BLOB,
+            "source_bytes": REVIEWED_SOURCE_BYTES,
             "source_sha256": REVIEWED_SOURCE_SHA256,
+            "root_census_executed": False,
+            "replacement_apply_authorized": False,
+            "payment_acceptance": False,
+            "public_presale_activation": False,
+            "funds_movement": False,
+        }
+        return {
+            **receipt_body,
+            "install_receipt_id": (
+                "voidbuycustodyprocrefinstall1_" + sha256(canonical(receipt_body))
+            ),
         }
     except BaseException:
         if created_stage and not published:
@@ -780,6 +857,10 @@ def self_test() -> None:
             )
             if receipt["published"] is not True or receipt["final_verified"] is not True:
                 hold("self_test_publish_receipt_invalid")
+            if not receipt["install_receipt_id"].startswith(
+                "voidbuycustodyprocrefinstall1_"
+            ):
+                hold("self_test_install_receipt_id_invalid")
 
             # No-clobber regression: target already exists.
             try:
@@ -794,6 +875,57 @@ def self_test() -> None:
                     raise
             else:
                 hold("self_test_existing_target_accepted")
+        finally:
+            os.close(parent_fd)
+
+    with tempfile.TemporaryDirectory(
+        prefix="void-procref-install-postpublish-"
+    ) as tmp:
+        parent = Path(tmp) / "opt"
+        parent.mkdir(mode=0o755)
+        parent_fd = os.open(parent, _directory_flags())
+        try:
+            initial = _parent_record(
+                parent_fd,
+                expected_uid=uid,
+                expected_gid=gid,
+            )
+            try:
+                _post_publication_checks(
+                    parent_fd,
+                    initial,
+                    raw,
+                    expected_uid=uid,
+                    expected_gid=gid,
+                    target_name=INSTALL_NAME,
+                    _fsync_fn=lambda _fd: (_ for _ in ()).throw(
+                        OSError(errno.EIO, "injected")
+                    ),
+                )
+            except PublishedInstallHold as exc:
+                if exc.phase != "parent_fsync":
+                    raise
+            else:
+                hold("self_test_postpublish_fsync_failure_not_classified")
+
+            try:
+                _post_publication_checks(
+                    parent_fd,
+                    initial,
+                    raw,
+                    expected_uid=uid,
+                    expected_gid=gid,
+                    target_name=INSTALL_NAME,
+                    _fsync_fn=lambda _fd: None,
+                    _verify_fn=lambda *args, **kwargs: (_ for _ in ()).throw(
+                        InstallHold("injected_verify")
+                    ),
+                )
+            except PublishedInstallHold as exc:
+                if exc.phase != "final_verification":
+                    raise
+            else:
+                hold("self_test_postpublish_verify_failure_not_classified")
         finally:
             os.close(parent_fd)
 
@@ -877,6 +1009,8 @@ def self_test() -> None:
     print("stage_fsync_fixture_green=true")
     print("install_parent_fsync_fixture_green=true")
     print("post_publication_exact_reverification_fixture_green=true")
+    print("content_addressed_install_receipt_fixture_green=true")
+    print("truthful_post_publication_failure_classification=true")
     print("prepublication_stage_cleanup_fixture_green=true")
     print("install_parent_drift_rejected=true")
     print("production_apply_exposed=false")
@@ -924,6 +1058,14 @@ if __name__ == "__main__":
         print(MARKER)
         print("status=HOLD")
         print("reason=" + str(exc)[:240])
+        print(
+            "publication_state="
+            + ("published_needs_inspection" if isinstance(exc, PublishedInstallHold) else "not_published")
+        )
+        print(
+            "publication_failure_phase="
+            + (exc.phase if isinstance(exc, PublishedInstallHold) else "not_published")
+        )
         print("production_apply_authorized=false")
         print("root_census_execution_authorized=false")
         print("host_write=false")
