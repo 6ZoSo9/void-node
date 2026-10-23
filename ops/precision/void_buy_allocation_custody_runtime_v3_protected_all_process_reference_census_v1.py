@@ -40,10 +40,10 @@ SCHEMA = (
 )
 VERSION = 1
 
-PARENT_CURRENT_UID_HEAD = "a42153631b0523fcefca12b9ed40a9a743c2fadd"
-PARENT_CURRENT_UID_SOURCE_BLOB = "86c493d7acbe539fe898024474ed3c8815760603"
-PRESTATE_HEAD = "bcf95a7b30cc2f62822f9322438146eca4b24e41"
-PRESTATE_SOURCE_BLOB = "feb6508133a1feda9bda793646a5c949f1fdc7f0"
+PARENT_CURRENT_UID_HEAD = "61ecbea8b098f45bcd00eca1546438ad71c30230"
+PARENT_CURRENT_UID_SOURCE_BLOB = "d3c648df3f43ab642d60b8eacedb05c851e4fd2c"
+PRESTATE_HEAD = "332367d1ac93a206437c0c977082b97ed4895cd0"
+PRESTATE_SOURCE_BLOB = "c2e0c53336665578e4ab26204f7d67908c66ad3f"
 ARCHIVE_LOCK_BLOB = "edb4ea2b833373ab387762e45ba7da4032c860f3"
 ARCHIVE_LOCK_SHA256 = (
     "ab96f16d93895b42c977fd26aef2c008115580e3ce31927275ed92986c86f8e7"
@@ -59,10 +59,12 @@ TARGET = Path("/opt/void-buy-allocation-custody-runtime-v1")
 PROC = Path("/proc")
 
 PF_KTHREAD = 0x00200000
-MAX_TARGET_ENTRIES = 4096
+MAX_TARGET_ENTRIES = 32768
 MAX_TARGET_DEPTH = 64
 MAX_PIDS = 32768
 MAX_FDS_PER_PROCESS = 65536
+MAX_TASKS_PER_PROCESS = 65536
+MAX_TOTAL_TASKS = 262144
 MAX_STAT_BYTES = 4096
 MAX_MAPS_BYTES = 8 * 1024 * 1024
 MAX_SCAN_ATTEMPTS = 3
@@ -467,35 +469,50 @@ def target_snapshot(path: Path = TARGET) -> dict[str, Any]:
         os.close(parent_fd)
 
 
+def _parse_proc_stat(raw: bytes, label: str) -> dict[str, Any]:
+    try:
+        text = raw.decode("ascii")
+    except UnicodeDecodeError:
+        hold(label + "_nonascii")
+    close = text.rfind(") ")
+    if close < 1:
+        hold(label + "_shape_invalid")
+    fields = text[close + 2 :].split()
+    if len(fields) < 20:
+        hold(label + "_fields_incomplete")
+    state = fields[0]
+    start_ticks = fields[19]
+    if len(state) != 1 or not start_ticks.isdigit() or not fields[6].isdigit():
+        hold(label + "_identity_invalid")
+    return {
+        "state": state,
+        "start_ticks": start_ticks,
+        "kernel_thread": bool(int(fields[6]) & PF_KTHREAD),
+    }
+
+
 def _proc_stat(pid: int) -> dict[str, Any] | None:
     path = PROC / str(pid) / "stat"
     try:
-        raw = _read_proc_file(path, MAX_STAT_BYTES)
+        return _parse_proc_stat(_read_proc_file(path, MAX_STAT_BYTES), "proc_stat")
     except FileNotFoundError:
         return None
     except OSError as exc:
         if exc.errno in (errno.ENOENT, errno.ESRCH):
             return None
         raise
+
+
+def _task_stat(pid: int, tid: int) -> dict[str, Any] | None:
+    path = PROC / str(pid) / "task" / str(tid) / "stat"
     try:
-        text = raw.decode("ascii")
-    except UnicodeDecodeError:
-        hold("proc_stat_nonascii")
-    close = text.rfind(") ")
-    if close < 1:
-        hold("proc_stat_shape_invalid")
-    fields = text[close + 2 :].split()
-    if len(fields) < 20:
-        hold("proc_stat_fields_incomplete")
-    state = fields[0]
-    start_ticks = fields[19]
-    if len(state) != 1 or not start_ticks.isdigit() or not fields[6].isdigit():
-        hold("proc_stat_identity_invalid")
-    return {
-        "state": state,
-        "start_ticks": start_ticks,
-        "kernel_thread": bool(int(fields[6]) & PF_KTHREAD),
-    }
+        return _parse_proc_stat(_read_proc_file(path, MAX_STAT_BYTES), "proc_task_stat")
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        if exc.errno in (errno.ENOENT, errno.ESRCH):
+            return None
+        raise
 
 
 def _all_pids() -> list[int]:
@@ -511,8 +528,59 @@ def _all_pids() -> list[int]:
     return pids
 
 
+def _task_inventory(pid: int) -> dict[int, tuple[str, str]] | None:
+    root = PROC / str(pid) / "task"
+    tids: list[int] = []
+    try:
+        iterator = os.scandir(root)
+    except OSError as exc:
+        if exc.errno in (errno.ENOENT, errno.ESRCH, errno.EACCES, errno.EPERM):
+            return None
+        raise
+    with iterator:
+        for entry in iterator:
+            if not entry.name.isdigit():
+                continue
+            tids.append(int(entry.name))
+            if len(tids) > MAX_TASKS_PER_PROCESS:
+                hold("proc_task_limit_exceeded")
+    tids.sort()
+    observed: dict[int, tuple[str, str]] = {}
+    for tid in tids:
+        row = _task_stat(pid, tid)
+        if row is None:
+            return None
+        observed[tid] = (row["state"], row["start_ticks"])
+    if not observed or pid not in observed:
+        return None
+    return observed
+
+
+def _task_inventory_digest(
+    inventory: dict[int, tuple[str, str]],
+) -> str:
+    material = [
+        {"tid": tid, "state": state, "start_ticks": start_ticks}
+        for tid, (state, start_ticks) in sorted(inventory.items())
+    ]
+    return sha256(canonical(material))
+
+
 def _matches(st: os.stat_result, identities: set[tuple[int, int]]) -> bool:
     return (st.st_dev, st.st_ino) in identities
+
+
+def _scan_link_path(
+    path: Path,
+    identities: set[tuple[int, int]],
+) -> tuple[bool, bool]:
+    try:
+        st = os.stat(path, follow_symlinks=True)
+    except OSError as exc:
+        if exc.errno in (errno.ENOENT, errno.ESRCH, errno.EACCES, errno.EPERM):
+            return False, True
+        raise
+    return _matches(st, identities), False
 
 
 def _scan_link(
@@ -520,34 +588,32 @@ def _scan_link(
     name: str,
     identities: set[tuple[int, int]],
 ) -> tuple[bool, bool]:
-    try:
-        st = os.stat(PROC / str(pid) / name, follow_symlinks=True)
-    except OSError as exc:
-        if exc.errno in (
-            errno.ENOENT,
-            errno.ESRCH,
-            errno.EACCES,
-            errno.EPERM,
-        ):
-            return False, True
-        raise
-    return _matches(st, identities), False
+    return _scan_link_path(PROC / str(pid) / name, identities)
 
 
-def _scan_fds(pid: int, identities: set[tuple[int, int]]) -> tuple[int, int]:
-    root = PROC / str(pid) / "fd"
+def _scan_task_link(
+    pid: int,
+    tid: int,
+    name: str,
+    identities: set[tuple[int, int]],
+) -> tuple[bool, bool]:
+    return _scan_link_path(
+        PROC / str(pid) / "task" / str(tid) / name,
+        identities,
+    )
+
+
+def _scan_fd_root(
+    root: Path,
+    identities: set[tuple[int, int]],
+) -> tuple[int, int]:
     refs = 0
     incomplete = 0
     seen = 0
     try:
         iterator = os.scandir(root)
     except OSError as exc:
-        if exc.errno in (
-            errno.ENOENT,
-            errno.ESRCH,
-            errno.EACCES,
-            errno.EPERM,
-        ):
+        if exc.errno in (errno.ENOENT, errno.ESRCH, errno.EACCES, errno.EPERM):
             return 0, 1
         raise
     with iterator:
@@ -572,6 +638,21 @@ def _scan_fds(pid: int, identities: set[tuple[int, int]]) -> tuple[int, int]:
             if _matches(st, identities):
                 refs += 1
     return refs, incomplete
+
+
+def _scan_fds(pid: int, identities: set[tuple[int, int]]) -> tuple[int, int]:
+    return _scan_fd_root(PROC / str(pid) / "fd", identities)
+
+
+def _scan_task_fds(
+    pid: int,
+    tid: int,
+    identities: set[tuple[int, int]],
+) -> tuple[int, int]:
+    return _scan_fd_root(
+        PROC / str(pid) / "task" / str(tid) / "fd",
+        identities,
+    )
 
 
 def _scan_maps(pid: int, identities: set[tuple[int, int]]) -> tuple[int, bool]:
@@ -622,29 +703,62 @@ def scan_process(pid: int, identities: set[tuple[int, int]]) -> dict[str, Any]:
             return {"pid": pid, "status": "generation_changed_or_vanished"}
         return {"pid": pid, "status": "not_live"}
 
+    tasks_before = _task_inventory(pid)
+    if tasks_before is None:
+        return {
+            "pid": pid,
+            "status": "task_inventory_changed_or_unreadable",
+            "start_ticks": before["start_ticks"],
+        }
+
     refs = {"cwd": 0, "root": 0, "exe": 0, "fd": 0, "maps": 0}
     incomplete = 0
-    for name in ("cwd", "root", "exe"):
-        matched, failed = _scan_link(pid, name, identities)
-        refs[name] += int(matched)
-        incomplete += int(failed)
+    live_tasks = 0
 
-    refs["fd"], fd_incomplete = _scan_fds(pid, identities)
-    incomplete += fd_incomplete
+    # CLONE_THREAD implies CLONE_VM on Linux, so exe/maps are process-mm
+    # observations. files_struct and fs_struct may be unshared per thread;
+    # inspect cwd/root/fd for every live TID rather than only the TGID leader.
+    matched, failed = _scan_link(pid, "exe", identities)
+    refs["exe"] += int(matched)
+    incomplete += int(failed)
     refs["maps"], maps_incomplete = _scan_maps(pid, identities)
     incomplete += int(maps_incomplete)
 
+    for tid, (state, _start_ticks) in sorted(tasks_before.items()):
+        if state in ("Z", "X"):
+            continue
+        live_tasks += 1
+        for name in ("cwd", "root"):
+            matched, failed = _scan_task_link(pid, tid, name, identities)
+            refs[name] += int(matched)
+            incomplete += int(failed)
+        task_refs, task_incomplete = _scan_task_fds(pid, tid, identities)
+        refs["fd"] += task_refs
+        incomplete += task_incomplete
+
+    tasks_after = _task_inventory(pid)
     after = _proc_stat(pid)
-    if after is None or after != before:
+    if (
+        after is None
+        or after != before
+        or tasks_after is None
+        or tasks_after != tasks_before
+    ):
         return {
             "pid": pid,
             "status": "generation_changed_or_vanished",
             "start_ticks": before["start_ticks"],
+            "task_count": len(tasks_before),
         }
+
     return {
         "pid": pid,
         "status": "scanned",
         "start_ticks": before["start_ticks"],
+        "task_count": len(tasks_before),
+        "live_task_count": live_tasks,
+        "task_inventory_stable": True,
+        "task_generation_digest": _task_inventory_digest(tasks_before),
         "reference_count": sum(refs.values()),
         "references": refs,
         "incomplete_observations": incomplete,
@@ -674,9 +788,14 @@ def classify_attempt(
         for key in by_kind:
             by_kind[key] += int(row["references"][key])
     pid_stable = start_pids == end_pids
+    scanned_rows = [row for row in rows if row.get("status") == "scanned"]
+    task_inventory_stable = all(
+        row.get("task_inventory_stable") is True for row in scanned_rows
+    )
     clean = (
         pid_stable
         and target_stable
+        and task_inventory_stable
         and len(rows) == len(start_pids)
         and not referenced
         and not incomplete
@@ -684,6 +803,8 @@ def classify_attempt(
     return {
         "pid_count": len(start_pids),
         "pid_set_stable": pid_stable,
+        "task_inventory_stable": task_inventory_stable,
+        "task_count": sum(int(row.get("task_count", 0)) for row in rows),
         "target_identity_set_stable": target_stable,
         "referenced_process_count": len(referenced),
         "incomplete_process_count": len(incomplete),
@@ -698,6 +819,8 @@ def classify_attempt(
         "all_process_reference_absence_proven": False,
         "fd_table_stability_proven": False,
         "mapping_set_stability_proven": False,
+        "task_inventory_generation_stability_required": True,
+        "per_thread_files_fs_reference_scan_required": True,
         "process_reference_snapshot_race_free": False,
         "live_at_use_reverification_required": True,
     }
@@ -709,7 +832,14 @@ def all_process_census() -> dict[str, Any]:
         target_before = target_snapshot(TARGET)
         identities = target_before["identities"]
         start_pids = _all_pids()
-        rows = [scan_process(pid, identities) for pid in start_pids]
+        rows: list[dict[str, Any]] = []
+        total_tasks = 0
+        for pid in start_pids:
+            row = scan_process(pid, identities)
+            total_tasks += int(row.get("task_count", 0))
+            if total_tasks > MAX_TOTAL_TASKS:
+                hold("proc_total_task_limit_exceeded")
+            rows.append(row)
         end_pids = _all_pids()
         target_after = target_snapshot(TARGET)
         stable = (
@@ -736,6 +866,8 @@ def all_process_census() -> dict[str, Any]:
         "all_process_reference_absence_proven": False,
         "fd_table_stability_proven": False,
         "mapping_set_stability_proven": False,
+        "task_inventory_generation_stability_required": True,
+        "per_thread_files_fs_reference_scan_required": True,
         "process_reference_snapshot_race_free": False,
         "live_at_use_reverification_required": True,
     }
@@ -791,6 +923,10 @@ def self_test() -> None:
             "pid": 1,
             "status": "scanned",
             "start_ticks": "100",
+            "task_count": 1,
+            "live_task_count": 1,
+            "task_inventory_stable": True,
+            "task_generation_digest": "0" * 64,
             "reference_count": 0,
             "references": {"cwd": 0, "root": 0, "exe": 0, "fd": 0, "maps": 0},
             "incomplete_observations": 0,
@@ -848,6 +984,9 @@ def self_test() -> None:
     print("all_numeric_pids_scope=true")
     print("kernel_thread_explicit_skip=true")
     print("pid_generation_recheck=true")
+    print("task_inventory_generation_stability_required=true")
+    print("per_thread_files_fs_reference_scan_required=true")
+    print("bounded_task_inventory_required=true")
     print("target_pre_post_identity_recheck=true")
     print("cwd_inode_reference_classification=true")
     print("fd_inode_reference_classification=true")
