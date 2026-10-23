@@ -70,7 +70,12 @@
     "local_home_fixed_to_identity_parent_required": true,
     "connection_attempts": 1,
     "connect_timeout_ms": 4000,
-    "operation_timeout_ms": 30000
+    "operation_timeout_ms": 30000,
+    "host_key_independent_authentication_artifact_source_bound_required": true,
+    "host_key_authentication_artifact_independent_of_attestation_transport_required": true,
+    "host_key_sha256_raw_ssh_public_key_blob_required": true,
+    "client_public_key_sha256_raw_ssh_public_key_blob_required": true,
+    "known_hosts_sha256_exact_file_bytes_required": true
   },
   "required_attestation_contract": {
     "client_generated_csprng_challenge_required": true,
@@ -99,7 +104,8 @@
     "host_key_digest_bound_into_receipt_required": true,
     "known_hosts_digest_bound_into_receipt_required": true,
     "client_public_key_digest_bound_into_receipt_required": true,
-    "challenge_digest_bound_into_receipt_required": true
+    "challenge_digest_bound_into_receipt_required": true,
+    "raw_machine_id_never_transmitted_on_any_channel_required": true
   },
   "authority": {
     "attestation_execution_authorized": false,
@@ -117,5 +123,5 @@
     "funds_movement_authorized": false
   },
   "next_gate": "INDEPENDENTLY_AUTHENTICATE_AND_SOURCE_BIND_XIPHOS_ED25519_HOST_KEY_KNOWN_HOSTS_CLIENT_IDENTITY_AND_ENDPOINT_THEN_SEPARATELY_AUTHORIZE_ATTESTATION_EXECUTION",
-  "plan_id": "voidapollyonxiphosattestplan1_7de3728e503515db7f15a3ac4824ed3012af342f89a860baab776c42f1cedffc"
+  "plan_id": "voidapollyonxiphosattestplan1_bb22aae1db88ec8dbfaaf4a40d952e8b67d25754b0a060ecf6a439c263081fab"
 }
