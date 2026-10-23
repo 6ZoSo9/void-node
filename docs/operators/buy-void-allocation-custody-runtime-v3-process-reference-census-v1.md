@@ -5,7 +5,7 @@ Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V1`.
 Status: **read-only current-UID process-reference diagnostic only**.
 
 This successor is based on the exact filesystem-prestate census generation at
-`332367d1ac93a206437c0c977082b97ed4895cd0`. It exists to satisfy the
+`836f5e704a603f67b77b2406aeec9174f640497e`. It exists to satisfy the
 existing replacement plan's requirement for a process-reference census without
 silently promoting an unprivileged observation into all-process authority.
 
@@ -14,7 +14,7 @@ silently promoting an unprivileged observation into all-process authority.
 The census binds:
 
 - prestate-census source Git blob:
-  `c2e0c53336665578e4ab26204f7d67908c66ad3f`;
+  `4d9c6e5809a5cc64454626760f71e60ed99354bc`;
 - accepted archive-lock Git blob:
   `edb4ea2b833373ab387762e45ba7da4032c860f3`;
 - accepted archive-lock SHA-256:
@@ -51,6 +51,37 @@ This generation is deliberately **unprivileged**.
 
 It refuses UID 0 execution from a user-owned diagnostic source and scans only
 processes whose procfs directory is owned by the caller's effective UID.
+
+### External host PID-namespace lease
+
+A clean current-UID result is not admissible from an arbitrary PID namespace.
+The census requires a **separately reviewed host PID-namespace lease** in exact
+`<st_dev>:<st_ino>` form. The diagnostic does not derive, mint, or substitute
+that lease from its own current namespace view.
+
+Before process enumeration it opens and retains a descriptor for canonical
+`/proc`, then requires:
+
+- the visible `/proc` directory to be direct, root-owned/root-grouped and not
+  group/world writable;
+- the retained directory identity and Linux mount ID to match the visible
+  `/proc` generation;
+- `/proc/self/ns/pid` and `/proc/1/ns/pid` to be the same namespace;
+- that exact namespace dev/inode to equal the external lease;
+- the selected mountinfo row to have mount root exactly `/`, mount point
+  exactly `/proc`, and filesystem type `proc`;
+- no restrictive `hidepid` setting;
+- `/proc/self/stat` to report the actual running census PID.
+
+All process reads then resolve through the retained procfs descriptor rather
+than a freshly resolved caller-visible `/proc` pathname. After the census,
+the retained procfs generation, namespace lease, complete-visibility profile,
+runtime PID binding, and visible `/proc` identity are revalidated. Any drift
+HOLDS.
+
+This closes the private-PID-namespace false-clean condition while preserving
+the narrow current-UID-only evidence class. The lease itself remains external
+host evidence and is not replacement authority.
 
 It never reads:
 
@@ -124,15 +155,21 @@ process-reference absence as complete.
 
 After source/CI qualification, isolated no-bytecode mode is mandatory; omitting
 `-B` HOLDs before ordinary imports so a successful production receipt cannot
-silently permit Python bytecode-cache writes:
+silently permit Python bytecode-cache writes.
+
+The external host PID-namespace lease must be obtained by a separate reviewed
+host-level observation before running this diagnostic:
 
 ```bash
 python3 -I -B \
   ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py \
-  --census
+  --census \
+  --expected-host-pid-namespace-dev-ino '<st_dev>:<st_ino>'
 ```
 
-Do not run this source with sudo. Root execution intentionally HOLDs.
+Do not substitute a lease measured inside this same census process and call it
+external evidence. Do not run this source with sudo. Root execution
+intentionally HOLDs.
 
 ## Authority boundary
 
@@ -141,6 +178,15 @@ read_only=true
 production_filesystem_write=false
 root_execution_forbidden=true
 python_no_bytecode_mode_required=true
+host_pid_namespace_external_lease_required=true
+host_pid_namespace_lease_verified=true
+complete_proc_visibility_verified=true
+proc_mount_root_is_slash_required=true
+proc_mount_point_exact_required=true
+proc_root_root_owned_nonwritable_required=true
+proc_self_pid_matches_runtime_required=true
+retained_procfs_view_used=true
+retained_procfs_view_revalidated_after_census=true
 target_snapshot_stable_required=true
 regular_file_mount_id_checked=true
 receipt_target_bound_to_selected_attempt=true
