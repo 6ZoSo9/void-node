@@ -47,9 +47,9 @@ jobs:
             | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json)" = 1dd4f5a6fdf1781ce1986e17ce1edb1074bb8d63
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_authenticated_machine_attestation_plan_v1.py)" = e3cdd5754d82c2fc1d3a704829b7997b62e49b62
-          test "$(git rev-parse HEAD:docs/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.md)" = fef9e29d64f071a05417003e031aef0b88c3e9c3
+          test "$(git rev-parse HEAD:ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json)" = 835291d036668b3d0bbe7aeb02e51f61ff0b2a72
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_authenticated_machine_attestation_plan_v1.py)" = a721cc5e7e49bd969301d4918ad224c17b6009cf
+          test "$(git rev-parse HEAD:docs/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.md)" = d61cb623f6708429cf481cd38c136f453d0d53d5
 
           test "$(git rev-parse HEAD:ops/security/apollyon-xiphos-machine-id-provenance-hold-v2.json)" = bd75e2606cb13beb3ba1c6f80f596e2729709c37
           test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v2.py)" = 5a105aa167488e864b93c4490ddb58e99e70b784
@@ -75,13 +75,18 @@ jobs:
           out="$RUNNER_TEMP/apollyon-xiphos-attestation-plan-v1.log"
           python3 -I -B scripts/prove_apollyon_xiphos_authenticated_machine_attestation_plan_v1.py --self-test | tee "$out"
           grep -Fx 'VOID_APOLLYON_XIPHOS_AUTHENTICATED_MACHINE_ATTESTATION_PLAN_V1_PROOF_GREEN' "$out"
-          grep -Fx 'plan_id=voidapollyonxiphosattestplan1_7de3728e503515db7f15a3ac4824ed3012af342f89a860baab776c42f1cedffc' "$out"
+          grep -Fx 'plan_id=voidapollyonxiphosattestplan1_bb22aae1db88ec8dbfaaf4a40d952e8b67d25754b0a060ecf6a439c263081fab' "$out"
           grep -Fx 'transport_identity_bound=false' "$out"
           grep -Fx 'host_key_fingerprint_independently_authenticated=false' "$out"
           grep -Fx 'exact_numeric_remote_endpoint_source_bound_required=true' "$out"
           grep -Fx 'exact_client_identity_file_source_bound_required=true' "$out"
           grep -Fx 'known_hosts_single_canonical_entry_required=true' "$out"
           grep -Fx 'known_hosts_key_matches_independently_authenticated_host_key_required=true' "$out"
+          grep -Fx 'host_key_independent_authentication_artifact_source_bound_required=true' "$out"
+          grep -Fx 'host_key_authentication_artifact_independent_of_attestation_transport_required=true' "$out"
+          grep -Fx 'host_key_sha256_raw_ssh_public_key_blob_required=true' "$out"
+          grep -Fx 'client_public_key_sha256_raw_ssh_public_key_blob_required=true' "$out"
+          grep -Fx 'known_hosts_sha256_exact_file_bytes_required=true' "$out"
           grep -Fx 'remote_measurement_runtime_provenance_required=true' "$out"
           grep -Fx 'attestation_execution_authorized=false' "$out"
           grep -Fx 'authenticated_transport_attestation_present=false' "$out"
@@ -93,8 +98,9 @@ jobs:
           grep -Fx 'max_response_bytes=4096' "$out"
           grep -Fx 'strict_host_key_checking_required=true' "$out"
           grep -Fx 'raw_machine_id_response_forbidden=true' "$out"
+          grep -Fx 'raw_machine_id_never_transmitted_on_any_channel_required=true' "$out"
           grep -Fx 'parent_blob_validation=true' "$out"
-          grep -Fx 'semantic_adversaries=100' "$out"
+          grep -Fx 'semantic_adversaries=106' "$out"
           grep -Fx 'training_execution_authorized=false' "$out"
           grep -Fx 'funds_movement_authorized=false' "$out"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
