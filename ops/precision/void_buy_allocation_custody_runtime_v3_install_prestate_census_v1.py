@@ -137,6 +137,42 @@ def _leaf_flags() -> int:
     return os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
 
 
+def _fd_mount_id(fd: int) -> int:
+    if not isinstance(fd, int) or isinstance(fd, bool) or fd < 0:
+        hold("fd_mount_id_descriptor_invalid")
+    path = f"/proc/self/fdinfo/{fd}"
+    info_fd = -1
+    try:
+        info_fd = os.open(
+            path,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK,
+        )
+        raw = bytearray()
+        while len(raw) <= 64 * 1024:
+            chunk = os.read(info_fd, min(4096, 64 * 1024 + 1 - len(raw)))
+            if not chunk:
+                break
+            raw.extend(chunk)
+        if len(raw) > 64 * 1024:
+            hold("fd_mount_id_record_too_large")
+    finally:
+        if info_fd >= 0:
+            os.close(info_fd)
+    try:
+        text = bytes(raw).decode("ascii")
+    except UnicodeDecodeError:
+        hold("fd_mount_id_record_invalid")
+    values = []
+    for line in text.splitlines():
+        if line.startswith("mnt_id:"):
+            value = line.split(":", 1)[1].strip()
+            if value.isdigit():
+                values.append(int(value))
+    if len(values) != 1 or values[0] <= 0:
+        hold("fd_mount_id_missing_or_ambiguous")
+    return values[0]
+
+
 def open_bound_directory(path: Path) -> tuple[int, os.stat_result]:
     if os.name != "posix" or not Path("/proc/self/fd").is_dir():
         hold("linux_proc_descriptor_boundary_required")
@@ -324,12 +360,19 @@ def _hash_symlink_at(
     return len(raw), sha256(raw)
 
 
-def _hash_regular_at(parent_fd: int, name: str, before: os.stat_result) -> str:
+def _hash_regular_at(
+    parent_fd: int,
+    name: str,
+    before: os.stat_result,
+    expected_mnt_id: int,
+) -> str:
     if before.st_size < 0 or before.st_size > MAX_FILE_BYTES:
         hold("target_file_size_out_of_bounds:" + name)
     fd = os.open(name, _leaf_flags(), dir_fd=parent_fd)
     try:
         opened = os.fstat(fd)
+        if _fd_mount_id(fd) != expected_mnt_id:
+            hold("target_tree_cross_mount_file_forbidden:" + name)
         if (
             not stat.S_ISREG(opened.st_mode)
             or _generation(before) != _generation(opened)
@@ -364,6 +407,7 @@ def _scan_dir(
     totals: dict[str, int],
     depth: int,
     expected_dev: int,
+    expected_mnt_id: int,
 ) -> None:
     if depth > MAX_DEPTH:
         hold("target_tree_depth_exceeded")
@@ -372,6 +416,8 @@ def _scan_dir(
         hold("target_directory_not_directory")
     if before.st_dev != expected_dev:
         hold("target_tree_cross_device_directory_forbidden:" + relative_prefix)
+    if _fd_mount_id(fd) != expected_mnt_id:
+        hold("target_tree_cross_mount_directory_forbidden:" + relative_prefix)
 
     try:
         names = sorted(os.listdir(fd))
@@ -404,6 +450,7 @@ def _scan_dir(
                     totals,
                     depth + 1,
                     expected_dev,
+                    expected_mnt_id,
                 )
                 terminal = os.fstat(child_fd)
                 visible_terminal = os.stat(
@@ -417,7 +464,7 @@ def _scan_dir(
             finally:
                 os.close(child_fd)
         elif stat.S_ISREG(st.st_mode):
-            digest = _hash_regular_at(fd, name, st)
+            digest = _hash_regular_at(fd, name, st, expected_mnt_id)
             records.append(_entry_record(relative, st, "file", digest))
             totals["entries"] += 1
             totals["files"] += 1
@@ -469,6 +516,10 @@ def scan_target_at(
             hold("target_root_rebound")
         if opened.st_dev != parent_generation.st_dev:
             hold("target_root_cross_device_mount_forbidden")
+        parent_mnt_id = _fd_mount_id(parent_fd)
+        target_mnt_id = _fd_mount_id(target_fd)
+        if target_mnt_id != parent_mnt_id:
+            hold("target_root_cross_mount_forbidden")
 
         records: list[dict[str, Any]] = []
         totals = {
@@ -478,7 +529,15 @@ def scan_target_at(
             "symlinks": 0,
             "bytes": 0,
         }
-        _scan_dir(target_fd, "", records, totals, 0, opened.st_dev)
+        _scan_dir(
+            target_fd,
+            "",
+            records,
+            totals,
+            0,
+            opened.st_dev,
+            target_mnt_id,
+        )
 
         final_opened = os.fstat(target_fd)
         final_visible = os.stat(
@@ -502,6 +561,7 @@ def scan_target_at(
                 "gid": opened.st_gid,
                 "mode": format(stat.S_IMODE(opened.st_mode), "04o"),
                 "nlink": opened.st_nlink,
+                "mount_id": target_mnt_id,
             },
             "tree": {
                 "entries": totals["entries"],
@@ -561,6 +621,7 @@ def collect_prestate(
         ):
             hold("install_parent_custody_invalid")
 
+        parent_mnt_id = _fd_mount_id(parent_fd)
         target = scan_target_at(parent_fd, parent_generation, target_name)
         stage = _child_state(parent_fd, stage_name)
         rollback = _child_state(parent_fd, rollback_name)
@@ -591,6 +652,7 @@ def collect_prestate(
                 "uid": parent_generation.st_uid,
                 "gid": parent_generation.st_gid,
                 "mode": format(stat.S_IMODE(parent_generation.st_mode), "04o"),
+                "mount_id": parent_mnt_id,
             },
             "target": target,
             "proposed_stage": {
@@ -603,7 +665,10 @@ def collect_prestate(
             },
             "same_filesystem_rename_candidate": (
                 target["state"] != "PRESENT_SCANNED"
-                or target["root"]["dev"] == parent_generation.st_dev
+                or (
+                    target["root"]["dev"] == parent_generation.st_dev
+                    and target["root"]["mount_id"] == parent_mnt_id
+                )
             ),
             "rollback_rename_candidate": rollback_candidate,
             "create_only_install_candidate": create_only_candidate,
@@ -750,6 +815,7 @@ def self_test() -> None:
     print("descriptor_bound_tree_scan=true")
     print("target_tree_content_metadata_digest=true")
     print("nested_mount_rejection_bound=true")
+    print("mount_id_boundary_bound=true")
     print("symlink_opaque_identity_bound=true")
     print("special_file_rejection=true")
     print("stage_and_rollback_collision_observed=true")
