@@ -5,7 +5,7 @@ Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V1`.
 Status: **read-only current-UID process-reference diagnostic only**.
 
 This successor is based on the exact filesystem-prestate census generation at
-`ae207992cd291fbc3645320319fe08f39be05d51`. It exists to satisfy the
+`836f5e704a603f67b77b2406aeec9174f640497e`. It exists to satisfy the
 existing replacement plan's requirement for a process-reference census without
 silently promoting an unprivileged observation into all-process authority.
 
@@ -14,7 +14,7 @@ silently promoting an unprivileged observation into all-process authority.
 The census binds:
 
 - prestate-census source Git blob:
-  `caaf668b25879b5bbcddbf865e574a7b5162143e`;
+  `4d9c6e5809a5cc64454626760f71e60ed99354bc`;
 - accepted archive-lock Git blob:
   `edb4ea2b833373ab387762e45ba7da4032c860f3`;
 - accepted archive-lock SHA-256:
@@ -49,8 +49,29 @@ unbound target rescan.
 
 This generation is deliberately **unprivileged**.
 
-It refuses UID 0 execution from a user-owned diagnostic source and scans only
-processes whose procfs directory is owned by the caller's effective UID.
+It refuses UID 0 execution from a user-owned diagnostic source and classifies
+the current-UID process set from the **effective UID slot** in bounded
+`/proc/<pid>/status`, not from proc-directory ownership. The four UID slots are
+re-read after each process reference scan; a credential change or vanished
+status makes that process observation non-clean.
+
+A clean current-UID candidate requires two externally reviewed namespace
+`dev:ino` leases: the host PID namespace and the host mount namespace. The
+census opens canonical `/proc` once and retains that directory descriptor for
+the complete attempt. Through that retained descriptor it requires both
+`self/ns/pid == 1/ns/pid == expected PID lease` and
+`self/ns/mnt == 1/ns/mnt == expected mount lease` before resolving the fixed
+`/opt` target. This rejects a private PID namespace and also a container or
+other mount namespace that shares the host PID namespace but resolves a
+different `/opt` tree.
+
+The same retained procfs view identifies the procfs mount, rejects restricted
+`hidepid` views, and performs PID enumeration plus all process observations
+descriptor-relatively. It revalidates both namespace leases, the retained
+procfs descriptor, visibility contract, and terminal visible `/proc` identity
+after the process scan. A clean receipt therefore binds the target snapshot to
+the verified host mount namespace rather than merely to the caller's pathname
+view.
 
 It never reads:
 
@@ -63,6 +84,8 @@ It also never reads the pathname text behind `/proc/<pid>/fd/*`.
 
 For each current-UID process it observes only:
 
+- four UID slots from bounded `/proc/<pid>/status`, with the effective slot
+  selecting the current-UID set;
 - process generation from bounded `/proc/<pid>/stat`;
 - `cwd`, `root` and `exe` by kernel dev/inode identity;
 - open descriptors by kernel dev/inode identity;
@@ -90,8 +113,11 @@ current_uid_target_reference_absent_candidate=true
 ```
 
 That requires one unchanged target snapshot across the attempt, one stable
-current-UID PID set, no incomplete process observations, and zero target
-references through `cwd/root/exe/fd/maps`.
+current-UID PID set, no incomplete process observations, zero target references
+through `cwd/root/exe/fd/maps`, verified external host PID- and mount-namespace
+leases, unrestricted procfs visibility, host-mount resolution of the target,
+and terminal revalidation of the retained procfs view and both namespace
+leases.
 
 These **always remain false**:
 
@@ -122,12 +148,16 @@ process-reference absence as complete.
 
 ## Invocation
 
-After source/CI qualification:
+After source/CI qualification, isolated no-bytecode mode is mandatory; omitting
+`-B` HOLDs before ordinary imports so a successful production receipt cannot
+silently permit Python bytecode-cache writes:
 
 ```bash
 python3 -I -B \
   ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py \
-  --census
+  --census \
+  --expected-host-pid-namespace-dev-ino '<PID_NS_DEV>:<PID_NS_INO>' \
+  --expected-host-mount-namespace-dev-ino '<MNT_NS_DEV>:<MNT_NS_INO>'
 ```
 
 Do not run this source with sudo. Root execution intentionally HOLDs.
@@ -136,8 +166,22 @@ Do not run this source with sudo. Root execution intentionally HOLDs.
 
 ```text
 read_only=true
+proc_status_effective_uid_classification=true
+process_uid_slots_stable_during_reference_scan=true
+host_pid_namespace_external_lease_required=true
+host_pid_namespace_lease_verified=true
+host_pid_namespace_lease_revalidated_after_census=true
+host_mount_namespace_external_lease_required=true
+host_mount_namespace_lease_verified=true
+host_mount_namespace_lease_revalidated_after_census=true
+target_resolved_in_host_mount_namespace=true
+complete_proc_visibility_verified=true
+proc_visibility_revalidated_after_census=true
+retained_procfs_view_used=true
+retained_procfs_view_revalidated_after_census=true
 production_filesystem_write=false
 root_execution_forbidden=true
+python_no_bytecode_mode_required=true
 target_snapshot_stable_required=true
 regular_file_mount_id_checked=true
 receipt_target_bound_to_selected_attempt=true

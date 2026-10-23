@@ -5,6 +5,8 @@ import hashlib
 import importlib.util
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -13,7 +15,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "d3c648df3f43ab642d60b8eacedb05c851e4fd2c"
+EXPECTED_SOURCE_BLOB = "a5fa6ff22cc21df555e8a70c32500f07251dc4a8"
 
 
 def git_blob(raw: bytes) -> str:
@@ -38,7 +40,7 @@ assert module.SCHEMA == (
     "void_buy_void_custody_runtime_v3_process_reference_census_v1"
 )
 assert module.PRESTATE_SOURCE_BLOB == (
-    "caaf668b25879b5bbcddbf865e574a7b5162143e"
+    "4d9c6e5809a5cc64454626760f71e60ed99354bc"
 )
 assert module.ARCHIVE_LOCK_BLOB == (
     "edb4ea2b833373ab387762e45ba7da4032c860f3"
@@ -49,6 +51,7 @@ assert module.ARCHIVE_LOCK_SHA256 == (
 assert module.TARGET == Path("/opt/void-buy-allocation-custody-runtime-v1")
 assert module.MAX_TARGET_ENTRIES == 32768
 assert module.MAX_PIDS == 32768
+assert module.MAX_STATUS_BYTES == 64 * 1024
 assert module.MAX_FDS_PER_PROCESS == 65536
 assert module.MAX_SCAN_ATTEMPTS == 3
 
@@ -60,7 +63,161 @@ assert lock["payment_acceptance"] is False
 assert lock["public_presale_activation"] is False
 assert lock["funds_movement"] is False
 
+assert module.parse_proc_uid_slots(
+    b"Name:\tfixture\nUid:\t1000\t1001\t1002\t1003\n"
+) == (1000, 1001, 1002, 1003)
+
+assert module.parse_dev_ino_lease("12:34") == (12, 34)
+for bad in ("", "0:34", "12:0", "12", "12:34:56", "x:y"):
+    try:
+        module.parse_dev_ino_lease(bad)
+    except module.CensusHold as exc:
+        assert "host_pid_namespace_lease_invalid" in str(exc)
+    else:
+        raise AssertionError("invalid host PID namespace lease accepted: " + bad)
+    try:
+        module.parse_dev_ino_lease(
+            bad,
+            "host_mount_namespace_lease_invalid",
+        )
+    except module.CensusHold as exc:
+        assert "host_mount_namespace_lease_invalid" in str(exc)
+    else:
+        raise AssertionError("invalid host mount namespace lease accepted: " + bad)
+
+fake_self = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
+fake_init = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
+assert module.verify_pid_namespace_lease_stats(
+    fake_self, fake_init, (12, 34)
+) == (12, 34)
+try:
+    module.verify_pid_namespace_lease_stats(
+        fake_self,
+        type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
+        (12, 34),
+    )
+except module.CensusHold as exc:
+    assert "not_in_pid1_namespace" in str(exc)
+else:
+    raise AssertionError("private PID namespace relationship accepted")
+try:
+    module.verify_pid_namespace_lease_stats(
+        fake_self, fake_init, (12, 35)
+    )
+except module.CensusHold as exc:
+    assert "host_pid_namespace_lease_mismatch" in str(exc)
+else:
+    raise AssertionError("mismatched host PID namespace lease accepted")
+
+assert module.verify_mount_namespace_lease_stats(
+    fake_self, fake_init, (12, 34)
+) == (12, 34)
+try:
+    module.verify_mount_namespace_lease_stats(
+        fake_self,
+        type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
+        (12, 34),
+    )
+except module.CensusHold as exc:
+    assert "not_in_pid1_mount_namespace" in str(exc)
+else:
+    raise AssertionError("private mount namespace relationship accepted")
+try:
+    module.verify_mount_namespace_lease_stats(
+        fake_self, fake_init, (12, 35)
+    )
+except module.CensusHold as exc:
+    assert "host_mount_namespace_lease_mismatch" in str(exc)
+else:
+    raise AssertionError("mismatched host mount namespace lease accepted")
+
+visible_mountinfo = (
+    b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
+    b" - proc proc rw,hidepid=0\n"
+)
+hidden_mountinfo = (
+    b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
+    b" - proc proc rw,hidepid=2\n"
+)
+assert module.verify_complete_proc_visibility(
+    visible_mountinfo, 42
+)["hidepid_restricted"] is False
+try:
+    module.verify_complete_proc_visibility(hidden_mountinfo, 42)
+except module.CensusHold as exc:
+    assert "proc_visibility_restricted" in str(exc)
+else:
+    raise AssertionError("restricted procfs visibility accepted")
+
 module.self_test()
+
+without_b = subprocess.run(
+    [sys.executable, "-I", str(TARGET), "--self-test"],
+    cwd="/",
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=10,
+    env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+)
+assert without_b.returncode == 2, without_b
+assert (
+    "reason=python_isolated_unoptimized_nobytecode_mode_required"
+    in without_b.stdout
+), without_b.stdout
+assert "production_filesystem_write=false" in without_b.stdout
+
+missing_lease = subprocess.run(
+    [sys.executable, "-I", "-B", str(TARGET), "--census"],
+    cwd="/",
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=10,
+    env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+)
+assert missing_lease.returncode == 2, missing_lease
+assert (
+    "reason=custody_runtime_v3_process_reference_"
+    "expected_host_pid_namespace_lease_required"
+    in missing_lease.stdout
+), missing_lease.stdout
+assert "host_pid_namespace_external_lease_required=true" in missing_lease.stdout
+assert "host_pid_namespace_lease_verified=false" in missing_lease.stdout
+assert "retained_procfs_view_used=false" in missing_lease.stdout
+
+missing_mount_lease = subprocess.run(
+    [
+        sys.executable,
+        "-I",
+        "-B",
+        str(TARGET),
+        "--census",
+        "--expected-host-pid-namespace-dev-ino",
+        "12:34",
+    ],
+    cwd="/",
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=10,
+    env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+)
+assert missing_mount_lease.returncode == 2, missing_mount_lease
+assert (
+    "reason=custody_runtime_v3_process_reference_"
+    "expected_host_mount_namespace_lease_required"
+    in missing_mount_lease.stdout
+), missing_mount_lease.stdout
+assert "host_mount_namespace_external_lease_required=true" in missing_mount_lease.stdout
+assert "host_mount_namespace_lease_verified=false" in missing_mount_lease.stdout
+assert "target_resolved_in_host_mount_namespace=false" in missing_mount_lease.stdout
 
 clean_row = {
     "pid": 101,
@@ -103,6 +260,14 @@ with tempfile.TemporaryDirectory(
     (pid_root / "stat").write_text(
         "101 (fixture process) " + " ".join(fields) + "\n",
         encoding="ascii",
+    )
+    uid = os.geteuid()
+    (pid_root / "status").write_text(
+        "Name:\tfixture-process\n"
+        + "Uid:\t"
+        + "\t".join([str(uid)] * 4)
+        + "\n",
+        encoding="utf-8",
     )
 
     major = os.major(target_st.st_dev)
@@ -218,6 +383,7 @@ for forbidden in (
 
 for required in (
     "root_execution_forbidden_for_user_owned_diagnostic",
+    "dont_write_bytecode",
     "follow_symlinks=True",
     "os.makedev",
     "MAX_MAPS_BYTES",
@@ -240,8 +406,47 @@ for required in (
     "proc_fd_target_text_read",
     "proc_maps_path_text_retained",
     "replacement_apply_authorized",
+    "parse_dev_ino_lease",
+    "verify_pid_namespace_lease_stats",
+    "verify_mount_namespace_lease_stats",
+    "verify_complete_proc_visibility",
+    "open_pinned_proc_view",
+    "revalidate_pinned_proc_view",
+    "_read_bounded_at",
+    "host_pid_namespace_external_lease_required",
+    "host_mount_namespace_external_lease_required",
+    "host_mount_namespace_lease_verified",
+    "host_mount_namespace_lease_revalidated_after_census",
+    "target_resolved_in_host_mount_namespace",
+    "retained_procfs_view_used",
+    "retained_procfs_view_revalidated_after_census",
+    "parse_proc_uid_slots",
+    "_proc_uid_slots",
+    "proc_status_effective_uid_classification",
+    "process_uid_slots_stable_during_reference_scan",
 ):
     assert required in source, required
+
+target_scan_source = pre_self_test.split("def _scan_target_dir(", 1)[1].split(
+    "def target_identity_set(", 1
+)[0]
+assert "with os.scandir(fd) as iterator:" in target_scan_source
+assert "names: list[str]" not in target_scan_source
+assert "names.sort()" not in target_scan_source
+assert target_scan_source.index('totals["entries"] += 1') < target_scan_source.index(
+    "_scan_target_dir("
+)
+
+proc_scan_source = pre_self_test.split("def _same_uid_pids(", 1)[1].split(
+    "def classify_attempt(", 1
+)[0]
+assert "os.scandir(PROC if proc_fd is None else proc_fd)" in proc_scan_source
+assert "dir_fd=proc_fd" in proc_scan_source
+assert "_read_bounded_at(" in proc_scan_source
+assert "_proc_uid_slots(" in proc_scan_source
+assert "st.st_uid == uid" not in proc_scan_source
+assert "uid_slots_after != uid_slots_before" in proc_scan_source
+assert "_pinned_proc_root(" not in pre_self_test
 
 print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V1_PROOF_GREEN")
 print("exact_source_blob_asserted=true")
@@ -249,6 +454,24 @@ print("prestate_source_exact=true")
 print("archive_lock_exact=true")
 print("target_identity_metadata_only=true")
 print("current_uid_process_scope=true")
+print("proc_status_effective_uid_classification=true")
+print("process_uid_slots_stable_during_reference_scan=true")
+print("host_pid_namespace_external_lease_required=true")
+print("private_pid_namespace_rejected=true")
+print("host_pid_namespace_lease_mismatch_rejected=true")
+print("host_mount_namespace_external_lease_required=true")
+print("private_mount_namespace_rejected=true")
+print("host_mount_namespace_lease_mismatch_rejected=true")
+print("target_resolved_in_host_mount_namespace=true")
+print("complete_proc_visibility_required=true")
+print("hidepid_restricted_proc_holds=true")
+print("descriptor_relative_bounded_reader_tested=true")
+print("retained_procfs_view_required=true")
+print("retained_procfs_view_descriptor_relative=true")
+print("retained_procfs_view_revalidated_after_census=true")
+print("missing_host_pid_namespace_lease_holds=true")
+print("missing_host_mount_namespace_lease_holds=true")
+print("target_streaming_entry_budget=true")
 print("cwd_inode_reference_tested=true")
 print("fd_inode_reference_tested=true")
 print("mapped_inode_reference_tested=true")
@@ -261,6 +484,8 @@ print("target_snapshot_stable_required=true")
 print("regular_file_mount_id_checked=true")
 print("receipt_target_bound_to_selected_attempt=true")
 print("legacy_tree_entry_limit=32768")
+print("python_no_bytecode_mode_required=true")
+print("without_dash_b_bootstrap_hold=true")
 print("proc_cmdline_read=false")
 print("proc_environ_read=false")
 print("proc_fd_target_text_read=false")

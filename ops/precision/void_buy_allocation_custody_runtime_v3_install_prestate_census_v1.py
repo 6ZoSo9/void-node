@@ -7,18 +7,21 @@ _BOOTSTRAP_MARKER = "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_INSTALL_PRESTATE_CENSUS_V1
 if (
     _bootstrap_sys.flags.isolated != 1
     or not getattr(_bootstrap_sys.flags, "safe_path", False)
+    or _bootstrap_sys.flags.dont_write_bytecode != 1
     or _bootstrap_sys.flags.optimize != 0
     or not __debug__
 ):
     if __name__ == "__main__":
         print(_BOOTSTRAP_MARKER)
         print("status=HOLD")
-        print("reason=python_isolated_unoptimized_mode_required")
-        print("filesystem_write=false")
+        print("reason=python_isolated_unoptimized_nobytecode_mode_required")
+        print("production_census_read_only=true")
+        print("production_census_filesystem_write=false")
+        print("self_test_temporary_filesystem_write=false")
         print("service_mutation=false")
         print("funds_movement=false")
         raise SystemExit(2)
-    raise RuntimeError("python_isolated_unoptimized_mode_required")
+    raise RuntimeError("python_isolated_unoptimized_nobytecode_mode_required")
 
 import argparse
 import hashlib
@@ -61,8 +64,8 @@ PROPOSED_ROLLBACK_NAME = (
 )
 PROPOSED_ROLLBACK = INSTALL_PARENT / PROPOSED_ROLLBACK_NAME
 
-MAX_TREE_ENTRIES = 4096
-MAX_FILE_BYTES = 32 * 1024 * 1024
+MAX_TREE_ENTRIES = 32768
+MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_TOTAL_REGULAR_BYTES = 512 * 1024 * 1024
 MAX_SYMLINK_BYTES = 4096
 MAX_DEPTH = 64
@@ -412,86 +415,93 @@ def _scan_dir(
     if _fd_mount_id(fd) != expected_mnt_id:
         hold("target_tree_cross_mount_directory_forbidden:" + relative_prefix)
 
-    remaining = MAX_TREE_ENTRIES - totals["entries"]
-    if remaining < 0:
-        hold("target_tree_entry_limit_exceeded")
-    names: list[str] = []
+    # Process each directory entry as it is enumerated. Do not retain a
+    # per-recursion-frame name list: otherwise wide ancestors plus wide
+    # descendants can retain depth * MAX_TREE_ENTRIES names simultaneously.
+    # The final record list is sorted globally below, so traversal order does
+    # not affect the canonical metadata digest.
     try:
         with os.scandir(fd) as iterator:
             for entry in iterator:
-                names.append(entry.name)
-                if len(names) > remaining:
-                    hold("target_tree_entry_limit_exceeded")
-    except OSError as exc:
-        hold("target_directory_unreadable:" + str(exc.errno))
-    names.sort()
+                name = entry.name
+                if name in (".", "..") or "/" in name or "\x00" in name:
+                    hold("target_tree_name_invalid")
 
-    for name in names:
-        if name in (".", "..") or "/" in name or "\x00" in name:
-            hold("target_tree_name_invalid")
-        relative = name if not relative_prefix else relative_prefix + "/" + name
-        st = os.stat(name, dir_fd=fd, follow_symlinks=False)
-        if st.st_dev != expected_dev:
-            hold("target_tree_cross_device_entry_forbidden:" + relative)
-
-        if stat.S_ISDIR(st.st_mode):
-            child_fd = os.open(name, _directory_flags(), dir_fd=fd)
-            try:
-                opened = os.fstat(child_fd)
-                if _identity(st) != _identity(opened):
-                    hold("target_directory_rebound:" + relative)
-                records.append(_entry_record(relative, opened, "directory"))
                 totals["entries"] += 1
-                totals["directories"] += 1
                 if totals["entries"] > MAX_TREE_ENTRIES:
                     hold("target_tree_entry_limit_exceeded")
-                _scan_dir(
-                    child_fd,
-                    relative,
-                    records,
-                    totals,
-                    depth + 1,
-                    expected_dev,
-                    expected_mnt_id,
+
+                relative = (
+                    name
+                    if not relative_prefix
+                    else relative_prefix + "/" + name
                 )
-                terminal = os.fstat(child_fd)
-                visible_terminal = os.stat(
-                    name, dir_fd=fd, follow_symlinks=False
-                )
-                if (
-                    _generation(opened) != _generation(terminal)
-                    or _generation(terminal) != _generation(visible_terminal)
-                ):
-                    hold("target_directory_generation_changed:" + relative)
-            finally:
-                os.close(child_fd)
-        elif stat.S_ISREG(st.st_mode):
-            observed = _observe_regular_at(fd, name, st, expected_mnt_id)
-            records.append(_entry_record(relative, observed, "file"))
-            totals["entries"] += 1
-            totals["files"] += 1
-            totals["bytes"] += observed.st_size
-            if totals["entries"] > MAX_TREE_ENTRIES:
-                hold("target_tree_entry_limit_exceeded")
-            if totals["bytes"] > MAX_TOTAL_REGULAR_BYTES:
-                hold("target_tree_byte_limit_exceeded")
-        elif stat.S_ISLNK(st.st_mode):
-            link_bytes, link_sha256 = _hash_symlink_at(fd, name, st)
-            record = _entry_record(relative, st, "symlink")
-            record["link_target_bytes"] = link_bytes
-            record["link_target_sha256"] = link_sha256
-            records.append(record)
-            totals["entries"] += 1
-            totals["symlinks"] += 1
-            if totals["entries"] > MAX_TREE_ENTRIES:
-                hold("target_tree_entry_limit_exceeded")
-        else:
-            hold("target_tree_special_file_forbidden:" + relative)
+                st = os.stat(name, dir_fd=fd, follow_symlinks=False)
+                if st.st_dev != expected_dev:
+                    hold(
+                        "target_tree_cross_device_entry_forbidden:" + relative
+                    )
+
+                if stat.S_ISDIR(st.st_mode):
+                    child_fd = os.open(name, _directory_flags(), dir_fd=fd)
+                    try:
+                        opened = os.fstat(child_fd)
+                        if _identity(st) != _identity(opened):
+                            hold("target_directory_rebound:" + relative)
+                        records.append(
+                            _entry_record(relative, opened, "directory")
+                        )
+                        totals["directories"] += 1
+                        _scan_dir(
+                            child_fd,
+                            relative,
+                            records,
+                            totals,
+                            depth + 1,
+                            expected_dev,
+                            expected_mnt_id,
+                        )
+                        terminal = os.fstat(child_fd)
+                        visible_terminal = os.stat(
+                            name, dir_fd=fd, follow_symlinks=False
+                        )
+                        if (
+                            _generation(opened) != _generation(terminal)
+                            or _generation(terminal)
+                            != _generation(visible_terminal)
+                        ):
+                            hold(
+                                "target_directory_generation_changed:"
+                                + relative
+                            )
+                    finally:
+                        os.close(child_fd)
+                elif stat.S_ISREG(st.st_mode):
+                    observed = _observe_regular_at(
+                        fd, name, st, expected_mnt_id
+                    )
+                    records.append(_entry_record(relative, observed, "file"))
+                    totals["files"] += 1
+                    totals["bytes"] += observed.st_size
+                    if totals["bytes"] > MAX_TOTAL_REGULAR_BYTES:
+                        hold("target_tree_byte_limit_exceeded")
+                elif stat.S_ISLNK(st.st_mode):
+                    link_bytes, link_sha256 = _hash_symlink_at(fd, name, st)
+                    record = _entry_record(relative, st, "symlink")
+                    record["link_target_bytes"] = link_bytes
+                    record["link_target_sha256"] = link_sha256
+                    records.append(record)
+                    totals["symlinks"] += 1
+                else:
+                    hold("target_tree_special_file_forbidden:" + relative)
+    except CensusHold:
+        raise
+    except OSError as exc:
+        hold("target_directory_unreadable:" + str(exc.errno))
 
     after = os.fstat(fd)
     if _generation(before) != _generation(after):
         hold("target_directory_changed_during_scan:" + relative_prefix)
-
 
 def scan_target_at(
     parent_fd: int,
@@ -702,6 +712,8 @@ def census() -> dict[str, Any]:
         "prestate": prestate,
         "read_only": True,
         "filesystem_write": False,
+        "production_census_read_only": True,
+        "production_census_filesystem_write": False,
         "archive_extraction": False,
         "permission_mutation": False,
         "service_state_checked": False,
@@ -821,8 +833,10 @@ def self_test() -> None:
     print("symlink_opaque_identity_bound=true")
     print("special_file_rejection=true")
     print("stage_and_rollback_collision_observed=true")
-    print("read_only=true")
-    print("filesystem_write=false")
+    print("production_census_read_only=true")
+    print("python_no_bytecode_mode_required=true")
+    print("production_census_filesystem_write=false")
+    print("self_test_temporary_filesystem_write=true")
     print("archive_extraction=false")
     print("service_state_checked=false")
     print("service_mutation=false")
@@ -861,8 +875,12 @@ if __name__ == "__main__":
         print(MARKER)
         print("status=HOLD")
         print("reason=" + str(exc))
-        print("read_only=true")
-        print("filesystem_write=false")
+        print("production_census_read_only=true")
+        print("production_census_filesystem_write=false")
+        print(
+            "self_test_temporary_filesystem_write="
+            + ("true" if "--self-test" in _bootstrap_sys.argv[1:] else "false")
+        )
         print("service_mutation=false")
         print("payment_acceptance=false")
         print("public_presale_activation=false")

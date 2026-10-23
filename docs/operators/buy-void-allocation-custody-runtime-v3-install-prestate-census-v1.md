@@ -65,19 +65,29 @@ generation; **file contents are never read or hashed**. The opened generation is
 revalidated against the visible generation before the metadata record is used.
 
 The tree may contain ordinary directories, regular files and symlinks.
-Directory names are enumerated lazily through descriptor-relative
-`os.scandir(fd)`; at most the remaining global entry budget is retained before
-sorting, so a huge directory cannot allocate an unbounded name list ahead of
-the 4,096-entry HOLD. Symlinks are treated as opaque legacy entries: the census
-never follows them, records only their metadata plus the byte length and
-SHA-256 of the link text, and never prints the link target. FIFOs, sockets,
-devices and other special files HOLD.
+Directory entries are processed immediately through descriptor-relative
+`os.scandir(fd)`; recursive frames do not retain sibling-name lists. The global
+entry counter is charged before descending into a child, so traversal cannot
+retain depth × 32,768 pending names before the 32,768-entry HOLD. Canonical
+output remains deterministic because the completed metadata records are sorted
+globally by relative path before hashing. Symlinks are treated as opaque legacy
+entries: the census never follows them, records only their metadata plus the
+byte length and SHA-256 of the link text, and never prints the link target.
+FIFOs, sockets, devices and other special files HOLD.
 
 The census emits a bounded **metadata digest** over relative path, type,
 device/inode, UID, GID, mode, link count and metadata timestamps, plus regular
 file length or opaque symlink-target length/SHA-256 as applicable. It also
 records the target root device/inode so a future rollback planner can bind a
 same-filesystem rename of that exact legacy root.
+
+The legacy-target metadata bounds are deliberately separate from the tiny
+accepted V3 archive. The existing target may contain at most 32,768 entries,
+each regular-file metadata size may be at most 64 MiB, and aggregate regular
+bytes remain capped at 512 MiB. These values cover the observed Precision
+legacy footprint (16,490 entries; largest regular file 40,757,984 bytes;
+aggregate regular bytes 148,357,378) with bounded headroom. Raising these
+metadata ceilings does not authorize or perform any legacy file-content read.
 
 No legacy regular-file content is read or printed. Symlink target text is read
 only as link metadata, is never followed, and is represented only by length and
@@ -105,7 +115,7 @@ Neither status is installation authority.
 
 ## Invocation
 
-Host census requires isolated, safe-path, unoptimized Python:
+Host census requires isolated, safe-path, unoptimized **and no-bytecode** Python. The `-B` flag is mandatory because the production receipt claims no filesystem writes before ordinary module imports:
 
 ```bash
 python3 -I -B \
@@ -113,16 +123,22 @@ python3 -I -B \
   --census
 ```
 
-No sudo is required or authorized by this generation.
+No sudo is required or authorized by this generation. Omitting `-B` is a
+bootstrap HOLD before the normal census imports and cannot emit a successful
+write-free production receipt.
 
 The command emits one canonical JSON record with a content-addressed
-`prestate_id`. On any ambiguity it exits HOLD.
+`prestate_id`. A successful receipt includes both the compatibility aliases
+`read_only=true` / `filesystem_write=false` and the production-scoped
+`production_census_read_only=true` /
+`production_census_filesystem_write=false` fields used by the documented
+authority contract. On any ambiguity it exits HOLD.
 
 ## Authority remains false
 
 ```text
-read_only=true
-filesystem_write=false
+production_census_read_only=true
+production_census_filesystem_write=false
 archive_extraction=false
 permission_mutation=false
 service_state_checked=false
