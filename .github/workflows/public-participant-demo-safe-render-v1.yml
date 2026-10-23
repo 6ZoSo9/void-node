@@ -45,13 +45,7 @@ jobs:
 
           validate_name_status() {
             local input="$1"
-            while IFS=
-            test -s "$path"
-          done
-          git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" -- "${paths[@]}"
-      - name: Prove participant rendering safety
-        run: node scripts/prove_public_participant_demo_safe_render_v1.mjs
-\t' read -r status path extra; do
+            while IFS="$(printf '\\t')" read -r status path extra; do
               case "$status" in
                 A|M) ;;
                 *)
@@ -72,10 +66,7 @@ jobs:
             done < "$input"
           }
 
-          cat > "$RUNNER_TEMP/synthetic-unexpected.txt" <<'EOF'
-          M	public/demo/participant/index.html
-          M	src/unrelated-example.ts
-          EOF
+          printf 'M\\tpublic/demo/participant/index.html\\nM\\tsrc/unrelated-example.ts\\n' > "$RUNNER_TEMP/synthetic-unexpected.txt"
           if validate_name_status "$RUNNER_TEMP/synthetic-unexpected.txt"; then
             echo "synthetic_unexpected_path_was_accepted" >&2
             exit 1
