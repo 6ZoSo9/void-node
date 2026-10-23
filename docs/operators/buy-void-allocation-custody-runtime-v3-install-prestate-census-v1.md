@@ -65,13 +65,15 @@ generation; **file contents are never read or hashed**. The opened generation is
 revalidated against the visible generation before the metadata record is used.
 
 The tree may contain ordinary directories, regular files and symlinks.
-Directory names are enumerated lazily through descriptor-relative
-`os.scandir(fd)`; at most the remaining global entry budget is retained before
-sorting, so a huge directory cannot allocate an unbounded name list ahead of
-the 32,768-entry HOLD. Symlinks are treated as opaque legacy entries: the census
-never follows them, records only their metadata plus the byte length and
-SHA-256 of the link text, and never prints the link target. FIFOs, sockets,
-devices and other special files HOLD.
+Directory entries are processed immediately through descriptor-relative
+`os.scandir(fd)`; recursive frames do not retain sibling-name lists. The global
+entry counter is charged before descending into a child, so traversal cannot
+retain depth × 32,768 pending names before the 32,768-entry HOLD. Canonical
+output remains deterministic because the completed metadata records are sorted
+globally by relative path before hashing. Symlinks are treated as opaque legacy
+entries: the census never follows them, records only their metadata plus the
+byte length and SHA-256 of the link text, and never prints the link target.
+FIFOs, sockets, devices and other special files HOLD.
 
 The census emits a bounded **metadata digest** over relative path, type,
 device/inode, UID, GID, mode, link count and metadata timestamps, plus regular
@@ -126,7 +128,11 @@ bootstrap HOLD before the normal census imports and cannot emit a successful
 write-free production receipt.
 
 The command emits one canonical JSON record with a content-addressed
-`prestate_id`. On any ambiguity it exits HOLD.
+`prestate_id`. A successful receipt includes both the compatibility aliases
+`read_only=true` / `filesystem_write=false` and the production-scoped
+`production_census_read_only=true` /
+`production_census_filesystem_write=false` fields used by the documented
+authority contract. On any ambiguity it exits HOLD.
 
 ## Authority remains false
 
