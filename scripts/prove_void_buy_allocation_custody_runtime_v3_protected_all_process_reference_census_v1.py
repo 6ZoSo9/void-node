@@ -14,7 +14,7 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "dabf11d2b1277b071922a6566941998ce6387daf"
+EXPECTED_SOURCE_BLOB = "76329b5a5be8c3260acdfc4da739c2bf0071e4ef"
 
 
 def git_blob(raw: bytes) -> str:
@@ -64,8 +64,57 @@ assert module.MAX_FDS_PER_PROCESS == 65536
 assert module.MAX_TASKS_PER_PROCESS == 65536
 assert module.MAX_TOTAL_TASKS == 262144
 assert module.MAX_SCAN_ATTEMPTS == 3
+assert module.MAX_MOUNTINFO_BYTES == 4 * 1024 * 1024
 
 module.self_test()
+
+assert module.parse_dev_ino_lease(
+    "12:34", "test_host_namespace_lease_invalid"
+) == (12, 34)
+fake_self = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
+fake_init = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
+assert module.verify_pid_namespace_lease_stats(
+    fake_self, fake_init, (12, 34)
+) == (12, 34)
+assert module.verify_mount_namespace_lease_stats(
+    fake_self, fake_init, (12, 34)
+) == (12, 34)
+for fn, wrong, marker in (
+    (
+        module.verify_pid_namespace_lease_stats,
+        type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
+        "not_in_pid1_namespace",
+    ),
+    (
+        module.verify_mount_namespace_lease_stats,
+        type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
+        "not_in_pid1_mount_namespace",
+    ),
+):
+    try:
+        fn(fake_self, wrong, (12, 34))
+    except module.CensusHold as exc:
+        assert marker in str(exc)
+    else:
+        raise AssertionError("private namespace accepted: " + marker)
+
+visible_mountinfo = (
+    b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
+    b" - proc proc rw,hidepid=0\n"
+)
+hidden_mountinfo = (
+    b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
+    b" - proc proc rw,hidepid=2\n"
+)
+assert module.verify_complete_proc_visibility(
+    visible_mountinfo, 42
+)["hidepid_restricted"] is False
+try:
+    module.verify_complete_proc_visibility(hidden_mountinfo, 42)
+except module.CensusHold as exc:
+    assert "proc_visibility_restricted" in str(exc)
+else:
+    raise AssertionError("restricted procfs accepted")
 
 clean_rows = [
     {
@@ -246,6 +295,19 @@ for required in (
     "kernel_thread_skipped",
     "target_pre_post_identity_recheck",
     "regular_file_mount_id_checked",
+    "host_pid_namespace_external_lease_required",
+    "host_pid_namespace_lease_verified",
+    "host_mount_namespace_external_lease_required",
+    "host_mount_namespace_lease_verified",
+    "complete_proc_visibility_verified",
+    "retained_procfs_view_used",
+    "retained_procfs_view_revalidated_after_census",
+    "target_resolved_in_host_mount_namespace",
+    "host_namespace_lease_provenance_authenticated_by_census",
+    "separately_reviewed_host_namespace_lease_required",
+    "def _all_pids(proc_fd:",
+    "def _task_inventory(",
+    "def scan_process(",
     "task_inventory_generation_stability_required",
     "per_thread_files_fs_reference_scan_required",
     "MAX_TASKS_PER_PROCESS",
@@ -261,10 +323,14 @@ for required in (
 ):
     assert required in source, required
 
-census_block = pre_self_test.split("def census()", 1)[1]
+census_block = pre_self_test.split("def census(", 1)[1]
 assert census_block.index("_protected_source_admission()") < census_block.index(
-    "all_process_census()"
+    "all_process_census("
 )
+assert census_block.index("_protected_source_admission()") < census_block.index(
+    "expected_host_pid_namespace_dev_ino"
+)
+assert "expected_host_mount_namespace_dev_ino" in census_block
 
 print(
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_"
@@ -280,6 +346,20 @@ print("target_identity_metadata_only=true")
 print("all_numeric_pids_scope=true")
 print("kernel_thread_explicit_skip=true")
 print("pid_generation_recheck=true")
+print("host_pid_namespace_external_lease_required=true")
+print("private_pid_namespace_rejected=true")
+print("host_pid_namespace_lease_mismatch_rejected=true")
+print("host_mount_namespace_external_lease_required=true")
+print("private_mount_namespace_rejected=true")
+print("host_mount_namespace_lease_mismatch_rejected=true")
+print("complete_proc_visibility_required=true")
+print("hidepid_restricted_proc_holds=true")
+print("retained_procfs_view_required=true")
+print("retained_procfs_view_descriptor_relative=true")
+print("retained_procfs_view_revalidated_after_census=true")
+print("target_resolved_in_host_mount_namespace=true")
+print("host_namespace_lease_provenance_authenticated_by_census=false")
+print("separately_reviewed_host_namespace_lease_required=true")
 print("task_inventory_generation_stability_required=true")
 print("per_thread_files_fs_reference_scan_required=true")
 print("bounded_task_inventory_required=true")
