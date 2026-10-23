@@ -12,7 +12,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "387e334c7be77bc2dfcf23384fcf1cd7f4ebfbc9"
+EXPECTED_SOURCE_BLOB = "7a292a4df12d3ce280c947cedc197f6edfdca1b3"
 
 
 def git_blob(raw: bytes) -> str:
