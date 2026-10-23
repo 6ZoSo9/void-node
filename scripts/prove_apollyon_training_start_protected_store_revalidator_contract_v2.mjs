@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import {types as utilTypes} from "node:util";
 import fs from "node:fs";
 import path from "node:path";
 import {fileURLToPath} from "node:url";
@@ -31,7 +32,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE_REL=
   "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs";
 const PINS=Object.freeze({
-  [SOURCE_REL]:"ef578b704e8cb186b98fd4f89f410f70dc0306b0",
+  [SOURCE_REL]:"de63f8801abfe483b5ce63c56581ed52d2c2aadd",
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
     "079576db7f880872f2d4dea8e7759bd536161516",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
@@ -409,48 +410,110 @@ assert.equal(
   const originalStringify=JSON.stringify;
   const originalGetPrototypeOf=Object.getPrototypeOf;
   const originalGetOwnPropertyDescriptor=Object.getOwnPropertyDescriptor;
+  const originalDefineProperty=Object.defineProperty;
   const originalHasOwn=Object.hasOwn;
+  const originalCreate=Object.create;
+  const originalFreeze=Object.freeze;
   const originalOwnKeys=Reflect.ownKeys;
+  const originalReflectApply=Reflect.apply;
   const originalIsSafeInteger=Number.isSafeInteger;
   const originalIsArray=Array.isArray;
+  const originalArrayIterator=Array.prototype[Symbol.iterator];
+  const originalArrayZero=
+    Object.getOwnPropertyDescriptor(Array.prototype,"0");
+  const originalIsProxy=utilTypes.isProxy;
+  const originalRegExpTest=RegExp.prototype.test;
+  const hashPrototype=Object.getPrototypeOf(crypto.createHash("sha256"));
+  const originalHashUpdate=hashPrototype.update;
+  const originalHashDigest=hashPrototype.digest;
+  const originalBufferFrom=Buffer.from;
+  const originalBufferConcat=Buffer.concat;
+  const originalBufferAlloc=Buffer.alloc;
+  const originalWriteUInt32BE=Buffer.prototype.writeUInt32BE;
+  const originalString=globalThis.String;
   let toJSONGetterCalls=0;
-  Object.defineProperty(Object.prototype,"toJSON",{
+  let arrayIndexSetterCalls=0;
+  originalDefineProperty(Object.prototype,"toJSON",{
     configurable:true,
     get(){
       toJSONGetterCalls+=1;
       return function(){return {spoofed:true};};
     },
   });
+  originalDefineProperty(Array.prototype,"0",{
+    configurable:true,
+    set(){arrayIndexSetterCalls+=1;},
+  });
   JSON.stringify=()=>{throw new Error("poisoned JSON.stringify");};
   Object.getPrototypeOf=()=>{throw new Error("poisoned Object.getPrototypeOf");};
   Object.getOwnPropertyDescriptor=()=>{throw new Error("poisoned descriptor");};
+  Object.defineProperty=()=>{throw new Error("poisoned defineProperty");};
   Object.hasOwn=()=>{throw new Error("poisoned hasOwn");};
+  Object.create=()=>{throw new Error("poisoned Object.create");};
+  Object.freeze=()=>{throw new Error("poisoned Object.freeze");};
   Reflect.ownKeys=()=>{throw new Error("poisoned ownKeys");};
+  Reflect.apply=()=>{throw new Error("poisoned Reflect.apply");};
   Number.isSafeInteger=()=>{throw new Error("poisoned isSafeInteger");};
   Array.isArray=()=>{throw new Error("poisoned isArray");};
+  Array.prototype[Symbol.iterator]=function(){
+    throw new Error("poisoned Array iterator");
+  };
+  utilTypes.isProxy=()=>{throw new Error("poisoned isProxy");};
+  RegExp.prototype.test=()=>{throw new Error("poisoned RegExp.test");};
+  hashPrototype.update=()=>{throw new Error("poisoned Hash.update");};
+  hashPrototype.digest=()=>{throw new Error("poisoned Hash.digest");};
+  Buffer.from=()=>{throw new Error("poisoned Buffer.from");};
+  Buffer.concat=()=>{throw new Error("poisoned Buffer.concat");};
+  Buffer.alloc=()=>{throw new Error("poisoned Buffer.alloc");};
+  Buffer.prototype.writeUInt32BE=()=>{
+    throw new Error("poisoned writeUInt32BE");
+  };
+  globalThis.String=()=>{throw new Error("poisoned String");};
+  let qualified;
+  let after;
   try{
-    const qualified=
+    qualified=
       qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(
         candidate,
       );
-    assert.equal(
-      qualified.revalidator_candidate_id,
-      candidate.revalidator_candidate_id,
-    );
-    const after=
+    after=
       encodeApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(candidate);
-    assert.equal(Buffer.compare(before,after),0);
-    assert.equal(toJSONGetterCalls,0);
   }finally{
-    JSON.stringify=originalStringify;
-    Object.getPrototypeOf=originalGetPrototypeOf;
-    Object.getOwnPropertyDescriptor=originalGetOwnPropertyDescriptor;
-    Object.hasOwn=originalHasOwn;
-    Reflect.ownKeys=originalOwnKeys;
+    globalThis.String=originalString;
+    Buffer.prototype.writeUInt32BE=originalWriteUInt32BE;
+    Buffer.alloc=originalBufferAlloc;
+    Buffer.concat=originalBufferConcat;
+    Buffer.from=originalBufferFrom;
+    hashPrototype.digest=originalHashDigest;
+    hashPrototype.update=originalHashUpdate;
+    RegExp.prototype.test=originalRegExpTest;
+    utilTypes.isProxy=originalIsProxy;
+    Array.prototype[Symbol.iterator]=originalArrayIterator;
     Number.isSafeInteger=originalIsSafeInteger;
     Array.isArray=originalIsArray;
+    Reflect.apply=originalReflectApply;
+    Reflect.ownKeys=originalOwnKeys;
+    Object.freeze=originalFreeze;
+    Object.create=originalCreate;
+    Object.hasOwn=originalHasOwn;
+    Object.defineProperty=originalDefineProperty;
+    Object.getOwnPropertyDescriptor=originalGetOwnPropertyDescriptor;
+    Object.getPrototypeOf=originalGetPrototypeOf;
+    JSON.stringify=originalStringify;
+    if(originalArrayZero===undefined){
+      delete Array.prototype[0];
+    }else{
+      originalDefineProperty(Array.prototype,"0",originalArrayZero);
+    }
     delete Object.prototype.toJSON;
   }
+  assert.equal(
+    qualified.revalidator_candidate_id,
+    candidate.revalidator_candidate_id,
+  );
+  assert.equal(Buffer.compare(before,after),0);
+  assert.equal(toJSONGetterCalls,0);
+  assert.equal(arrayIndexSetterCalls,0);
 }
 {
   let getterCalls=0;
@@ -539,6 +602,11 @@ for(const required of [
 for(const forbidden of [
   'from "node:fs"','from "node:net"','from "node:child_process"',
   "JSON.stringify(",
+  "new Set(",
+  "utilTypes.isProxy(",
+  ".test(value.",
+  "chunks.push(",
+  "own.some(",
   "openSync(","readFileSync(","writeFileSync(","spawn(","execFile(","fetch(",
   "process.env","createPrivateKey","crypto.sign(",
   "protected_store_origin_proven:true",
@@ -587,6 +655,7 @@ console.log("public_candidate_content_addressed=true");
 console.log("flat_primitive_frame_hash_json_independent=true");
 console.log("post_import_json_tojson_poisoning_does_not_change_candidate_bytes=true");
 console.log("captured_reflection_primordials_bound=true");
+console.log("captured_frame_qualifier_primordials_bound=true");
 console.log("revoked_proxy_candidate_rejected=true");
 console.log("reviewed_canonicalizer_v2_future_host_required=true");
 console.log("full_3557_future_host_matrix_bound=true");
