@@ -20,7 +20,7 @@ future host authority merely because the caller's own object descriptors were
 validated. A changed serializer must be versioned rather than silently changing
 historical V1 hashes.
 
-## Exact source generation
+## Frozen predecessor generation
 
 - base: `main@61b0f81b2112aab32e3dc16084fe2d43178ec4da`
 - frozen V1 path:
@@ -29,15 +29,40 @@ historical V1 hashes.
   `f97fafb0148527ae3a954e2752faef8c7fc9e88e`
 - V2 serializer path:
   `tools/apollyon-claim-contract-canonical-json-v2.mjs`
-- V2 serializer Git blob:
+- predecessor V2 serializer Git blob:
   `07a19a92379aa3e1d1648becf007129820d51a70`
 - V2 proof path:
   `scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs`
-- V2 proof Git blob:
+- predecessor V2 proof Git blob:
   `03de2c24110bbc804a9f7489f8ae62f69c03c59b`
 
-The branch is four ADD-only paths. V1 and all current consumers remain byte
-unchanged.
+The original V2 generation was four ADD-only paths. The values above are
+predecessor identities only.
+
+## Revoked-Proxy successor binding
+
+The revoked/callable-Proxy repair was first derived from
+`main@80418e33a22ba26a00f32017610517042b18334d` and preserves the frozen V1
+blob above. Current merge-forward generations preserve the reviewed
+serializer/proof bytes while the focused workflow derives the effective
+current-main source base with `git merge-base EXPECTED_HEAD origin/main`,
+so unrelated later main commits do not become part of this four-path delta.
+
+- successor V2 serializer Git blob:
+  `4d4b970fa2df3a3e7cae176b18c62aff52e94adc`
+- successor V2 proof Git blob:
+  `a0831748098a26087cc9a1ee79132fba16bdb20e`
+
+The focused workflow is the authoritative non-circular binder for the complete
+candidate generation. It pins the successor base, four-path diff, frozen V1,
+serializer, proof, and document blobs; `EXPECTED_HEAD` binds those bytes plus
+the workflow itself to the candidate commit. This document intentionally does
+not embed its own blob or the workflow blob, because either value would change
+the bytes being named and create a circular self-hash. Those outer identities
+are carried by the reviewed commit and workflow.
+
+This successor modifies the same four paths to close revoked-Proxy dispatch, including callable and revoked-callable Proxy values before type/array dispatch.
+V1 and all current consumers remain byte unchanged.
 
 ## V2 serialization boundary
 
@@ -60,7 +85,7 @@ order. The proof includes the 0/2/10/4294967294/4294967295/01 boundary.
 
 The serializer rejects:
 
-- Proxies before reflective traversal;
+- ordinary and revoked Proxies before `Array.isArray` or reflective traversal;
 - own accessors without executing their getters;
 - symbol properties;
 - non-enumerable object properties;

@@ -242,17 +242,21 @@ function serializeObject(value,depth,stack){
 
 function serialize(value,depth,stack){
   if(depth>MAX_DEPTH)fail("apollyon_claim_canonical_v2_depth_invalid");
+  const valueType=typeof value;
+  if(value!==null&&(valueType==="object"||valueType==="function")){
+    assertNoProxy(value,"apollyon_claim_canonical_v2_proxy_forbidden");
+  }
   if(value===null)return "null";
-  if(typeof value==="string")return quoteString(value);
-  if(typeof value==="boolean")return value?"true":"false";
-  if(typeof value==="number"){
+  if(valueType==="string")return quoteString(value);
+  if(valueType==="boolean")return value?"true":"false";
+  if(valueType==="number"){
     if(!NUMBER_IS_SAFE_INTEGER(value)){
       fail("apollyon_claim_canonical_v2_number_invalid");
     }
     if(value===0)return "0";
     return APPLY(NUMBER_TO_STRING,value,[10]);
   }
-  if(typeof value!=="object"){
+  if(valueType!=="object"){
     fail("apollyon_claim_canonical_v2_value_invalid");
   }
   if(ARRAY_IS_ARRAY(value))return serializeArray(value,depth,stack);

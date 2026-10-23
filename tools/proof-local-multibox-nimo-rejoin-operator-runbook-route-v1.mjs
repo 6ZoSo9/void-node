@@ -46,7 +46,11 @@ for (const [name, idx] of Object.entries({ runtimeIndex, rootIndex })) {
 }
 
 if (data.boundary?.automatic_peer_dial_enabled_by_this_runbook !== false) throw new Error('must not enable automatic peer dial');
-if (data.boundary?.mutation_route_enabled !== false) throw new Error('must not enable mutation');
+if (data.boundary?.read_only !== false) throw new Error('manual dial guidance must not claim read-only');
+if (data.boundary?.mutation_route_enabled !== true) throw new Error('manual dial guidance must disclose mutation route');
+if (!data.operator_commands?.manual_dial?.includes('curl --fail-with-body --silent --show-error')) throw new Error('manual dial must preserve rejection body');
+if (!data.operator_commands?.verify_peers?.includes('/p2p/peers')) throw new Error('peer verification route mismatch');
+if (!data.dial_outcomes?.accepted_response?.includes('does not prove')) throw new Error('accepted response overclaims connection progress');
 if (data.boundary?.money_movement_enabled !== false) throw new Error('must not enable money movement');
 if (data.boundary?.public_internet_mesh_claim !== false) throw new Error('must not claim public internet mesh');
 

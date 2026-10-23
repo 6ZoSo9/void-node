@@ -33,9 +33,10 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          BASE=61b0f81b2112aab32e3dc16084fe2d43178ec4da
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+          BASE="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
+          test -n "$BASE"
+          echo "source_base=$BASE"
 
           expected="$RUNNER_TEMP/expected.txt"
           actual="$RUNNER_TEMP/actual.txt"
@@ -49,9 +50,9 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
-          test "$(git rev-parse HEAD:tools/apollyon-claim-contract-canonical-json-v2.mjs)" = 07a19a92379aa3e1d1648becf007129820d51a70
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs)" = 03de2c24110bbc804a9f7489f8ae62f69c03c59b
-          test "$(git rev-parse HEAD:docs/security/apollyon-claim-contract-canonical-json-v2.md)" = 33baa7c8a28f911c3a697e9a286fd5aacf8997d0
+          test "$(git rev-parse HEAD:tools/apollyon-claim-contract-canonical-json-v2.mjs)" = 4d4b970fa2df3a3e7cae176b18c62aff52e94adc
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs)" = a0831748098a26087cc9a1ee79132fba16bdb20e
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-contract-canonical-json-v2.md)" = 086591efd47a0956eb97a2e9b605aef0f71ac985
 
           git diff --check "$BASE" HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -79,6 +80,7 @@ jobs:
             'captured_own_primitive_survived_poison=true' \
             'captured_proxy_detector_survived_poison=true' \
             'proxy_detector_poison_traps_executed=0' \
+            'revoked_proxy_rejected=true' \
             'array_prototype_index_setter_hits=0' \
             'proto_key_rejected=true' \
             'proxy_traps_executed=0' \

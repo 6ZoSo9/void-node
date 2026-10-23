@@ -178,7 +178,8 @@
 
     <section class="card mt">
       <h2>Latest Result</h2>
-      <pre id="resultBox" role="status" aria-live="polite" aria-atomic="true">No result yet.</pre>
+      <div id="resultStatus" class="pill mb" role="status" aria-live="polite" aria-atomic="true"><span class="sr-only">Job result: </span><span id="resultStatusLabel">No result yet.</span></div>
+      <pre id="resultBox">No result yet.</pre>
     </section>
   </div>
 
@@ -248,6 +249,7 @@
             if (j && j.ok && j.result) {
               $("resultRoute").textContent = url;
               $("resultBox").textContent = JSON.stringify(j, null, 2);
+              $("resultStatusLabel").textContent = "Result ready.";
               return true;
             }
           } catch (_) {}
@@ -255,6 +257,7 @@
         await new Promise(r => setTimeout(r, 1000));
       }
       $("resultBox").textContent = "Timed out waiting for result.";
+      $("resultStatusLabel").textContent = "Timed out waiting for result.";
       return false;
     }
 
@@ -263,6 +266,7 @@
       $("submitBtn").disabled = true;
       setDot($("submitDot"), $("submitLabel"), false, "submitting");
       $("resultBox").textContent = "Submitting...";
+      $("resultStatusLabel").textContent = "Submitting job.";
       $("jobId").textContent = "-";
       $("inputHash").textContent = "-";
       $("resultRoute").textContent = "-";
@@ -292,6 +296,7 @@
       } catch (e) {
         setDot($("submitDot"), $("submitLabel"), false, "error");
         $("resultBox").textContent = String(e);
+        $("resultStatusLabel").textContent = "Job failed.";
       } finally {
         $("submitBtn").disabled = false;
       }
