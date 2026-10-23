@@ -102,6 +102,8 @@ jobs:
             'three_node_byte_equality_required=true' \
             'real_fifo_swap_rejected_without_blocking=true' \
             'forged_authority_predecessor_source_pin_rejected=true' \
+            'forged_runtime_record_metadata_rejected=true' \
+            'regenerated_candidate_body_exact_required=true' \
             'hosted_identity_authenticated=false' \
             'candidate_accepted=false' \
             'service_started=false' \
