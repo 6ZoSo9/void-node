@@ -1,0 +1,180 @@
+name: VOID Buy custody protected proc-ref install plan v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_protected-procref-install-plan-v1.mjs"
+      - "docs/operators/buy-void-allocation-custody-protected-procref-install-plan-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-protected-procref-install-plan-v1.yml"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source-only install plan
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="0fcd557319fbec6ffec78cb94a8fdeda41f67366"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-protected-procref-install-plan-v1.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-protected-procref-install-plan-v1.md'
+            $'A\tscripts/prove_void_buy_allocation_custody_protected-procref-install-plan-v1.mjs'
+            $'A\ttools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs)" = \
+            "01636feac235833d49c1b6253808bea43abf6601"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_protected-procref-install-plan-v1.mjs)" = \
+            "8b81fe7e971468fb0a7f092456d0476068278925"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-protected-procref-install-plan-v1.md)" = \
+            "ba18b624d4db8be976659b6feb6e2a8f37e8a08d"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
+            "25c0e32ae85da4569fb9521a0812e10ab0fcede3"
+
+          test "$(git cat-file -s HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = "56180"
+          printf '%s  %s\n' \
+            "d87dc3c539d32aff9722b802ec4b172441e98095a5bcc5cd5edac868572b4e0a" \
+            "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py" \
+            | sha256sum -c -
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Parse source-only JavaScript
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs
+          node --check scripts/prove_void_buy_allocation_custody_protected-procref-install-plan-v1.mjs
+
+      - name: Prove source-only install boundary
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/protected-procref-install-plan-proof.txt"
+          node scripts/prove_void_buy_allocation_custody_protected-procref-install-plan-v1.mjs | tee "$proof"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_PROTECTED_PROCREF_INSTALL_PLAN_V1_PROOF_GREEN' "$proof"
+          for marker in \
+            'exact_plan_source_blob=true' \
+            'reviewed_protected_source_blob_exact=true' \
+            'reviewed_protected_source_bytes_exact=true' \
+            'reviewed_protected_source_sha256_exact=true' \
+            'fixed_protected_install_paths_bound=true' \
+            'create_only_no_clobber_contract=true' \
+            'atomic_renameat2_noreplace_publication_required=true' \
+            'absence_precheck_not_publication_authority=true' \
+            'same_filesystem_root_staging_required=true' \
+            'stage_directory_exact_metadata_bound=true' \
+            'stage_root_root_mode_0755_bound=true' \
+            'stage_group_world_writable_false_bound=true' \
+            'stage_nlink_2_bound=true' \
+            'stage_exact_single_entry_set_bound=true' \
+            'protected_root_exact_single_entry_set_bound=true' \
+            'stage_descriptor_relative_creation_required=true' \
+            'stage_parent_descriptor_retention_required=true' \
+            'stage_descriptor_retention_required=true' \
+            'stage_same_mount_revalidation_required=true' \
+            'stage_direct_ancestry_required=true' \
+            'stage_symlink_free_ancestry_required=true' \
+            'stage_revalidation_before_publication_required=true' \
+            'stage_contract_missing_field_rejected=true' \
+            'stage_contract_mutation_adversaries_rejected=true' \
+            'fsync_and_postinstall_reverification_required=true' \
+            'content_addressed_install_receipt_required=true' \
+            'install_receipt_external_review_required=true' \
+            'stop_before_root_census_required=true' \
+            'no_filesystem_module_import=true' \
+            'no_child_process_module_import_in_plan=true' \
+            'no_apply_install_execute_mode=true' \
+            'protected_source_install_authorized=false' \
+            'protected_source_installed=false' \
+            'root_census_execution_authorized=false' \
+            'privileged_all_process_census_executed=false' \
+            'filesystem_write=false' \
+            'service_mutation=false' \
+            'systemd_mutation=false' \
+            'replacement_apply_authorized=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Render non-authorizing plan
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/protected-procref-install-plan.json"
+          node tools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs --plan > "$plan"
+          node --input-type=module - "$plan" <<'NODE'
+          import fs from "node:fs";
+          const p=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          if(p.status!=="HOLD_SOURCE_ONLY_NO_INSTALL_AUTHORITY") throw new Error("status");
+          if(p.reviewed_source.git_blob_sha1!=="25c0e32ae85da4569fb9521a0812e10ab0fcede3") throw new Error("blob");
+          if(p.reviewed_source.bytes!==56180) throw new Error("bytes");
+          if(p.reviewed_source.sha256!=="d87dc3c539d32aff9722b802ec4b172441e98095a5bcc5cd5edac868572b4e0a") throw new Error("sha256");
+          if(p.install_contract.publication_syscall!=="renameat2") throw new Error("publication_syscall");
+          if(p.install_contract.publication_flag!=="RENAME_NOREPLACE") throw new Error("publication_flag");
+          if(p.install_contract.ordinary_rename_publication_forbidden!==true) throw new Error("ordinary_rename");
+          if(p.install_contract.stage_parent!=="/opt") throw new Error("stage_parent");
+          if(p.install_contract.stage_uid!==0 || p.install_contract.stage_gid!==0) throw new Error("stage_owner");
+          if(p.install_contract.stage_mode!=="0755") throw new Error("stage_mode");
+          if(p.install_contract.stage_group_world_writable!==false) throw new Error("stage_writable");
+          if(p.install_contract.stage_nlink!==2) throw new Error("stage_nlink");
+          if(p.install_contract.stage_expected_entry_count!==1) throw new Error("stage_entry_count");
+          if(p.install_contract.stage_source_name!=="void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py") throw new Error("stage_source_name");
+          if(p.install_contract.stage_unexpected_entries_forbidden!==true) throw new Error("stage_unexpected");
+          if(p.install_contract.protected_root_expected_entry_count!==1) throw new Error("root_entry_count");
+          if(p.install_contract.protected_root_unexpected_entries_forbidden!==true) throw new Error("root_unexpected");
+          if(p.install_contract.stage_directory!==true || p.install_contract.stage_symlink!==false) throw new Error("stage_type");
+          if(p.install_contract.stage_same_mount_as_install_parent!==true) throw new Error("stage_mount");
+          if(p.install_contract.stage_descriptor_relative_creation_required!==true) throw new Error("stage_creation");
+          if(p.install_contract.stage_parent_descriptor_retained_through_publication_required!==true) throw new Error("stage_parent_retention");
+          if(p.install_contract.stage_descriptor_retained_through_publication_required!==true) throw new Error("stage_retention");
+          if(p.install_contract.stage_direct_child_of_install_parent_required!==true) throw new Error("stage_ancestry");
+          if(p.install_contract.stage_symlink_free_ancestry_required!==true) throw new Error("stage_symlink_ancestry");
+          if(p.install_contract.stage_revalidation_before_publication_required!==true) throw new Error("stage_revalidation");
+          for(const k of [
+            "protected_source_install_authorized",
+            "protected_source_installed",
+            "root_census_execution_authorized",
+            "privileged_all_process_census_executed",
+            "filesystem_write",
+            "service_mutation",
+            "systemd_mutation",
+            "replacement_apply_authorized",
+            "runtime_integration",
+            "payment_acceptance",
+            "public_presale_activation",
+            "production_gate_ready",
+            "funds_movement",
+          ]) if(p.authority[k]!==false) throw new Error(k);
+          process.stdout.write("VOID_PROTECTED_PROCREF_INSTALL_PLAN_RENDER_GREEN\n");
+          NODE
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
