@@ -1716,7 +1716,7 @@ def self_test()->None:
             "CapAmb":"0000000000000000",
             "NoNewPrivs":"1",
         },
-        "cmdline_raw":b"reviewed-node\\0reviewed-argv\\0",
+        "cmdline_raw":b"reviewed-node\0reviewed-argv\0",
         "argv":expected_argv,
         "thread_inventory":[{"tid":4242,"no_new_privileges":True}],
         "validated_tids":(4242,),
@@ -1724,7 +1724,7 @@ def self_test()->None:
     }
     reexecuted_subject={
         **initial_subject,
-        "cmdline_raw":b"reviewed-node\\0reexecuted-argv\\0",
+        "cmdline_raw":b"reviewed-node\0reexecuted-argv\0",
         "argv":expected_argv[:-1]+("unexpected-reexec-argument",),
     }
     socket_meta=os.stat_result(
