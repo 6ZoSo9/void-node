@@ -219,8 +219,18 @@ const MATERIAL_KEYS=Object.freeze([
 const FULL_KEYS=Object.freeze([...MATERIAL_KEYS,"revalidator_candidate_id"]);
 
 function fail(code){throw new Error(code);}
-function sha256(raw){return crypto.createHash("sha256").update(raw).digest("hex");}
+function sha256(raw){return APPLY(CREATE_HASH,crypto,["sha256"]).update(raw).digest("hex");}
 const APPLY=Reflect.apply;
+const REFLECT_OWN_KEYS=Reflect.ownKeys;
+const GET_PROTOTYPE_OF=Object.getPrototypeOf;
+const GET_OWN_PROPERTY_DESCRIPTOR=Object.getOwnPropertyDescriptor;
+const HAS_OWN=Object.hasOwn;
+const CREATE_NULL=Object.create;
+const FREEZE=Object.freeze;
+const ARRAY_IS_ARRAY=Array.isArray;
+const IS_SAFE_INTEGER=Number.isSafeInteger;
+const PRIMITIVE_STRING=String;
+const CREATE_HASH=crypto.createHash;
 const BUFFER_FROM=Buffer.from;
 const BUFFER_CONCAT=Buffer.concat;
 const BUFFER_ALLOC=Buffer.alloc;
@@ -229,7 +239,7 @@ function bytes(text,encoding="utf8"){
   return APPLY(BUFFER_FROM,Buffer,[text,encoding]);
 }
 function u32(value){
-  if(!Number.isSafeInteger(value)||value<0||value>0xffffffff){
+  if(!IS_SAFE_INTEGER(value)||value<0||value>0xffffffff){
     fail("apollyon_training_start_protected_store_revalidator_v2_frame_length_invalid");
   }
   const out=APPLY(BUFFER_ALLOC,Buffer,[4]);
@@ -244,8 +254,8 @@ function primitivePayload(value){
   if(typeof value==="boolean"){
     return bytes(value?"b1":"b0","ascii");
   }
-  if(typeof value==="number"&&Number.isSafeInteger(value)){
-    const raw=bytes(String(value),"ascii");
+  if(typeof value==="number"&&IS_SAFE_INTEGER(value)){
+    const raw=bytes(PRIMITIVE_STRING(value),"ascii");
     return APPLY(BUFFER_CONCAT,Buffer,[[bytes("i","ascii"),u32(raw.length),raw]]);
   }
   fail("apollyon_training_start_protected_store_revalidator_v2_frame_value_invalid");
@@ -253,7 +263,7 @@ function primitivePayload(value){
 function frameRecord(value,withId){
   const snapshot=snapshotFlat(value,withId);
   const keys=withId?FULL_KEYS:MATERIAL_KEYS;
-  const chunks=[bytes("VOID_APOLLYON_PROTECTED_STORE_REVALIDATOR_V2_FRAME_1\\0","ascii")];
+  const chunks=[bytes("VOID_APOLLYON_PROTECTED_STORE_REVALIDATOR_V2_FRAME_1\0","ascii")];
   for(const key of keys){
     const keyBytes=bytes(key);
     const payload=primitivePayload(snapshot[key]);
@@ -270,39 +280,39 @@ function snapshotFlat(input,withId){
   const code="apollyon_training_start_protected_store_revalidator_v2_candidate_schema_invalid";
   if(
     !input||typeof input!=="object"||utilTypes.isProxy(input)||
-    Array.isArray(input)
+    ARRAY_IS_ARRAY(input)
   )fail(code);
-  const proto=Object.getPrototypeOf(input);
+  const proto=GET_PROTOTYPE_OF(input);
   if(proto!==Object.prototype&&proto!==null)fail(code);
   const expected=withId?FULL_KEYS:MATERIAL_KEYS;
-  const own=Reflect.ownKeys(input);
+  const own=REFLECT_OWN_KEYS(input);
   if(own.length!==expected.length||own.some(key=>typeof key!=="string"))fail(code);
   const allowed=new Set(expected);
-  const out=Object.create(null);
+  const out=CREATE_NULL(null);
   for(const key of own){
     if(!allowed.has(key))fail(code);
-    const descriptor=Object.getOwnPropertyDescriptor(input,key);
-    if(!descriptor?.enumerable||!Object.hasOwn(descriptor,"value"))fail(code);
+    const descriptor=GET_OWN_PROPERTY_DESCRIPTOR(input,key);
+    if(!descriptor?.enumerable||!HAS_OWN(descriptor,"value"))fail(code);
     const value=descriptor.value;
     if(typeof value==="string"){
       if(value.length<1||value.length>512)fail(code);
     }else if(typeof value==="boolean"){
       // exact semantic value is checked below
     }else if(typeof value==="number"){
-      if(!Number.isSafeInteger(value))fail(code);
+      if(!IS_SAFE_INTEGER(value))fail(code);
     }else{
       fail(code);
     }
     out[key]=value;
   }
-  for(const key of expected)if(!Object.hasOwn(out,key))fail(code);
+  for(const key of expected)if(!HAS_OWN(out,key))fail(code);
   return out;
 }
 
 function validateMaterial(value){
   const code="apollyon_training_start_protected_store_revalidator_v2_candidate_invalid";
   if(
-    value.marker!==MARKER||value.version!==1||value.status!==STATUS||
+    value.marker!==MARKER||value.version!==2||value.status!==STATUS||
     value.target_host!=="Xiphos"||
     value.parent_head!==
       APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_PARENT_V2.head||
@@ -348,12 +358,12 @@ function validateMaterial(value){
     !CONSUMPTION_ID.test(value.training_start_consumption_id)||
     !TRAINER_GENERATION_ID.test(value.trainer_generation_id)||
     !HASH64.test(value.trainer_boot_id_sha256)||
-    !Number.isSafeInteger(value.trainer_pid)||value.trainer_pid<=1||
+    !IS_SAFE_INTEGER(value.trainer_pid)||value.trainer_pid<=1||
     typeof value.trainer_process_start_time_ticks!=="string"||
     !/^[1-9][0-9]{0,19}$/u.test(value.trainer_process_start_time_ticks)||
-    !Number.isSafeInteger(value.trainer_uid)||
+    !IS_SAFE_INTEGER(value.trainer_uid)||
       value.trainer_uid<=0||value.trainer_uid>65533||
-    !Number.isSafeInteger(value.trainer_gid)||
+    !IS_SAFE_INTEGER(value.trainer_gid)||
       value.trainer_gid<=0||value.trainer_gid>65533||
     !HASH64.test(value.trainer_source_identity_sha256)
   )fail(code);
@@ -379,7 +389,7 @@ function materialFromRequest(request){
   }
   return {
     marker:MARKER,
-    version:1,
+    version:2,
     status:STATUS,
     target_host:"Xiphos",
     parent_head:
@@ -486,7 +496,7 @@ export function buildApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(i
   const request=qualifyApollyonTrainingStartStoreRevalidationRequestV1(input);
   const material=materialFromRequest(request);
   validateMaterial(material);
-  return Object.freeze({
+  return FREEZE({
     ...material,
     revalidator_candidate_id:
       ID_PREFIX+sha256(frameRecord(material,false)),
@@ -507,7 +517,7 @@ export function qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2
   if(value.revalidator_candidate_id!==expected){
     fail("apollyon_training_start_protected_store_revalidator_v2_candidate_id_invalid");
   }
-  return Object.freeze({...value});
+  return FREEZE({...value});
 }
 
 export function qualifyApollyonTrainingStartProtectedStoreRevalidatorAgainstRequestV2(
@@ -535,7 +545,7 @@ export function encodeApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(
   input,
 ){
   const value=qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(input);
-  return Buffer.from(frameRecord(value,true));
+  return APPLY(BUFFER_FROM,Buffer,[frameRecord(value,true)]);
 }
 
 export const APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_MATERIAL_KEYS_V2 =
