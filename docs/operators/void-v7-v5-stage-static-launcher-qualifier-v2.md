@@ -3,19 +3,19 @@
 ## Purpose
 
 Implement the production-disabled trusted admission surfaces defined by Draft
-#3717 for the exact canonical staging installers proven in #3715.
+#3720 for the exact canonical staging installers proven in #3719.
 
 This successor reuses the reviewed #3714 closed-tree/static-launcher design but
 binds the canonical installer generation and canonical stage custody:
 
 - installer source commit:
-  `f621ebb7b5e74ea1b34d30eff62bf6b66bb79b16`;
+  `5ec1658836c2f7580cbbd27d9b49b5f3892b90ef`;
 - installer source tree:
-  `b0affbc7f3553cef7f4ab46d7185c934b0013fe2`;
+  `681040be548b140e9a15d2c4c851ecba9e8623ed`;
 - source installer blob:
-  `e1fa010d5128b9846aafc8d353c874da96dfa48d`;
+  `b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b`;
 - receipt installer blob:
-  `3ff41612a8a7aed926995e0892383e75fad99c7a`;
+  `8a8da645c73216714fad1140c9981745fbb4a8de`;
 - source stage mode:
   `0755`;
 - source internal build path:
@@ -34,13 +34,13 @@ Future fixed closed-tree root:
 The launcher binds:
 
 - V2 trusted-admission plan ID
-  `voidv7v5stageadmissionplan2_3e1b9c2c9cc112da764de6b68e7a4959d416cf286f3265759f331e1c5fd8c9fe`;
+  `voidv7v5stageadmissionplan2_ab5bf952568a3633b494322dcef46f4ee8e15d20f8881c8bd9b6f787f414e2a5`;
 - V2 plan blob
-  `615ed3862c2a78fc26dcc9d26cb1171966cf0b24`;
-- source installer: 126,021 bytes,
-  SHA-256 `588a665df3788b21465859ef99a5b58f09bfeb3fc0a5955c44eb6d6aee6cee25`;
-- receipt installer: 11,645 bytes,
-  SHA-256 `0191532118f7d543ac0b9cf2ea287f5a22f4dbf686b6b433d0c45a3d896b3d09`;
+  `c7ff1128ff04f3ce5f995206af52f844564c6b39`;
+- source installer: 129,332 bytes,
+  SHA-256 `b4e12ba83f2ef874bd5f55bf2577e412a02a6d9010ee5563f9dbd2dfb0db00db`;
+- receipt installer: 12,395 bytes,
+  SHA-256 `755ce5836df711f7c3ff254f71246db7e1e6de9509dd84eddd6b67b2c8973a3a`;
 - exact implementation commit/tree above.
 
 Its four operations remain:
@@ -154,3 +154,52 @@ funds_movement=false
 ```
 
 PROTECT THE CORE.
+
+## Hardened installer boundary
+
+This V2 launcher generation now binds the #3719 installer hardening accepted by
+#3720:
+
+- source retained reads include `O_NONBLOCK` alongside `O_NOFOLLOW`, with
+  a real regular→FIFO race regression;
+- the receipt installer enforces isolated/safe-path Python before
+  source-tree-shadowable imports, with a hostile sibling import regression.
+
+The launcher still executes the selected installer from a retained descriptor
+under static Python `-I -B -S`, so the hardened installer checks are an
+additional fail-closed layer.
+
+The production manifest remains unaccepted. No root execution or staging apply
+is authorized by this rebind.
+
+PROTECT THE CORE.
+
+## Reviewed historical V4 workflow integration — exact branch scope
+
+After the original four-path launcher source qualification, the reviewed
+historical V4 proof integration from #3723 (head
+`05508e433831d16629e989096b9a73d3731ef40c`) was landed on this
+same feature branch as commit
+`f9748c632fc5c47dc70c4f76e55ab8f21fdeb0a5`.
+The branch therefore contains **five** changed paths against the original
+#3720 base `d162c564f72666530f48c604c8f9a7b13aa04495`.
+
+The additional modified path is exactly
+`.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml`:
+- exact original parent Git blob: `231f5697c23e7f234e566877da9738093a091313`;
+- exact reviewed historical V4 Git blob: `b82f0d1ea2f9c101343c2023bbf88516c948fa67`;
+- historical reviewed source: #3723 at `05508e433831d16629e989096b9a73d3731ef40c`.
+
+The focused launcher workflow MUST require **all five** exact modified
+paths, pin the inherited V4 workflow blob in the checked-out head, pin its
+original parent blob, and reject any sixth unexpected path. This source-only
+scope reconciliation does not alter the historical workflow, accepted
+source/receipt installers, launcher C bytes, or the launcher proof itself.
+It is **not** independent approval of the historical workflow as a new
+economic-authority surface. Existing source/stage/runtime/manifest acceptance,
+root/privileged execution, launch, presale and funds HOLDs remain unchanged.
+
+Passing this scoped workflow is only CI proof for the pinned branch generation;
+it is not a license to rebase the broader stale V7 feature stack onto main.
+
+**PROTECT THE CORE.**
