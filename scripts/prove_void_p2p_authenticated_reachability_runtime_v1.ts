@@ -114,6 +114,39 @@ assert.equal(runtimeDirect.classification, "direct_confirmed");
 assert.equal(runtimeDirect.counts.independent_success_observers, 2);
 assert.equal(runtimeDirect.counts.independent_success_domains, 2);
 
+const runtimeObservationAConflictingDomain =
+  createVoidP2PReachabilityObservationV1({
+    subjectNodeId: subjectKeys.nodeId,
+    observerNodeId: observerA.nodeId,
+    observerFailureDomain: "failure-domain-b",
+    observedAt: new Date(now + 2).toISOString(),
+    kind: "authenticated_dialback",
+    candidateAddress: "1.1.1.1:4700",
+    outcome: "success",
+    authenticatedSubjectId: subjectKeys.nodeId,
+    latencyMs: 14,
+  });
+const runtimeConflictingDomain = classifyVoidP2PReachabilityRuntimeV1(
+  [
+    runtimeObservationA,
+    runtimeObservationAConflictingDomain,
+    runtimeObservationB,
+  ],
+  { nowMs: now + 5 },
+);
+assert.equal(
+  runtimeConflictingDomain.classification,
+  "direct_observed_unconfirmed",
+);
+assert.equal(
+  runtimeConflictingDomain.counts.independent_success_observers,
+  1,
+);
+assert.equal(
+  runtimeConflictingDomain.counts.independent_success_domains,
+  1,
+);
+
 const sourceContract: any = await import(
   "./lib/void_p2p_reachability_classification_contract_v1.mjs"
 );
@@ -335,6 +368,7 @@ try {
 
   console.log("[PASS] runtime observation bytes match source contract v1");
   console.log("[PASS] independent observer/domain semantics match source classifier");
+  console.log("[PASS] conflicting failure-domain labels exclude that observer from independence");
   console.log("[PASS] outbound-seen evidence is emitted after authenticated session completion");
   console.log("[PASS] dialback uses a separate authenticated probe connection");
   console.log("[PASS] dialback probe preserves the existing control session");
@@ -355,6 +389,7 @@ try {
   console.log("non_public_probe_allowed_without_test_override=false");
   console.log("non_public_probe_direct_confirmed=false");
   console.log("independent_observers_direct_confirmed=true");
+  console.log("conflicting_observer_failure_domains_direct_confirmed=false");
   console.log("nat_type_inferred=false");
   console.log("relay_requirement_inferred=false");
   console.log("runtime_network_probe_exercised=true");
