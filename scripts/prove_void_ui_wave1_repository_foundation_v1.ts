@@ -529,6 +529,15 @@ if (
   fail("Network async status summary must remain a bounded polite atomic live region");
 }
 
+for (const marker of [
+  '<p data-wallet-message role="status" aria-live="polite" aria-atomic="true">',
+  '<p data-earn-message role="status" aria-live="polite" aria-atomic="true">',
+]) {
+  if (!viewsJs.includes(marker)) {
+    fail(`Wallet/Earn async status live-region contract missing: ${marker}`);
+  }
+}
+
 const inertOpenIndex = appJs.indexOf("setModalBackgroundInert(true);");
 const modalFocusIndex = appJs.indexOf("target.querySelector('button, input, a')?.focus();");
 const inertCloseIndex = appJs.indexOf("setModalBackgroundInert(false);");
