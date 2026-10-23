@@ -312,6 +312,10 @@ def plan() -> dict[str, Any]:
             "install_root": install_state,
             "stage_root": stage_state,
             **prestate,
+            "host_identity_bound": False,
+            "observation_time_bound": False,
+            "observation_freshness_proven": False,
+            "live_at_use_prestate_reverification_required": True,
         },
         "future_apply_contract": {
             "apply_implemented": False,
@@ -322,6 +326,7 @@ def plan() -> dict[str, Any]:
             "source_candidate_reverification_required": True,
             "accepted_lock_reverification_required": True,
             "root_and_opt_custody_reverification_required": True,
+            "live_at_use_prestate_reverification_required": True,
             "install_root_absence_required": True,
             "stage_root_absence_required": True,
             "private_stage_create_only_required": True,
@@ -345,6 +350,10 @@ def plan() -> dict[str, Any]:
         "apply_available": False,
         "protected_install_authorized": False,
         "protected_install_performed": False,
+        "host_identity_bound": False,
+        "observation_time_bound": False,
+        "observation_freshness_proven": False,
+        "live_at_use_prestate_reverification_required": True,
         "live_privileged_census_authorized": False,
         "live_privileged_census_executed": False,
         "service_mutation": False,
@@ -402,6 +411,10 @@ def self_test() -> None:
     print("filesystem_write=false")
     print("protected_install_authorized=false")
     print("protected_install_performed=false")
+    print("host_identity_bound=false")
+    print("observation_time_bound=false")
+    print("observation_freshness_proven=false")
+    print("live_at_use_prestate_reverification_required=true")
     print("live_privileged_census_authorized=false")
     print("live_privileged_census_executed=false")
     print("legacy_runtime_target_mutation=false")
@@ -438,6 +451,8 @@ if __name__ == "__main__":
         print("filesystem_write=false")
         print("apply_available=false")
         print("protected_install_authorized=false")
+        print("observation_freshness_proven=false")
+        print("live_at_use_prestate_reverification_required=true")
         print("live_privileged_census_authorized=false")
         print("replacement_apply_authorized=false")
         print("funds_movement=false")
