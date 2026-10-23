@@ -1,0 +1,52 @@
+name: VOID V7 static rename-noreplace bridge v1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/precision/void_v7_static_rename_noreplace_bridge_v1.c'
+      - 'scripts/prove_void_v7_static_rename_noreplace_bridge_v1.py'
+      - 'docs/operators/void-v7-static-rename-noreplace-bridge-v1.md'
+      - '.github/workflows/void-v7-static-rename-noreplace-bridge-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-rename-noreplace-bridge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+
+      - name: Bind exact four-file source scope
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_v7_static_rename_noreplace_bridge_v1.c)" = "34e32a5b77e0bd82138aa47ad4f8645fc93c0b9c"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_static_rename_noreplace_bridge_v1.py)" = "51dede10966f91d27399363c876da4ef3372f501"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-static-rename-noreplace-bridge-v1.md)" = "7795d06f316385ddcf21fa06fc1e7c16403ba81b"
+          git merge-base --is-ancestor 4596bc73ce3adc8a4e59396ca1ebdf206ba9496f HEAD
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cat > /tmp/expected <<'EOF'
+          A	.github/workflows/void-v7-static-rename-noreplace-bridge-v1.yml
+          A	docs/operators/void-v7-static-rename-noreplace-bridge-v1.md
+          A	ops/precision/void_v7_static_rename_noreplace_bridge_v1.c
+          A	scripts/prove_void_v7_static_rename_noreplace_bridge_v1.py
+          EOF
+            git diff --name-status "${{ github.event.pull_request.base.sha }}" HEAD -- | sort > /tmp/actual
+            sort /tmp/expected > /tmp/expected.sorted
+            diff -u /tmp/expected.sorted /tmp/actual
+          fi
+          git diff --check
+
+      - name: Focused built-in bridge proof
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_void_v7_static_rename_noreplace_bridge_v1.py

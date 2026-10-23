@@ -1,0 +1,77 @@
+name: VOID Buy VOID operator capability provenance plan v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-operator-capability-provenance-plan-v1.json"
+      - "scripts/prove_buy_void_operator_capability_provenance_plan_v1.mjs"
+      - "docs/architecture/buy-void-operator-capability-provenance-plan-v1.md"
+      - ".github/workflows/buy-void-operator-capability-provenance-plan-v1.yml"
+      - "src/economic/buy_void_operator_local_intent_v1.ts"
+      - "scripts/prove_buy_void_operator_local_intent_v1.ts"
+      - "ops/install-void-node-live-user-service-v1.sh"
+      - "docs/operators/buy-void-user-runtime-custody-hardening-v1.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove operator capability provenance source plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/operator-capability-provenance-plan-v1.log"
+          node scripts/prove_buy_void_operator_capability_provenance_plan_v1.mjs | tee "$log"
+          grep -Fx 'VOID_BUY_VOID_OPERATOR_CAPABILITY_PROVENANCE_PLAN_V1_GREEN' "$log"
+          grep -Fx 'plan_id=voidbvcred1_accffa0b50b6b682716f3cc943ff5207d6565e71ad0f631718fa1677afbc322e' "$log"
+          grep -Fx 'source_binding_count=4' "$log"
+          grep -Fx 'future_requirement_count=17' "$log"
+          grep -Fx 'base_repository_loadcredential_provisioning_present=false' "$log"
+          grep -Fx 'current_service_installer_loadcredential_present=false' "$log"
+          grep -Fx 'credential_id_consumer_only_on_base=true' "$log"
+          grep -Fx 'credential_token_prefix=voidbvo1.' "$log"
+          grep -Fx 'new_generation_exact_payload_chars=43' "$log"
+          grep -Fx 'raw_token_in_git_allowed=false' "$log"
+          grep -Fx 'raw_token_in_logs_allowed=false' "$log"
+          grep -Fx 'credential_generated=false' "$log"
+          grep -Fx 'credential_read=false' "$log"
+          grep -Fx 'credential_installed=false' "$log"
+          grep -Fx 'service_mutation=false' "$log"
+          grep -Fx 'operator_principal_authenticated=false' "$log"
+          grep -Fx 'payment_acceptance=false' "$log"
+          grep -Fx 'presale_activation=false' "$log"
+          grep -Fx 'funds_movement=false' "$log"
+
+      - name: Diff hygiene
+        shell: bash
+        run: git diff --check 1c7ea1484537ec3259f1833b68fbcb64b130744b HEAD
