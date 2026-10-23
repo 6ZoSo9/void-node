@@ -4,11 +4,11 @@ import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 const MARKER="VOID_BUY_VOID_CANONICAL_ERC20_DELIVERY_CANARY_PLAN_V1";
 const ROOT=process.cwd();
-const BASE_HEAD="e83b1df4bc3b52d08d5e38e076fa6c80085f7e01";
-const BASE_TREE="016ed94a40ad7b25565f9233e3ad29375f7f37b3";
+const BASE_HEAD="40e61e4695cd4fd9e95bbd44e95152b5c2e2f432";
+const BASE_TREE="c6d9b9cedd33acd2a114c7577ef11aa3274c3cb3";
 const PLAN_PATH="ops/security/buy-void-canonical-erc20-delivery-canary-plan-v1.json";
-const PLAN_BLOB="3727d3759012072443f11ff97343d5c0c66bc5c7";
-const PLAN_ID="voidbverc20canary1_7149b3d05bb5c4fa856d3d3494cc556541a514925f465fa0fcc6c13222690d86";
+const PLAN_BLOB="3efe05cfd104e87d48b3eb7e1d6d943ce10a6d5d";
+const PLAN_ID="voidbverc20canary1_5c1bc8a16b52b8e7e07f79aadfa01c5865b5804f7603f2c8fd4330d043520173";
 const OWNED=Object.freeze([
   ".github/workflows/buy-void-canonical-erc20-delivery-canary-plan-v1.yml",
   "docs/architecture/buy-void-canonical-erc20-delivery-canary-plan-v1.md",
