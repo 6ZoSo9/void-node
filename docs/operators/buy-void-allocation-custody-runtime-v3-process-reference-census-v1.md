@@ -5,7 +5,7 @@ Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V1`.
 Status: **read-only current-UID process-reference diagnostic only**.
 
 This successor is based on the exact filesystem-prestate census generation at
-`ae207992cd291fbc3645320319fe08f39be05d51`. It exists to satisfy the
+`332367d1ac93a206437c0c977082b97ed4895cd0`. It exists to satisfy the
 existing replacement plan's requirement for a process-reference census without
 silently promoting an unprivileged observation into all-process authority.
 
@@ -14,7 +14,7 @@ silently promoting an unprivileged observation into all-process authority.
 The census binds:
 
 - prestate-census source Git blob:
-  `caaf668b25879b5bbcddbf865e574a7b5162143e`;
+  `c2e0c53336665578e4ab26204f7d67908c66ad3f`;
 - accepted archive-lock Git blob:
   `edb4ea2b833373ab387762e45ba7da4032c860f3`;
 - accepted archive-lock SHA-256:
@@ -122,7 +122,9 @@ process-reference absence as complete.
 
 ## Invocation
 
-After source/CI qualification:
+After source/CI qualification, isolated no-bytecode mode is mandatory; omitting
+`-B` HOLDs before ordinary imports so a successful production receipt cannot
+silently permit Python bytecode-cache writes:
 
 ```bash
 python3 -I -B \
@@ -138,6 +140,7 @@ Do not run this source with sudo. Root execution intentionally HOLDs.
 read_only=true
 production_filesystem_write=false
 root_execution_forbidden=true
+python_no_bytecode_mode_required=true
 target_snapshot_stable_required=true
 regular_file_mount_id_checked=true
 receipt_target_bound_to_selected_attempt=true
