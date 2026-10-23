@@ -178,3 +178,38 @@ not host-census authority and are reported separately as fixture writes.
 The production census does not create or refresh its own namespace lease.
 
 **PROTECT THE CORE.**
+
+## Post-scan process-scope revalidation — October 23, 2026
+
+A zero-process candidate is now bound to the same host process-observation
+scope at both ends of the census window.
+
+After the two custody-UID process passes complete, the production census:
+
+1. re-reads and verifies the externally leased host PID namespace using
+   `/proc/self/ns/pid` and `/proc/1/ns/pid`;
+2. re-reads bounded `/proc/self/mountinfo`;
+3. re-applies the complete-procfs / no-restrictive-`hidepid` checks; and
+4. requires both closing observations to equal the opening namespace and procfs
+   visibility observations.
+
+Any PID-namespace identity change or procfs visibility/options change produces
+HOLD before `dedicated_uid_process_quiescence_candidate=true` can be emitted.
+
+The source/self-test and independent proof include synthetic post-scan
+namespace and proc-visibility drift cases. These changes do not broaden the
+census: it remains unprivileged, read-only, status/UID-only, and does not read
+cmdlines, environments, executables or FD tables.
+
+Additional evidence markers:
+
+```text
+host_pid_namespace_revalidated_after_census=true
+proc_visibility_revalidated_after_census=true
+postscan_scope_drift_holds=true
+```
+
+All existing non-authority boundaries remain unchanged.
+
+PROTECT THE CORE.
+
