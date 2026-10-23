@@ -46,11 +46,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py)" = \
-            "ddbc7d99e5c08fbd51332541316b1d24c3fbcc6c"
+            "5dff4dc3f4aab4df1ac8e3c61302ca2707cbd027"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py)" = \
-            "8e55342ca15f3b81cf976d6fdb7ca35d2b0419a4"
+            "a7a9715a945362892fa6b8eb4fb5e8ed47373aa0"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-procref-install-plan-v1.md)" = \
-            "c04b3a2f16955ff5182e69f8a9c9786ccc81fb22"
+            "dd545b6aa0944f80a2e67bac4ed29dc6444571ad"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v1.json)" = \
             "3eacfe0dec5144ba8c1e4c743bf3e8025f58f88a"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
@@ -88,6 +88,10 @@ jobs:
             'filesystem_write=false' \
             'protected_install_authorized=false' \
             'protected_install_performed=false' \
+            'host_identity_bound=false' \
+            'observation_time_bound=false' \
+            'observation_freshness_proven=false' \
+            'live_at_use_prestate_reverification_required=true' \
             'live_privileged_census_authorized=false' \
             'live_privileged_census_executed=false' \
             'legacy_runtime_target_mutation=false' \
@@ -125,6 +129,10 @@ jobs:
             'filesystem_write=false' \
             'protected_install_authorized=false' \
             'protected_install_performed=false' \
+            'host_identity_bound=false' \
+            'observation_time_bound=false' \
+            'observation_freshness_proven=false' \
+            'live_at_use_prestate_reverification_required=true' \
             'live_privileged_census_authorized=false' \
             'live_privileged_census_executed=false' \
             'legacy_runtime_target_mutation=false' \
