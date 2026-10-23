@@ -1,0 +1,203 @@
+name: VOID Buy custody runtime V3 replacement readiness plan v1
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_replacement_readiness_plan_v1.mjs"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-replacement-readiness-plan-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-replacement-readiness-plan-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact readiness successor and dependencies
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="2f58b776c4ba5b4c1b309d122122bd3355e2abc9"
+          QUI_BRANCH="ren/custody-runtime-v3-service-quiescence-census-v1-20261023"
+          QUI_HEAD="b52752700e44dea447c0fda76c61bcf32228416e"
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-replacement-readiness-plan-v1.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-replacement-readiness-plan-v1.md'
+            
+            $'A\ttools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs)" = \
+            "5ee9c6cebaae1d7e5266bc3aa97746d7b3d07580"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_replacement_readiness_plan_v1.mjs)" = \
+            "f489279ee9a93d7487fcf4b75018b0723c2fcc8e"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-replacement-readiness-plan-v1.md)" = \
+            "864fb72c727ff4920846a9d362b79f21f3861903"
+
+          test "$(git rev-parse 836f5e704a603f67b77b2406aeec9174f640497e:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
+            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
+          test "$(git rev-parse 2f58b776c4ba5b4c1b309d122122bd3355e2abc9:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
+            "a5fa6ff22cc21df555e8a70c32500f07251dc4a8"
+
+          git fetch --no-tags origin "$QUI_BRANCH:refs/remotes/origin/$QUI_BRANCH"
+          test "$(git rev-parse "refs/remotes/origin/$QUI_BRANCH")" = "$QUI_HEAD"
+          test "$(git rev-parse "$QUI_HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py")" = \
+            "90358ef1df3ecfa3daeee39452ffd025e9a8d86e"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
+            "edb4ea2b833373ab387762e45ba7da4032c860f3"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-existing-target-replacement-plan-v1.mjs)" = \
+            "425c2b68d96bd9122f0d55c11d4722360f5e19ca"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-node-binary-profile-v1.mjs)" = \
+            "4d4d656bddf40de6f215be7b4b6e7cec62098036"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-polkit-deny-profile-v1.mjs)" = \
+            "91470e0924910d57786390f4722d323f1cf7b89b"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Check JavaScript
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs
+          node --check scripts/prove_void_buy_allocation_custody_runtime_v3_replacement_readiness_plan_v1.mjs
+
+      - name: Prove source-only readiness boundary
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/custody-v3-replacement-readiness-proof.txt"
+          node scripts/prove_void_buy_allocation_custody_runtime_v3_replacement_readiness_plan_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_REPLACEMENT_READINESS_PLAN_V1_GREEN' "$proof"
+          for marker in \
+            'exact_source_blob_asserted=true' \
+            'prestate_source_bound=true' \
+            'quiescence_source_bound=true' \
+            'process_reference_source_bound=true' \
+            'host_pid_namespace_lease_required=true' \
+            'host_mount_namespace_lease_required=true' \
+            'target_bound_to_host_mount_namespace=true' \
+            'archive_lock_v3_bound=true' \
+            'historical_v1_plan_sequencing_only=true' \
+            'cross_receipt_target_generation_bound=true' \
+            'diagnostic_bundle_can_be_complete=true' \
+            'diagnostic_bundle_does_not_authorize_replacement=true' \
+            'forged_quiescence_proof_rejected=true' \
+            'forged_all_process_proof_rejected=true' \
+            'caller_apply_authority_injection_rejected=true' \
+            'privileged_all_process_reference_absence_required=true' \
+            'live_node_binary_identity_verification_required=true' \
+            'accepted_archive_bytes_at_use_verification_required=true' \
+            'rollback_protocol_acceptance_required=true' \
+            'replacement_apply_authorized=false' \
+            'service_mutation=false' \
+            'filesystem_write=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
+A\tscripts/prove_void_buy_allocation_custody_runtime_v3_replacement_readiness_plan_v1.mjs'
+            $'A\ttools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs)" = \
+            "5ee9c6cebaae1d7e5266bc3aa97746d7b3d07580"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_replacement_readiness_plan_v1.mjs)" = \
+            "f489279ee9a93d7487fcf4b75018b0723c2fcc8e"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-replacement-readiness-plan-v1.md)" = \
+            "864fb72c727ff4920846a9d362b79f21f3861903"
+
+          test "$(git rev-parse 836f5e704a603f67b77b2406aeec9174f640497e:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
+            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
+          test "$(git rev-parse 2f58b776c4ba5b4c1b309d122122bd3355e2abc9:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
+            "a5fa6ff22cc21df555e8a70c32500f07251dc4a8"
+
+          git fetch --no-tags origin "$QUI_BRANCH:refs/remotes/origin/$QUI_BRANCH"
+          test "$(git rev-parse "refs/remotes/origin/$QUI_BRANCH")" = "$QUI_HEAD"
+          test "$(git rev-parse "$QUI_HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py")" = \
+            "90358ef1df3ecfa3daeee39452ffd025e9a8d86e"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
+            "edb4ea2b833373ab387762e45ba7da4032c860f3"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-existing-target-replacement-plan-v1.mjs)" = \
+            "425c2b68d96bd9122f0d55c11d4722360f5e19ca"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-node-binary-profile-v1.mjs)" = \
+            "4d4d656bddf40de6f215be7b4b6e7cec62098036"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-polkit-deny-profile-v1.mjs)" = \
+            "91470e0924910d57786390f4722d323f1cf7b89b"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Check JavaScript
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs
+          node --check scripts/prove_void_buy_allocation_custody_runtime_v3_replacement_readiness_plan_v1.mjs
+
+      - name: Prove source-only readiness boundary
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/custody-v3-replacement-readiness-proof.txt"
+          node scripts/prove_void_buy_allocation_custody_runtime_v3_replacement_readiness_plan_v1.mjs | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_REPLACEMENT_READINESS_PLAN_V1_GREEN' "$proof"
+          for marker in \
+            'exact_source_blob_asserted=true' \
+            'prestate_source_bound=true' \
+            'quiescence_source_bound=true' \
+            'process_reference_source_bound=true' \
+            'archive_lock_v3_bound=true' \
+            'historical_v1_plan_sequencing_only=true' \
+            'cross_receipt_target_generation_bound=true' \
+            'diagnostic_bundle_can_be_complete=true' \
+            'diagnostic_bundle_does_not_authorize_replacement=true' \
+            'forged_quiescence_proof_rejected=true' \
+            'forged_all_process_proof_rejected=true' \
+            'caller_apply_authority_injection_rejected=true' \
+            'privileged_all_process_reference_absence_required=true' \
+            'live_node_binary_identity_verification_required=true' \
+            'accepted_archive_bytes_at_use_verification_required=true' \
+            'rollback_protocol_acceptance_required=true' \
+            'replacement_apply_authorized=false' \
+            'service_mutation=false' \
+            'filesystem_write=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
