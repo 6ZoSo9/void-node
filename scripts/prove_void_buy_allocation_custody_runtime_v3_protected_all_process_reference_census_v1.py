@@ -14,7 +14,7 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "20b0a1bae77ba5002cd07463c723e6bcd59ad57b"
+EXPECTED_SOURCE_BLOB = "25a0913606baa3303743f36a8c79f3c7a14ea159"
 
 
 def git_blob(raw: bytes) -> str:
@@ -266,6 +266,15 @@ with tempfile.TemporaryDirectory(
     other_file = other_dir / "exe"
     other_file.write_bytes(b"x")
 
+    host_mount_ns = base / "host-mount-namespace"
+    private_mount_ns = base / "private-mount-namespace"
+    host_mount_ns.write_bytes(b"host")
+    private_mount_ns.write_bytes(b"private")
+    expected_host_mount_namespace = (
+        host_mount_ns.stat().st_dev,
+        host_mount_ns.stat().st_ino,
+    )
+
     def stat_line(pid: int, start_ticks: int, state: str = "S") -> str:
         fields = [state] + ["0"] * 19
         fields[6] = "0"
@@ -280,19 +289,74 @@ with tempfile.TemporaryDirectory(
     for task in (task_100, task_101):
         (task / "cwd").symlink_to(other_dir)
         (task / "root").symlink_to(other_dir)
+        (task / "ns").mkdir()
+        (task / "ns" / "mnt").symlink_to(host_mount_ns)
     (task_101 / "fd" / "3").symlink_to(target_file)
 
     original_proc = module.PROC
     module.PROC = proc
     try:
-        row = module.scan_process(100, target_snap["identities"])
+        row = module.scan_process(
+            100,
+            target_snap["identities"],
+            expected_host_mount_namespace,
+        )
         assert row["status"] == "scanned", row
         assert row["task_count"] == 2
         assert row["task_inventory_stable"] is True
+        assert row["task_mount_namespace_inventory_stable"] is True
         assert row["reference_count"] == 1, row
         assert row["references"]["fd"] == 1, row
         assert row["references"]["cwd"] == 0
         assert row["references"]["root"] == 0
+
+        # A live TID in a private mount namespace cannot contribute to a clean
+        # host-scoped candidate even if its fd/cwd/root view is otherwise quiet.
+        task_101_mnt = task_101 / "ns" / "mnt"
+        task_101_mnt.unlink()
+        task_101_mnt.symlink_to(private_mount_ns)
+        private_ns_row = module.scan_process(
+            100,
+            target_snap["identities"],
+            expected_host_mount_namespace,
+        )
+        assert private_ns_row["status"] == "task_mount_namespace_diverged"
+        assert private_ns_row["divergent_tid"] == 101
+        assert module.classify_attempt(
+            [100], [100], [private_ns_row], True
+        )["host_scoped_target_reference_absent_candidate"] is False
+        task_101_mnt.unlink()
+        task_101_mnt.symlink_to(host_mount_ns)
+
+        # Also exercise a namespace switch after the first mount-namespace
+        # inventory but before the terminal inventory.
+        original_scan_task_fds = module._scan_task_fds
+        switched = [False]
+
+        def scan_task_fds_then_switch(*args, **kwargs):
+            result = original_scan_task_fds(*args, **kwargs)
+            tid = args[1] if len(args) > 1 else kwargs.get("tid")
+            if tid == 101 and not switched[0]:
+                switched[0] = True
+                task_101_mnt.unlink()
+                task_101_mnt.symlink_to(private_mount_ns)
+            return result
+
+        module._scan_task_fds = scan_task_fds_then_switch
+        try:
+            churn_row = module.scan_process(
+                100,
+                target_snap["identities"],
+                expected_host_mount_namespace,
+            )
+        finally:
+            module._scan_task_fds = original_scan_task_fds
+            if task_101_mnt.exists() or task_101_mnt.is_symlink():
+                task_101_mnt.unlink()
+            task_101_mnt.symlink_to(host_mount_ns)
+        assert switched[0]
+        assert churn_row["status"] == "task_mount_namespace_diverged", churn_row
+        assert churn_row["divergent_tid"] == 101
 
         first_inventory = module._task_inventory(100)
         assert first_inventory is not None and set(first_inventory) == {100, 101}
@@ -312,7 +376,11 @@ with tempfile.TemporaryDirectory(
         (task_101 / "stat").write_text(
             stat_line(101, 1001, state="S"), encoding="ascii"
         )
-        zombie_row = module.scan_process(100, target_snap["identities"])
+        zombie_row = module.scan_process(
+            100,
+            target_snap["identities"],
+            expected_host_mount_namespace,
+        )
         assert zombie_row["status"] == "zombie_leader_with_live_tasks", zombie_row
         assert zombie_row["live_task_count"] == 1
         zombie_classification = module.classify_attempt(
@@ -380,6 +448,11 @@ for required in (
     "task_inventory_generation_stability_required",
     "zombie_leader_with_live_tasks",
     "per_thread_files_fs_reference_scan_required",
+    "per_thread_host_mount_namespace_required",
+    "task_mount_namespace_generation_stability_required",
+    "private_task_mount_namespace_rejected",
+    "def _task_mount_namespace(",
+    "def _task_mount_namespace_inventory(",
     "MAX_TASKS_PER_PROCESS",
     "MAX_TOTAL_TASKS",
     "host_scoped_target_reference_absent_candidate",
@@ -443,8 +516,13 @@ print("host_scoped_target_reference_absent_candidate_only=true")
 print("all_process_target_reference_absent_observed=false")
 print("task_inventory_generation_stability_required=true")
 print("per_thread_files_fs_reference_scan_required=true")
+print("per_thread_host_mount_namespace_required=true")
+print("task_mount_namespace_generation_stability_required=true")
+print("private_task_mount_namespace_rejected=true")
 print("bounded_task_inventory_required=true")
 print("nonleader_thread_fd_reference_detected=true")
+print("private_task_mount_namespace_adversary_rejected=true")
+print("task_mount_namespace_churn_detected=true")
 print("zombie_leader_live_worker_rejected=true")
 print("task_generation_churn_detected=true")
 print("regular_file_mount_id_checked=true")
