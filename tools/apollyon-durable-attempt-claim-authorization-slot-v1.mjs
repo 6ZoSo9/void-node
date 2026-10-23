@@ -163,6 +163,9 @@ const SLOT_SET_ID=/^apollyon_attempt_claim_auth_slot_set_v1:[0-9a-f]{64}$/u;
 const SLOT_MIGRATION_ID=/^apollyon_attempt_claim_auth_slot_migration_v1:[0-9a-f]{64}$/u;
 const STORE_CONTINUITY_ID=/^apollyon_claim_store_continuity_v2:[0-9a-f]{64}$/u;
 
+export const VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_MAX_RECORDS_V1 =
+  32768;
+
 function fail(code){throw new Error(code);}
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
 function canonical(value){return canonicalApollyonClaimContractJsonV1(value);}
@@ -209,9 +212,13 @@ function exactRecordArraySnapshot(input,code){
   const lengthDescriptor=Object.getOwnPropertyDescriptor(input,"length");
   if(
     !lengthDescriptor||!Object.hasOwn(lengthDescriptor,"value")||
-    !Number.isSafeInteger(lengthDescriptor.value)||lengthDescriptor.value<0
+    !Number.isSafeInteger(lengthDescriptor.value)||lengthDescriptor.value<0||
+    lengthDescriptor.value>
+      VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_MAX_RECORDS_V1
   )fail(code);
   const length=lengthDescriptor.value;
+  // Bound cardinality from the own non-accessor length descriptor before any
+  // full key/descriptor census, snapshot allocation, validation, sort or hash.
   const own=Reflect.ownKeys(input);
   if(own.length!==length+1)fail(code);
   const descriptors=Object.getOwnPropertyDescriptors(input);
