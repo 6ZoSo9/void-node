@@ -92,7 +92,16 @@ leases to match PID 1 and the retained procfs view, prove the fixed target was
 resolved in that host mount namespace, retain unrestricted procfs visibility,
 terminally revalidate that visibility/retained procfs view, and carry a stable
 selected target snapshot plus the exact no-mutation/no-private-read/no-authority
-contract from the pinned source. Its
+contract from the pinned source.
+
+The process generation duplicates four stability requirements inside the nested
+`process` object as well as at top level. Both copies are independently
+validated and must agree with the source contract:
+`target_snapshot_stable_required=true`,
+`fd_table_stability_proven=false`,
+`mapping_set_stability_proven=false`, and
+`live_at_use_reverification_required=true`. A self-consistent top-level
+receipt cannot hide contradictory nested claims. Its
 own generation must still say:
 
 ```text
