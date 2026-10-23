@@ -1,0 +1,76 @@
+name: Buy VOID V7 protected substrate root launcher v2
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/buy-void-v7-protected-substrate-root-launcher-v2.yml'
+      - 'docs/operators/buy-void-v7-protected-substrate-root-launcher-v2.md'
+      - 'ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c'
+      - 'scripts/prove_buy_void_v7_protected_substrate_root_launcher_v2.py'
+      - 'ops/precision/void_buy_void_v7_protected_substrate_install_v5.py'
+      - 'ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py'
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/buy-void-v7-protected-substrate-root-launcher-v2.yml'
+      - 'docs/operators/buy-void-v7-protected-substrate-root-launcher-v2.md'
+      - 'ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c'
+      - 'scripts/prove_buy_void_v7_protected_substrate_root_launcher_v2.py'
+      - 'ops/precision/void_buy_void_v7_protected_substrate_install_v5.py'
+      - 'ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py'
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V2 source generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          SOURCE_BASE: 47acc1485ab264a1a33d6a8c70072c2c18ce56e4
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test "$(git merge-base "$SOURCE_BASE" "$EXPECTED_HEAD")" = "$SOURCE_BASE"
+            cat > "$RUNNER_TEMP/expected-delta" <<'EOF'
+          A	.github/workflows/buy-void-v7-protected-substrate-root-launcher-v2.yml
+          A	docs/operators/buy-void-v7-protected-substrate-root-launcher-v2.md
+          A	ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c
+          A	scripts/prove_buy_void_v7_protected_substrate_root_launcher_v2.py
+          EOF
+            git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual-delta"
+            sort "$RUNNER_TEMP/expected-delta" > "$RUNNER_TEMP/expected-delta.sorted"
+            diff -u "$RUNNER_TEMP/expected-delta.sorted" "$RUNNER_TEMP/actual-delta"
+            git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
+          else
+            git diff --check "$EXPECTED_HEAD^" "$EXPECTED_HEAD" --
+          fi
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c)" = "0aa8d3a990de662b8c3c9928d4c31452d8299ca7"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_root_launcher_v2.py)" = "1c3503a9fe504559e22cdab9a2d423414be137dc"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-root-launcher-v2.md)" = "234074e8b9b635b35feddf460f1113a4520c59bd"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py)" = "69b1ff028487a139470671cf0afb8937a299897d"
+
+      - name: Python proof syntax
+        run: |
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          p = Path("scripts/prove_buy_void_v7_protected_substrate_root_launcher_v2.py")
+          compile(p.read_bytes(), str(p), "exec", dont_inherit=True, optimize=0)
+          PY
+
+      - name: Static native V2 source proof
+        run: |
+          python3 -I -B scripts/prove_buy_void_v7_protected_substrate_root_launcher_v2.py

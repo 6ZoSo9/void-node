@@ -3,7 +3,7 @@
 Status: **source/CI-only V4 candidate generation; no deployment or economic authority**.
 
 Dispatch V4 is the explicit successor boundary above Draft PR #3661 exact head
-`0344d7dab153be75716646d5c6f5162f926f25ee`. It preserves the accepted V3 candidate and lock, binds the
+`d66379084ceead538479b776d153bddac2f678e3`. It preserves the accepted V3 candidate and lock, binds the
 descriptor-hardened deployment reader, and validates an unaccepted V4 candidate
 whose 49-row inventory differs from V3 at exactly one reviewed path:
 
@@ -13,13 +13,13 @@ whose 49-row inventory differs from V3 at exactly one reviewed path:
 
 ## Exact identities
 
-- predecessor Dispatch V3: `fba37e94a90b3d4278fd3fba10fbe6313f2f0625`
-- V4 candidate proof: `f33a579e62c8201de24d5076cfcbffab66df8dae`
-- V4 candidate JSON: `5893e300a78dc4ca7729ef47f95a8e3eea2043cf`
-- V4 candidate JSON SHA-256: `bf360784af7a6ddf908812b9c335e8e52d4410ba249c5ea1988b97d9cfd5a72c`
-- V4 inventory SHA-256: `8485ef25c236b8798bed3a67b9308ef7dcd383aedca1486f4f488d043d7efbe0`
-- V4 enforcement-set SHA-256: `ff084a754e7eb6bef08ec1b1079a17a6110b4333876f0231e46395eed63042d2`
-- Dispatch V4 proof: `51a51a7f85c8068269bad0e09e3ae872c4323a58`
+- predecessor Dispatch V3: `fd4dc893171a666b8abba83873a63261466d36fd`
+- V4 candidate proof: `4a10cebe913999bb12a5e2cce44e7e48652ab706`
+- V4 candidate JSON: `cde87fb709b727102fd05b106217f3bdeef07985`
+- V4 candidate JSON SHA-256: `701a6c493d17e1263ae09b591b3df93feed8fea710b8ee8e2980f3b8c9e2263b`
+- V4 inventory SHA-256: `c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d`
+- V4 enforcement-set SHA-256: `e13b69320010736404819dcf24061aaeee5da37b4efae3a140eec8ff08faaeec`
+- Dispatch V4 proof: `3726f9f0108b5a8594dba4749939e764d2f89d8b`
 
 The candidate remains unaccepted. `candidate_enforcement_identity_accepted`,
 deployed artifact generation, runtime mount authority, production source-finality
@@ -27,7 +27,7 @@ authority, public presale activation, and funds movement all remain false.
 
 The five current-generation consumers use Dispatch V4. The prior V3 reader
 repair workflow is retained as historical evidence and checks out exact head
-`0344d7dab153be75716646d5c6f5162f926f25ee`; it does not reinterpret the V4 candidate branch as the old
+`d66379084ceead538479b776d153bddac2f678e3`; it does not reinterpret the V4 candidate branch as the old
 12-path reader-repair generation.
 
 No receipt is installed, no service is mutated, no credential or wallet is

@@ -22,7 +22,7 @@ const EXPECTED_DISPATCH_GIT_BLOB =
 // seal-first startup proof. This successor rechecks the complete mounted
 // verify-payment/mark route slice on that exact generation.
 const REVIEWED_CURRENT_ROUTER_GIT_BLOB =
-  "7df1f21c730b554c414c88c550a4475234485370";
+  "a09661797aa4295371c036be36d82995e5233269";
 const FROZEN_DISPATCH_PROOF_V1_GIT_BLOB =
   "e58bf39fadc25123771481608fad2a61a8f3133f";
 const FROZEN_DISPATCH_PROOF_V2_GIT_BLOB =

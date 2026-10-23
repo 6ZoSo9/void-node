@@ -12,9 +12,9 @@ The accepted V2 candidate and lock remain frozen. Their 49-row protected source
 inventory records `src/index.ts` at
 `123ec1792a027f93d4c9030749a0e7e136a75a44`.
 
-The reviewed machine-readable bounded-range generation changes only that
+The reviewed machine-readable bounded-range alias/recovery generation changes only that
 protected row to exact current blob
-`7df1f21c730b554c414c88c550a4475234485370`. Dispatch V2 does not claim
+`a09661797aa4295371c036be36d82995e5233269`. Dispatch V2 does not claim
 that the current protected inventory is byte-identical to the frozen candidate.
 
 ## Exact successor contract

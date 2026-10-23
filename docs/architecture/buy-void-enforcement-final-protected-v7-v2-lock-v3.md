@@ -6,25 +6,25 @@ Status: **source/CI-only acceptance lock; no deployment/runtime/economic authori
 
 This V3 lock is stacked on immutable reviewed candidate head:
 
-`a93016c2e1b0656e9abe8a7607bc35c6cf94eb37`
+`c9d516763cf6d6674d0ede57faf9452d4802d2f1`
 
 It accepts exactly:
 - candidate path `ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json`;
-- candidate Git blob `79998af4763b6afca84ffe4e8d14d9a6ff535dfd`;
+- candidate Git blob `5301c32f53c2a82435152e38b36486507a73f906`;
 - candidate bytes `17392`;
-- candidate SHA-256 `df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6`;
-- candidate enforcement-set SHA-256 `95a11602e5f2639d33b378293b92863ea7f9f37020ad18dec49d3d4ac6289fd4`;
-- derivation proof Git blob `8ea7786299422f7fc3fbfd7474b5e92d869e92c2`.
+- candidate SHA-256 `eb2be386ecf374bc75d6c10e4d5cfa3ea5fa309acbef5612f74991c6ba311aab`;
+- candidate enforcement-set SHA-256 `2bfc8455c09e8cbbaa56ac580ccc5f193b54f95c3e4bec1e2274a068303236ec`;
+- derivation proof Git blob `96ae15c0a76d4cc463ea64688fa2c5fd119b09fc`.
 
 The candidate parent remains unchanged. This lock successor does **not** modify or rerun the candidate proof against a widened HEAD; instead it content-binds the reviewed parent generation and independently validates its exact bytes, reviewed source transition, audited package-runtime identity, dependency-provider closure, V7 executable-delta generation, and negative-authority contract.
 
 ## Real hosted evidence
 
-Portable candidate evidence is bound to exact workflow run `39541480682`:
-- Node 22 artifact `12319906482`;
-- Node 24 artifact `12320135827`;
-- Node 26 artifact `12319778088`;
-- portable cross-node equality job `119031386124`.
+Portable candidate evidence is bound to exact workflow run `39979328838`:
+- Node 22 artifact `12513585992`;
+- Node 24 artifact `12513785788`;
+- Node 26 artifact `12512398541`;
+- portable cross-node equality job `120506442218`.
 
 All three portable jobs derive the same candidate from reachable-history-only clones. The V3 lock workflow re-runs those parent candidate jobs against the exact candidate head before its own lock proof.
 
@@ -35,18 +35,18 @@ V1/V2 candidate and lock generations remain immutable historical evidence.
 V3 accepts exactly one reviewed protected source transition:
 - `src/index.ts`
 - predecessor blob `123ec1792a027f93d4c9030749a0e7e136a75a44`
-- current blob `7df1f21c730b554c414c88c550a4475234485370`.
+- current blob `a09661797aa4295371c036be36d82995e5233269`.
 
 The frozen predecessor protected inventory SHA-256 remains
 `224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2`.
 
 The reviewed current 49-row inventory SHA-256 is
-`c0a56b378215feafacc089e9f59a9f966d57f11e5582e4a13afcd6351d2447bb`.
+`65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589`.
 
 ## Current lock identities
 
-- lock Git blob: `245ce93ebfb53478211fab765489e88d8fa23c4a`;
-- lock proof Git blob: `0a2293c624b698062fb2fe3ba07b95d632eaa9ab`.
+- lock Git blob: `e530390e505d447ca0ad9e2a098ec6a819ae3e6c`;
+- lock proof Git blob: `a3b2aad30e22ead3cc73bbd0def3d1fb4f934d01`.
 
 ## Defensive proof-input boundary — October 21, 2026
 
