@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import {types} from "node:util";
 
 import {
   canonicalApollyonClaimContractJsonV1,
@@ -179,6 +180,34 @@ try{
 assert.equal(arraySetterResult,nestedBaseline);
 assert.equal(arrayIndexSetterHits,0);
 
+const originalIsProxy=types.isProxy;
+let proxyDetectorPoisonTraps=0;
+const proxyUnderDetectorPoison=new Proxy({a:1},{
+  getPrototypeOf(target){
+    proxyDetectorPoisonTraps+=1;
+    return Reflect.getPrototypeOf(target);
+  },
+  ownKeys(target){
+    proxyDetectorPoisonTraps+=1;
+    return Reflect.ownKeys(target);
+  },
+  getOwnPropertyDescriptor(target,key){
+    proxyDetectorPoisonTraps+=1;
+    return Reflect.getOwnPropertyDescriptor(target,key);
+  },
+});
+try{
+  types.isProxy=function(){return false;};
+  expectCode(
+    ()=>canonicalApollyonClaimContractJsonV2(proxyUnderDetectorPoison),
+    /apollyon_claim_canonical_v2_proxy_forbidden/u,
+    "captured_proxy_detector_required",
+  );
+}finally{
+  types.isProxy=originalIsProxy;
+}
+assert.equal(proxyDetectorPoisonTraps,0);
+
 let getterHits=0;
 const accessor={};
 Object.defineProperty(accessor,"a",{
@@ -336,6 +365,8 @@ console.log("post_import_object_tojson_poison_resisted=true");
 console.log("post_import_array_tojson_poison_resisted=true");
 console.log("post_import_json_stringify_poison_resisted=true");
 console.log("captured_own_primitive_survived_poison=true");
+console.log("captured_proxy_detector_survived_poison=true");
+console.log("proxy_detector_poison_traps_executed=0");
 console.log("array_prototype_index_setter_hits=0");
 console.log("proto_key_rejected=true");
 console.log("proxy_traps_executed=0");
