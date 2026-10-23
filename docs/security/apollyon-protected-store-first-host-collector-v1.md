@@ -88,6 +88,13 @@ This prevents both PID recycling and same-process `execve`/credential changes
 from splicing different runtime subjects into one receipt. It does not read raw
 argv, environment, open file names, sockets, memory, or credentials.
 
+The collector also repeats the complete pass-level observations after the
+service/process sample: machine identity, trusted ancestors, every fixed path,
+mount metadata, and the closed systemd property set must compare exactly with
+their first samples. Any cross-pass drift is HOLD. This is not an atomic kernel
+snapshot, but it prevents a successful receipt from silently combining
+different before/after host generations.
+
 ## Authority semantics
 
 A successful future host receipt may set only:
@@ -137,9 +144,9 @@ source. It verifies:
 
 No Xiphos host pass is performed by CI.
 
-Source blob: `89c559aa5ce736bc0af26def965a881dc6a43223`.
+Source blob: `9cca0579810e91a7e55293041ab52bcc632823c2`.
 
-Proof blob: `73675772ffef0b7de39f02643286368553573d1a`.
+Proof blob: `79e269468b74f783889d22acdfb697af0402001d`.
 
 ## Next gate
 
