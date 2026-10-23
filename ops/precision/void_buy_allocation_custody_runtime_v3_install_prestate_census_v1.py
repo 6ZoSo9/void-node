@@ -7,18 +7,21 @@ _BOOTSTRAP_MARKER = "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_INSTALL_PRESTATE_CENSUS_V1
 if (
     _bootstrap_sys.flags.isolated != 1
     or not getattr(_bootstrap_sys.flags, "safe_path", False)
+    or _bootstrap_sys.flags.dont_write_bytecode != 1
     or _bootstrap_sys.flags.optimize != 0
     or not __debug__
 ):
     if __name__ == "__main__":
         print(_BOOTSTRAP_MARKER)
         print("status=HOLD")
-        print("reason=python_isolated_unoptimized_mode_required")
-        print("filesystem_write=false")
+        print("reason=python_isolated_unoptimized_nobytecode_mode_required")
+        print("production_census_read_only=true")
+        print("production_census_filesystem_write=false")
+        print("self_test_temporary_filesystem_write=false")
         print("service_mutation=false")
         print("funds_movement=false")
         raise SystemExit(2)
-    raise RuntimeError("python_isolated_unoptimized_mode_required")
+    raise RuntimeError("python_isolated_unoptimized_nobytecode_mode_required")
 
 import argparse
 import hashlib
@@ -822,6 +825,7 @@ def self_test() -> None:
     print("special_file_rejection=true")
     print("stage_and_rollback_collision_observed=true")
     print("production_census_read_only=true")
+    print("python_no_bytecode_mode_required=true")
     print("production_census_filesystem_write=false")
     print("self_test_temporary_filesystem_write=true")
     print("archive_extraction=false")
