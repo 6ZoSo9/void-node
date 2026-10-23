@@ -46,6 +46,10 @@ PARENT_BINDING_ID = (
 PARENT_PLAN_ID = (
     "voidapollyonfirsthostplan1_c75bf9aaa019f82e2d73c80cb0c8bb3a1072bc462870a6d36b67a40fc59746be"
 )
+# Merged #3763 establishes that the observed digest is not authenticated host
+# provenance. This source generation therefore cannot execute a host pass.
+AUTHENTICATED_XIPHOS_MACHINE_ID_PROVENANCE_BOUND = False
+HOST_PASS_AUTHORIZED = False
 
 MACHINE_ID = Path("/etc/machine-id")
 CLAIM_STATE_ROOT = Path("/var/lib/void-apollyon-attempt-claim-v2")
@@ -505,8 +509,8 @@ def _mount_observation() -> dict[str, Any]:
 
 def _authority(host_pass: bool) -> dict[str, bool]:
     return {
-        "host_pass_performed": host_pass,
-        "machine_identity_bound": True,
+        "host_pass_performed": host_pass and HOST_PASS_AUTHORIZED,
+        "machine_identity_bound": AUTHENTICATED_XIPHOS_MACHINE_ID_PROVENANCE_BOUND,
         "protected_store_origin_proven": False,
         "current_store_generation_revalidation_performed": False,
         "authorization_winner_reread_performed": False,
@@ -543,7 +547,7 @@ def plan_receipt() -> dict[str, Any]:
         "training_execution": False,
         "funds_movement": False,
         "authority": _authority(False),
-        "next_action": "SEPARATE_OPERATOR_AUTHORIZATION_THEN_RUN_METADATA_SAFE_FIRST_HOST_PASS",
+        "next_action": "PRODUCE_SEPARATE_AUTHENTICATED_XIPHOS_MACHINE_ID_ATTESTATION_THEN_REBIND_COLLECTOR_HOST_AUTHORITY",
     }
 
 def _ancestor_observation() -> dict[str, Any]:
@@ -579,6 +583,15 @@ def _fixed_path_observation() -> dict[str, Any]:
     }
 
 def run_host_pass() -> dict[str, Any]:
+    # Authority gate MUST precede every host observation. A separately reviewed
+    # successor may rebind these constants only after authenticated Xiphos
+    # machine-identity provenance exists.
+    if (
+        not AUTHENTICATED_XIPHOS_MACHINE_ID_PROVENANCE_BOUND
+        or not HOST_PASS_AUTHORIZED
+    ):
+        hold("authenticated_xiphos_machine_identity_provenance_required")
+
     if socket.gethostname().casefold() != TARGET_HOST.casefold():
         hold("wrong_host")
 
@@ -711,7 +724,9 @@ def self_test() -> None:
         hold("selftest_systemctl_failed")
     print(MARKER + "_SELF_TEST_GREEN")
     print("host_read_performed=false")
-    print("machine_identity_bound=true")
+    print("machine_identity_bound=false")
+    print("authenticated_xiphos_machine_identity_provenance_bound=false")
+    print("host_pass_authorized=false")
     print("protected_record_contents_read=false")
     print("protected_record_names_listed=false")
     print("process_environment_read=false")
