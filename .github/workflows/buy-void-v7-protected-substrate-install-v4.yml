@@ -29,9 +29,47 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REF" = "ren/v7-v2-hardened-receipt-range-composition-v1-20261021" ]; then
+            test "$PR_BASE" = "e6336075802680577f4d3e82ab7384b5c212bb4c"
+            git merge-base --is-ancestor "$PR_BASE" "$EXPECTED_HEAD"
+            expected="$RUNNER_TEMP/composition-expected.txt"
+            actual="$RUNNER_TEMP/composition-actual.txt"
+            printf '%s\n' \
+              '.github/workflows/buy-void-v7-protected-substrate-install-v4.yml' \
+              '.github/workflows/buy-void-v7-v2-hardened-receipt-range-composition-v1.yml' \
+              '.github/workflows/void-v7-source-release-full-history-reseal-v1.yml' \
+              'docs/architecture/buy-void-v7-v2-hardened-receipt-range-composition-v1.md' \
+              'docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md' \
+              'docs/operators/buy-void-v7-protected-substrate-install-v4.md' \
+              'docs/operators/void-v7-source-release-full-history-reseal-v1.md' \
+              'ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts' \
+              'ops/precision/void_buy_void_v7_protected_substrate_install_v4.py' \
+              'ops/precision/void_v7_source_release_full_history_reseal_v1.py' \
+              'scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts' \
+              'scripts/prove_buy_void_v7_protected_substrate_install_v4.py' \
+              'scripts/prove_buy_void_v7_v2_hardened_receipt_range_composition_v1.mjs' \
+              'scripts/prove_void_v7_source_release_full_history_reseal_v1.py' \
+              | sort > "$expected"
+            git diff --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
+            diff -u "$expected" "$actual"
+            git diff --check "$PR_BASE" "$EXPECTED_HEAD"
+            test -z "$(git status --porcelain=v1 --untracked-files=all)"
+            echo "composition_scope_exact=true"
+            return_from_scope_guard=1
+          else
+            return_from_scope_guard=0
+          fi
+
+          if [ "$return_from_scope_guard" -eq 1 ]; then
+            test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v4.py)" = "94112afa2f805e0a6ce881a490c1c64e31e0413e"
+            test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v4.py)" = "3dbc556b01d3f3577c8579553e6ac639be161020"
+            test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v4.md)" = "b30e7423ac7299fc6f2f793c0b7142616b5ebc60"
+            exit 0
+          fi
           case "$EVENT_NAME" in
             pull_request) base="$PR_BASE" ;;
             workflow_dispatch) base="b6eeb1f0b8d80ab26df6d965a1b5f4f861e6a52a" ;;
