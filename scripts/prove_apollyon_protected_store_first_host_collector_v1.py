@@ -33,7 +33,7 @@ PINS = {
     ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml":
         "c8737fe68f15894bd15af0e775fc79cb2b50d9bb",
     SOURCE_REL:
-        "48f46f9b98626a4881d267ed7ed6d88faad063c4",
+        "8bf39498a5429f45e2859a846e01157790136a04",
 }
 SELF = "scripts/prove_apollyon_protected_store_first_host_collector_v1.py"
 DOC = "docs/security/apollyon-protected-store-first-host-collector-v1.md"
@@ -111,6 +111,7 @@ for required in (
     '"network_rpc_contact": False',
     '"training_execution": False',
     '"funds_movement": False',
+    'hold("process_generation_changed")',
 ):
     need(required in source_text, "required_source_boundary_missing:" + required)
 
@@ -153,6 +154,15 @@ valid_status = (
     b"CapAmb:\t0000000000000000\n"
 )
 need(mod.parse_status(valid_status)["Uid"].startswith("1001"), "status_positive_invalid")
+proc_stat = b"321 (worker name) S " + (b"1 " * 18) + b"555 0 0\n"
+need(
+    mod.parse_proc_stat_start_ticks(proc_stat, 321) == "555",
+    "proc_stat_start_ticks_invalid",
+)
+expect_hold(
+    lambda: mod.parse_proc_stat_start_ticks(proc_stat, 322),
+    "process_stat_pid_mismatch",
+)
 expect_hold(
     lambda: mod.parse_status(valid_status + b"Uid:\t1\t1\t1\t1\n"),
     "process_status_duplicate:Uid",
