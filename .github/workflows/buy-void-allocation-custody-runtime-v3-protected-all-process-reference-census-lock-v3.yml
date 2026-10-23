@@ -1,0 +1,162 @@
+name: VOID Buy custody V3 protected all-process reference census lock v3
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.json"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v3.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.yml"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V3 acceptance successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="cfae72e86e060ec797a86797d71f7be7aa019be8"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.md'
+            $'A\tops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.json'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v3.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
+            "9738f14111fc03dffe9afb04f7bede73ceb13087"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v3.py)" = \
+            "ba1b8cc6c30c613c2d638e60f1bb61a288266227"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.md)" = \
+            "86952328f67e74fe8ab600617692733cf1d0a24e"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.json)" = \
+            "e66742be948ae418cbdca75542db263050930c15"
+
+          printf '%s  %s\n' \
+            "f3ef0593eae77825f730609b85da51af66168ba11f39848d052a91942e4cc335" \
+            "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py" \
+            | sha256sum -c -
+
+          test "$(wc -c < ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" -eq 74322
+          LC_ALL=C grep -P -n '[^\x00-\x7F]' \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py \
+            && exit 1 || true
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile proof
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v3.py
+
+      - name: Prove exact repaired source acceptance
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/protected-all-process-lock-v3-proof.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v3.py \
+            | tee "$out"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS_LOCK_V3_GREEN' "$out"
+          for marker in \
+            'candidate_source_git_blob_exact=true' \
+            'candidate_source_bytes_exact=true' \
+            'candidate_source_ascii_only=true' \
+            'candidate_source_sha256_exact=true' \
+            'source_companion_blobs_exact=true' \
+            'focused_source_run_bound=true' \
+            'candidate_source_accepted=true' \
+            'current_parent_lineage_bound=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'host_mount_namespace_external_lease_required=true' \
+            'host_user_namespace_external_lease_required=true' \
+            'private_user_namespace_rejected=true' \
+            'host_user_namespace_lease_mismatch_rejected=true' \
+            'host_user_namespace_lease_revalidation_required=true' \
+            'host_namespace_lease_provenance_authenticated_by_census=false' \
+            'separately_reviewed_host_namespace_lease_required=true' \
+            'mount_namespace_reference_scan_performed=false' \
+            'mount_namespace_reference_absence_proven=false' \
+            'all_process_target_reference_absent_observed=false' \
+            'all_process_reference_absence_proven=false' \
+            'fd_table_stability_proven=false' \
+            'mapping_set_stability_proven=false' \
+            'process_reference_snapshot_race_free=false' \
+            'live_at_use_reverification_required=true' \
+            'protected_install_authorized=false' \
+            'protected_source_installed=false' \
+            'live_privileged_census_authorized=false' \
+            'live_privileged_census_executed=false' \
+            'replacement_apply_authorized=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'production_gate_ready=false' \
+            'funds_movement=false' \
+            'next_gate=RESTACK_REVIEW_PROTECTED_SOURCE_INSTALL_PLAN_PR3771'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Validate lock authority
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.json")
+          x=json.loads(p.read_text())
+          assert x["version"] == 3
+          assert x["parent_source_head"] == "cfae72e86e060ec797a86797d71f7be7aa019be8"
+          assert x["candidate_source_accepted"] is True
+          assert x["bounded_source_semantics"]["host_user_namespace_external_lease_required"] is True
+          assert x["bounded_source_semantics"]["host_namespace_lease_provenance_authenticated_by_census"] is False
+          assert x["bounded_source_semantics"]["mount_namespace_reference_absence_proven"] is False
+          assert x["bounded_source_semantics"]["all_process_reference_absence_proven"] is False
+          for key in (
+              "protected_install_authorized",
+              "protected_source_installed",
+              "live_privileged_census_authorized",
+              "live_privileged_census_executed",
+              "service_mutation",
+              "systemd_mutation",
+              "install_target_selected",
+              "existing_target_replaced",
+              "replacement_apply_authorized",
+              "runtime_integration",
+              "payment_acceptance",
+              "public_presale_activation",
+              "production_gate_ready",
+              "funds_movement",
+          ):
+              assert x[key] is False, key
+          assert x["next_gate"] == "RESTACK_REVIEW_PROTECTED_SOURCE_INSTALL_PLAN_PR3771"
+          print("VOID_PROTECTED_ALL_PROCESS_LOCK_V3_JSON_GREEN")
+          PY
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
