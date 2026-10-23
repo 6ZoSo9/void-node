@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_protected_procref_install_candidate_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "7abf70b7421ba6ae42eab08fad0647f63b997f8c"
+EXPECTED_SOURCE_BLOB = "467bed6ef835bc84eb5b6f8cb53b0fbfb1b1f686"
 PLAN = ROOT / "tools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs"
 PLAN_BLOB = "a2431fffbee7be4de2ee1152b70e5fcccafd40c9"
 LOCK = (
@@ -117,8 +117,15 @@ for required in (
     "os.O_DIRECTORY",
     "stat.S_IMODE",
     "PRODUCTION_APPLY_AUTHORIZED = False",
-    "production_apply_exposed=false",
+    "production_apply_cli_present=true",
+    "production_apply_reachable=false",
     "production_apply_authorized=false",
+    "stage_descriptor_retained_through_publication=true",
+    "stage_path_revalidated_before_publication=true",
+    "stage_substitution_rejected=true",
+    "foreign_stage_cleanup_refused=true",
+    "exact_stage_generation_cleanup=true",
+    "truthful_host_write_failure_classification=true",
     "install_receipt_external_review_required=true",
     "root_census_execution_authorized=false",
     "replacement_apply_authorized=false",
@@ -149,12 +156,28 @@ assert "os.rmdir(INSTALL_NAME" not in source
 publish_block = source.split("def _publish_into_parent(", 1)[1].split(
     "def source_plan(", 1
 )[0]
-assert publish_block.index("_revalidate_parent(") < publish_block.index(
-    "_rename_noreplace("
-)
-assert publish_block.index("_rename_noreplace(") < publish_block.index(
-    "_post_publication_checks("
-)
+rename_index = publish_block.index("_rename_noreplace(")
+assert publish_block.index("_revalidate_parent(") < rename_index
+assert publish_block.rfind(
+    "_revalidate_stage_for_publication(",
+    0,
+    rename_index,
+) >= 0
+assert rename_index < publish_block.index("_post_publication_checks(")
+assert rename_index < publish_block.index("os.close(stage_fd)")
+assert "_prepublication_hook" in publish_block
+assert "published_target_not_retained_stage_generation" in publish_block
+
+cleanup_block = source.split("def _cleanup_stage(", 1)[1].split(
+    "def _revalidate_stage_for_publication(", 1
+)[0]
+assert "expected_stage: dict[str, int]" in cleanup_block
+assert "if current != expected_stage:" in cleanup_block
+assert "_identity(visible) != _identity(retained)" in cleanup_block
+
+main_block = source.split('if __name__ == "__main__":', 1)[1]
+assert "host_write_performed = isinstance(exc, HostMutationHold)" in main_block
+assert '"production_host_write_performed="' in main_block
 
 post_block = source.split("def _post_publication_checks(", 1)[1].split(
     "def _publish_into_parent(", 1
@@ -198,11 +221,19 @@ for line in (
     "content_addressed_install_receipt_fixture_green=true",
     "truthful_post_publication_failure_classification=true",
     "prepublication_stage_cleanup_fixture_green=true",
+    "stage_descriptor_retained_through_publication=true",
+    "stage_path_revalidated_before_publication=true",
+    "stage_substitution_rejected=true",
+    "foreign_stage_cleanup_refused=true",
+    "exact_stage_generation_cleanup=true",
+    "truthful_host_write_failure_classification=true",
     "install_parent_drift_rejected=true",
-    "production_apply_exposed=false",
+    "production_apply_cli_present=true",
+    "production_apply_reachable=false",
     "production_apply_authorized=false",
     "root_census_execution_authorized=false",
-    "host_write=false",
+    "production_host_write_performed=false",
+    "self_test_temporary_filesystem_write=true",
     "replacement_apply_authorized=false",
     "payment_acceptance=false",
     "public_presale_activation=false",
@@ -226,7 +257,8 @@ plan_lines = set(plan.stdout.splitlines())
 for line in (
     "mode=source-plan",
     "source_candidate_only=true",
-    "production_apply_exposed=false",
+    "production_apply_cli_present=true",
+    "production_apply_reachable=false",
     "production_apply_authorized=false",
     "create_only=true",
     "atomic_renameat2_noreplace=true",
@@ -237,7 +269,7 @@ for line in (
     "truthful_post_publication_failure_classification=true",
     "install_receipt_external_review_required=true",
     "root_census_execution_authorized=false",
-    "host_write=false",
+    "production_host_write_performed=false",
     "replacement_apply_authorized=false",
     "funds_movement=false",
 ):
@@ -261,9 +293,11 @@ assert (
     in hold_lines
 )
 for line in (
+    "production_apply_cli_present=true",
+    "production_apply_reachable=false",
     "production_apply_authorized=false",
     "root_census_execution_authorized=false",
-    "host_write=false",
+    "production_host_write_performed=false",
     "replacement_apply_authorized=false",
     "payment_acceptance=false",
     "public_presale_activation=false",
@@ -286,7 +320,7 @@ assert without_b.returncode == 2
 assert "reason=python_isolated_unoptimized_nobytecode_mode_required" in (
     without_b.stdout.splitlines()
 )
-assert "host_write=false" in without_b.stdout.splitlines()
+assert "production_host_write_performed=false" in without_b.stdout.splitlines()
 
 print("VOID_BUY_VOID_CUSTODY_PROTECTED_PROCREF_INSTALL_CANDIDATE_V1_PROOF_GREEN")
 print("exact_installer_source_blob_asserted=true")
@@ -301,13 +335,20 @@ print("renameat2_noreplace_fixture_green=true")
 print("create_only_no_clobber_fixture_green=true")
 print("parent_descriptor_and_mount_revalidation_fixture_green=true")
 print("prepublication_stage_cleanup_fixture_green=true")
+print("stage_descriptor_retained_through_publication=true")
+print("stage_path_revalidated_before_publication=true")
+print("stage_substitution_rejected=true")
+print("foreign_stage_cleanup_refused=true")
+print("exact_stage_generation_cleanup=true")
+print("truthful_host_write_failure_classification=true")
 print("post_publication_exact_reverification_fixture_green=true")
 print("content_addressed_install_receipt_fixture_green=true")
 print("truthful_post_publication_failure_classification=true")
-print("production_apply_exposed=false")
+print("production_apply_cli_present=true")
+print("production_apply_reachable=false")
 print("production_apply_authorized=false")
 print("root_census_execution_authorized=false")
-print("host_write=false")
+print("production_host_write_performed=false")
 print("service_mutation=false")
 print("systemd_mutation=false")
 print("replacement_apply_authorized=false")
