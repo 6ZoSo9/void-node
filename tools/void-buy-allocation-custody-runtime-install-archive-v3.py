@@ -659,6 +659,16 @@ def write_create_only(path: Path, raw: bytes) -> os.stat_result:
             or not _same_identity(parent_after, parent_visible_after)
         ):
             hold("archive_output_or_parent_generation_invalid")
+        os.fsync(parent_fd)
+        parent_durable = os.fstat(parent_fd)
+        parent_visible_durable = os.stat(
+            str(absolute.parent), follow_symlinks=False
+        )
+        if (
+            not _same_identity(parent_generation, parent_durable)
+            or not _same_identity(parent_durable, parent_visible_durable)
+        ):
+            hold("archive_output_parent_generation_changed_after_fsync")
         return opened
     except BaseException:
         if created:
@@ -711,7 +721,23 @@ def self_test() -> None:
         parent = Path(tmp)
         os.chmod(parent, 0o700)
         archive = parent / ARCHIVE_BASENAME
-        write_create_only(archive, raw)
+        original_fsync = os.fsync
+        successful_fsync_kinds: list[int] = []
+
+        def record_success_fsync(fd: int) -> None:
+            successful_fsync_kinds.append(stat.S_IFMT(os.fstat(fd).st_mode))
+            original_fsync(fd)
+
+        os.fsync = record_success_fsync
+        try:
+            write_create_only(archive, raw)
+        finally:
+            os.fsync = original_fsync
+        if (
+            stat.S_IFREG not in successful_fsync_kinds
+            or stat.S_IFDIR not in successful_fsync_kinds
+        ):
+            hold("self_test_successful_publication_missing_fsync")
         inspected = inspect_archive(archive)
         if (
             inspected["archive_candidate_id"] != record["archive_candidate_id"]
@@ -900,6 +926,7 @@ def main(argv: list[str]) -> int:
         print("archive_bytes_validated_before_final_publication=true")
         print("failed_validation_final_path_absent=true")
         print("single_create_only_final_publication_after_validation=true")
+        print("successful_output_parent_fsync=true")
         print("retained_parent_cleanup_survives_path_rebind=true")
         print("symlink_output_parent_rejected=true")
         print("fifo_substitution_rejected_without_blocking=true")
