@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json"
 MARKER = "VOID_APOLLYON_XIPHOS_AUTHENTICATED_MACHINE_ATTESTATION_PLAN_V1_PROOF"
 PARENT_HEAD = "d7c3145dd202a4a7c3914732c8a8920c33a904ef"
-PLAN_ID = "voidapollyonxiphosattestplan1_ed85e5fb63cc2a3785609bb4a1105faf452750c66c06c3fb6f4286d639ea6f37"
+PLAN_ID = "voidapollyonxiphosattestplan1_7de3728e503515db7f15a3ac4824ed3012af342f89a860baab776c42f1cedffc"
 OBSERVED_DIGEST = "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057"
 
 PINS = {
@@ -30,12 +30,15 @@ PINS = {
 
 TRANSPORT_BINDING = {
     "remote_host_alias": "xiphos",
+    "remote_endpoint": None,
     "remote_port": 22,
     "remote_user": None,
     "host_key_algorithm": "ssh-ed25519",
     "host_key_sha256": None,
+    "known_hosts_path": None,
     "known_hosts_sha256": None,
     "client_key_algorithm": "ssh-ed25519",
+    "client_identity_file_path": None,
     "client_public_key_sha256": None,
     "transport_identity_bound": False,
     "host_key_fingerprint_independently_authenticated": False,
@@ -48,14 +51,28 @@ TRANSPORT_REQUIREMENTS = {
     "identities_only_required": True,
     "identity_agent_disabled_required": True,
     "publickey_only_required": True,
+    "preferred_authentications_publickey_only_required": True,
     "password_authentication_forbidden": True,
     "kbd_interactive_authentication_forbidden": True,
     "strict_host_key_checking_required": True,
     "host_key_alias_xiphos_required": True,
+    "exact_numeric_remote_endpoint_source_bound_required": True,
+    "fixed_remote_account_source_bound_required": True,
+    "exact_client_identity_file_source_bound_required": True,
+    "client_identity_parent_custody_required": True,
+    "client_identity_file_mode_0600_required": True,
     "dedicated_user_known_hosts_required": True,
+    "dedicated_known_hosts_exact_path_source_bound_required": True,
+    "known_hosts_single_canonical_entry_required": True,
+    "known_hosts_entry_exact_alias_ed25519_and_key_required": True,
+    "known_hosts_key_matches_independently_authenticated_host_key_required": True,
+    "known_hosts_parent_root_owned_nonwritable_required": True,
+    "known_hosts_file_root_owned_readonly_required": True,
     "global_known_hosts_disabled_required": True,
     "update_host_keys_forbidden": True,
     "canonicalize_hostname_forbidden": True,
+    "verify_host_key_dns_forbidden": True,
+    "client_certificate_forbidden": True,
     "request_tty_forbidden": True,
     "clear_all_forwardings_required": True,
     "forward_agent_forbidden": True,
@@ -64,6 +81,8 @@ TRANSPORT_REQUIREMENTS = {
     "control_master_forbidden": True,
     "proxy_command_forbidden": True,
     "proxy_jump_forbidden": True,
+    "local_ssh_environment_minimal_required": True,
+    "local_home_fixed_to_identity_parent_required": True,
     "connection_attempts": 1,
     "connect_timeout_ms": 4000,
     "operation_timeout_ms": 30000,
@@ -75,6 +94,8 @@ ATTESTATION_REQUIREMENTS = {
     "single_use_challenge_required": True,
     "challenge_echo_hash_binding_required": True,
     "fixed_remote_command_bytes_required": True,
+    "remote_measurement_runtime_provenance_required": True,
+    "remote_command_path_and_interpreter_caller_influence_forbidden": True,
     "caller_selected_remote_command_forbidden": True,
     "caller_selected_remote_path_forbidden": True,
     "machine_id_path_fixed": "/etc/machine-id",
@@ -85,6 +106,8 @@ ATTESTATION_REQUIREMENTS = {
     "descriptor_generation_stability_required": True,
     "canonical_single_json_frame_required": True,
     "response_eof_required": True,
+    "ssh_stderr_empty_required": True,
+    "ssh_zero_exit_no_signal_required": True,
     "max_request_bytes": 256,
     "max_response_bytes": 4096,
     "response_replay_forbidden": True,
@@ -266,7 +289,7 @@ def validate(value: object) -> dict:
 
     need(
         plan["next_gate"]
-        == "INDEPENDENTLY_AUTHENTICATE_AND_SOURCE_BIND_XIPHOS_ED25519_HOST_KEY_KNOWN_HOSTS_AND_CLIENT_KEY_THEN_SEPARATELY_AUTHORIZE_ATTESTATION_EXECUTION",
+        == "INDEPENDENTLY_AUTHENTICATE_AND_SOURCE_BIND_XIPHOS_ED25519_HOST_KEY_KNOWN_HOSTS_CLIENT_IDENTITY_AND_ENDPOINT_THEN_SEPARATELY_AUTHORIZE_ATTESTATION_EXECUTION",
         "next_gate_invalid",
     )
     without_id = copy.deepcopy(plan)
@@ -375,13 +398,18 @@ def main() -> None:
     plan = validate(parse_json(read_regular(PLAN, 256 * 1024)))
     verify_parent_blobs()
     rejected = adversaries(plan)
-    need(rejected == 77, "semantic_adversary_count_invalid")
+    need(rejected == 100, "semantic_adversary_count_invalid")
     print(MARKER + "_GREEN")
     print("plan_id=" + PLAN_ID)
     print("source_only=true")
     print("observed_machine_id_sha256=" + OBSERVED_DIGEST)
     print("transport_identity_bound=false")
     print("host_key_fingerprint_independently_authenticated=false")
+    print("exact_numeric_remote_endpoint_source_bound_required=true")
+    print("exact_client_identity_file_source_bound_required=true")
+    print("known_hosts_single_canonical_entry_required=true")
+    print("known_hosts_key_matches_independently_authenticated_host_key_required=true")
+    print("remote_measurement_runtime_provenance_required=true")
     print("attestation_execution_authorized=false")
     print("authenticated_transport_attestation_present=false")
     print("authenticated_xiphos_machine_identity_proven=false")
@@ -396,7 +424,7 @@ def main() -> None:
     print("semantic_adversaries=" + str(rejected))
     print("training_execution_authorized=false")
     print("funds_movement_authorized=false")
-    print("next_gate=INDEPENDENTLY_AUTHENTICATE_AND_SOURCE_BIND_XIPHOS_ED25519_HOST_KEY_KNOWN_HOSTS_AND_CLIENT_KEY_THEN_SEPARATELY_AUTHORIZE_ATTESTATION_EXECUTION")
+    print("next_gate=INDEPENDENTLY_AUTHENTICATE_AND_SOURCE_BIND_XIPHOS_ED25519_HOST_KEY_KNOWN_HOSTS_CLIENT_IDENTITY_AND_ENDPOINT_THEN_SEPARATELY_AUTHORIZE_ATTESTATION_EXECUTION")
 
 if __name__ == "__main__":
     try:
