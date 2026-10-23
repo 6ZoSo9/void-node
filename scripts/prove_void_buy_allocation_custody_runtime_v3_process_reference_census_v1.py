@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "ca6ccc75a2e3a3d9c1ecb968f06ddc50e98bc899"
+EXPECTED_SOURCE_BLOB = "86c493d7acbe539fe898024474ed3c8815760603"
 
 
 def git_blob(raw: bytes) -> str:
@@ -189,6 +189,9 @@ for required in (
     "all_process_reference_absence_proven",
     "privileged_all_process_scan",
     "custody_principal_process_scan_performed",
+    "fd_table_stability_proven",
+    "mapping_set_stability_proven",
+    "live_at_use_reverification_required",
     "proc_cmdline_read",
     "proc_environ_read",
     "proc_fd_target_text_read",
@@ -215,6 +218,9 @@ print("proc_maps_path_text_retained=false")
 print("root_execution_forbidden=true")
 print("all_process_reference_absence_proven=false")
 print("privileged_all_process_scan=false")
+print("fd_table_stability_proven=false")
+print("mapping_set_stability_proven=false")
+print("live_at_use_reverification_required=true")
 print("host_census_not_executed_in_ci=true")
 print("production_filesystem_write=false")
 print("test_fixture_filesystem_write=true")
