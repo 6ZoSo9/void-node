@@ -29,7 +29,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          BASE="2f58b776c4ba5b4c1b309d122122bd3355e2abc9"
+          BASE="7736a3a5c53da37448c357a5d98e4dad09f3f617"
           QUI_BRANCH="ren/custody-runtime-v3-service-quiescence-census-v1-20261023"
           QUI_HEAD="b52752700e44dea447c0fda76c61bcf32228416e"
 
@@ -47,16 +47,16 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs)" = \
-            "5ee9c6cebaae1d7e5266bc3aa97746d7b3d07580"
+            "5b1d88f3cf3e7125e979700fe7c3dcb1d9bfaa8f"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_replacement_readiness_plan_v1.mjs)" = \
-            "f489279ee9a93d7487fcf4b75018b0723c2fcc8e"
+            "e549734c6d95711a0337fb56c00c05ab74df8796"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-replacement-readiness-plan-v1.md)" = \
-            "864fb72c727ff4920846a9d362b79f21f3861903"
+            "6926988e4fcc135859f26f22d35e6ab41ac19006"
 
-          test "$(git rev-parse 836f5e704a603f67b77b2406aeec9174f640497e:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
-          test "$(git rev-parse 2f58b776c4ba5b4c1b309d122122bd3355e2abc9:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "a5fa6ff22cc21df555e8a70c32500f07251dc4a8"
+          test "$(git rev-parse "$BASE:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py")" = \
+            "e32ebd94ad09cd80e03489079e74657aab159d7a"
+          test "$(git rev-parse "$BASE:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py")" = \
+            "6bf476e3383b7b18966320df13b4041da9c8c11f"
 
           git fetch --no-tags origin "$QUI_BRANCH:refs/remotes/origin/$QUI_BRANCH"
           test "$(git rev-parse "refs/remotes/origin/$QUI_BRANCH")" = "$QUI_HEAD"
@@ -103,6 +103,8 @@ jobs:
             'forged_quiescence_proof_rejected=true' \
             'forged_all_process_proof_rejected=true' \
             'caller_apply_authority_injection_rejected=true' \
+            'receipt_contract_mutation_overclaims_rejected=true' \
+            'repaired_prestate_process_sources_bound=true' \
             'privileged_all_process_reference_absence_required=true' \
             'live_node_binary_identity_verification_required=true' \
             'accepted_archive_bytes_at_use_verification_required=true' \
