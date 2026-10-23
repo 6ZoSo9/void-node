@@ -457,7 +457,12 @@ export function classifyVoidP2PReachabilityRuntimeV1(
   {
     nowMs = Date.now(),
     maxAgeMs = VOID_P2P_REACHABILITY_MAX_AGE_MS_V1,
-  }: Readonly<{ nowMs?: number; maxAgeMs?: number }> = {},
+    domainConsistencyObservations,
+  }: Readonly<{
+    nowMs?: number;
+    maxAgeMs?: number;
+    domainConsistencyObservations?: readonly unknown[];
+  }> = {},
 ): VoidP2PReachabilityRuntimeClassificationV1 {
   if (
     !Array.isArray(rawObservations) ||
@@ -509,10 +514,45 @@ export function classifyVoidP2PReachabilityRuntimeV1(
   );
   // A success observer contributes to independence only while all of its
   // fresh authenticated observations agree on one declared failure domain.
-  // Failures and outbound observations still reveal identity/domain rotation,
-  // but they do not increase the raw dialback-success count.
+  // The runtime snapshot supplies the complete node-wide observation set here
+  // before per-candidate grouping, so label rotation on another candidate
+  // still disqualifies the observer from independence.
+  const consistencyRaw =
+    domainConsistencyObservations ?? rawObservations;
+  if (
+    !Array.isArray(consistencyRaw) ||
+    consistencyRaw.length < 1 ||
+    consistencyRaw.length > VOID_P2P_REACHABILITY_MAX_OBSERVATIONS_V1
+  ) {
+    throw new Error(
+      "runtime reachability domain-consistency evidence count is invalid",
+    );
+  }
+  const consistencyValidated = consistencyRaw.map((raw) =>
+    validateVoidP2PReachabilityObservationV1(raw, { nowMs, maxAgeMs }),
+  );
+  const consistencyIds = new Set<string>();
+  for (const entry of consistencyValidated) {
+    const id = entry.observation.observation_id;
+    if (consistencyIds.has(id)) {
+      throw new Error(
+        "runtime reachability domain-consistency evidence contains duplicate evidence",
+      );
+    }
+    consistencyIds.add(id);
+  }
+  for (const entry of validated) {
+    if (!consistencyIds.has(entry.observation.observation_id)) {
+      throw new Error(
+        "runtime reachability domain-consistency scope omits classified evidence",
+      );
+    }
+  }
+  const consistencyFresh = consistencyValidated
+    .filter((entry) => !entry.stale)
+    .map((entry) => entry.observation);
   const domainsByFreshObserver = new Map<string, Set<string>>();
-  for (const entry of fresh) {
+  for (const entry of consistencyFresh) {
     const domains =
       domainsByFreshObserver.get(entry.observer_node_id) ??
       new Set<string>();
