@@ -165,15 +165,38 @@ assert.deepEqual(
   },
 );
 assert.equal(attachBlockRangeErrorV1("2", "1", 1000).reason, "invalid_bounds");
+const emptyStoreRecovery = attachBlockRangeErrorV1(
+  undefined,
+  undefined,
+  -1,
+).recovery;
 assert.deepEqual(
-  attachBlockRangeErrorV1(undefined, undefined, -1).recovery,
-  { from: 0, to: -1 },
-  "empty-store recovery must preserve the no-data sentinel",
+  emptyStoreRecovery,
+  { from: 0, to: 0 },
+  "empty-store recovery must be parser-acceptable while representing no data",
 );
 assert.deepEqual(
   attachBlockRangeErrorV1("5", "bad", -1).recovery,
-  { from: 0, to: -1 },
+  { from: 0, to: 0 },
   "empty-store recovery must ignore malformed-request lower bounds",
+);
+assert.deepEqual(
+  parseAttachBlockRange(
+    emptyStoreRecovery.from,
+    emptyStoreRecovery.to,
+    -1,
+  ),
+  { from: 0, to: -1 },
+  "retrying advertised numeric empty-store recovery must yield the empty interval",
+);
+assert.deepEqual(
+  parseAttachBlockRange(
+    String(emptyStoreRecovery.from),
+    String(emptyStoreRecovery.to),
+    -1,
+  ),
+  { from: 0, to: -1 },
+  "URL-string empty-store recovery must round-trip through the canonical parser",
 );
 const beyondHeadRecovery = attachBlockRangeErrorV1(
   "1001",
