@@ -70,7 +70,9 @@ Directory names are enumerated lazily through descriptor-relative
 reserves one slot from a shared global counter. The invariant
 `processed_entries + reserved_names <= 32,768` therefore covers **all live
 ancestor and descendant name lists together**, not merely each recursion frame.
-A name reservation is consumed before that entry is processed. This prevents a
+A processed name is popped from its frame-local list before its reservation is
+consumed and before recursion begins, so the shared reservation count tracks
+live retained name strings rather than only logical work. This prevents a
 deep/wide tree from multiplying the retained-name memory bound across recursion.
 Symlinks are treated as opaque legacy entries: the census
 never follows them, records only their metadata plus the byte length and
