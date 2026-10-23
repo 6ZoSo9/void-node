@@ -16,7 +16,7 @@ const REVIEWED_REL =
   "protected_all_process_reference_census_v1.py";
 const REVIEWED = path.join(ROOT, REVIEWED_REL);
 
-const EXPECTED_PLAN_BLOB = "e761f3636277dc578669b09788743d22cfa459ba";
+const EXPECTED_PLAN_BLOB = "01636feac235833d49c1b6253808bea43abf6601";
 const EXPECTED_REVIEWED_BLOB =
   "25c0e32ae85da4569fb9521a0812e10ab0fcede3";
 const EXPECTED_REVIEWED_BYTES = 56180;
@@ -73,13 +73,20 @@ assert.deepEqual(planModule.INSTALL_CONTRACT, {
   stage_parent: "/opt",
   stage_uid: 0,
   stage_gid: 0,
-  stage_mode: "0700",
+  stage_mode: "0755",
+  stage_group_world_writable: false,
   stage_nlink: 2,
+  stage_expected_entry_count: 1,
+  stage_source_name:
+    "void_buy_allocation_custody_runtime_v3_" +
+    "protected_all_process_reference_census_v1.py",
+  stage_unexpected_entries_forbidden: true,
   stage_directory: true,
   stage_symlink: false,
   stage_same_mount_as_install_parent: true,
   stage_descriptor_relative_creation_required: true,
   stage_parent_descriptor_retained_through_publication_required: true,
+  stage_descriptor_retained_through_publication_required: true,
   stage_direct_child_of_install_parent_required: true,
   stage_symlink_free_ancestry_required: true,
   stage_revalidation_before_publication_required: true,
@@ -89,6 +96,8 @@ assert.deepEqual(planModule.INSTALL_CONTRACT, {
   protected_root_uid: 0,
   protected_root_gid: 0,
   protected_root_mode: "0755",
+  protected_root_expected_entry_count: 1,
+  protected_root_unexpected_entries_forbidden: true,
   protected_source_uid: 0,
   protected_source_gid: 0,
   protected_source_mode: "0444",
@@ -117,6 +126,8 @@ for (const [key, expected] of Object.entries({
   stage_directory_exact_metadata_required: true,
   stage_descriptor_relative_creation_required: true,
   stage_parent_descriptor_retention_required: true,
+  stage_descriptor_retention_required: true,
+  stage_exact_entry_set_required: true,
   stage_same_mount_revalidation_required: true,
   stage_ancestry_revalidation_required: true,
   stage_revalidation_before_publication_required: true,
@@ -124,6 +135,7 @@ for (const [key, expected] of Object.entries({
   stage_directory_fsync_required: true,
   install_parent_fsync_required: true,
   post_install_exact_byte_reverification_required: true,
+  post_install_exact_entry_set_required: true,
   post_install_ancestry_reverification_required: true,
   install_receipt_required: true,
   install_receipt_external_review_required: true,
@@ -165,14 +177,14 @@ assert.deepEqual(first.required_future_apply_sequence, [
   "VERIFY_EXACT_REVIEWED_GIT_OBJECT_BYTES",
   "VERIFY_INSTALL_PARENT_ROOT_CUSTODY_AND_MOUNT",
   "REQUIRE_TARGET_AND_STAGE_NAMES_ABSENT",
-  "CREATE_STAGE_DIRECTORY_DESCRIPTOR_RELATIVE_ROOT_ROOT_MODE_0700",
-  "REVALIDATE_STAGE_DIRECTORY_TYPE_OWNER_MODE_NLINK_MOUNT_AND_ANCESTRY",
+  "CREATE_STAGE_DIRECTORY_DESCRIPTOR_RELATIVE_ROOT_ROOT_MODE_0755",
+  "REVALIDATE_STAGE_DIRECTORY_TYPE_OWNER_MODE_NLINK_MOUNT_ANCESTRY_AND_EMPTY_STATE",
   "MATERIALIZE_EXACT_BYTES_IN_ROOT_OWNED_SAME_FILESYSTEM_STAGE",
   "FSYNC_SOURCE_AND_STAGE_DIRECTORY",
-  "REVERIFY_STAGE_DIRECTORY_AND_STAGED_BYTES_BEFORE_PUBLICATION",
+  "REVERIFY_STAGE_DIRECTORY_EXACT_ENTRY_SET_AND_STAGED_BYTES_BEFORE_PUBLICATION",
   "PUBLISH_WITH_RENAMEAT2_RENAME_NOREPLACE",
   "FSYNC_INSTALL_PARENT",
-  "REVERIFY_INSTALLED_BYTES_OWNER_MODE_NLINK_AND_ANCESTRY",
+  "REVERIFY_INSTALLED_ROOT_EXACT_ENTRY_SET_BYTES_OWNER_MODE_NLINK_AND_ANCESTRY",
   "EMIT_CONTENT_ADDRESSED_INSTALL_RECEIPT",
   "STOP_BEFORE_ROOT_CENSUS_EXECUTION",
 ]);
@@ -202,13 +214,15 @@ for (const [key, bad] of Object.entries({
   stage_parent: "/tmp",
   stage_uid: 1,
   stage_gid: 1,
-  stage_mode: "0755",
+  stage_mode: "0775",
+  stage_group_world_writable: true,
   stage_nlink: 3,
   stage_directory: false,
   stage_symlink: true,
   stage_same_mount_as_install_parent: false,
   stage_descriptor_relative_creation_required: false,
   stage_parent_descriptor_retained_through_publication_required: false,
+  stage_descriptor_retained_through_publication_required: false,
   stage_direct_child_of_install_parent_required: false,
   stage_symlink_free_ancestry_required: false,
   stage_revalidation_before_publication_required: false,
@@ -260,13 +274,19 @@ assert(sourceText.includes("valid mode is --plan"));
 assert(sourceText.includes('publication_syscall: "renameat2"'));
 assert(sourceText.includes('publication_flag: "RENAME_NOREPLACE"'));
 assert(sourceText.includes("absence_precheck_is_not_publication_authority: true"));
-assert(sourceText.includes('stage_mode: "0700"'));
+assert(sourceText.includes('stage_mode: "0755"'));
+assert(sourceText.includes("stage_group_world_writable: false"));
+assert(sourceText.includes("stage_expected_entry_count: 1"));
+assert(sourceText.includes("stage_unexpected_entries_forbidden: true"));
+assert(sourceText.includes("protected_root_expected_entry_count: 1"));
+assert(sourceText.includes("protected_root_unexpected_entries_forbidden: true"));
 assert(sourceText.includes("stage_directory: true"));
 assert(sourceText.includes("stage_symlink: false"));
 assert(sourceText.includes("stage_nlink: 2"));
 assert(sourceText.includes("stage_same_mount_as_install_parent: true"));
 assert(sourceText.includes("stage_descriptor_relative_creation_required: true"));
 assert(sourceText.includes("stage_parent_descriptor_retained_through_publication_required: true"));
+assert(sourceText.includes("stage_descriptor_retained_through_publication_required: true"));
 assert(sourceText.includes("stage_direct_child_of_install_parent_required: true"));
 assert(sourceText.includes("stage_symlink_free_ancestry_required: true"));
 assert(sourceText.includes("stage_revalidation_before_publication_required: true"));
@@ -320,10 +340,14 @@ console.log("atomic_renameat2_noreplace_publication_required=true");
 console.log("absence_precheck_not_publication_authority=true");
 console.log("same_filesystem_root_staging_required=true");
 console.log("stage_directory_exact_metadata_bound=true");
-console.log("stage_root_root_mode_0700_bound=true");
+console.log("stage_root_root_mode_0755_bound=true");
+console.log("stage_group_world_writable_false_bound=true");
 console.log("stage_nlink_2_bound=true");
+console.log("stage_exact_single_entry_set_bound=true");
+console.log("protected_root_exact_single_entry_set_bound=true");
 console.log("stage_descriptor_relative_creation_required=true");
 console.log("stage_parent_descriptor_retention_required=true");
+console.log("stage_descriptor_retention_required=true");
 console.log("stage_same_mount_revalidation_required=true");
 console.log("stage_direct_ancestry_required=true");
 console.log("stage_symlink_free_ancestry_required=true");
