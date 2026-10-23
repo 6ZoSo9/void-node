@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "95f77816dc53175829f6550b13c86a24672c98ea"
+EXPECTED_SOURCE_BLOB = "5da3edbcc9f2799faad44f722893c501669a80fd"
 
 spec = importlib.util.spec_from_file_location(
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1",
@@ -114,6 +114,18 @@ with tempfile.TemporaryDirectory(
     assert present["rollback_rename_candidate"] is True
     assert present["create_only_install_candidate"] is False
 
+    link = target / "opaque-link"
+    link.symlink_to("../outside-do-not-follow")
+    linked = module.collect_prestate(
+        parent,
+        module.TARGET_NAME,
+        module.PROPOSED_STAGE_NAME,
+        module.PROPOSED_ROLLBACK_NAME,
+        require_root_owned_parent=False,
+    )
+    assert linked["target"]["tree"]["symlinks"] == 1
+    link.unlink()
+
     fifo = target / "bad-fifo"
     os.mkfifo(fifo, 0o600)
     try:
@@ -151,6 +163,7 @@ for required in (
     "open_bound_directory",
     "read_bound_regular",
     "scan_target_at",
+    "_hash_symlink_at",
     "content_metadata_sha256",
     "target_tree_cross_device_entry_forbidden",
     "rollback_rename_candidate",
@@ -196,6 +209,7 @@ print("archive_lock_exact=true")
 print("descriptor_bound_tree_scan=true")
 print("target_tree_content_metadata_digest=true")
 print("nested_mount_rejection_bound=true")
+print("symlink_opaque_identity_bound=true")
 print("absent_target_create_only_candidate_proven=true")
 print("present_target_rollback_candidate_proven=true")
 print("special_file_rejection=true")
