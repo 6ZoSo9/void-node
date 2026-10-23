@@ -238,9 +238,16 @@ The recursive custody scan now defines:
 - the root consumes one node from the global budget before any children are
   enumerated, and every directory or regular-file child consumes exactly one
   additional node.
+- every child is **reserved against the remaining global node budget before
+  any child metadata lookup, open, xattr read, or recursion**; if recursive
+  descendants consume the remaining budget, a later sibling HOLDs without
+  touching that over-cap node.
 
 The production helper is exercised at the exact count and depth boundaries.
-The disposable self-test requires the root+nested-directory+leaf fixture to
+A dedicated pre-access regression gives the root+nested-directory+leaf exactly
+the full budget, adds a later sorted sibling, and proves that sibling's metadata
+lookup is never reached before the node-limit HOLD. The disposable self-test
+also requires the root+nested-directory+leaf fixture to
 report three total nodes, rejects one node beyond the configured cap, rejects
 depth cap + 1, and specifically rejects a regular-file child beyond the depth
 limit.
