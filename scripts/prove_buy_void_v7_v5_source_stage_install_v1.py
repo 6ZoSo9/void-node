@@ -92,7 +92,7 @@ assert not unsafe_regular_lines, (
 fixtures = (
     ("unsafe", "fd=os.open(p, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)", [1]),
     ("unsafe_reordered", "fd=os.open(p, os.O_NOFOLLOW | os.O_RDONLY | os.O_CLOEXEC)", [1]),
-    ("unsafe_multiline", "fd=os.open(\\n p,\\n os.O_RDONLY\\n | os.O_NOFOLLOW\\n | os.O_CLOEXEC,\\n)", [1]),
+    ("unsafe_multiline", "fd=os.open(\n p,\n os.O_RDONLY\n | os.O_NOFOLLOW\n | os.O_CLOEXEC,\n)", [1]),
     ("safe", "fd=os.open(p, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)", []),
     ("directory", "fd=os.open(p, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)", []),
     ("writer", "fd=os.open(p, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)", []),
