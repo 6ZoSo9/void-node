@@ -1,0 +1,191 @@
+name: VOID Buy custody runtime V3 protected all-process census plan v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-census-plan-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-census-plan-v1.yml"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py"
+      - "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact protected-all-process plan successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="5bfd56c850513c7b416fe0b2f854ee9b12e764e4"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-census-plan-v1.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-census-plan-v1.md'
+            $'A\tops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py)" = \
+            "114b85775b45b06e4ff86bf32b59b96a31dcc995"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py)" = \
+            "bfe3149e810cc37f3964b45efeca9a80bf89286d"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-census-plan-v1.md)" = \
+            "33c5a5485ae0f9fce59d8fc02e3a01ffe5e60460"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
+            "ded737a228a627a241a84131113db6d3521f635c"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
+            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py)" = \
+            "90358ef1df3ecfa3daeee39452ffd025e9a8d86e"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
+            "edb4ea2b833373ab387762e45ba7da4032c860f3"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile Python sources
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py
+
+      - name: Self-test source-only plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/protected-all-process-plan-selftest.txt"
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py \
+            --self-test | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_CENSUS_PLAN_V1_SELF_TEST_GREEN' "$out"
+          for marker in \
+            'exact_parent_process_source_bound=true' \
+            'exact_current_prestate_source_bound=true' \
+            'exact_current_quiescence_source_bound=true' \
+            'exact_archive_lock_bound=true' \
+            'source_plan_only=true' \
+            'root_execution_forbidden_for_source_plan=true' \
+            'protected_root_owned_source_required=true' \
+            'mutable_checkout_root_execution_forbidden=true' \
+            'sudo_python_checkout_forbidden=true' \
+            'host_user_namespace_external_lease_required=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'host_mount_namespace_external_lease_required=true' \
+            'complete_numeric_pid_visibility_required=true' \
+            'all_numeric_pids_required=true' \
+            'still_live_unreadable_process_holds=true' \
+            'proc_cmdline_read=false' \
+            'proc_environ_read=false' \
+            'proc_fd_target_text_read=false' \
+            'fd_table_stability_proven=false' \
+            'mapping_set_stability_proven=false' \
+            'live_at_use_reverification_required=true' \
+            'host_process_census_performed=false' \
+            'protected_source_installed=false' \
+            'filesystem_write=false' \
+            'service_mutation=false' \
+            'replacement_apply_authorized=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove source boundary
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/protected-all-process-plan-proof.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py \
+            | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_CENSUS_PLAN_V1_PROOF_GREEN' "$proof"
+          for marker in \
+            'exact_source_blob_asserted=true' \
+            'exact_parent_process_source_bound=true' \
+            'exact_current_prestate_source_bound=true' \
+            'exact_current_quiescence_source_bound=true' \
+            'exact_archive_lock_bound=true' \
+            'source_plan_only=true' \
+            'root_execution_forbidden_for_source_plan=true' \
+            'root_refusal_tested=true' \
+            'parent_source_drift_rejected=true' \
+            'protected_root_owned_source_required=true' \
+            'mutable_checkout_root_execution_forbidden=true' \
+            'sudo_python_checkout_forbidden=true' \
+            'host_user_namespace_external_lease_required=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'host_mount_namespace_external_lease_required=true' \
+            'complete_numeric_pid_visibility_required=true' \
+            'all_numeric_pids_required=true' \
+            'still_live_unreadable_process_holds=true' \
+            'proc_cmdline_read=false' \
+            'proc_environ_read=false' \
+            'proc_fd_target_text_read=false' \
+            'fd_table_stability_proven=false' \
+            'mapping_set_stability_proven=false' \
+            'live_at_use_reverification_required=true' \
+            'host_process_census_performed=false' \
+            'protected_source_installed=false' \
+            'filesystem_write=false' \
+            'service_mutation=false' \
+            'replacement_apply_authorized=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false' \
+            'test_fixture_filesystem_write=true'; do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Emit and classify plan
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/protected-all-process-plan.json"
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py \
+            --plan > "$plan"
+          python3 -I -B - "$plan" <<'PY'
+          import json, pathlib, sys
+          p=json.loads(pathlib.Path(sys.argv[1]).read_text())
+          assert p["status"]=="SOURCE_ONLY_PROTECTED_ALL_PROCESS_CENSUS_PLAN"
+          assert p["authority"]["host_process_census_performed"] is False
+          assert p["authority"]["protected_source_installed"] is False
+          assert p["authority"]["filesystem_write"] is False
+          assert p["authority"]["replacement_apply_authorized"] is False
+          assert p["authority"]["payment_acceptance"] is False
+          assert p["authority"]["public_presale_activation"] is False
+          assert p["authority"]["funds_movement"] is False
+          assert p["future_protected_source"]["sudo_python_checkout_forbidden"] is True
+          assert p["future_all_process_scan"]["fd_table_stability_proven"] is False
+          assert p["future_all_process_scan"]["mapping_set_stability_proven"] is False
+          print("VOID_PROTECTED_ALL_PROCESS_PLAN_JSON_GREEN")
+          PY
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
