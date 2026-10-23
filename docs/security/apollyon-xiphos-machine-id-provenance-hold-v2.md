@@ -26,7 +26,7 @@ as authenticated evidence.
 ## Exact lineage
 
 Parent: Draft #3767 exact head
-`4f534e00370882b1fbcf03568ddf355275562f57`.
+`92eea4f9b13e8b40df8a859d6ebea77e3e25c6a0`.
 
 Historical V1 truth-HOLD:
 
@@ -46,13 +46,13 @@ Historical V1 truth-HOLD:
 Repaired collector #3767:
 
 - source:
-  `36f77c85a2716989726af77679160de2b9e48f76`;
+  `160ad246b36eb2ee6680acc411686ff43a25bef9`;
 - proof:
-  `67a73d6da5018944bc79e5ed07460f7e6512e57e`;
+  `c0e05dacfb557956f6d2fa79522ccf18cb1f6d1f`;
 - document:
-  `286a5b0528bdf1cd8cd6a1a3628222f6a3b5dbb9`;
+  `a9a751c9c76653f3d3f4c82a4bd32ce3047a176d`;
 - workflow:
-  `dde72db084eed198c42a4183463eab593fa209ba`.
+  `4ddf75e7a3da7186e9865fe58e08ddfc0e03f469`.
 
 The original #3760 machine-binding artifacts remain pinned as historical input.
 They are not accepted as authenticated host authority.
@@ -65,10 +65,13 @@ The observed normalized machine-ID SHA-256 remains:
 
 The raw machine ID remains absent from the repository.
 
-The repaired collector additionally proves a source property:
-`cover_row_sha256` binds the complete selected mountinfo row, including
-mount options, optional propagation fields, filesystem type, mount source and
-super-options, without emitting the raw row.
+The repaired collector additionally proves source properties:
+- `cover_row_sha256` binds the complete selected mountinfo row, including
+  mount options, optional propagation fields, filesystem type, mount source and
+  super-options, without emitting the raw row; and
+- its public host-pass entrypoint hard-HOLDs before hostname, machine-ID, path,
+  mountinfo, systemd or process observation while authenticated Xiphos
+  provenance and host-pass authority remain unbound.
 
 None of those facts authenticate the machine identity.
 
@@ -123,14 +126,14 @@ The proof:
 - binds the exact four repaired #3767 collector blobs;
 - binds the exact four historical #3763 V1 HOLD blobs;
 - validates content-addressed plan ID
-  `voidapollyonxiphosprovenancehold2_1ee4af4279e852299e19e0aecd63c2cc636e5bb1c32fce7e204d996ca4214cb7`;
+  `voidapollyonxiphosprovenancehold2_df2f6157c36752460ca187c7f77da175bc9e0237e2c35baeacaae571f43fc890`;
 - executes 30 semantic adversaries across provenance, authority, lineage,
   blob maps, content identity, duplicate keys and non-finite constants; and
 - performs no host read.
 
-Plan blob: `b97c44976b33e21271b6525d4caeffc54c366c1e`.
+Plan blob: `bd75e2606cb13beb3ba1c6f80f596e2729709c37`.
 
-Proof blob: `8ef3e9ff01fc7c84ab8ec3b37b5522c253b00e26`.
+Proof blob: `5a105aa167488e864b93c4490ddb58e99e70b784`.
 
 ## Next gate
 
