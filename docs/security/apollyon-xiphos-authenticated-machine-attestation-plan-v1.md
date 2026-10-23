@@ -151,6 +151,12 @@ prove the server-side execution chain that receives the bound client key:
 - effective sshd policy has `PermitUserEnvironment no`, `PermitUserRC no`,
   and an empty accepted-environment surface for this account;
 - the account shell is exact, reviewed, root-owned and non-writable;
+- that shell path is a startup-free fixed launcher for this account, or the
+  complete startup dependency chain is exact/source-bound and non-replaceable;
+- the account home is root-owned/non-writable so user startup files cannot be
+  created or changed between review and execution;
+- shell-startup environment influence (including Bash-style startup hooks) is
+  forbidden before the forced-command handler begins;
 - any system SSH rc path is absent or exact/reviewed;
 - the forced-command handler and measurement runtime are root-owned,
   non-writable, exact-source-bound artifacts.
@@ -226,13 +232,13 @@ The proof:
 - requires all transport identities to remain null/unbound;
 - requires all authority fields false;
 - validates content-addressed plan ID
-  `voidapollyonxiphosattestplan1_b0449a1b41766da2fad19a248f5eec3c9c9287b87eede149f6ea2eab09f6bc15`;
-- executes **123 semantic adversaries**; and
+  `voidapollyonxiphosattestplan1_94bd8442fd1904563e9273bc4de6e38417f6a2146978af4a8660fd0f29eb819d`;
+- executes **127 semantic adversaries**; and
 - performs no network or host access.
 
-Plan blob: `267919390927de0552cf7cfad6f0ae1fa721bdb8`.
+Plan blob: `42175f4a3b86faede67a8d45a8173d8a059e1ebe`.
 
-Proof blob: `7e8a18665b0140ca0a1820e273943dc4be7e7190`.
+Proof blob: `38342083abda7348a5db6b626cf51c19e5a967b1`.
 
 ## Next gate
 
