@@ -10,8 +10,8 @@ The current V3 process-reference diagnostic is deliberately unprivileged and
 current-UID scoped. Its exact qualified parent is:
 
 ```text
-#3752 head: 5bfd56c850513c7b416fe0b2f854ee9b12e764e4
-process source blob: ded737a228a627a241a84131113db6d3521f635c
+#3752 head: 7736a3a5c53da37448c357a5d98e4dad09f3f617
+process source blob: 6bf476e3383b7b18966320df13b4041da9c8c11f
 ```
 
 That parent correctly keeps:
@@ -27,22 +27,23 @@ replacement_apply_authorized=false
 This plan freezes the requirements for the later protected root-owned
 all-process gate. It does **not** implement or run that gate.
 
-The plan also binds the current qualified prerequisite sources:
+The plan also binds the exact prestate dependency present in that qualified
+#3752 parent tree:
 
 ```text
-prestate head:
-  836f5e704a603f67b77b2406aeec9174f640497e
-prestate source blob:
-  4d9c6e5809a5cc64454626760f71e60ed99354bc
-
-service-quiescence head:
-  b52752700e44dea447c0fda76c61bcf32228416e
-service-quiescence source blob:
-  90358ef1df3ecfa3daeee39452ffd025e9a8d86e
+parent-tree prestate head:
+  7736a3a5c53da37448c357a5d98e4dad09f3f617
+parent-tree prestate source blob:
+  e32ebd94ad09cd80e03489079e74657aab159d7a
 
 accepted archive-lock blob:
   edb4ea2b833373ab387762e45ba7da4032c860f3
 ```
+
+Service-quiescence is intentionally **not consumed by this plan** because its
+qualified source is a sibling lane rather than an ancestor of #3752. The later
+replacement composer must separately bind the exact accepted service-quiescence
+generation; this plan cannot infer or duplicate that authority.
 
 ## Source-only boundary
 

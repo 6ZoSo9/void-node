@@ -35,26 +35,20 @@ SCHEMA = "void_buy_void_custody_runtime_v3_protected_all_process_census_plan_v1"
 VERSION = 1
 ROOT = Path(__file__).resolve().parents[2]
 
-PARENT_HEAD = "5bfd56c850513c7b416fe0b2f854ee9b12e764e4"
+PARENT_HEAD = "7736a3a5c53da37448c357a5d98e4dad09f3f617"
 PARENT_PROCESS_REL = (
     "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-PARENT_PROCESS_BLOB = "ded737a228a627a241a84131113db6d3521f635c"
+PARENT_PROCESS_BLOB = "6bf476e3383b7b18966320df13b4041da9c8c11f"
 
-PRESTATE_HEAD = "836f5e704a603f67b77b2406aeec9174f640497e"
+PRESTATE_HEAD = "7736a3a5c53da37448c357a5d98e4dad09f3f617"
 PRESTATE_REL = (
     "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-PRESTATE_BLOB = "4d9c6e5809a5cc64454626760f71e60ed99354bc"
+PRESTATE_BLOB = "e32ebd94ad09cd80e03489079e74657aab159d7a"
 
-QUIESCENCE_HEAD = "b52752700e44dea447c0fda76c61bcf32228416e"
-QUIESCENCE_REL = (
-    "ops/precision/"
-    "void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py"
-)
-QUIESCENCE_BLOB = "90358ef1df3ecfa3daeee39452ffd025e9a8d86e"
 
 ARCHIVE_LOCK_REL = (
     "ops/security/"
@@ -177,7 +171,6 @@ def verify_inputs() -> dict[str, Any]:
 
     parent = require_blob(PARENT_PROCESS_REL, PARENT_PROCESS_BLOB)
     prestate = require_blob(PRESTATE_REL, PRESTATE_BLOB)
-    quiescence = require_blob(QUIESCENCE_REL, QUIESCENCE_BLOB)
     lock = require_blob(ARCHIVE_LOCK_REL, ARCHIVE_LOCK_BLOB)
     lock_raw = read_repo_regular(ROOT / ARCHIVE_LOCK_REL, 128 * 1024)
     if sha256(lock_raw) != ARCHIVE_LOCK_SHA256:
@@ -199,7 +192,6 @@ def verify_inputs() -> dict[str, Any]:
     return {
         "parent_process_reference": parent,
         "prestate": prestate,
-        "service_quiescence": quiescence,
         "archive_lock": lock,
     }
 
@@ -218,8 +210,6 @@ def build_plan() -> dict[str, Any]:
             "parent_process_reference": inputs["parent_process_reference"],
             "prestate_head": PRESTATE_HEAD,
             "prestate": inputs["prestate"],
-            "service_quiescence_head": QUIESCENCE_HEAD,
-            "service_quiescence": inputs["service_quiescence"],
             "archive_lock": inputs["archive_lock"],
         },
         "future_protected_source": {
@@ -329,8 +319,7 @@ def self_test() -> None:
 
     print(MARKER + "_SELF_TEST_GREEN")
     print("exact_parent_process_source_bound=true")
-    print("exact_current_prestate_source_bound=true")
-    print("exact_current_quiescence_source_bound=true")
+    print("exact_parent_tree_prestate_source_bound=true")
     print("exact_archive_lock_bound=true")
     print("source_plan_only=true")
     print("root_execution_forbidden_for_source_plan=true")

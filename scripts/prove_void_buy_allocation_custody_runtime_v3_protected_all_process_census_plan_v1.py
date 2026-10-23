@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "114b85775b45b06e4ff86bf32b59b96a31dcc995"
+EXPECTED_SOURCE_BLOB = "0d38a9550e3fe2fbaa18dd83d3fbeafe929d8c5a"
 
 
 def git_blob(raw: bytes) -> str:
@@ -37,14 +37,12 @@ assert module.MARKER == (
 assert module.SCHEMA == (
     "void_buy_void_custody_runtime_v3_protected_all_process_census_plan_v1"
 )
-assert module.PARENT_HEAD == "5bfd56c850513c7b416fe0b2f854ee9b12e764e4"
+assert module.PARENT_HEAD == "7736a3a5c53da37448c357a5d98e4dad09f3f617"
 assert module.PARENT_PROCESS_BLOB == (
-    "ded737a228a627a241a84131113db6d3521f635c"
+    "6bf476e3383b7b18966320df13b4041da9c8c11f"
 )
-assert module.PRESTATE_HEAD == "836f5e704a603f67b77b2406aeec9174f640497e"
-assert module.PRESTATE_BLOB == "4d9c6e5809a5cc64454626760f71e60ed99354bc"
-assert module.QUIESCENCE_HEAD == "b52752700e44dea447c0fda76c61bcf32228416e"
-assert module.QUIESCENCE_BLOB == "90358ef1df3ecfa3daeee39452ffd025e9a8d86e"
+assert module.PRESTATE_HEAD == "7736a3a5c53da37448c357a5d98e4dad09f3f617"
+assert module.PRESTATE_BLOB == "e32ebd94ad09cd80e03489079e74657aab159d7a"
 assert module.ARCHIVE_LOCK_BLOB == (
     "edb4ea2b833373ab387762e45ba7da4032c860f3"
 )
@@ -103,7 +101,6 @@ with tempfile.TemporaryDirectory(
     for relative in (
         module.PARENT_PROCESS_REL,
         module.PRESTATE_REL,
-        module.QUIESCENCE_REL,
         module.ARCHIVE_LOCK_REL,
     ):
         path = fake_root / relative
@@ -163,8 +160,7 @@ assert "replacement_apply_authorized" in source
 print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_CENSUS_PLAN_V1_PROOF_GREEN")
 print("exact_source_blob_asserted=true")
 print("exact_parent_process_source_bound=true")
-print("exact_current_prestate_source_bound=true")
-print("exact_current_quiescence_source_bound=true")
+print("exact_parent_tree_prestate_source_bound=true")
 print("exact_archive_lock_bound=true")
 print("source_plan_only=true")
 print("root_execution_forbidden_for_source_plan=true")

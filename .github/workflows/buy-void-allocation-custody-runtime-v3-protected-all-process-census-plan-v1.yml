@@ -9,7 +9,6 @@ on:
       - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-census-plan-v1.yml"
       - "ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
       - "ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
-      - "ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py"
       - "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json"
   workflow_dispatch:
 
@@ -33,7 +32,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          BASE="5bfd56c850513c7b416fe0b2f854ee9b12e764e4"
+          BASE="7736a3a5c53da37448c357a5d98e4dad09f3f617"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
@@ -48,18 +47,16 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py)" = \
-            "114b85775b45b06e4ff86bf32b59b96a31dcc995"
+            "0d38a9550e3fe2fbaa18dd83d3fbeafe929d8c5a"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_census_plan_v1.py)" = \
-            "bfe3149e810cc37f3964b45efeca9a80bf89286d"
+            "ea382c1dff11add9ed149917f1d1f5b54098fa5e"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-census-plan-v1.md)" = \
-            "33c5a5485ae0f9fce59d8fc02e3a01ffe5e60460"
+            "6d564d7e2b8f824a5dc1b63ac9c97c0d4587fd69"
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "ded737a228a627a241a84131113db6d3521f635c"
+            "6bf476e3383b7b18966320df13b4041da9c8c11f"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py)" = \
-            "90358ef1df3ecfa3daeee39452ffd025e9a8d86e"
+            "e32ebd94ad09cd80e03489079e74657aab159d7a"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
@@ -84,8 +81,7 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_CENSUS_PLAN_V1_SELF_TEST_GREEN' "$out"
           for marker in \
             'exact_parent_process_source_bound=true' \
-            'exact_current_prestate_source_bound=true' \
-            'exact_current_quiescence_source_bound=true' \
+            'exact_parent_tree_prestate_source_bound=true' \
             'exact_archive_lock_bound=true' \
             'source_plan_only=true' \
             'root_execution_forbidden_for_source_plan=true' \
@@ -126,8 +122,7 @@ jobs:
           for marker in \
             'exact_source_blob_asserted=true' \
             'exact_parent_process_source_bound=true' \
-            'exact_current_prestate_source_bound=true' \
-            'exact_current_quiescence_source_bound=true' \
+            'exact_parent_tree_prestate_source_bound=true' \
             'exact_archive_lock_bound=true' \
             'source_plan_only=true' \
             'root_execution_forbidden_for_source_plan=true' \
