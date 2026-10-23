@@ -179,6 +179,7 @@ function htmlTagsBefore(html, limit) {
       closing,
       name,
       raw,
+      selfClosing: !closing && /\/\s*>$/u.test(raw),
     });
     index = cursor + 1;
   }
@@ -204,6 +205,53 @@ function tagCreatesLiveRegion(tag) {
     ["polite", "assertive"].includes(ariaLive.trim().toLowerCase());
 }
 
+const svgHtmlIntegrationPoints = new Set(["desc", "foreignobject", "title"]);
+const mathMlTextIntegrationPoints = new Set(["mi", "mn", "mo", "ms", "mtext"]);
+const mathMlHtmlIntegrationEncodings = new Set([
+  "application/xhtml+xml",
+  "text/html",
+]);
+
+function namespaceForStartTag(stack, tag) {
+  const parent = stack.at(-1);
+  let namespace = parent?.namespace ?? "html";
+
+  if (namespace === "svg" && svgHtmlIntegrationPoints.has(parent.name)) {
+    namespace = "html";
+  } else if (
+    namespace === "math" &&
+    mathMlTextIntegrationPoints.has(parent.name) &&
+    tag.name !== "malignmark" &&
+    tag.name !== "mglyph"
+  ) {
+    namespace = "html";
+  } else if (
+    namespace === "math" &&
+    parent.name === "annotation-xml" &&
+    parent.htmlIntegrationPoint
+  ) {
+    namespace = "html";
+  }
+
+  if (namespace === "html" && tag.name === "svg") return "svg";
+  if (namespace === "html" && tag.name === "math") return "math";
+  return namespace;
+}
+
+function isHtmlIntegrationPoint(tag, namespace) {
+  if (namespace === "svg") {
+    return svgHtmlIntegrationPoints.has(tag.name);
+  }
+  if (namespace !== "math" || tag.name !== "annotation-xml") {
+    return false;
+  }
+  const encoding = parseStartTagAttributes(tag.raw)
+    .get("encoding")
+    ?.trim()
+    .toLowerCase();
+  return mathMlHtmlIntegrationEncodings.has(encoding);
+}
+
 function requireResultPayloadOutsideLiveAncestors(html) {
   const needle = '<pre id="resultBox">';
   const resultIndex = html.indexOf(needle);
@@ -214,14 +262,21 @@ function requireResultPayloadOutsideLiveAncestors(html) {
     if (tag.closing) {
       for (let index = stack.length - 1; index >= 0; index -= 1) {
         if (stack[index].name === tag.name) {
-          stack.splice(index, 1);
+          stack.splice(index);
           break;
         }
       }
       continue;
     }
-    if (voidElements.has(tag.name)) continue;
-    stack.push({ name: tag.name, tag: tag.raw });
+    const namespace = namespaceForStartTag(stack, tag);
+    if (namespace === "html" && voidElements.has(tag.name)) continue;
+    if (namespace !== "html" && tag.selfClosing) continue;
+    stack.push({
+      name: tag.name,
+      tag: tag.raw,
+      namespace,
+      htmlIntegrationPoint: isHtmlIntegrationPoint(tag, namespace),
+    });
   }
 
   for (const ancestor of stack) {
@@ -356,6 +411,20 @@ requireDemoAccessibility(
 requireDemoAccessibility(
   source.replace(
     '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<svg><g role="status" /></svg>\n    <section class="card mt">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<math><mrow role="status" /></math>\n    <section class="card mt">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
     '<section class="card mt" data-aria-live="polite">\n      <h2>Latest Result</h2>',
   ),
 );
@@ -432,6 +501,14 @@ const negativeMutations = [
     html: source.replace(
       '<section class="card mt">\n      <h2>Latest Result</h2>',
       '<section class="card mt" role="status" />\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_svg_html_integration_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<svg><foreignObject><section role="status" />\n<pre id="resultBox">No result yet.</pre></section></foreignObject></svg>',
     ),
     error: /must not be nested inside a live region/u,
   },
@@ -552,5 +629,7 @@ console.log("ordered_progressbar_fallback_nonlive=true");
 console.log("encoded_aria_live_ancestor_rejected=true");
 console.log("quoted_gt_live_ancestor_rejected=true");
 console.log("nonvoid_self_closing_live_ancestor_rejected=true");
+console.log("foreign_self_closing_live_element_closed=true");
+console.log("foreign_html_integration_live_ancestor_rejected=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=22");
+console.log("negative_mutations=23");
