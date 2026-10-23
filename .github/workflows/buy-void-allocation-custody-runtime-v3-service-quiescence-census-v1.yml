@@ -47,11 +47,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py)" = \
-            "7fc110cea870b3ec6aed4df84e5b7bb2ce2f635f"
+            "b396aa65ce1b130eea9813819c1a240037b72106"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py)" = \
-            "4901a5e982556d90ec785b94b8517367c90b7185"
+            "e88ffc44749376348d60128df87db86850f2d386"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-service-quiescence-census-v1.md)" = \
-            "5845816c27e7af626e0bf06303183673926999d2"
+            "866385ec274289ce09185d131b030e200b3ebb8a"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs)" = \
@@ -86,12 +86,16 @@ jobs:
             'canonical_socket_path_bound=true' \
             'systemctl_show_only=true' \
             'inactive_service_candidate_classified=true' \
+            'enabled_unit_rejected=true' \
+            'pending_daemon_reload_rejected=true' \
+            'lingering_runtime_directory_rejected=true' \
             'active_service_rejected=true' \
             'present_socket_rejected=true' \
             'service_quiescence_proven=false' \
             'live_process_binding_checked=false' \
-            'read_only=true' \
-            'filesystem_write=false' \
+            'production_read_only=true' \
+            'production_filesystem_write=false' \
+            'self_test_temporary_filesystem_write=true' \
             'systemd_mutation=false' \
             'service_start=false' \
             'service_stop=false' \
@@ -122,13 +126,17 @@ jobs:
             'systemctl_mutating_verbs_absent=true' \
             'exact_source_blob_asserted=true' \
             'inactive_service_candidate_classified=true' \
+            'enabled_unit_rejected=true' \
+            'pending_daemon_reload_rejected=true' \
+            'lingering_runtime_directory_rejected=true' \
             'active_service_rejected=true' \
             'present_socket_rejected=true' \
             'service_quiescence_proven=false' \
             'live_process_binding_checked=false' \
             'host_census_not_executed_in_ci=true' \
-            'read_only=true' \
-            'filesystem_write=false' \
+            'production_read_only=true' \
+            'production_filesystem_write=false' \
+            'test_fixture_filesystem_write=true' \
             'systemd_mutation=false' \
             'daemon_reload=false' \
             'service_start=false' \
