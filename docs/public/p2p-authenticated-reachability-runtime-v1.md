@@ -29,8 +29,9 @@ semantics remain authoritative:
 - direct confirmation still requires at least two observer identities and two
   declared failure domains;
 - each observer counted toward independence must use one consistent declared
-  failure domain across all fresh successful dialbacks; conflicting labels
-  exclude that observer from the independence counts;
+  failure domain across **all fresh observations** from that observer, including
+  successful or failed dialbacks and authenticated outbound observations;
+  conflicting labels exclude that observer from the independence counts;
 - DNS, Tor, and future relay addresses do not become direct-IP evidence.
 
 The historical content-addressed record contract continues to carry
