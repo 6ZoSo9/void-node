@@ -4,6 +4,10 @@ Marker: `VOID_BUY_VOID_CUSTODY_PROTECTED_PROCREF_INSTALL_PLAN_V1`.
 
 Status: **source-only protected-install planning; no install authority**.
 
+This generation is stacked directly on the #3777 V3 source-acceptance lock. It
+defines a future installer contract only; no protected source has been
+installed and no root census is authorized or executed.
+
 This plan closes the source-design gap identified by the protected all-process
 reference census: a later root execution must run only from exact reviewed bytes
 installed under a protected root-owned `/opt` path, but this generation does
@@ -11,15 +15,19 @@ not install those bytes.
 
 ## Exact reviewed source
 
-The plan accepts only the exact #3753 protected all-process census generation:
+The plan accepts only the exact current #3753 protected all-process census
+generation that is source-accepted by #3777:
 
 ```text
 repository=6ZoSo9/void-node
-head=3d7b8041f90b92d66d8de43cd0b28e98cbf194be
+head=cfae72e86e060ec797a86797d71f7be7aa019be8
 path=ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py
-git_blob_sha1=25a0913606baa3303743f36a8c79f3c7a14ea159
-bytes=70661
-sha256=447411e1853fdff56098e2700c60855aaa6ebc2dfb02104afc82af83c2c97efe
+git_blob_sha1=9738f14111fc03dffe9afb04f7bede73ceb13087
+bytes=74322
+sha256=f3ef0593eae77825f730609b85da51af66168ba11f39848d052a91942e4cc335
+accepted_source_lock_pr=3777
+accepted_source_lock_head=aebffe89a834eddccbd708495047f369f4dbaf29
+accepted_source_lock_blob=e66742be948ae418cbdca75542db263050930c15
 ```
 
 A future installer must materialize the exact Git-object bytes. Copying from a
