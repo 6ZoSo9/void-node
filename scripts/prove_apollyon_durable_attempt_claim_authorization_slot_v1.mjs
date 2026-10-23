@@ -13,6 +13,7 @@ import {
 import {
   ACCEPTED_STORE_POLICY_ID,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_AUTHORITY_V1,
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_MAX_RECORDS_V1,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_RECORD_KEYS_V1,
   VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_REQUIREMENTS_V1,
   classifyApollyonDurableAttemptClaimAuthorizationSlotRecoveryV1,
@@ -38,7 +39,7 @@ function gitBlob(bytes){
 }
 for(const [relative,expected] of Object.entries({
   "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs":
-    "25629371f6da164e12fecfc08c5f26815418e3a8",
+    "f23606bd9e5e8469ac366cbbc80e7e9470bd632b",
   "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
     "87019ae1245a2054407dd47835b0b7a891d4d9a2",
   "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs":
@@ -422,6 +423,76 @@ proxyCase(
   qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1,
   /set_input_invalid/u,
 );
+
+assert.equal(
+  VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_MAX_RECORDS_V1,
+  32768,
+);
+{
+  const oversized=new Array(
+    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_MAX_RECORDS_V1+1,
+  ).fill(first);
+  const realOwnKeys=Reflect.ownKeys;
+  const realDescriptors=Object.getOwnPropertyDescriptors;
+  let ownKeysCalls=0;
+  let descriptorCalls=0;
+  Reflect.ownKeys=input=>{
+    if(input===oversized)ownKeysCalls+=1;
+    return realOwnKeys(input);
+  };
+  Object.getOwnPropertyDescriptors=input=>{
+    if(input===oversized)descriptorCalls+=1;
+    return realDescriptors(input);
+  };
+  try{
+    assert.throws(
+      ()=>qualifyApollyonDurableAttemptClaimAuthorizationSlotSetV1({
+        authorization_slot_records:oversized,
+      }),
+      /set_invalid/u,
+    );
+  }finally{
+    Reflect.ownKeys=realOwnKeys;
+    Object.getOwnPropertyDescriptors=realDescriptors;
+  }
+  assert.equal(ownKeysCalls,0,"oversized slot set reached Reflect.ownKeys");
+  assert.equal(descriptorCalls,0,"oversized slot set reached descriptor census");
+}
+{
+  const oversizedOld=new Array(
+    VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_AUTHORIZATION_SLOT_MAX_RECORDS_V1+1,
+  ).fill(first);
+  const realOwnKeys=Reflect.ownKeys;
+  const realDescriptors=Object.getOwnPropertyDescriptors;
+  let ownKeysCalls=0;
+  let descriptorCalls=0;
+  Reflect.ownKeys=input=>{
+    if(input===oversizedOld)ownKeysCalls+=1;
+    return realOwnKeys(input);
+  };
+  Object.getOwnPropertyDescriptors=input=>{
+    if(input===oversizedOld)descriptorCalls+=1;
+    return realDescriptors(input);
+  };
+  try{
+    assert.throws(
+      ()=>qualifyApollyonDurableAttemptClaimAuthorizationSlotMigrationV1({
+        old_store_generation_id:"apollyon_claim_store_generation_v2:"+"1".repeat(64),
+        new_store_generation_id:"apollyon_claim_store_generation_v2:"+"2".repeat(64),
+        parent_store_continuity_receipt_id:
+          "apollyon_claim_store_continuity_v2:"+"3".repeat(64),
+        old_authorization_slot_records:oversizedOld,
+        new_authorization_slot_records:[first],
+      }),
+      /set_invalid/u,
+    );
+  }finally{
+    Reflect.ownKeys=realOwnKeys;
+    Object.getOwnPropertyDescriptors=realDescriptors;
+  }
+  assert.equal(ownKeysCalls,0,"oversized migration set reached Reflect.ownKeys");
+  assert.equal(descriptorCalls,0,"oversized migration set reached descriptor census");
+}
 {
   let migrationGetterCalls=0;
   const hostileOld={...first};
@@ -616,4 +687,8 @@ console.log("proxy_inputs_rejected_before_reflection=true");
 console.log("caller_coercion_not_invoked=true");
 console.log("nested_slot_record_accessors_not_invoked=true");
 console.log("slot_array_accessors_not_invoked=true");
+console.log("authorization_slot_record_count_max=32768");
+console.log("oversized_slot_set_rejected_before_array_reflection=true");
+console.log("oversized_migration_set_rejected_before_array_reflection=true");
+console.log("slot_array_cardinality_bound=true");
 console.log("training_execution=false");
