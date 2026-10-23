@@ -1000,6 +1000,69 @@ def census(host_pid_namespace_lease: str) -> dict[str, Any]:
 def self_test() -> None:
     verify_source_inputs()
 
+    if parse_dev_ino_lease("12:34") != (12, 34):
+        hold("self_test_host_pid_namespace_lease_parse_failed")
+    for bad in ("", "12", "a:34", "12:b", "0:34", "12:0", "12:34:56"):
+        try:
+            parse_dev_ino_lease(bad)
+        except CensusHold as exc:
+            if "host_pid_namespace_lease_invalid" not in str(exc):
+                raise
+        else:
+            hold("self_test_invalid_host_pid_namespace_lease_accepted")
+
+    class FakeNamespace:
+        def __init__(self, dev: int, ino: int):
+            self.st_dev = dev
+            self.st_ino = ino
+
+    if verify_namespace_lease(
+        FakeNamespace(12, 34),
+        FakeNamespace(12, 34),
+        (12, 34),
+    ) != (12, 34):
+        hold("self_test_host_pid_namespace_lease_match_failed")
+    try:
+        verify_namespace_lease(
+            FakeNamespace(12, 34),
+            FakeNamespace(12, 35),
+            (12, 34),
+        )
+    except CensusHold as exc:
+        if "procfs_pid_namespace_not_pid1" not in str(exc):
+            raise
+    else:
+        hold("self_test_private_pid_namespace_accepted")
+    try:
+        verify_namespace_lease(
+            FakeNamespace(12, 34),
+            FakeNamespace(12, 34),
+            (12, 35),
+        )
+    except CensusHold as exc:
+        if "host_pid_namespace_lease_mismatch" not in str(exc):
+            raise
+    else:
+        hold("self_test_wrong_host_pid_namespace_lease_accepted")
+
+    good_mountinfo = (
+        b"29 23 0:26 / /proc rw,nosuid,nodev,noexec,relatime - "
+        b"proc proc rw\n"
+    )
+    if parse_proc_mountinfo_host_view(good_mountinfo)["fs_type"] != "proc":
+        hold("self_test_procfs_mount_identity_invalid")
+    bad_mountinfo = (
+        b"29 23 0:26 / /proc rw,nosuid,nodev,noexec,relatime - "
+        b"proc proc rw,hidepid=2\n"
+    )
+    try:
+        parse_proc_mountinfo_host_view(bad_mountinfo)
+    except CensusHold as exc:
+        if "proc_mountinfo_hidepid_forbidden" not in str(exc):
+            raise
+    else:
+        hold("self_test_hidepid_procfs_accepted")
+
     clean_rows = [{
         "pid": 101,
         "status": "scanned",
