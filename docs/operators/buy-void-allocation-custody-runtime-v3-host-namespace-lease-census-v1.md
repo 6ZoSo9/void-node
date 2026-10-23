@@ -1,12 +1,15 @@
-# Buy VOID allocation-custody runtime V3 host namespace lease census V1
+# Buy VOID allocation-custody runtime V3 host namespace candidate census V1
 
 Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_HOST_NAMESPACE_LEASE_CENSUS_V1`.
 
-Status: **read-only Precision host-identity / namespace lease observation only**.
+Status: **read-only Precision host-identity / namespace candidate observation only**.
 
-This census exists to produce the two same-boot namespace `dev:ino` leases
-required by the V3 process-reference census. It does not install or replace
-anything and does not itself prove process-reference absence.
+This census observes two same-boot namespace `dev:ino` **candidates** for a
+separate operator/reviewer ceremony. It cannot prove from its own namespace
+view that those values are the host's initial namespaces, so it does not itself
+produce the external leases required by the V3 process-reference census. It
+does not install or replace anything and does not prove process-reference
+absence.
 
 ## Bound designated-host policy
 
@@ -59,11 +62,21 @@ self/ns/pid == 1/ns/pid
 self/ns/mnt == 1/ns/mnt
 ```
 
-The resulting identities are emitted in decimal `<st_dev>:<st_ino>` form as:
+The resulting same-view identities are emitted in decimal `<st_dev>:<st_ino>`
+form as:
 
 ```text
-pid_namespace_dev_ino
-mount_namespace_dev_ino
+pid_namespace_candidate_dev_ino
+mount_namespace_candidate_dev_ino
+```
+
+They are observations, not host-initial namespace authority. Successful output
+always retains:
+
+```text
+host_initial_pid_namespace_verified=false
+host_initial_mount_namespace_verified=false
+namespace_values_candidate_only=true
 ```
 
 The collector also:
@@ -73,10 +86,14 @@ The collector also:
 - binds a SHA-256 of the current kernel boot ID;
 - rechecks the retained procfs generation;
 - rereads both PID and mount namespace identities;
+- rereads `self/mountinfo` and requires the exact selected proc mount/options
+  contract to remain unchanged;
 - rereads the boot ID before success.
 
-A private PID namespace or private mount namespace therefore HOLDs instead of
-being published as a host lease.
+A namespace-local PID 1 that differs from the collector HOLDs. Equality with
+namespace-local PID 1 is still **not** proof of the host's initial namespace;
+that limitation is deliberately preserved as candidate-only output rather than
+silently promoted to a host lease.
 
 ## Same-boot scope
 
@@ -88,14 +105,17 @@ The process-reference census still performs its own live equality and terminal
 revalidation. This collector is an independent observed input, not a permanent
 authorization token.
 
-The collector receipt is **not automatically consumable**. A separate review
-step must inspect the exact same-boot receipt before its PID- and mount-namespace
-values are supplied to the process-reference census. Production output therefore
-states:
+The collector receipt is **not automatically consumable**. A separate,
+independently trusted operator/reviewer step must decide whether the observed
+candidate values are the host's initial namespace identities before any later
+consumer may treat them as external leases. Production output therefore states:
 
 ```text
+namespace_values_candidate_only=true
+host_initial_namespace_authority_proven=false
 namespace_lease_external_review_completed=false
 automatic_process_census_feed_authorized=false
+process_census_consumption_authorized=false
 ```
 
 A convenience launcher may collect the receipt and stop. It must not collect
@@ -117,8 +137,9 @@ python3 -I -B \
 No sudo is required or authorized.
 
 The command emits one canonical JSON line with a content-addressed
-`namespace_lease_id`. It does not create a receipt file itself; a later safe
-launcher may capture stdout under `~/Downloads`.
+`namespace_candidate_id`. It does not create a receipt file itself; a later
+safe launcher may capture stdout under `~/Downloads`, but must stop there
+rather than auto-feeding the candidate into the process census.
 
 ## Authority boundary
 
@@ -131,6 +152,10 @@ python_no_bytecode_mode_required=true
 designated_host_identity_verified=true
 pid1_pid_namespace_matches_self=true
 pid1_mount_namespace_matches_self=true
+host_initial_pid_namespace_verified=false
+host_initial_mount_namespace_verified=false
+namespace_values_candidate_only=true
+proc_mount_contract_revalidated=true
 retained_procfs_view_revalidated=true
 same_boot_binding_observed=true
 service_state_checked=false
@@ -139,8 +164,10 @@ systemd_mutation=false
 process_environment_read=false
 process_arguments_read=false
 namespace_lease_is_install_authority=false
+host_initial_namespace_authority_proven=false
 namespace_lease_external_review_completed=false
 automatic_process_census_feed_authorized=false
+process_census_consumption_authorized=false
 replacement_apply_authorized=false
 runtime_integration=false
 payment_acceptance=false
@@ -148,9 +175,10 @@ public_presale_activation=false
 funds_movement=false
 ```
 
-The next consumer is the V3 process-reference census. A clean lease receipt
-does not by itself satisfy service quiescence, filesystem prestate,
-all-process absence, replacement safety, installation, payment acceptance or
-presale activation.
+After a separate trusted review, accepted candidate values may become inputs
+to the V3 process-reference census. This source does not perform that
+acceptance. A clean candidate receipt does not by itself satisfy service
+quiescence, filesystem prestate, all-process absence, replacement safety,
+installation, payment acceptance or presale activation.
 
 **PROTECT THE CORE.**
