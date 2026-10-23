@@ -473,7 +473,18 @@ def verify_observation_receipt(value: dict[str, Any]) -> dict[str, Any]:
 def crosscheck(
     candidate: dict[str, Any],
     observation: dict[str, Any],
+    *,
+    candidate_receipt_sha256: str,
+    observation_receipt_sha256: str,
 ) -> dict[str, Any]:
+    _require_sha256(
+        candidate_receipt_sha256,
+        "candidate_receipt_sha256_invalid",
+    )
+    _require_sha256(
+        observation_receipt_sha256,
+        "observation_receipt_sha256_invalid",
+    )
     c = verify_candidate_receipt(candidate)
     o = verify_observation_receipt(observation)
 
@@ -504,7 +515,9 @@ def crosscheck(
             "designated_host_policy_git_blob": DESIGNATED_HOST_POLICY_GIT_BLOB,
         },
         "candidate_receipt_id": c["id"],
+        "candidate_receipt_sha256": candidate_receipt_sha256,
         "observation_receipt_id": o["id"],
+        "observation_receipt_sha256": observation_receipt_sha256,
         "pid_namespace_candidate_dev_ino": c["pid"],
         "mount_namespace_candidate_dev_ino": c["mnt"],
         "boot_id_sha256": c["boot"],
@@ -663,7 +676,14 @@ def _synthetic_receipts() -> tuple[dict[str, Any], dict[str, Any]]:
 
 def self_test() -> None:
     candidate, observation = _synthetic_receipts()
-    result = crosscheck(candidate, observation)
+    candidate_bytes = canonical(candidate)
+    observation_bytes = canonical(observation)
+    result = crosscheck(
+        candidate,
+        observation,
+        candidate_receipt_sha256=sha256(candidate_bytes),
+        observation_receipt_sha256=sha256(observation_bytes),
+    )
     if (
         result["namespace_candidates_match"] is not True
         or result["boot_id_match"] is not True
@@ -690,7 +710,12 @@ def self_test() -> None:
             "voidbuycustodynscandidate1_" + sha256(canonical(body))
         )
         try:
-            crosscheck(candidate_bad, observation_ok)
+            crosscheck(
+                candidate_bad,
+                observation_ok,
+                candidate_receipt_sha256=sha256(canonical(candidate_bad)),
+                observation_receipt_sha256=sha256(canonical(observation_ok)),
+            )
         except CrosscheckHold as exc:
             if expected_code not in str(exc):
                 raise
@@ -708,7 +733,12 @@ def self_test() -> None:
         "voidbuycustodynscandidate1_" + sha256(canonical(body))
     )
     try:
-        crosscheck(candidate_bad, observation_ok)
+        crosscheck(
+            candidate_bad,
+            observation_ok,
+            candidate_receipt_sha256=sha256(canonical(candidate_bad)),
+            observation_receipt_sha256=sha256(canonical(observation_ok)),
+        )
     except CrosscheckHold as exc:
         if "candidate_authority_invalid" not in str(exc):
             raise
@@ -733,6 +763,7 @@ def self_test() -> None:
     print(MARKER + "_SELF_TEST_GREEN")
     print("candidate_receipt_id_recomputed=true")
     print("observation_receipt_id_recomputed=true")
+    print("receipt_file_sha256_bound_into_crosscheck_id=true")
     print("designated_host_anchors_required=true")
     print("process_census_source_identity_required=true")
     print("pid_namespace_match_required=true")
@@ -779,9 +810,12 @@ def main(argv: list[str]) -> int:
             hold("crosscheck_receipt_paths_required")
         candidate, candidate_raw = read_receipt(Path(args.candidate_receipt))
         observation, observation_raw = read_receipt(Path(args.observation_receipt))
-        result = crosscheck(candidate, observation)
-        result["candidate_receipt_sha256"] = sha256(candidate_raw)
-        result["observation_receipt_sha256"] = sha256(observation_raw)
+        result = crosscheck(
+            candidate,
+            observation,
+            candidate_receipt_sha256=sha256(candidate_raw),
+            observation_receipt_sha256=sha256(observation_raw),
+        )
         print(json.dumps(result, sort_keys=True, separators=(",", ":")))
         return 0
 
