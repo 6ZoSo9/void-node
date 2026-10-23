@@ -315,6 +315,102 @@ for key in (
 ):
     need(plan["authority"][key] is False, "plan_authority_promoted:" + key)
 
+# Exercise the complete host-pass orchestration with inert providers only.
+_saved = {
+    "gethostname": mod.socket.gethostname,
+    "normalize_machine_id": mod.normalize_machine_id,
+    "read_exact_regular": mod._read_exact_regular,
+    "ancestor": mod._ancestor_observation,
+    "paths": mod._fixed_path_observation,
+    "mounts": mod._mount_observation,
+    "systemctl": mod._systemctl_show,
+    "process": mod._process_observation,
+}
+_service_base = {
+    "LoadState": "loaded",
+    "ActiveState": "inactive",
+    "SubState": "dead",
+    "UnitFileState": "disabled",
+    "MainPID": "0",
+    "Result": "success",
+    "FragmentPath": "/etc/systemd/system/void-apollyon-attempt-claim-v2.service",
+    "ControlGroup": "",
+}
+
+def _install_inert(
+    *,
+    service_values=None,
+    process_values=None,
+    path_values=None,
+    mount_values=None,
+):
+    mod.socket.gethostname = lambda: "Xiphos"
+    mod.normalize_machine_id = lambda raw: mod.EXPECTED_MACHINE_ID_SHA256
+    mod._read_exact_regular = lambda *a, **k: b"not-exposed"
+    mod._ancestor_observation = lambda: {"ancestors": "stable"}
+
+    paths = list(path_values or [{"paths": "stable"}, {"paths": "stable"}])
+    mounts = list(mount_values or [{"mounts": "stable"}, {"mounts": "stable"}])
+    services = list(service_values or [_service_base.copy(), _service_base.copy()])
+    processes = list(process_values or [None, None])
+
+    def pop_or_last(values):
+        if len(values) > 1:
+            return values.pop(0)
+        return values[0]
+
+    mod._fixed_path_observation = lambda: pop_or_last(paths)
+    mod._mount_observation = lambda: pop_or_last(mounts)
+    mod._systemctl_show = lambda: pop_or_last(services)
+    mod._process_observation = lambda pid: pop_or_last(processes)
+
+try:
+    _install_inert()
+    simulated = mod.run_host_pass()
+    need(simulated["machine_identity_match"] is True, "simulated_machine_bind_failed")
+    need(simulated["authority"]["host_pass_performed"] is True, "simulated_pass_missing")
+    for key in (
+        "protected_store_origin_proven",
+        "writer_invocation_authorized",
+        "training_execution_authorized",
+        "credential_access",
+        "signing",
+        "transaction",
+        "funds_movement",
+    ):
+        need(simulated["authority"][key] is False, "simulated_authority_promoted:" + key)
+
+    changed_service = _service_base.copy()
+    changed_service["SubState"] = "running"
+    _install_inert(service_values=[_service_base.copy(), changed_service])
+    expect_hold(mod.run_host_pass, "service_state_changed_during_pass")
+
+    live_service = _service_base.copy()
+    live_service["MainPID"] = "123"
+    _install_inert(
+        service_values=[live_service.copy(), live_service.copy()],
+        process_values=[
+            {"pid": 123, "start_ticks": "100"},
+            {"pid": 123, "start_ticks": "101"},
+        ],
+    )
+    expect_hold(mod.run_host_pass, "service_process_subject_changed_during_pass")
+
+    _install_inert(path_values=[{"paths": "one"}, {"paths": "two"}])
+    expect_hold(mod.run_host_pass, "fixed_path_metadata_changed_during_pass")
+
+    _install_inert(mount_values=[{"mounts": "one"}, {"mounts": "two"}])
+    expect_hold(mod.run_host_pass, "mount_metadata_changed_during_pass")
+finally:
+    mod.socket.gethostname = _saved["gethostname"]
+    mod.normalize_machine_id = _saved["normalize_machine_id"]
+    mod._read_exact_regular = _saved["read_exact_regular"]
+    mod._ancestor_observation = _saved["ancestor"]
+    mod._fixed_path_observation = _saved["paths"]
+    mod._mount_observation = _saved["mounts"]
+    mod._systemctl_show = _saved["systemctl"]
+    mod._process_observation = _saved["process"]
+
 print("VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_COLLECTOR_V1_PROOF_GREEN")
 print("source_blob=" + PINS[SOURCE_REL])
 print("exact_parent_binding_pinned=true")
@@ -328,6 +424,8 @@ print("acl_adversary_rejected=true")
 print("terminal_metadata_drift_rejected=true")
 print("ambiguous_stacked_mount_rejected=true")
 print("systemctl_show_only_contract=true")
+print("inert_full_pass_orchestration_executed=true")
+print("whole_pass_drift_adversaries_rejected=true")
 print("host_pass_performed=false")
 print("filesystem_mutation=false")
 print("service_mutation=false")
