@@ -570,6 +570,7 @@ def self_test() -> None:
     print("hidepid_restricted_proc_holds=true")
     print("boot_id_same_boot_binding=true")
     print("descriptor_relative_bounded_reader_tested=true")
+    print("python_no_bytecode_mode_required=true")
     print("production_filesystem_write=false")
     print("self_test_temporary_filesystem_write=true")
     print("namespace_lease_is_install_authority=false")
