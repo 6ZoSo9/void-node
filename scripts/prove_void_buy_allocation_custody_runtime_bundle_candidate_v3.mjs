@@ -105,6 +105,21 @@ for(const [name,alter,reason]of [
     /custody_bundle_candidate_predecessor_invalid/u],
   ["reader_pin",c=>{const p=c.source_inputs.find(x=>x.path===delta[0]);
     p.git_blob_sha1="0".repeat(40);}, /custody_bundle_candidate_source_pin_invalid/u],
+  ["runtime_sha256",c=>{c.runtime_files[0].sha256="0".repeat(64);},
+    /custody_bundle_candidate_generated_closure_invalid/u],
+  ["runtime_bytes",c=>{c.runtime_files[0].bytes+=1;},
+    /custody_bundle_candidate_generated_closure_invalid/u],
+  ["runtime_imports",c=>{c.runtime_files[0].imports=[
+      ...c.runtime_files[0].imports,"node:assert",
+    ];}, /custody_bundle_candidate_generated_closure_invalid/u],
+  ["runtime_kind",c=>{c.runtime_files[0].runtime_kind=
+      c.runtime_files[0].runtime_kind==="tracked_source"
+        ?"compiled_typescript":"tracked_source";},
+    /custody_bundle_candidate_generated_closure_invalid/u],
+  ["runtime_source_pin",c=>{const p=c.runtime_files.find(
+      x=>typeof x.tracked_source_git_blob_sha1==="string");
+    assert.ok(p); p.tracked_source_git_blob_sha1="0".repeat(40);},
+    /custody_bundle_candidate_generated_closure_invalid/u],
 ]) {
   const changed=structuredClone(candidate);
   alter(changed);
@@ -159,6 +174,8 @@ console.log("ten_file_package_free_closure_verified=true");
 console.log("three_node_byte_equality_required=true");
 console.log("real_fifo_swap_rejected_without_blocking=true");
 console.log("forged_authority_predecessor_source_pin_rejected=true");
+console.log("forged_runtime_record_metadata_rejected=true");
+console.log("regenerated_candidate_body_exact_required=true");
 console.log("hosted_identity_authenticated=false");
 console.log("candidate_accepted=false");
 console.log("service_started=false");
