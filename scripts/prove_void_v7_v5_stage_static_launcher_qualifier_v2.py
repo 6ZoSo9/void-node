@@ -14,7 +14,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 LAUNCHER_REL="ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c"
 LAUNCHER_BLOB="2337466b713b6572cc5ec832817899bbcb4e2ac2"
 QUALIFIER_REL="ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py"
-QUALIFIER_BLOB="661fa682fab32704f9596d7984b8899f968d5649"
+QUALIFIER_BLOB="41de808d986393e5c5cf21705acc875cf3187a13"
 PLAN_REL="ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json"
 PLAN_BLOB="c7ff1128ff04f3ce5f995206af52f844564c6b39"
 SOURCE_INSTALLER_REL="ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
@@ -147,6 +147,12 @@ for token in (
     'expected_root_mode=None',
     'source_stage_root_mode_0755_required=true',
     'def scan_staged_tree_custody(',
+    'def _claim_custody_node(',
+    'max_nodes:int=MAX_CUSTODY_NODES',
+    'max_depth:int=MAX_CUSTODY_DEPTH',
+    'child_depth=depth+1',
+    'whole_tree_node_limit_includes_root=true',
+    'regular_file_depth_cap_plus_one_rejected=true',
     'os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC',
     'receipt_path_substitution_rejected=true',
     'recursive_source_custody_bound=true',
@@ -240,6 +246,10 @@ for marker in (
     "receipt_verified_fd_metadata_bound=true",
     "receipt_path_substitution_rejected=true",
     "recursive_source_custody_bound=true",
+    "whole_tree_node_limit_includes_root=true",
+    "whole_tree_node_cap_boundary_tested=true",
+    "all_child_types_depth_limited=true",
+    "regular_file_depth_cap_plus_one_rejected=true",
     "writable_descendant_file_rejected=true",
     "writable_descendant_directory_rejected=true",
     "staged_tree_generation_change_detected=true",
@@ -258,6 +268,10 @@ for marker in (
 print(MARKER+"_GREEN")
 print("launcher_blob="+LAUNCHER_BLOB)
 print("qualifier_blob="+QUALIFIER_BLOB)
+print("whole_tree_node_limit_includes_root=true")
+print("whole_tree_node_cap_boundary_tested=true")
+print("all_child_types_depth_limited=true")
+print("regular_file_depth_cap_plus_one_rejected=true")
 print("trusted_admission_plan_blob="+PLAN_BLOB)
 print("launcher_compiles_with_werror=true")
 print("launcher_self_test_green=true")
