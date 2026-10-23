@@ -97,8 +97,8 @@ jobs:
             base="$(git rev-parse HEAD^)"
           fi
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v2.py)" = ddb1e50fc48dcf812efdec7223e1eea8c055cb6f
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v2.py)" = 6d964602f16eb783bf6010d640b3d6798d6fa276
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v2.py)" = 74b45b9f23ce3307b59a98fa9703d5c0a2494bad
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_protected_first_entry_static_candidate_v2.py)" = 7080dca15c64ba4a90b06a31cc4bae35cf47547a
           test "$(git rev-parse HEAD:docs/security/apollyon-claim-protected-first-entry-static-candidate-v2.md)" = 73675c7ce2d0d19f3866eddedb4a649b807bf63b
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_claim_protected_first_entry_static_candidate_v1.py)" = 99a1823f4b8349b6f65f210c59e1dbce4a4578f0
