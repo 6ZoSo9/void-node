@@ -1,6 +1,6 @@
 # VOID V7 static privilege bridge V1 — source review
 
-**Status: Draft; source/test/CI only. No production authority.**
+**Status: merged source-review control; source/test/CI only. No production authority.**
 
 ## Evidence basis
 
@@ -37,6 +37,8 @@ Current canonical V5 staging #3719 still uses dynamic symbol lookup for renameat
 
 ## Focused proof
 
+The hosted workflow is intentionally **pull-request only**. Manual `workflow_dispatch` is not accepted because this proof's reproducibility depends on GitHub's immutable pull-request base/head tuple. Post-merge successor PRs must remain confined to the four reviewed bridge paths, pass committed base→head diff hygiene, and preserve the pinned C/proof/document identities unless an explicitly reviewed successor updates them.
+
 Run as an ordinary user on Linux x86-64:
 
     python3 -I -B scripts/prove_void_v7_static_privilege_bridge_v1.py
@@ -47,6 +49,6 @@ The proof does NOT qualify fully static CPython closure, same-UID-resistant immu
 
 ## Authority boundary
 
-This is an independent source-review candidate only. Do not merge without independent review. No runtime authority, no root execution, protected install, host service changes, credentials/signing, transactions, public presale/WC activation, or funds movement.
+This is a merged source-review control only, not production authority. Any successor that changes the native bridge or its proof requires fresh independent review before protected use. No runtime authority, no root execution, protected install, host service changes, credentials/signing, transactions, public presale/WC activation, or funds movement.
 
 PROTECT THE CORE.
