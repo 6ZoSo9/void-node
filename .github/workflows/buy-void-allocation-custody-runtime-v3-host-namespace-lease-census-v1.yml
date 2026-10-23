@@ -45,11 +45,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_host_namespace_lease_census_v1.py)" = \
-            "132c34244c795e886f5e2bc729e5e05697f06486"
+            "ce6e416f5cccd79d421e9404f6f4fa12a416fc6a"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_host_namespace_lease_census_v1.py)" = \
-            "b687b4625b7c681b7c28347a61f7f852768c6264"
+            "ba1830589bc236b12ce3b8ac6711f7ef0c1ea0fe"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-host-namespace-lease-census-v1.md)" = \
-            "fbec2242f1595318868e7c789523ac15e1f815c4"
+            "ffd3a1d93898a9e6dd420638972f1f3ce70d4486"
           test "$(git rev-parse HEAD:ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v3.py)" = \
             "4234379cb7e283e03c654e10d0d7fe8986e99897"
 
@@ -82,14 +82,18 @@ jobs:
             'procfs_type_required=true' \
             'complete_proc_visibility_required=true' \
             'hidepid_restricted_proc_holds=true' \
+            'proc_mount_contract_revalidated=true' \
             'boot_id_same_boot_binding=true' \
             'descriptor_relative_bounded_reader_tested=true' \
             'python_no_bytecode_mode_required=true' \
             'production_filesystem_write=false' \
             'self_test_temporary_filesystem_write=true' \
             'namespace_lease_is_install_authority=false' \
+            'namespace_values_candidate_only=true' \
+            'host_initial_namespace_authority_proven=false' \
             'namespace_lease_external_review_completed=false' \
             'automatic_process_census_feed_authorized=false' \
+            'process_census_consumption_authorized=false' \
             'replacement_apply_authorized=false' \
             'payment_acceptance=false' \
             'public_presale_activation=false' \
@@ -116,6 +120,7 @@ jobs:
             'procfs_type_required=true' \
             'complete_proc_visibility_required=true' \
             'hidepid_restricted_proc_holds=true' \
+            'proc_mount_contract_revalidated=true' \
             'boot_id_same_boot_binding=true' \
             'descriptor_relative_bounded_reader_tested=true' \
             'python_no_bytecode_mode_required=true' \
@@ -124,8 +129,11 @@ jobs:
             'production_filesystem_write=false' \
             'test_fixture_filesystem_write=true' \
             'namespace_lease_is_install_authority=false' \
+            'namespace_values_candidate_only=true' \
+            'host_initial_namespace_authority_proven=false' \
             'namespace_lease_external_review_completed=false' \
             'automatic_process_census_feed_authorized=false' \
+            'process_census_consumption_authorized=false' \
             'replacement_apply_authorized=false' \
             'runtime_integration=false' \
             'payment_acceptance=false' \
