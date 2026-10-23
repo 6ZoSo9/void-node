@@ -48,8 +48,11 @@ after module import. It additionally poisons the live Proxy detector, both
 RegExp `test` and `exec`, hash update/digest methods, Buffer
 allocation/encoding helpers and a synthetic `Buffer.prototype.length` getter,
 `Reflect.apply`, and the Array iterator/index-setter surface. The source uses
-captured `RegExp.exec` directly and a captured typed-array length intrinsic
-for generated Buffer lengths. Qualifying and
+captured `RegExp.exec` directly, a captured typed-array length intrinsic for
+generated Buffer lengths, and a captured `Uint8Array.prototype.set` to copy
+frame segments. It deliberately avoids `Buffer.concat` in the content-address
+path because the captured Node helper still reads the live Buffer `length`
+property internally. Qualifying and
 encoding an already-built V2 candidate must still produce identical bytes
 without executing the inherited getter or Array index setter. Revoked Proxy
 candidates and accessor-bearing inputs fail closed.
@@ -188,9 +191,9 @@ candidate_weight_mutation_performed=false
 Current V2 source generation before this document:
 
 - contract source blob:
-  `f03d1fbcd49113acb03772ab16664ab1ddc68870`;
+  `17802032a56dc0c2334f03d0a7f5012ec92b2f90`;
 - proof blob:
-  `4083cc06109056c437931129d829bd475fc33b2c`.
+  `9426dffe811d42364e1050378b3afb0be13a1122`.
 
 Next gate:
 `apollyon_training_start_protected_store_revalidator_implementation_v2`,
