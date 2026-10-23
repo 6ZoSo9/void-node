@@ -133,22 +133,23 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
     original_content_race_fsync = module.os.fsync
     content_race_exercised = [False]
 
-    def truncate_after_file_fsync(fd: int) -> None:
+    def rewrite_after_file_fsync(fd: int) -> None:
         original_content_race_fsync(fd)
         if (
             not content_race_exercised[0]
             and stat.S_ISREG(module.os.fstat(fd).st_mode)
             and content_race_path.exists()
         ):
-            module.os.ftruncate(fd, 7)
+            module.os.ftruncate(fd, 0)
+            assert module.os.pwrite(fd, raw, 0) == len(raw)
             content_race_exercised[0] = True
 
-    module.os.fsync = truncate_after_file_fsync
+    module.os.fsync = rewrite_after_file_fsync
     try:
         try:
             module.write_create_only(content_race_path, raw)
         except module.ArchiveHold as exc:
-            assert "archive_output_or_parent_generation_invalid" in str(exc)
+            assert "archive_output_generation_changed_during_file_fsync" in str(exc)
         else:
             raise AssertionError("output content race was accepted")
     finally:
@@ -347,6 +348,7 @@ for required in [
     "single_create_only_final_publication_after_validation=true",
     "successful_output_parent_fsync=true",
     "successful_output_exact_readback=true",
+    "output_generation_stable_across_file_fsync=true",
     "output_leaf_revalidated_after_parent_fsync=true",
     "retained_parent_cleanup_survives_path_rebind=true",
     "output_parent_not_private_or_bound",
@@ -383,6 +385,7 @@ print("failed_validation_final_path_absent=true")
 print("single_create_only_final_publication_after_validation=true")
 print("successful_output_parent_fsync=true")
 print("successful_output_exact_readback=true")
+print("output_generation_stable_across_file_fsync=true")
 print("output_leaf_revalidated_after_parent_fsync=true")
 print("retained_parent_cleanup_survives_path_rebind=true")
 print("symlink_output_parent_rejected=true")
