@@ -23,14 +23,14 @@ jobs:
       - name: Checkout exact V2 lock generation
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: \${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
           persist-credentials: false
 
       - name: Bind exact parent and lock scope
         env:
-          EXPECTED_HEAD: \${{ github.event.pull_request.head.sha }}
-          PR_BASE: \${{ github.event.pull_request.base.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           parent=a61887a7fc7a4a8b0ee70d8a2046e4486ab49091
