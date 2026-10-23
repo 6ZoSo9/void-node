@@ -664,11 +664,20 @@ def write_create_only(path: Path, raw: bytes) -> os.stat_result:
         parent_visible_durable = os.stat(
             str(absolute.parent), follow_symlinks=False
         )
+        try:
+            leaf_durable = os.stat(leaf_path, follow_symlinks=False)
+        except FileNotFoundError:
+            hold("archive_output_leaf_changed_after_parent_fsync")
         if (
             not _same_identity(parent_generation, parent_durable)
             or not _same_identity(parent_durable, parent_visible_durable)
         ):
             hold("archive_output_parent_generation_changed_after_fsync")
+        if (
+            not stat.S_ISREG(leaf_durable.st_mode)
+            or not _same_file_generation(opened, leaf_durable)
+        ):
+            hold("archive_output_leaf_changed_after_parent_fsync")
         return opened
     except BaseException:
         if created:
@@ -804,6 +813,37 @@ def self_test() -> None:
         ):
             hold("self_test_validated_publication_invalid")
 
+        leaf_race = parent / "leaf-race-v3.tar"
+        original_leaf_race_fsync = os.fsync
+        leaf_removed_after_parent_fsync = False
+
+        def remove_leaf_after_parent_fsync(fd: int) -> None:
+            nonlocal leaf_removed_after_parent_fsync
+            original_leaf_race_fsync(fd)
+            if (
+                not leaf_removed_after_parent_fsync
+                and stat.S_ISDIR(os.fstat(fd).st_mode)
+                and leaf_race.exists()
+            ):
+                leaf_race.unlink()
+                leaf_removed_after_parent_fsync = True
+
+        os.fsync = remove_leaf_after_parent_fsync
+        try:
+            try:
+                write_create_only(leaf_race, raw)
+            except ArchiveHold as exc:
+                if "archive_output_leaf_changed_after_parent_fsync" not in str(exc):
+                    raise
+            else:
+                hold("self_test_leaf_race_after_parent_fsync_accepted")
+        finally:
+            os.fsync = original_leaf_race_fsync
+        if not leaf_removed_after_parent_fsync:
+            hold("self_test_leaf_race_after_parent_fsync_not_exercised")
+        if leaf_race.exists():
+            hold("self_test_leaf_race_after_parent_fsync_left_output")
+
         moving_parent = parent / "moving-output-parent"
         moved_parent = parent / "moved-output-parent"
         moving_parent.mkdir(mode=0o700)
@@ -927,6 +967,7 @@ def main(argv: list[str]) -> int:
         print("failed_validation_final_path_absent=true")
         print("single_create_only_final_publication_after_validation=true")
         print("successful_output_parent_fsync=true")
+        print("output_leaf_revalidated_after_parent_fsync=true")
         print("retained_parent_cleanup_survives_path_rebind=true")
         print("symlink_output_parent_rejected=true")
         print("fifo_substitution_rejected_without_blocking=true")
