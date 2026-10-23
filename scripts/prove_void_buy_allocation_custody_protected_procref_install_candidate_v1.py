@@ -265,8 +265,6 @@ for line in (
     "install_parent_descriptor_retained=true",
     "same_mount_staging_required=true",
     "post_publication_exact_reverification_required=true",
-    "content_addressed_install_receipt_fixture_green=true",
-    "truthful_post_publication_failure_classification=true",
     "install_receipt_external_review_required=true",
     "root_census_execution_authorized=false",
     "production_host_write_performed=false",
