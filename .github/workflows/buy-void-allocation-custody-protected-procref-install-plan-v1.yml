@@ -143,9 +143,9 @@ jobs:
           import fs from "node:fs";
           const p=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
           if(p.status!=="HOLD_SOURCE_ONLY_NO_INSTALL_AUTHORITY") throw new Error("status");
-          if(p.reviewed_source.git_blob_sha1!=="25a0913606baa3303743f36a8c79f3c7a14ea159") throw new Error("blob");
-          if(p.reviewed_source.bytes!==70661) throw new Error("bytes");
-          if(p.reviewed_source.sha256!=="447411e1853fdff56098e2700c60855aaa6ebc2dfb02104afc82af83c2c97efe") throw new Error("sha256");
+          if(p.reviewed_source.git_blob_sha1!=="9738f14111fc03dffe9afb04f7bede73ceb13087") throw new Error("blob");
+          if(p.reviewed_source.bytes!==74322) throw new Error("bytes");
+          if(p.reviewed_source.sha256!=="f3ef0593eae77825f730609b85da51af66168ba11f39848d052a91942e4cc335") throw new Error("sha256");
           if(p.install_contract.publication_syscall!=="renameat2") throw new Error("publication_syscall");
           if(p.install_contract.publication_flag!=="RENAME_NOREPLACE") throw new Error("publication_flag");
           if(p.install_contract.ordinary_rename_publication_forbidden!==true) throw new Error("ordinary_rename");
