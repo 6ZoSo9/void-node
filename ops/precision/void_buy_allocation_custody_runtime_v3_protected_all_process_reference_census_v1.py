@@ -1459,6 +1459,19 @@ def self_test() -> None:
     ] is not False:
         hold("self_test_target_drift_accepted")
 
+    zombie_worker_row = {
+        "pid": 4,
+        "status": "zombie_leader_with_live_tasks",
+        "start_ticks": "200",
+        "task_count": 2,
+        "live_task_count": 1,
+        "task_inventory_stable": False,
+    }
+    if classify_attempt([4], [4], [zombie_worker_row], True)[
+        "host_scoped_target_reference_absent_candidate"
+    ] is not False:
+        hold("self_test_zombie_leader_live_worker_accepted")
+
     with tempfile.TemporaryDirectory(
         prefix="void-custody-allprocref-selftest-"
     ) as tmp:
@@ -1499,6 +1512,20 @@ def self_test() -> None:
         fake_self, fake_init, (12, 34)
     ) != (12, 34):
         hold("self_test_mount_namespace_lease_verify_invalid")
+    if verify_host_filesystem_root_stats(
+        fake_self, fake_init
+    ) != (12, 34):
+        hold("self_test_host_filesystem_root_verify_invalid")
+    try:
+        verify_host_filesystem_root_stats(
+            fake_self,
+            type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
+        )
+    except CensusHold as exc:
+        if "not_in_pid1_filesystem_root" not in str(exc):
+            raise
+    else:
+        hold("self_test_private_filesystem_root_accepted")
     try:
         verify_mount_namespace_lease_stats(
             fake_self,
@@ -1545,6 +1572,8 @@ def self_test() -> None:
     print("host_mount_namespace_external_lease_required=true")
     print("private_mount_namespace_rejected=true")
     print("host_mount_namespace_lease_mismatch_rejected=true")
+    print("host_filesystem_root_matches_pid1=true")
+    print("chroot_filesystem_root_mismatch_rejected=true")
     print("complete_proc_visibility_required=true")
     print("hidepid_restricted_proc_holds=true")
     print("retained_procfs_view_required=true")
@@ -1558,6 +1587,7 @@ def self_test() -> None:
     print("task_inventory_generation_stability_required=true")
     print("per_thread_files_fs_reference_scan_required=true")
     print("bounded_task_inventory_required=true")
+    print("zombie_leader_live_worker_rejected=true")
     print("target_pre_post_identity_recheck=true")
     print("cwd_inode_reference_classification=true")
     print("fd_inode_reference_classification=true")
