@@ -14,7 +14,7 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "25c0e32ae85da4569fb9521a0812e10ab0fcede3"
+EXPECTED_SOURCE_BLOB = "f6afcd6d3bb9cc98e956d1ca8a2cdb414e8b680f"
 
 
 def git_blob(raw: bytes) -> str:
@@ -100,6 +100,19 @@ for fn, wrong, marker in (
         assert marker in str(exc)
     else:
         raise AssertionError("private namespace accepted: " + marker)
+
+assert module.verify_host_filesystem_root_stats(
+    fake_self, fake_init
+) == (12, 34)
+try:
+    module.verify_host_filesystem_root_stats(
+        fake_self,
+        type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
+    )
+except module.CensusHold as exc:
+    assert "not_in_pid1_filesystem_root" in str(exc)
+else:
+    raise AssertionError("private/chroot filesystem root accepted")
 
 visible_mountinfo = (
     b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
@@ -266,6 +279,30 @@ with tempfile.TemporaryDirectory(
         second_inventory = module._task_inventory(100)
         assert second_inventory is not None
         assert second_inventory != first_inventory
+
+        # A zombie TGID leader is not dead while a worker thread survives.
+        # Keep the worker's target FD and make only the leader/task leader Z.
+        (pid_dir / "stat").write_text(
+            stat_line(100, 1000, state="Z"), encoding="ascii"
+        )
+        (task_100 / "stat").write_text(
+            stat_line(100, 1000, state="Z"), encoding="ascii"
+        )
+        (task_101 / "stat").write_text(
+            stat_line(101, 1001, state="S"), encoding="ascii"
+        )
+        zombie_row = module.scan_process(100, target_snap["identities"])
+        assert zombie_row["status"] == "zombie_leader_with_live_tasks", zombie_row
+        assert zombie_row["live_task_count"] == 1
+        zombie_classification = module.classify_attempt(
+            [100], [100], [zombie_row], True
+        )
+        assert (
+            zombie_classification[
+                "host_scoped_target_reference_absent_candidate"
+            ]
+            is False
+        )
     finally:
         module.PROC = original_proc
 
@@ -303,6 +340,8 @@ for required in (
     "host_pid_namespace_lease_verified",
     "host_mount_namespace_external_lease_required",
     "host_mount_namespace_lease_verified",
+    "verify_host_filesystem_root_stats",
+    "host_filesystem_root_matches_pid1",
     "complete_proc_visibility_verified",
     "retained_procfs_view_used",
     "retained_procfs_view_revalidated_after_census",
@@ -313,6 +352,7 @@ for required in (
     "def _task_inventory(",
     "def scan_process(",
     "task_inventory_generation_stability_required",
+    "zombie_leader_with_live_tasks",
     "per_thread_files_fs_reference_scan_required",
     "MAX_TASKS_PER_PROCESS",
     "MAX_TOTAL_TASKS",
@@ -357,6 +397,8 @@ print("host_pid_namespace_lease_mismatch_rejected=true")
 print("host_mount_namespace_external_lease_required=true")
 print("private_mount_namespace_rejected=true")
 print("host_mount_namespace_lease_mismatch_rejected=true")
+print("host_filesystem_root_matches_pid1=true")
+print("chroot_filesystem_root_mismatch_rejected=true")
 print("complete_proc_visibility_required=true")
 print("hidepid_restricted_proc_holds=true")
 print("retained_procfs_view_required=true")
@@ -371,6 +413,7 @@ print("task_inventory_generation_stability_required=true")
 print("per_thread_files_fs_reference_scan_required=true")
 print("bounded_task_inventory_required=true")
 print("nonleader_thread_fd_reference_detected=true")
+print("zombie_leader_live_worker_rejected=true")
 print("task_generation_churn_detected=true")
 print("regular_file_mount_id_checked=true")
 print("target_pre_post_identity_recheck=true")
