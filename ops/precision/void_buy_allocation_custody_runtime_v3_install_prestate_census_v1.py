@@ -17,8 +17,8 @@ if (
         print("reason=python_isolated_unoptimized_nobytecode_mode_required")
         print("production_census_read_only=true")
         print("production_census_explicit_filesystem_write=false")
-        print("production_census_filesystem_write_free=false")
-        print("production_census_atime_write_possible=true")
+    print("production_census_filesystem_write_free=false")
+    print("production_census_atime_write_possible=true")
         print("self_test_temporary_filesystem_write=false")
         print("service_mutation=false")
         print("funds_movement=false")
@@ -466,10 +466,7 @@ def _scan_dir(
                             or _generation(terminal)
                             != _generation(visible_terminal)
                         ):
-                            hold(
-                                "target_directory_generation_changed:"
-                                + relative
-                            )
+                            hold("target_directory_generation_changed")
                     finally:
                         os.close(child_fd)
                 elif stat.S_ISREG(st.st_mode):
