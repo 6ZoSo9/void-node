@@ -5,6 +5,491 @@ import fs from "node:fs";
 const target = "public/demo/index.html";
 const source = fs.readFileSync(target, "utf8");
 
+const voidElements = new Set([
+  "area", "base", "br", "col", "embed", "hr", "img", "input",
+  "link", "meta", "param", "source", "track", "wbr",
+]);
+
+const liveRoles = new Set([
+  "status", "alert", "log", "marquee", "timer",
+]);
+
+const recognizedRoles = new Set([
+  "alert", "alertdialog", "application", "article", "banner", "blockquote",
+  "button", "caption", "cell", "checkbox", "code", "columnheader",
+  "combobox", "complementary", "contentinfo", "definition", "deletion",
+  "dialog", "directory", "document", "emphasis", "feed", "figure", "form",
+  "generic", "grid", "gridcell", "group", "heading", "img", "insertion",
+  "link", "list", "listbox", "listitem", "log", "main", "marquee", "math",
+  "menu", "menubar", "menuitem", "menuitemcheckbox", "menuitemradio",
+  "meter", "navigation", "none", "note", "option", "paragraph",
+  "presentation", "progressbar", "radio", "radiogroup", "region", "row",
+  "rowgroup", "rowheader", "scrollbar", "search", "searchbox", "separator",
+  "slider", "spinbutton", "status", "strong", "subscript", "superscript",
+  "switch", "tab", "table", "tablist", "tabpanel", "term", "textbox",
+  "time", "timer", "toolbar", "tooltip", "tree", "treegrid", "treeitem",
+
+  // DPUB-ARIA 1.1 concrete roles.
+  "doc-abstract", "doc-acknowledgments", "doc-afterword", "doc-appendix",
+  "doc-backlink", "doc-biblioentry", "doc-bibliography", "doc-biblioref",
+  "doc-chapter", "doc-colophon", "doc-conclusion", "doc-cover",
+  "doc-credit", "doc-credits", "doc-dedication", "doc-endnote",
+  "doc-endnotes", "doc-epigraph", "doc-epilogue", "doc-errata",
+  "doc-example", "doc-footnote", "doc-foreword", "doc-glossary",
+  "doc-glossref", "doc-index", "doc-introduction", "doc-noteref",
+  "doc-notice", "doc-pagebreak", "doc-pagefooter", "doc-pageheader",
+  "doc-pagelist", "doc-part", "doc-preface",
+  "doc-prologue", "doc-pullquote", "doc-qna", "doc-subtitle", "doc-tip",
+  "doc-toc",
+
+  // Graphics-ARIA concrete roles.
+  "graphics-document", "graphics-object", "graphics-symbol",
+]);
+
+const namedCharacterReferences = new Map([
+  ["NewLine", "\n"],
+  ["Tab", "\t"],
+  ["amp", "&"],
+  ["apos", "'"],
+  ["gt", ">"],
+  ["lt", "<"],
+  ["quot", '"'],
+]);
+
+function decodeHtmlCharacterReferences(value) {
+  return value.replace(
+    /&#([0-9]+);?|&#[xX]([0-9a-fA-F]+);?|&([A-Za-z][A-Za-z0-9]+);/gu,
+    (reference, decimal, hexadecimal, named) => {
+      if (named !== undefined) {
+        return namedCharacterReferences.get(named) ?? reference;
+      }
+      const codePoint = Number.parseInt(
+        decimal ?? hexadecimal,
+        decimal === undefined ? 16 : 10,
+      );
+      if (
+        codePoint === 0 ||
+        codePoint > 0x10ffff ||
+        (codePoint >= 0xd800 && codePoint <= 0xdfff)
+      ) {
+        return "\ufffd";
+      }
+      return String.fromCodePoint(codePoint);
+    },
+  );
+}
+
+function isAsciiWhitespace(character) {
+  return character === " " || character === "\t" || character === "\n" ||
+    character === "\f" || character === "\r";
+}
+
+function parseStartTagAttributes(tag) {
+  const attributes = new Map();
+  let index = 1;
+  while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+    tag[index] !== "/" && tag[index] !== ">") {
+    index += 1;
+  }
+
+  while (index < tag.length) {
+    while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+    if (tag[index] === ">" || tag[index] === "/" || index >= tag.length) break;
+
+    const nameStart = index;
+    while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+      tag[index] !== "=" && tag[index] !== "/" && tag[index] !== ">") {
+      index += 1;
+    }
+    const name = tag.slice(nameStart, index).toLowerCase();
+    while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+
+    let value = "";
+    if (tag[index] === "=") {
+      index += 1;
+      while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+      const quote = tag[index] === '"' || tag[index] === "'" ? tag[index] : null;
+      if (quote !== null) {
+        index += 1;
+        const valueStart = index;
+        while (index < tag.length && tag[index] !== quote) index += 1;
+        value = tag.slice(valueStart, index);
+        if (tag[index] === quote) index += 1;
+      } else {
+        const valueStart = index;
+        while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+          tag[index] !== ">") {
+          index += 1;
+        }
+        value = tag.slice(valueStart, index);
+      }
+    }
+
+    if (name && !attributes.has(name)) {
+      attributes.set(name, decodeHtmlCharacterReferences(value));
+    }
+  }
+  return attributes;
+}
+
+function htmlAttributeValue(tag, name) {
+  assert.ok(name === "role" || name === "aria-live");
+  return parseStartTagAttributes(tag).get(name) ?? null;
+}
+
+function startTagHasSelfClosingFlag(tag) {
+  let index = 1;
+  while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+    tag[index] !== "/" && tag[index] !== ">") {
+    index += 1;
+  }
+
+  while (index < tag.length) {
+    while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+    if (tag[index] === ">") return false;
+    if (tag[index] === "/") return tag[index + 1] === ">";
+
+    while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+      tag[index] !== "=" && tag[index] !== "/" && tag[index] !== ">") {
+      index += 1;
+    }
+    while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+    if (tag[index] !== "=") continue;
+
+    index += 1;
+    while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+    const quote = tag[index] === '"' || tag[index] === "'" ? tag[index] : null;
+    if (quote !== null) {
+      index += 1;
+      while (index < tag.length && tag[index] !== quote) index += 1;
+      if (tag[index] === quote) index += 1;
+      continue;
+    }
+    while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+      tag[index] !== ">") {
+      index += 1;
+    }
+  }
+  return false;
+}
+
+const htmlRawTextElements = new Set([
+  "iframe", "noembed", "noframes", "script", "style", "xmp",
+]);
+const htmlRcdataElements = new Set(["textarea", "title"]);
+
+function appropriateEndTagAt(lowerHtml, index, name) {
+  const needle = "</" + name;
+  if (!lowerHtml.startsWith(needle, index)) return false;
+  const afterName = lowerHtml[index + needle.length];
+  return afterName === ">" || afterName === "/" ||
+    isAsciiWhitespace(afterName);
+}
+
+function scriptStartTagAt(lowerHtml, index) {
+  const needle = "<script";
+  if (!lowerHtml.startsWith(needle, index)) return false;
+  const afterName = lowerHtml[index + needle.length];
+  return afterName === ">" || afterName === "/" ||
+    isAsciiWhitespace(afterName);
+}
+
+function scriptDataEndTagIndex(html, index, limit) {
+  const lowerHtml = html.toLowerCase();
+  let state = "data";
+  let cursor = index;
+  while (cursor < limit) {
+    if (state === "data") {
+      if (lowerHtml.startsWith("<!--", cursor)) {
+        state = "escaped";
+        cursor += 4;
+        continue;
+      }
+      if (appropriateEndTagAt(lowerHtml, cursor, "script")) return cursor;
+      cursor += 1;
+      continue;
+    }
+    if (state === "escaped") {
+      if (lowerHtml.startsWith("-->", cursor)) {
+        state = "data";
+        cursor += 3;
+        continue;
+      }
+      if (scriptStartTagAt(lowerHtml, cursor)) {
+        state = "double-escaped";
+        cursor += "<script".length;
+        continue;
+      }
+      if (appropriateEndTagAt(lowerHtml, cursor, "script")) return cursor;
+      cursor += 1;
+      continue;
+    }
+    if (appropriateEndTagAt(lowerHtml, cursor, "script")) {
+      state = "escaped";
+      cursor += "</script".length;
+      continue;
+    }
+    cursor += 1;
+  }
+  return -1;
+}
+
+function simpleRawTextEndTagIndex(html, index, limit, name) {
+  const lowerHtml = html.toLowerCase();
+  const needle = "</" + name;
+  let start = lowerHtml.indexOf(needle, index);
+  while (start !== -1 && start < limit) {
+    if (appropriateEndTagAt(lowerHtml, start, name)) return start;
+    start = lowerHtml.indexOf(needle, start + needle.length);
+  }
+  return -1;
+}
+
+function nextHtmlTag(html, index, limit, rawTextName, foreignCdataAllowed) {
+  if (rawTextName === "plaintext") return null;
+
+  let start = -1;
+  if (rawTextName !== null) {
+    start = rawTextName === "script"
+      ? scriptDataEndTagIndex(html, index, limit)
+      : simpleRawTextEndTagIndex(html, index, limit, rawTextName);
+    if (start === -1 || start >= limit) return null;
+  } else {
+    start = html.indexOf("<", index);
+    while (start !== -1 && start < limit) {
+      if (html.startsWith("<!--", start)) {
+        const commentEnd = html.indexOf("-->", start + 4);
+        if (commentEnd === -1 || commentEnd >= limit) return null;
+        start = html.indexOf("<", commentEnd + 3);
+        continue;
+      }
+      if (html.startsWith("<![CDATA[", start)) {
+        const marker = foreignCdataAllowed ? "]]>" : ">";
+        const cdataEnd = html.indexOf(
+          marker,
+          start + "<![CDATA[".length,
+        );
+        if (cdataEnd === -1 || cdataEnd >= limit) return null;
+        start = html.indexOf("<", cdataEnd + marker.length);
+        continue;
+      }
+      if (html.startsWith("<!", start) || html.startsWith("<?", start)) {
+        const declarationEnd = html.indexOf(">", start + 2);
+        if (declarationEnd === -1 || declarationEnd >= limit) return null;
+        start = html.indexOf("<", declarationEnd + 1);
+        continue;
+      }
+      break;
+    }
+    if (start === -1 || start >= limit) return null;
+  }
+
+  let cursor = start + 1;
+  const closing = html[cursor] === "/";
+  if (closing) cursor += 1;
+  const nameStart = cursor;
+  while (cursor < html.length && /[a-z0-9:-]/iu.test(html[cursor])) cursor += 1;
+  if (cursor === nameStart) {
+    return nextHtmlTag(
+      html, start + 1, limit, rawTextName, foreignCdataAllowed,
+    );
+  }
+  const name = html.slice(nameStart, cursor).toLowerCase();
+
+  let quote = null;
+  while (cursor < html.length) {
+    const character = html[cursor];
+    if (quote !== null) {
+      if (character === quote) quote = null;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === ">") {
+      break;
+    }
+    cursor += 1;
+  }
+  if (cursor >= html.length || cursor >= limit) return null;
+
+  const raw = html.slice(start, cursor + 1);
+  return {
+    nextIndex: cursor + 1,
+    tag: {
+      closing,
+      name,
+      raw,
+      selfClosing: !closing && startTagHasSelfClosingFlag(raw),
+    },
+  };
+}
+
+function tagCreatesLiveRegion(tag) {
+  const role = htmlAttributeValue(tag, "role");
+  if (role !== null) {
+    const tokens = role
+      .trim()
+      .toLowerCase()
+      .split(/[\t\n\f\r ]+/u)
+      .filter(Boolean);
+    for (const token of tokens) {
+      if (!recognizedRoles.has(token)) continue;
+      if (liveRoles.has(token)) return true;
+      break;
+    }
+  }
+  const ariaLive = htmlAttributeValue(tag, "aria-live");
+  return ariaLive !== null &&
+    ["polite", "assertive"].includes(ariaLive.trim().toLowerCase());
+}
+
+const svgHtmlIntegrationPoints = new Set(["desc", "foreignobject", "title"]);
+const mathMlTextIntegrationPoints = new Set(["mi", "mn", "mo", "ms", "mtext"]);
+const mathMlHtmlIntegrationEncodings = new Set([
+  "application/xhtml+xml",
+  "text/html",
+]);
+
+const foreignContentHtmlBreakoutStartTags = new Set([
+  "b", "big", "blockquote", "body", "br", "center", "code", "dd", "div",
+  "dl", "dt", "em", "embed", "h1", "h2", "h3", "h4", "h5", "h6",
+  "head", "hr", "i", "img", "li", "listing", "menu", "meta", "nobr",
+  "ol", "p", "pre", "ruby", "s", "small", "span", "strong", "strike",
+  "sub", "sup", "table", "tt", "u", "ul", "var",
+]);
+
+function tagBreaksOutOfForeignContent(tag) {
+  if (foreignContentHtmlBreakoutStartTags.has(tag.name)) return true;
+  if (tag.name !== "font") return false;
+  const attributes = parseStartTagAttributes(tag.raw);
+  return ["color", "face", "size"].some((name) => attributes.has(name));
+}
+
+function isForeignContentHtmlBoundary(element) {
+  return element.namespace === "html" ||
+    element.htmlIntegrationPoint ||
+    (
+      element.namespace === "math" &&
+      mathMlTextIntegrationPoints.has(element.name)
+    );
+}
+
+function popForeignContentForHtmlBreakout(stack) {
+  while (
+    stack.length > 0 &&
+    !isForeignContentHtmlBoundary(stack.at(-1))
+  ) {
+    stack.pop();
+  }
+}
+
+function namespaceForStartTag(stack, tag) {
+  const parent = stack.at(-1);
+  let namespace = parent?.namespace ?? "html";
+
+  if (namespace === "svg" && svgHtmlIntegrationPoints.has(parent.name)) {
+    namespace = "html";
+  } else if (
+    namespace === "math" &&
+    mathMlTextIntegrationPoints.has(parent.name) &&
+    tag.name !== "malignmark" &&
+    tag.name !== "mglyph"
+  ) {
+    namespace = "html";
+  } else if (
+    namespace === "math" &&
+    parent.name === "annotation-xml" &&
+    parent.htmlIntegrationPoint
+  ) {
+    namespace = "html";
+  }
+
+  if (namespace === "html" && tag.name === "svg") return "svg";
+  if (namespace === "html" && tag.name === "math") return "math";
+  return namespace;
+}
+
+function isHtmlIntegrationPoint(tag, namespace) {
+  if (namespace === "svg") {
+    return svgHtmlIntegrationPoints.has(tag.name);
+  }
+  if (namespace !== "math" || tag.name !== "annotation-xml") {
+    return false;
+  }
+  const encoding = parseStartTagAttributes(tag.raw)
+    .get("encoding")
+    ?.trim()
+    .toLowerCase();
+  return mathMlHtmlIntegrationEncodings.has(encoding);
+}
+
+function requireResultPayloadOutsideLiveAncestors(html) {
+  const needle = '<pre id="resultBox">';
+  const resultIndex = html.indexOf(needle);
+  assert.notEqual(resultIndex, -1, "full result payload element must exist");
+
+  const stack = [];
+  let index = 0;
+  let rawTextName = null;
+  while (index < resultIndex) {
+    const foreignCdataAllowed = stack.length > 0 &&
+      !isForeignContentHtmlBoundary(stack.at(-1));
+    const parsed = nextHtmlTag(
+      html, index, resultIndex, rawTextName, foreignCdataAllowed,
+    );
+    if (parsed === null) break;
+    index = parsed.nextIndex;
+    const tag = parsed.tag;
+
+    if (rawTextName !== null) {
+      assert.equal(tag.closing, true);
+      assert.equal(tag.name, rawTextName);
+      rawTextName = null;
+    }
+
+    if (tag.closing) {
+      for (let stackIndex = stack.length - 1; stackIndex >= 0; stackIndex -= 1) {
+        if (stack[stackIndex].name === tag.name) {
+          stack.splice(stackIndex);
+          break;
+        }
+      }
+      continue;
+    }
+
+    if (
+      stack.at(-1)?.namespace !== "html" &&
+      tagBreaksOutOfForeignContent(tag)
+    ) {
+      popForeignContentForHtmlBreakout(stack);
+    }
+
+    const namespace = namespaceForStartTag(stack, tag);
+    if (namespace === "html" && voidElements.has(tag.name)) continue;
+    if (namespace !== "html" && tag.selfClosing) continue;
+    stack.push({
+      name: tag.name,
+      tag: tag.raw,
+      namespace,
+      htmlIntegrationPoint: isHtmlIntegrationPoint(tag, namespace),
+    });
+
+    if (namespace === "html") {
+      if (htmlRawTextElements.has(tag.name) || htmlRcdataElements.has(tag.name)) {
+        rawTextName = tag.name;
+      } else if (tag.name === "plaintext") {
+        rawTextName = "plaintext";
+      }
+    }
+  }
+
+  for (const ancestor of stack) {
+    assert.equal(
+      tagCreatesLiveRegion(ancestor.tag),
+      false,
+      "full result payload must not be nested inside a live region",
+    );
+  }
+}
+
 function requireDemoAccessibility(html) {
   assert.match(
     html,
@@ -33,8 +518,39 @@ function requireDemoAccessibility(html) {
   );
   assert.match(
     html,
-    /<pre id="resultBox" role="status" aria-live="polite" aria-atomic="true">No result yet\.<\/pre>/u,
-    "result and error text must be exposed as an atomic polite status",
+    /<div id="resultStatus" class="pill mb" role="status" aria-live="polite" aria-atomic="true"><span class="sr-only">Job result: <\/span><span id="resultStatusLabel">No result yet\.<\/span><\/div>/u,
+    "result changes must use a dedicated atomic polite status with an explicit subject",
+  );
+  assert.match(
+    html,
+    /<pre id="resultBox">No result yet\.<\/pre>/u,
+    "full result payload must remain outside live regions",
+  );
+  requireResultPayloadOutsideLiveAncestors(html);
+  assert.match(
+    html,
+    /\$\("resultBox"\)\.textContent = JSON\.stringify\(j, null, 2\);\s*\$\("resultStatusLabel"\)\.textContent = "Result ready\.";/u,
+    "successful payloads must use a concise result-ready announcement",
+  );
+  assert.match(
+    html,
+    /\$\("resultBox"\)\.textContent = "Timed out waiting for result\.";\s*\$\("resultStatusLabel"\)\.textContent = "Timed out waiting for result\.";\s*return false;/u,
+    "timeout announcement must remain bound to the polling-expiry result update",
+  );
+  assert.match(
+    html,
+    /\$\("resultBox"\)\.textContent = "Submitting\.\.\.";\s*\$\("resultStatusLabel"\)\.textContent = "Submitting job\.";/u,
+    "submission announcement must remain bound to the submitting result update",
+  );
+  assert.match(
+    html,
+    /\$\("resultBox"\)\.textContent = String\(e\);\s*\$\("resultStatusLabel"\)\.textContent = "Job failed\.";/u,
+    "error details must use a concise failure announcement",
+  );
+  assert.doesNotMatch(
+    html,
+    /\$\("resultStatusLabel"\)\.textContent = (?:JSON\.stringify\(|String\()/u,
+    "live result status must not receive unbounded payload or error text",
   );
   assert.match(
     html,
@@ -44,6 +560,83 @@ function requireDemoAccessibility(html) {
 }
 
 requireDemoAccessibility(source);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" role="progressbar status">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" role="presentation status">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" role="doc-chapter status">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" role="graphics-document status">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" role="doc-pageheader status">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" role="doc-pagefooter status">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" data-role="status">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<svg><g role="status" /></svg>\n    <section class="card mt">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<math><mrow role="status" /></math>\n    <section class="card mt">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" data-aria-live="polite">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<pre id="resultBox">No result yet.</pre>',
+    '<script>const marker = "</div>";</script>\n<pre id="resultBox">No result yet.</pre>',
+  ),
+);
 
 const negativeMutations = [
   {
@@ -65,12 +658,190 @@ const negativeMutations = [
     error: /submission changes/u,
   },
   {
-    name: "missing_result_live_region",
+    name: "missing_result_status_live_region",
     html: source.replace(
-      'id="resultBox" role="status" aria-live="polite"',
-      'id="resultBox" role="status"',
+      'id="resultStatus" class="pill mb" role="status" aria-live="polite"',
+      'id="resultStatus" class="pill mb" role="status"',
     ),
-    error: /result and error text/u,
+    error: /dedicated atomic polite status/u,
+  },
+  {
+    name: "result_payload_made_live",
+    html: source.replace(
+      '<pre id="resultBox">',
+      '<pre id="resultBox" role="status" aria-live="polite" aria-atomic="true">',
+    ),
+    error: /outside live regions/u,
+  },
+  {
+    name: "result_payload_live_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" role="status" aria-live="polite">\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_unquoted_live_ancestor",
+    html: source.replace(
+      '<div class="wrap">',
+      '<div class="wrap" aria-live=polite>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_encoded_live_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" aria-live="pol&#105;te">\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_quoted_gt_live_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" title="1 > 0" role="status">\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_nonvoid_self_closing_live_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" role="status" />\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_foreign_unquoted_slash_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<svg><g role="status" data-token=value/><pre id="resultBox">No result yet.</pre></g></svg>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_svg_html_integration_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<svg><foreignObject><section role="status" />\n<pre id="resultBox">No result yet.</pre></section></foreignObject></svg>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_svg_breakout_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<svg><g><div role="status" /></g></svg>\n<pre id="resultBox">No result yet.</pre></div>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_math_breakout_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<math><mrow><div role="status" /></mrow></math>\n<pre id="resultBox">No result yet.</pre></div>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_script_data_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<div role="status"><script>const marker = "</div>";</script>\n<pre id="resultBox">No result yet.</pre></div>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_script_double_escaped_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<div role="status"><script><!--<script></script></div>--></script>\n<pre id="resultBox">No result yet.</pre></div>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_foreign_cdata_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<div role="status"><svg><![CDATA[</svg></div>]]></svg>\n<pre id="resultBox">No result yet.</pre></div>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_multitoken_role_live_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" role="status presentation">\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_unknown_then_status_role_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" role="future-widget status">\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "unbounded_result_payload_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Result ready.";',
+      '$("resultStatusLabel").textContent = JSON.stringify(j, null, 2);',
+    ),
+    error: /concise result-ready announcement|must not receive unbounded/u,
+  },
+  {
+    name: "unbounded_result_error_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Job failed.";',
+      '$("resultStatusLabel").textContent = String(e);',
+    ),
+    error: /concise failure announcement|must not receive unbounded/u,
+  },
+  {
+    name: "missing_timeout_result_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Timed out waiting for result.";',
+      "",
+    ),
+    error: /timeout announcement must remain bound/u,
+  },
+  {
+    name: "moved_timeout_result_announcement",
+    html: source
+      .replace(
+        '$("resultStatusLabel").textContent = "Timed out waiting for result.";',
+        "",
+      )
+      .replace(
+        "async function pollResult(id) {",
+        'async function pollResult(id) {\n      $("resultStatusLabel").textContent = "Timed out waiting for result.";',
+      ),
+    error: /timeout announcement must remain bound/u,
+  },
+  {
+    name: "missing_submitting_result_announcement",
+    html: source.replace(
+      '$("resultStatusLabel").textContent = "Submitting job.";',
+      "",
+    ),
+    error: /submission announcement must remain bound/u,
+  },
+  {
+    name: "moved_submitting_result_announcement",
+    html: source
+      .replace(
+        '$("resultStatusLabel").textContent = "Submitting job.";',
+        "",
+      )
+      .replace(
+        "async function submitJob() {",
+        'async function submitJob() {\n      $("resultStatusLabel").textContent = "Submitting job.";',
+      ),
+    error: /submission announcement must remain bound/u,
   },
   {
     name: "missing_health_subject",
@@ -81,6 +852,11 @@ const negativeMutations = [
     name: "missing_submission_subject",
     html: source.replace('<span class="sr-only">Job submission: </span>', ""),
     error: /submission changes must include an explicit accessible subject/u,
+  },
+  {
+    name: "missing_result_subject",
+    html: source.replace('<span class="sr-only">Job result: </span>', ""),
+    error: /explicit subject/u,
   },
   {
     name: "missing_focus_indicator",
@@ -101,6 +877,21 @@ console.log("VOID_PUBLIC_DEMO_ACCESSIBILITY_V1_GREEN");
 console.log("visible_job_message_label=true");
 console.log("health_status_live=true");
 console.log("submit_status_live=true");
-console.log("result_error_status_live=true");
+console.log("result_status_live=true");
+console.log("result_payload_live=false");
+console.log("result_payload_live_ancestor=false");
+console.log("result_status_bounded=true");
+console.log("result_submission_timeout_status_bounded=true");
+console.log("ordered_progressbar_fallback_nonlive=true");
+console.log("encoded_aria_live_ancestor_rejected=true");
+console.log("quoted_gt_live_ancestor_rejected=true");
+console.log("nonvoid_self_closing_live_ancestor_rejected=true");
+console.log("foreign_self_closing_live_element_closed=true");
+console.log("foreign_unquoted_slash_attribute_not_self_closing=true");
+console.log("foreign_html_integration_live_ancestor_rejected=true");
+console.log("foreign_html_breakout_live_ancestor_rejected=true");
+console.log("script_data_live_ancestor_rejected=true");
+console.log("script_double_escaped_live_ancestor_rejected=true");
+console.log("foreign_cdata_live_ancestor_rejected=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=7");
+console.log("negative_mutations=29");
