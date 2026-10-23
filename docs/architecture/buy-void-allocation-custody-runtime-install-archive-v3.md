@@ -133,12 +133,15 @@ for the write-failure cleanup path, so renaming or replacing the caller-visible
 parent during the write cannot strand a partial artifact in the original
 directory. On successful publication, the archive file is fsynced first, the
 retained parent directory is then fsynced to make the new directory entry
-durable, and the retained/caller-visible parent generation is revalidated again
-before returning success. Any mismatch HOLDS and removes the created inode
-through the retained descriptor. Synthetic tests require both regular-file and
-directory fsync on success, force a partial write and an output-parent pathname
-rebind, and require no discoverable archive in either the replacement or moved
-original directory. An existing final path is never overwritten.
+durable, and the retained/caller-visible parent generation is revalidated again.
+After that directory fsync, the archive leaf is re-statted through the retained
+parent descriptor and must still be the exact opened file generation before
+returning success. Any parent or leaf drift HOLDS and enters retained-descriptor
+cleanup. Synthetic tests require both regular-file and directory fsync on
+success, remove the leaf immediately after parent fsync to prove the terminal
+leaf check, force a partial write and an output-parent pathname rebind, and
+require no discoverable failed archive. An existing final path is never
+overwritten.
 
 No systemd action, target replacement, permission mutation, request/customer
 history read, custody reserve/recover, key/wallet access, RPC, transaction or
