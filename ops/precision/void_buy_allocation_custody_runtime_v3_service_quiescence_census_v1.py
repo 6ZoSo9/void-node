@@ -331,7 +331,21 @@ def classify(
         and inactive_observed
     )
     socket_absent_observed = socket_path["state"] == "absent"
-    quiescence_candidate = inactive_observed and socket_absent_observed
+    runtime_directory_absent_observed = runtime_dir["state"] == "absent"
+    daemon_reload_clear_observed = properties["NeedDaemonReload"] == "no"
+    unit_state_safe_observed = properties["UnitFileState"] in (
+        "",
+        "disabled",
+        "static",
+        "masked",
+    )
+    quiescence_candidate = (
+        inactive_observed
+        and socket_absent_observed
+        and runtime_directory_absent_observed
+        and daemon_reload_clear_observed
+        and unit_state_safe_observed
+    )
     return {
         "unit_name": UNIT,
         "load_state": properties["LoadState"],
@@ -345,6 +359,9 @@ def classify(
         "unit_absent_observed": unit_absent_observed,
         "service_inactive_observed": inactive_observed,
         "socket_absent_observed": socket_absent_observed,
+        "runtime_directory_absent_observed": runtime_directory_absent_observed,
+        "daemon_reload_clear_observed": daemon_reload_clear_observed,
+        "unit_state_safe_observed": unit_state_safe_observed,
         "runtime_directory": runtime_dir,
         "socket_path": socket_path,
         "service_quiescence_candidate": quiescence_candidate,
@@ -444,8 +461,49 @@ def self_test() -> None:
     ):
         hold("self_test_quiet_state_invalid")
 
-    active = dict(quiet)
-    active["LoadState"] = "loaded"
+    loaded = dict(quiet)
+    loaded["LoadState"] = "loaded"
+    loaded["UnitFileState"] = "disabled"
+    loaded_result = classify(loaded, runtime_absent, absent)
+    if loaded_result["service_quiescence_candidate"] is not True:
+        hold("self_test_loaded_inactive_candidate_invalid")
+
+    enabled = dict(loaded)
+    enabled["UnitFileState"] = "enabled"
+    if classify(
+        enabled,
+        runtime_absent,
+        absent,
+    )["service_quiescence_candidate"] is not False:
+        hold("self_test_enabled_unit_candidate_accepted")
+
+    reload_pending = dict(loaded)
+    reload_pending["NeedDaemonReload"] = "yes"
+    if classify(
+        reload_pending,
+        runtime_absent,
+        absent,
+    )["service_quiescence_candidate"] is not False:
+        hold("self_test_pending_daemon_reload_candidate_accepted")
+
+    runtime_present = {
+        "path": str(RUNTIME_DIR),
+        "state": "present",
+        "kind": "directory",
+        "uid": 994,
+        "gid": 981,
+        "mode": "0750",
+        "dev": 1,
+        "ino": 2,
+    }
+    if classify(
+        loaded,
+        runtime_present,
+        absent,
+    )["service_quiescence_candidate"] is not False:
+        hold("self_test_lingering_runtime_directory_candidate_accepted")
+
+    active = dict(loaded)
     active["ActiveState"] = "active"
     active["SubState"] = "running"
     active["MainPID"] = "123"
@@ -489,12 +547,16 @@ def self_test() -> None:
     print("canonical_socket_path_bound=true")
     print("systemctl_show_only=true")
     print("inactive_service_candidate_classified=true")
+    print("enabled_unit_rejected=true")
+    print("pending_daemon_reload_rejected=true")
+    print("lingering_runtime_directory_rejected=true")
     print("active_service_rejected=true")
     print("present_socket_rejected=true")
     print("service_quiescence_proven=false")
     print("live_process_binding_checked=false")
-    print("read_only=true")
-    print("filesystem_write=false")
+    print("production_read_only=true")
+    print("production_filesystem_write=false")
+    print("self_test_temporary_filesystem_write=true")
     print("systemd_mutation=false")
     print("daemon_reload=false")
     print("service_start=false")
