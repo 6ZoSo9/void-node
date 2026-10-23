@@ -68,7 +68,7 @@ The tree may contain ordinary directories, regular files and symlinks.
 Directory names are enumerated lazily through descriptor-relative
 `os.scandir(fd)`; at most the remaining global entry budget is retained before
 sorting, so a huge directory cannot allocate an unbounded name list ahead of
-the 4,096-entry HOLD. Symlinks are treated as opaque legacy entries: the census
+the 32,768-entry HOLD. Symlinks are treated as opaque legacy entries: the census
 never follows them, records only their metadata plus the byte length and
 SHA-256 of the link text, and never prints the link target. FIFOs, sockets,
 devices and other special files HOLD.
@@ -78,6 +78,14 @@ device/inode, UID, GID, mode, link count and metadata timestamps, plus regular
 file length or opaque symlink-target length/SHA-256 as applicable. It also
 records the target root device/inode so a future rollback planner can bind a
 same-filesystem rename of that exact legacy root.
+
+The legacy-target metadata bounds are deliberately separate from the tiny
+accepted V3 archive. The existing target may contain at most 32,768 entries,
+each regular-file metadata size may be at most 64 MiB, and aggregate regular
+bytes remain capped at 512 MiB. These values cover the observed Precision
+legacy footprint (16,490 entries; largest regular file 40,757,984 bytes;
+aggregate regular bytes 148,357,378) with bounded headroom. Raising these
+metadata ceilings does not authorize or perform any legacy file-content read.
 
 No legacy regular-file content is read or printed. Symlink target text is read
 only as link metadata, is never followed, and is represented only by length and
