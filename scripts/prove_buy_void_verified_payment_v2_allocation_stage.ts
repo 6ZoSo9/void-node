@@ -358,6 +358,38 @@ try {
   );
   assert.equal(historyProxyTraps, 0,
     "lineage history proxy traps must never execute");
+
+  const constructorHistory = canonicalLineage();
+  const originalHistoryBytes = constructorHistory.requests_jsonl;
+  const customBacking = new ArrayBuffer(originalHistoryBytes.length);
+  const customBackingBuffer = Buffer.from(customBacking);
+  originalHistoryBytes.copy(customBackingBuffer);
+  let backingConstructorCalls = 0;
+  Object.defineProperty(customBacking, "constructor", {
+    configurable: true,
+    get() {
+      backingConstructorCalls++;
+      throw new Error("lineage_backing_constructor_getter_executed");
+    },
+  });
+  constructorHistory.requests_jsonl = customBackingBuffer;
+  const customBackingResult = stage(
+    serverInput(), request(), constructorHistory,
+  ).result;
+  assert.equal(customBackingResult?.status, "staged_unmounted");
+  assert.equal(backingConstructorCalls, 0,
+    "lineage copy must not consult backing ArrayBuffer constructor");
+
+  const detachedHistory = canonicalLineage();
+  const detachedBacking = new ArrayBuffer(0);
+  const detachedBuffer = Buffer.from(detachedBacking);
+  structuredClone(detachedBacking, { transfer: [detachedBacking] });
+  detachedHistory.prior_operator_events_jsonl = detachedBuffer;
+  negative(
+    serverInput(),
+    "lineage_history_prior_operator_events_jsonl_bytes_invalid",
+    detachedHistory,
+  );
   for (const badQuote of [
     null, "", "0", 0, "-6", "06", "6 ", "6e0", "6.0000001",
     "10000001", 10000001, 0.0000001, true, {}, [],
@@ -497,6 +529,8 @@ console.log("first_request_launch_and_native_usdc_backfill_rejected=true");
 console.log("canonical_first_request_lineage_preflight_verified=true");
 console.log("lineage_history_bounded_before_copy=true");
 console.log("lineage_history_accessor_and_proxy_traps_not_executed=true");
+console.log("lineage_history_backing_constructor_not_consulted=true");
+console.log("lineage_history_detached_buffer_rejected=true");
 console.log("request_history_source_authenticated=false");
 console.log("equal_missing_zero_or_invalid_void_quotes_rejected=true");
 console.log("auth_denial_precedes_untrusted_planning=true");
