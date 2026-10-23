@@ -1380,6 +1380,8 @@ def classify_attempt(
         "all_process_reference_absence_proven": False,
         "fd_table_stability_proven": False,
         "mapping_set_stability_proven": False,
+        "mount_namespace_reference_scan_performed": False,
+        "mount_namespace_reference_absence_proven": False,
         "task_inventory_generation_stability_required": True,
         "per_thread_files_fs_reference_scan_required": True,
         "process_reference_snapshot_race_free": False,
@@ -1464,6 +1466,8 @@ def all_process_census(
             "all_process_reference_absence_proven": False,
             "fd_table_stability_proven": False,
             "mapping_set_stability_proven": False,
+            "mount_namespace_reference_scan_performed": False,
+            "mount_namespace_reference_absence_proven": False,
             "task_inventory_generation_stability_required": True,
             "per_thread_files_fs_reference_scan_required": True,
             "process_reference_snapshot_race_free": False,
@@ -1524,6 +1528,8 @@ def census(
         "proc_environ_read": False,
         "proc_fd_target_text_read": False,
         "proc_maps_path_text_retained": False,
+        "mount_namespace_reference_scan_performed": False,
+        "mount_namespace_reference_absence_proven": False,
         "service_mutation": False,
         "systemd_mutation": False,
         "install_target_selected": False,
@@ -1734,6 +1740,8 @@ def self_test() -> None:
     print("all_process_reference_absence_proven=false")
     print("fd_table_stability_proven=false")
     print("mapping_set_stability_proven=false")
+    print("mount_namespace_reference_scan_performed=false")
+    print("mount_namespace_reference_absence_proven=false")
     print("process_reference_snapshot_race_free=false")
     print("live_at_use_reverification_required=true")
     print("production_filesystem_write=false")
@@ -1796,6 +1804,8 @@ if __name__ == "__main__":
         print("all_process_reference_absence_proven=false")
         print("fd_table_stability_proven=false")
         print("mapping_set_stability_proven=false")
+        print("mount_namespace_reference_scan_performed=false")
+        print("mount_namespace_reference_absence_proven=false")
         print("live_at_use_reverification_required=true")
         print("replacement_apply_authorized=false")
         print("service_mutation=false")
