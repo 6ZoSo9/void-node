@@ -83,13 +83,24 @@ These **always remain false**:
 all_process_reference_absence_proven=false
 privileged_all_process_scan=false
 custody_principal_process_scan_performed=false
+fd_table_stability_proven=false
+mapping_set_stability_proven=false
 replacement_apply_authorized=false
 ```
 
-Therefore a clean user-process census is useful pre-install evidence but is not
-permission to replace the target. A later separately reviewed privileged
-all-process gate must run from a protected root-owned source before any root
-replacement ceremony can treat process-reference absence as complete.
+And this remains mandatory:
+
+```text
+live_at_use_reverification_required=true
+```
+
+PID generation and before/after PID-set checks close obvious process-reuse and
+enumeration races, but they do not freeze a live process's FD table or mapping
+set. Therefore a clean user-process census is useful pre-install evidence but
+is not permission to replace the target. A later separately reviewed privileged
+all-process gate must run from a protected root-owned source and reobserve
+references immediately at use before any root replacement ceremony can treat
+process-reference absence as complete.
 
 ## Invocation
 
@@ -109,6 +120,9 @@ Do not run this source with sudo. Root execution intentionally HOLDs.
 read_only=true
 production_filesystem_write=false
 root_execution_forbidden=true
+fd_table_stability_proven=false
+mapping_set_stability_proven=false
+live_at_use_reverification_required=true
 process_environment_read=false
 process_arguments_read=false
 proc_cmdline_read=false
