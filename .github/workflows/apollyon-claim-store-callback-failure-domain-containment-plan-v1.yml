@@ -50,9 +50,9 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = 848a061a0b246e138ec8ed775ed8a87f159476f6
 
           # Current content-addressed plan, proof and security doc: fail on drift.
-          test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = 54c0b81eec3aa05406b0fd465b1d34c7e324a8f3
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = 69277b8136d7eab42aada5511a7eabdaddb36044
-          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 6bfb3349333be98bf727239ba6a92120cf508baf
+          test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = 45db26e5092a3102821402cde9671c5fac103542
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = ac7d24d37341933b4454184c6b1e11216f620090
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 30b0aca158cb080aea489652d3e7bc5b717c3142
 
           git diff --check "$PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -72,11 +72,13 @@ jobs:
           set -euo pipefail
           out="$RUNNER_TEMP/apollyon-callback-containment-plan-selftest.log"
           python3 -I -B scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py --self-test | tee "$out"
-          grep -Fx 'runtime_contract_requirements=36' "$out"
+          grep -Fx 'runtime_contract_requirements=39' "$out"
           grep -Fx 'resource_ceiling_count=18' "$out"
           grep -Fx 'exact_resource_ceilings_enforced=true' "$out"
           grep -Fx 'storage_io_limits_bound=true' "$out"
-          grep -Fx 'rejected_adversaries=74' "$out"
+          grep -Fx 'uncaught_exception_hook_surfaces_forbidden=true' "$out"
+          grep -Fx 'exception_surface_mutation_maps_to_hold=true' "$out"
+          grep -Fx 'rejected_adversaries=77' "$out"
           grep -Fx 'negative_cases_failed_at_semantic_gate=true' "$out"
           grep -Fx 'unsafe_supervisor_death_fence_reuse_hazard_observed=true' "$out"
           grep -Fx 'bound_source_role_identities_enforced=true' "$out"
