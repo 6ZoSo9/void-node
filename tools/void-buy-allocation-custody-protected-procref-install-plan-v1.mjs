@@ -43,6 +43,9 @@ export const INSTALL_CONTRACT = Object.freeze({
   protected_source_nlink: 1,
   protected_source_regular_file: true,
   protected_source_symlink: false,
+  publication_syscall: "renameat2",
+  publication_flag: "RENAME_NOREPLACE",
+  ordinary_rename_publication_forbidden: true,
 });
 
 export const AUTHORITY = Object.freeze({
@@ -54,6 +57,9 @@ export const AUTHORITY = Object.freeze({
   target_absence_required_before_apply: true,
   stage_absence_required_before_apply: true,
   no_clobber_required: true,
+  atomic_noreplace_publication_required: true,
+  renameat2_rename_noreplace_required: true,
+  absence_precheck_is_not_publication_authority: true,
   root_owned_same_filesystem_staging_required: true,
   source_file_fsync_required: true,
   stage_directory_fsync_required: true,
@@ -118,7 +124,7 @@ export function buildVoidBuyVoidCustodyProtectedProcRefInstallPlanV1() {
       "MATERIALIZE_EXACT_BYTES_IN_ROOT_OWNED_SAME_FILESYSTEM_STAGE",
       "FSYNC_SOURCE_AND_STAGE_DIRECTORY",
       "REVERIFY_STAGED_BYTES_OWNER_MODE_NLINK_AND_ANCESTRY",
-      "PUBLISH_CREATE_ONLY_WITHOUT_CLOBBER",
+      "PUBLISH_WITH_RENAMEAT2_RENAME_NOREPLACE",
       "FSYNC_INSTALL_PARENT",
       "REVERIFY_INSTALLED_BYTES_OWNER_MODE_NLINK_AND_ANCESTRY",
       "EMIT_CONTENT_ADDRESSED_INSTALL_RECEIPT",
