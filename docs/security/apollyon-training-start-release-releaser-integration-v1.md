@@ -74,7 +74,11 @@ Exact source dependencies:
 The releaser fixture first proves a singleton task set and exact releaser FD set.
 The exact allowed releaser descriptors immediately before restriction are:
 
-- standard input/output/error;
+- standard input/output/error **only after exact fixture classification**:
+  stdin must be the inherited `/dev/null` character device and stdout/stderr
+  must be two distinct anonymous pipes observed through retained
+  `/proc/self/fd`; sockets, regular files and anon-inode descriptors are not
+  accepted merely because they occupy fd 0/1/2;
 - the sole release-pipe write descriptor;
 - retained trainer pidfd;
 - retained procfs root/self/task/fd observation descriptors.
@@ -101,9 +105,23 @@ The filter denies:
 - sendmsg / sendmmsg SCM_RIGHTS transfer, plus recvmsg / recvmmsg
   descriptor receipt through any inherited standard socket;
 - pidfd_getfd;
-- io_uring setup / enter / register. Blocking only new rings is insufficient:
-  an already inherited ring at fd 0/1/2 could submit async open requests
-  despite normal open/creat syscall-entry restrictions.
+- io_uring setup / enter / register.
+
+The standard-FD admission check is a separate pre-seccomp invariant. Blocking
+`io_uring_setup/enter/register` does **not** neutralize an already-active
+`IORING_SETUP_SQPOLL` ring, because SQPOLL can consume submissions from shared
+ring memory without a new `io_uring_enter` syscall. The releaser therefore
+does not treat descriptor numbers 0/1/2 as trusted by position: it requires
+the exact `/dev/null` + two-distinct-pipe fixture shape before the terminal
+FD census. An inherited io_uring/anon-inode descriptor at a standard FD is
+rejected before writer confinement can be claimed.
+
+The hosted self-test forks a disposable child, creates an actual
+`IORING_SETUP_SQPOLL` ring through the real kernel `io_uring_setup`
+syscall, places that ring at fd 0, opens its own retained procfs context, and
+requires the production standard-FD classifier to reject it. The ring is
+closed when the child exits. This adversary performs no protected Xiphos I/O
+and grants no production writer authority.
 
 The hosted fixture also separates **releaser proof time** from the trainer's
 one-second frame deadline. Before allowing the child to exec, the parent attaches
@@ -205,3 +223,23 @@ This closes a source-level future-composition trainer-integrity gap. It does not
 establish protected releaser origin, production writer exclusivity, trainer
 release authority, training authority, credentials, transactions, or funds
 authority.
+
+
+## October 23 inherited-SQPOLL standard-FD closure
+
+Current releaser source rejects unsafe inherited standard descriptors before
+the terminal seccomp interval. The source-level positive fixture now proves:
+
+- stdin is exactly the hosted fixture's `/dev/null`;
+- stdout and stderr are distinct anonymous pipes;
+- fd-number position alone never authorizes a socket, regular file, anon inode
+  or io_uring descriptor;
+- a real root-created `IORING_SETUP_SQPOLL` ring duplicated onto fd 0 is
+  rejected by the same production classifier used by `own_fd_set_exact()`;
+- all existing io_uring setup/enter/register and SCM_RIGHTS syscall denials
+  remain in place after the pre-seccomp descriptor census.
+
+This closes the inherited-SQPOLL source-level writer-continuity gap only.
+Protected releaser origin, production writer exclusivity, actual trainer
+release/training, credentials/signing, transactions and funds remain
+false/unproven.
