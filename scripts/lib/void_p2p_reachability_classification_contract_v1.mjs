@@ -352,8 +352,19 @@ export function classifyReachability(rawObservations, {
   const outboundSuccesses = fresh.filter((entry) => entry.kind === "authenticated_outbound_seen" && entry.outcome === "success");
   const dialbackSuccesses = fresh.filter((entry) => entry.kind === "authenticated_dialback" && entry.outcome === "success");
   const dialbackFailures = fresh.filter((entry) => entry.kind === "authenticated_dialback" && entry.outcome === "failure");
-  const successDomains = new Set(dialbackSuccesses.map((entry) => entry.observer_failure_domain));
-  const successObservers = new Set(dialbackSuccesses.map((entry) => entry.observer_node_id));
+  // Count an observer toward independence only when every fresh success from
+  // that authenticated identity agrees on one declared failure domain.
+  const domainsBySuccessObserver = new Map();
+  for (const entry of dialbackSuccesses) {
+    const domains = domainsBySuccessObserver.get(entry.observer_node_id) ?? new Set();
+    domains.add(entry.observer_failure_domain);
+    domainsBySuccessObserver.set(entry.observer_node_id, domains);
+  }
+  const independentDialbackSuccesses = dialbackSuccesses.filter(
+    (entry) => domainsBySuccessObserver.get(entry.observer_node_id)?.size === 1,
+  );
+  const successDomains = new Set(independentDialbackSuccesses.map((entry) => entry.observer_failure_domain));
+  const successObservers = new Set(independentDialbackSuccesses.map((entry) => entry.observer_node_id));
   const directConfirmed =
     successDomains.size >= DIRECT_CONFIRMATION_MIN_INDEPENDENT_FAILURE_DOMAINS &&
     successObservers.size >= DIRECT_CONFIRMATION_MIN_INDEPENDENT_OBSERVERS;
