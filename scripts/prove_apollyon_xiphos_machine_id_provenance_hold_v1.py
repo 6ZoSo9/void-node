@@ -17,6 +17,19 @@ PARENT_HEAD = "f8cf1eba57d8930452642699c21fa188c31cbd13"
 OBSERVED_DIGEST = "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057"
 PLAN_ID = "voidapollyonxiphosprovenancehold1_98c9443ab88a6f7deb306af5369e00802ca84f132bff89f383eeadce47bc0716"
 
+MACHINE_BINDING_PATHS = (
+    ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml",
+    "docs/security/apollyon-protected-store-machine-identity-binding-v1.md",
+    "ops/security/apollyon-protected-store-machine-identity-binding-v1.json",
+    "scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py",
+)
+COLLECTOR_PATHS = (
+    ".github/workflows/apollyon-protected-store-first-host-collector-v1.yml",
+    "docs/security/apollyon-protected-store-first-host-collector-v1.md",
+    "ops/xiphos/apollyon_protected_store_first_host_collector_v1.py",
+    "scripts/prove_apollyon_protected_store_first_host_collector_v1.py",
+)
+
 PINS = {
     ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml":
         "c8737fe68f15894bd15af0e775fc79cb2b50d9bb",
@@ -194,8 +207,8 @@ def validate(value: object) -> dict:
         and lineage["observed_normalized_machine_id_sha256"] == OBSERVED_DIGEST,
         "parent_lineage_invalid",
     )
-    expected_binding = {k: v for k, v in PINS.items() if "machine-identity-binding" in k}
-    expected_collector = {k: v for k, v in PINS.items() if "first-host-collector" in k}
+    expected_binding = {k: PINS[k] for k in MACHINE_BINDING_PATHS}
+    expected_collector = {k: PINS[k] for k in COLLECTOR_PATHS}
     need(lineage["machine_binding_blobs"] == expected_binding, "machine_binding_blobs_invalid")
     need(lineage["collector_blobs"] == expected_collector, "collector_blobs_invalid")
 
