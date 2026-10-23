@@ -4,6 +4,7 @@
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ATTACH_BLOCK_RANGE_ERROR_CODE_V1 = exports.ATTACH_BLOCK_RANGE_MAX_SPAN = void 0;
+exports.resolveAttachBlockRangeAliasV1 = resolveAttachBlockRangeAliasV1;
 exports.attachBlockRangeErrorV1 = attachBlockRangeErrorV1;
 exports.parseAttachBlockRange = parseAttachBlockRange;
 exports.startAttachServer = startAttachServer;
@@ -35,6 +36,16 @@ function normalizeAttachBlockRangeBoundV1(raw, fallback) {
     }
     var value = Number(raw);
     return Number.isSafeInteger(value) ? value : null;
+}
+function resolveAttachBlockRangeAliasV1(primary, alias) {
+    var primaryPresent = primary !== undefined;
+    var aliasPresent = alias !== undefined;
+    if (primaryPresent && aliasPresent)
+        return { ok: false, value: null };
+    return {
+        ok: true,
+        value: primaryPresent ? primary : alias,
+    };
 }
 function attachBlockRangeErrorV1(fromRaw, toRaw, head) {
     var from = normalizeAttachBlockRangeBoundV1(fromRaw, 0);
@@ -105,9 +116,13 @@ function startAttachServer(opts) {
     app.get("/blocks/range", function (req, res) {
         var _a, _b;
         var head = store.loadHeadNumber();
-        var fromRaw = (_a = req.query.from) !== null && _a !== void 0 ? _a : req.query.start;
-        var toRaw = (_b = req.query.to) !== null && _b !== void 0 ? _b : req.query.end;
-        var range = parseAttachBlockRange(fromRaw, toRaw, head);
+        var fromAlias = resolveAttachBlockRangeAliasV1(req.query.from, req.query.start);
+        var toAlias = resolveAttachBlockRangeAliasV1(req.query.to, req.query.end);
+        var fromRaw = fromAlias.ok ? fromAlias.value : null;
+        var toRaw = toAlias.ok ? toAlias.value : null;
+        var range = fromAlias.ok && toAlias.ok
+            ? parseAttachBlockRange(fromRaw, toRaw, head)
+            : null;
         if (!range) {
             return res.status(400).json(attachBlockRangeErrorV1(fromRaw, toRaw, head));
         }
