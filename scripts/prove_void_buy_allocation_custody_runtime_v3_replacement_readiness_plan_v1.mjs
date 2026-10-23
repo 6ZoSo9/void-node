@@ -18,7 +18,7 @@ import {
 
 const SOURCE =
   "tools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs";
-const EXPECTED_SOURCE_BLOB = "5ee9c6cebaae1d7e5266bc3aa97746d7b3d07580";
+const EXPECTED_SOURCE_BLOB = "5b1d88f3cf3e7125e979700fe7c3dcb1d9bfaa8f";
 
 function gitBlob(bytes) {
   return crypto
@@ -37,10 +37,10 @@ assert.equal(
   VOID_BUY_VOID_CUSTODY_RUNTIME_V3_REPLACEMENT_READINESS_PLAN_V1,
   "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_REPLACEMENT_READINESS_PLAN_V1",
 );
-assert.equal(PRESTATE_SOURCE.head, "836f5e704a603f67b77b2406aeec9174f640497e");
+assert.equal(PRESTATE_SOURCE.head, "7736a3a5c53da37448c357a5d98e4dad09f3f617");
 assert.equal(
   PRESTATE_SOURCE.git_blob_sha1,
-  "4d9c6e5809a5cc64454626760f71e60ed99354bc",
+  "e32ebd94ad09cd80e03489079e74657aab159d7a",
 );
 assert.equal(
   QUIESCENCE_SOURCE.head,
@@ -52,11 +52,11 @@ assert.equal(
 );
 assert.equal(
   PROCESS_REFERENCE_SOURCE.head,
-  "2f58b776c4ba5b4c1b309d122122bd3355e2abc9",
+  "7736a3a5c53da37448c357a5d98e4dad09f3f617",
 );
 assert.equal(
   PROCESS_REFERENCE_SOURCE.git_blob_sha1,
-  "a5fa6ff22cc21df555e8a70c32500f07251dc4a8",
+  "6bf476e3383b7b18966320df13b4041da9c8c11f",
 );
 assert.equal(
   ACCEPTED_ARCHIVE_LOCK_V3.git_blob_sha1,
@@ -114,9 +114,26 @@ function prestateReceipt(overrides = {}) {
       rollback_rename_candidate: true,
       create_only_install_candidate: false,
     },
+    read_only: true,
+    filesystem_explicit_write: false,
+    filesystem_write_free: false,
+    atime_write_possible: true,
     production_census_read_only: true,
-    production_census_filesystem_write: false,
+    production_census_explicit_filesystem_write: false,
+    production_census_filesystem_write_free: false,
+    production_census_atime_write_possible: true,
+    archive_extraction: false,
+    permission_mutation: false,
+    service_state_checked: false,
     service_mutation: false,
+    live_process_binding_checked: false,
+    process_environment_read: false,
+    process_arguments_read: false,
+    request_history_read: false,
+    custody_data_read: false,
+    credential_access: false,
+    wallet_or_signer_access: false,
+    install_target_selected: false,
     existing_target_replaced: false,
     runtime_integration: false,
     payment_acceptance: false,
@@ -145,7 +162,21 @@ function quiescenceReceipt(overrides = {}) {
     },
     read_only: true,
     filesystem_write: false,
+    systemd_show_only: true,
     systemd_mutation: false,
+    daemon_reload: false,
+    service_start: false,
+    service_stop: false,
+    service_restart: false,
+    socket_connect: false,
+    socket_unlink: false,
+    process_environment_read: false,
+    process_arguments_read: false,
+    request_history_read: false,
+    custody_data_read: false,
+    credential_access: false,
+    wallet_or_signer_access: false,
+    install_target_selected: false,
     existing_target_replaced: false,
     runtime_integration: false,
     payment_acceptance: false,
@@ -179,17 +210,32 @@ function processReceipt(overrides = {}) {
     host_pid_namespace_external_lease_required: true,
     host_pid_namespace_lease_verified: true,
     host_pid_namespace_lease_revalidated_after_census: true,
+    pid1_namespace_direct_read: false,
     host_mount_namespace_external_lease_required: true,
     host_mount_namespace_lease_verified: true,
     host_mount_namespace_lease_revalidated_after_census: true,
+    pid1_mount_namespace_direct_read: false,
+    host_namespace_lease_provenance_authenticated_by_census: false,
     target_resolved_in_host_mount_namespace: true,
     complete_proc_visibility_verified: true,
+    proc_visibility_revalidated_after_census: true,
+    retained_procfs_view_used: true,
     retained_procfs_view_revalidated_after_census: true,
     production_filesystem_write: false,
+    root_execution_forbidden: true,
     target_snapshot_stable_required: true,
     fd_table_stability_proven: false,
     mapping_set_stability_proven: false,
     live_at_use_reverification_required: true,
+    process_environment_read: false,
+    process_arguments_read: false,
+    proc_cmdline_read: false,
+    proc_environ_read: false,
+    proc_fd_target_text_read: false,
+    proc_maps_path_text_retained: false,
+    service_mutation: false,
+    systemd_mutation: false,
+    install_target_selected: false,
     replacement_apply_authorized: false,
     existing_target_replaced: false,
     runtime_integration: false,
@@ -339,6 +385,100 @@ assert.equal(processRejected.status, "HOLD");
 assert.match(processRejected.reason, /process_all_process_overclaim/u);
 assert.equal(processRejected.replacement_apply_authorized, false);
 
+const prestateContractFlips = Object.freeze({
+  read_only: false,
+  filesystem_explicit_write: true,
+  filesystem_write_free: true,
+  atime_write_possible: false,
+  production_census_read_only: false,
+  production_census_explicit_filesystem_write: true,
+  production_census_filesystem_write_free: true,
+  production_census_atime_write_possible: false,
+  archive_extraction: true,
+  permission_mutation: true,
+  service_state_checked: true,
+  service_mutation: true,
+  live_process_binding_checked: true,
+  process_environment_read: true,
+  process_arguments_read: true,
+  request_history_read: true,
+  custody_data_read: true,
+  credential_access: true,
+  wallet_or_signer_access: true,
+  install_target_selected: true,
+  existing_target_replaced: true,
+  runtime_integration: true,
+  payment_acceptance: true,
+  public_presale_activation: true,
+  funds_movement: true,
+});
+for (const [field, bad] of Object.entries(prestateContractFlips)) {
+  const rejected = classify({ prestate: prestateReceipt({ [field]: bad }) });
+  assert.equal(rejected.status, "HOLD", "prestate contract flip accepted: " + field);
+  assert.equal(rejected.replacement_apply_authorized, false);
+}
+
+const quiescenceContractFlips = Object.freeze({
+  read_only: false,
+  filesystem_write: true,
+  systemd_show_only: false,
+  systemd_mutation: true,
+  daemon_reload: true,
+  service_start: true,
+  service_stop: true,
+  service_restart: true,
+  socket_connect: true,
+  socket_unlink: true,
+  process_environment_read: true,
+  process_arguments_read: true,
+  request_history_read: true,
+  custody_data_read: true,
+  credential_access: true,
+  wallet_or_signer_access: true,
+  install_target_selected: true,
+  existing_target_replaced: true,
+  runtime_integration: true,
+  payment_acceptance: true,
+  public_presale_activation: true,
+  funds_movement: true,
+});
+for (const [field, bad] of Object.entries(quiescenceContractFlips)) {
+  const rejected = classify({ quiescence: quiescenceReceipt({ [field]: bad }) });
+  assert.equal(rejected.status, "HOLD", "quiescence contract flip accepted: " + field);
+  assert.equal(rejected.replacement_apply_authorized, false);
+}
+
+const processContractFlips = Object.freeze({
+  read_only: false,
+  pid1_namespace_direct_read: true,
+  pid1_mount_namespace_direct_read: true,
+  host_namespace_lease_provenance_authenticated_by_census: true,
+  proc_visibility_revalidated_after_census: false,
+  retained_procfs_view_used: false,
+  production_filesystem_write: true,
+  root_execution_forbidden: false,
+  process_environment_read: true,
+  process_arguments_read: true,
+  proc_cmdline_read: true,
+  proc_environ_read: true,
+  proc_fd_target_text_read: true,
+  proc_maps_path_text_retained: true,
+  service_mutation: true,
+  systemd_mutation: true,
+  install_target_selected: true,
+  replacement_apply_authorized: true,
+  existing_target_replaced: true,
+  runtime_integration: true,
+  payment_acceptance: true,
+  public_presale_activation: true,
+  funds_movement: true,
+});
+for (const [field, bad] of Object.entries(processContractFlips)) {
+  const rejected = classify({ process: processReceipt({ [field]: bad }) });
+  assert.equal(rejected.status, "HOLD", "process contract flip accepted: " + field);
+  assert.equal(rejected.replacement_apply_authorized, false);
+}
+
 const injected = classifyVoidBuyVoidCustodyRuntimeV3ReplacementReadinessV1({
   prestate: prestateReceipt(),
   quiescence: quiescenceReceipt(),
@@ -392,6 +532,8 @@ console.log("diagnostic_bundle_does_not_authorize_replacement=true");
 console.log("forged_quiescence_proof_rejected=true");
 console.log("forged_all_process_proof_rejected=true");
 console.log("caller_apply_authority_injection_rejected=true");
+console.log("receipt_contract_mutation_overclaims_rejected=true");
+console.log("repaired_prestate_process_sources_bound=true");
 console.log("privileged_all_process_reference_absence_required=true");
 console.log("live_node_binary_identity_verification_required=true");
 console.log("accepted_archive_bytes_at_use_verification_required=true");
