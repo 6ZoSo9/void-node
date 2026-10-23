@@ -45,11 +45,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_host_namespace_lease_census_v1.py)" = \
-            "e533763f03d0fd985ca9ef83ece24415d6f06dcc"
+            "132c34244c795e886f5e2bc729e5e05697f06486"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_host_namespace_lease_census_v1.py)" = \
-            "7dc7fb6da546b7c0a20d986a9339c762801bd426"
+            "b687b4625b7c681b7c28347a61f7f852768c6264"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-host-namespace-lease-census-v1.md)" = \
-            "0eb5dbab7b9bc18c1a66d82beb73dced92d2ae17"
+            "fbec2242f1595318868e7c789523ac15e1f815c4"
           test "$(git rev-parse HEAD:ops/precision/void_economic_sponsored_runtime_storage_designated_host_plan_v3.py)" = \
             "4234379cb7e283e03c654e10d0d7fe8986e99897"
 
@@ -88,6 +88,8 @@ jobs:
             'production_filesystem_write=false' \
             'self_test_temporary_filesystem_write=true' \
             'namespace_lease_is_install_authority=false' \
+            'namespace_lease_external_review_completed=false' \
+            'automatic_process_census_feed_authorized=false' \
             'replacement_apply_authorized=false' \
             'payment_acceptance=false' \
             'public_presale_activation=false' \
@@ -122,6 +124,8 @@ jobs:
             'production_filesystem_write=false' \
             'test_fixture_filesystem_write=true' \
             'namespace_lease_is_install_authority=false' \
+            'namespace_lease_external_review_completed=false' \
+            'automatic_process_census_feed_authorized=false' \
             'replacement_apply_authorized=false' \
             'runtime_integration=false' \
             'payment_acceptance=false' \
