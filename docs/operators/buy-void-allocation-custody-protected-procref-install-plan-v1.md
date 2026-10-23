@@ -33,6 +33,16 @@ accepted_source_lock_blob=e66742be948ae418cbdca75542db263050930c15
 A future installer must materialize the exact Git-object bytes. Copying from a
 mutable worktree is not authorized.
 
+The source-plan proof follows the same boundary. It authenticates the accepted
+census at exact historical source head
+`cfae72e86e060ec797a86797d71f7be7aa019be8` and the accepted lock at exact
+historical lock head `aebffe89a834eddccbd708495047f369f4dbaf29`, verifies each
+`head:path` resolves to the recorded Git blob, and reads those exact blob
+objects with `git cat-file`. It deliberately does **not** require the mutable
+current checkout to contain those historical bytes; later reviewed source
+successors therefore cannot silently substitute for, or invalidate, the
+accepted install input.
+
 ## Fixed protected destination
 
 The future protected source location is exactly:
