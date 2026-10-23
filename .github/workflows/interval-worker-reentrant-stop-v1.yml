@@ -1,0 +1,51 @@
+name: Interval worker reentrant stop v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/interval-worker-reentrant-stop-v1.yml"
+      - "src/util/interval_worker.ts"
+      - "src/util/interval_worker.js"
+      - "scripts/prove_interval_worker_reentrant_stop_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/interval-worker-reentrant-stop-v1.yml"
+      - "src/util/interval_worker.ts"
+      - "src/util/interval_worker.js"
+      - "scripts/prove_interval_worker_reentrant_stop_v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: interval-worker-reentrant-stop-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove exact candidate and reentrant stop behavior
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --check src/util/interval_worker.js
+          node --check scripts/prove_interval_worker_reentrant_stop_v1.mjs
+          node scripts/prove_interval_worker_reentrant_stop_v1.mjs
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

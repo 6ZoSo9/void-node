@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+import ast, subprocess
+from pathlib import Path
+
+ROOT=Path(__file__).resolve().parents[1]
+Q=ROOT/"ops/xiphos/apollyon_live_custody_dormant_qualification_v2.py"
+source=Q.read_text();ast.parse(source)
+for required in (
+    'TARGET_BLOB="9daceeb07933a8a5158bc93bbc2760027d79e2d8"',
+    'SERVICE_BLOB="51354b10da89413eb6991514496798c7a1b5d1e8"',
+    'HELPER_BLOB="3cb5f2b85c80b9a26ba5e8d73634c29f584011af"',
+    'LAUNCHER_BLOB="8d8561c08db7e500a818d269580dad15adca9f58"',
+    'run(["/usr/bin/systemctl","start",TARGET_UNIT])',
+    'run(["/usr/bin/systemctl","stop",TARGET_UNIT])',
+    'st.st_nlink!=2',
+    'wait_socket(False)',
+    'unit!=TARGET_UNIT',
+    'CONFIG_DIR=Path("/etc/void/apollyon-custody-v1")',
+    'ENV_PATH=CONFIG_DIR/"custody.env"',
+    'PUBLIC_KEY_PATH=CONFIG_DIR/"operator-public-key.pem"',
+    'normalize_show_properties(',
+    'optional_empty=(',
+    'wait_unit(SERVICE_UNIT,"inactive")',
+    'assert_socket_parent_empty(ids)',
+    'target_maybe_started=True',
+    'active not in ("inactive","failed")',
+    'expected_unit_file_state="disabled"',
+    'expected_unit_file_state="static"',
+    'unit_file_state_mismatch:',
+    'consumed_state_unchanged',
+    'static_install_identity_changed_before_start',
+    'consumed_state_changed_before_cycle_',
+    'consumed_state_changed_after_cycle_',
+    'observations[-1]["consumed_state_unchanged"]=True',
+    'directory_metadata_invalid:',
+    '"dev":root.st_dev,"ino":root.st_ino',
+    '"mtime_ns":root.st_mtime_ns,"ctime_ns":root.st_ctime_ns',
+    'first_generation=(observations[0]["live"]["pid"],observations[0]["live"]["start_ticks"])',
+    'second_generation=(observations[1]["live"]["pid"],observations[1]["live"]["start_ticks"])',
+    'restart_safe_second_cycle_proven',
+    'STATE_ROOT=Path("/var/lib/void-apollyon-custody-v1")',
+    'custody_argv_exact_mismatch',
+    'custody_environment_file_invalid',
+    'effective_systemd_configuration_bound',
+    'service_effective_execstart_invalid',
+    'service_effective_execstoppost_invalid',
+    'service_dropins_present',
+    'target_dropins_present',
+    'loaded_unset_environment_invalid',
+    '"GCONV_PATH","LD_AUDIT","LD_LIBRARY_PATH","LD_PRELOAD",',
+    '"NODE_OPTIONS","NODE_PATH","OPENSSL_CONF",',
+    'SYSTEMD_UNIT_SEARCH_ROOTS=(',
+    'assert_no_unreviewed_dependency_directories(TARGET_UNIT)',
+    'assert_no_unreviewed_dependency_directories(SERVICE_UNIT)',
+    'unreviewed_systemd_dependency_entry:',
+    'require_trusted_ancestor_chain(',
+    'verify_path_custody(ids)',
+    'custody_group_closure_invalid',
+    'custody_supplementary_groups_unreviewed',
+    'exact_runtime_supplementary_groups(',
+    'primary_gid not in expected',
+    'required=expected-{primary_gid}',
+    'required.issubset(actual) and actual.issubset(expected)',
+    'REVIEWED_SYSTEMD_MAJOR=255',
+    'REVIEWED_SYSTEMD_PACKAGE_VERSIONS=(',
+    'verify_systemd_generation()',
+    '"/usr/bin/systemctl","--version"',
+    '"/usr/bin/busctl","--system","call"',
+    '"org.freedesktop.systemd1.Manager","Version"',
+    'apollyon_custody_collector_running_installed_systemd_version_mismatch',
+    'custody_uid_process_exclusivity_failed',
+    'preexisting_custody_uid_process',
+    'prestart_custody_uid_process',
+    '"prestart_cycle_"+str(cycle)',
+    'allow_service_failed=(cycle==1)',
+    'TRAINING_UNIT,allow_failed=True,expected_unit_file_state="static"',
+    'custody_uid_process_after_stop',
+    'target_start_attempts=',
+    'emergency_cleanup_attempted=',
+    'emergency_cleanup_green=',
+    'final_dormant_recheck_attempted=',
+    'final_dormant_recheck_reason=',
+    'final_dormant_after_failure_proven=',
+    'allow_service_failed:bool=False',
+    'wait_unit_safely_dormant(',
+    'unit_safe_dormant_timeout:',
+    'safely_dormant_unit_props(',
+    '_attest_fn(ids,"emergency",True)',
+    'ids,"failure_recheck",allow_service_failed=True',
+    'allow_failed=True,expected_unit_file_state="static"',
+    'attest_dormant_boundary(ids,"final")',
+    'def emergency_cleanup(',
+    ')=emergency_cleanup(ids)',
+    'uid_process_generations(',
+    'uid_thread_process_map(',
+    'stable_uid_thread_process_map(',
+    'custody_thread_process_census_changed',
+    'custody_thread_inventory(',
+    'validate_custody_thread_status(',
+    'custody_thread_credentials_changed',
+    'validated_tids=tuple(',
+    'custody_global_thread_map_matches_validated_inventory',
+    'custody_thread_capability_nonzero:',
+    'custody_thread_no_new_privileges_missing:',
+    'proc_root:Path=Path("/proc")',
+    'return not stable_uid_thread_process_map(training_uid,proc_root)',
+    'custody_uid_process_status_unreadable:',
+):
+    assert required in source,required
+for forbidden in (
+    'systemctl","start",SERVICE_UNIT','systemctl","stop",SERVICE_UNIT',
+    "PRIVATE KEY-----","eth_sendRawTransaction","training_"+"execution"+":True",
+):
+    assert forbidden not in source,forbidden
+r=subprocess.run(
+    ["python3","-I","-B",str(Q),"--self-test"],
+    cwd=ROOT,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=20,
+)
+assert r.returncode==0,r.stderr
+for line in (
+    "VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V2_SELF_TEST_GREEN",
+    "config_directory_constant_bound=true",
+    "processless_target_mainpid_not_required=true",
+    "omitted_empty_service_exec_properties_normalized=true",
+    "required_service_exec_properties_still_mandatory=true",
+    "two_cycle_target_start_stop=true","direct_service_action=false",
+    "socket_cleanup_required_each_cycle=true",
+    "custody_uid_process_exclusivity_required=true",
+    "custody_uid_zero_one_zero_each_cycle=true",
+    "child_process_census_executed=true",
+    "all_tid_custody_exclusivity_required=true",
+    "all_tid_training_absence_required=true",
+    "global_role_thread_census_stable=true",
+    "global_custody_tid_map_matches_validated_inventory=true",
+    "custody_thread_credentials_exact_required=true",
+    "custody_thread_credential_adversaries_executed=true",
+    "second_custody_uid_process_rejected=true",
+    "saved_fs_uid_slots_counted=true",
+    "saved_fs_uid_only_thread_detected=true",
+    "malformed_live_process_status_rejected=true",
+    "unreadable_live_process_status_rejected=true",
+    "training_uid_unreadable_status_rejected=true",
+    "exact_runtime_argv_binding_required=true",
+    "custody_environment_exact_required=true",
+    "effective_systemd_configuration_bound=true",
+    "systemd_reviewed_generation_required=true",
+    "systemd_bus_owner_pid1_required=true",
+    "running_installed_systemd_version_match_required=true",
+    "systemd_dropins_rejected=true",
+    "unexpected_systemd_exec_commands_rejected=true",
+    "manager_environment_influence_unset=true",
+    "systemd_dependency_directories_closed=true",
+    "unreviewed_systemd_dependency_entries_rejected=true",
+    "retained_ancestor_custody_required=true",
+    "world_writable_execution_parent_rejected=true",
+    "custody_group_closure_required=true",
+    "runtime_primary_gid_optional_redundant_group_accepted=true",
+    "reviewed_ipc_supplementary_group_required=true",
+    "extra_custody_supplementary_group_rejected=true",
+    "failure_cleanup_receipt_truthful=true",
+    "emergency_cleanup_adversaries_executed=true",
+    "failed_stop_cleanup_reported=true",
+    "wait_timeout_cleanup_reported=true",
+    "socket_timeout_cleanup_reported=true",
+    "failed_dead_dormant_wait_failure_reported=true",
+    "failed_dead_dormant_predicate_tested=true",
+    "alternate_runtime_config_rejected_by_exact_argv=true",
+    "failure_final_dormant_recheck_required=true",
+    "failure_preserves_original_reason=true",
+    "final_success_attestation_failure_receipt_truthful=true",
+    "consumed_state_unchanged_required=true",
+    "consumed_state_checked_after_each_cycle=true",
+    "consumed_directory_generation_bound=true",
+    "critical_directory_metadata_bound=true",
+    "prestart_static_boundary_reverified=true",
+    "prestart_unit_dormancy_reverified_each_cycle=true",
+    "cycle2_requires_clean_inactive_service=true",
+    "training_unit_dormancy_reverified=true",
+    "training_execution=false","durable_attempt_claim=false","funds_movement=false",
+):
+    assert line in r.stdout,line
+print("VOID_APOLLYON_LIVE_CUSTODY_DORMANT_QUALIFICATION_V2_PROOF_GREEN")
+print("config_directory_constant_bound=true")
+print("processless_target_mainpid_not_required=true")
+print("omitted_empty_service_exec_properties_normalized=true")
+print("required_service_exec_properties_still_mandatory=true")
+print("custody_uid_process_exclusivity_required=true")
+print("custody_uid_zero_one_zero_each_cycle=true")
+print("child_process_census_executed=true")
+print("all_tid_custody_exclusivity_required=true")
+print("all_tid_training_absence_required=true")
+print("global_role_thread_census_stable=true")
+print("global_custody_tid_map_matches_validated_inventory=true")
+print("custody_thread_credentials_exact_required=true")
+print("custody_thread_credential_adversaries_executed=true")
+print("second_custody_uid_process_rejected=true")
+print("saved_fs_uid_slots_counted=true")
+print("saved_fs_uid_only_thread_detected=true")
+print("malformed_live_process_status_rejected=true")
+print("unreadable_live_process_status_rejected=true")
+print("training_uid_unreadable_status_rejected=true")
+print("exact_runtime_argv_binding_required=true")
+print("custody_environment_exact_required=true")
+print("effective_systemd_configuration_bound=true")
+print("systemd_reviewed_generation_required=true")
+print("systemd_bus_owner_pid1_required=true")
+print("running_installed_systemd_version_match_required=true")
+print("systemd_dropins_rejected=true")
+print("unexpected_systemd_exec_commands_rejected=true")
+print("manager_environment_influence_unset=true")
+print("systemd_dependency_directories_closed=true")
+print("unreviewed_systemd_dependency_entries_rejected=true")
+print("retained_ancestor_custody_required=true")
+print("world_writable_execution_parent_rejected=true")
+print("custody_group_closure_required=true")
+print("runtime_primary_gid_optional_redundant_group_accepted=true")
+print("reviewed_ipc_supplementary_group_required=true")
+print("extra_custody_supplementary_group_rejected=true")
+print("failure_cleanup_receipt_truthful=true")
+print("emergency_cleanup_adversaries_executed=true")
+print("failed_stop_cleanup_reported=true")
+print("wait_timeout_cleanup_reported=true")
+print("socket_timeout_cleanup_reported=true")
+print("failed_dead_dormant_wait_failure_reported=true")
+print("failed_dead_dormant_predicate_tested=true")
+print("alternate_runtime_config_rejected_by_exact_argv=true")
+print("failure_final_dormant_recheck_required=true")
+print("failure_preserves_original_reason=true")
+print("final_success_attestation_failure_receipt_truthful=true")
+print("consumed_state_checked_after_each_cycle=true")
+print("consumed_directory_generation_bound=true")
+print("critical_directory_metadata_bound=true")
+print("prestart_static_boundary_reverified=true")
+print("prestart_unit_dormancy_reverified_each_cycle=true")
+print("cycle2_requires_clean_inactive_service=true")
+print("training_unit_dormancy_reverified=true")
