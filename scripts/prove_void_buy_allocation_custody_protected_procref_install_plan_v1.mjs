@@ -15,13 +15,20 @@ const REVIEWED_REL =
   "void_buy_allocation_custody_runtime_v3_" +
   "protected_all_process_reference_census_v1.py";
 const REVIEWED = path.join(ROOT, REVIEWED_REL);
+const ACCEPTED_LOCK_REL =
+  "ops/security/" +
+  "buy-void-allocation-custody-runtime-v3-" +
+  "protected-all-process-reference-census-lock-v3.json";
+const ACCEPTED_LOCK = path.join(ROOT, ACCEPTED_LOCK_REL);
 
-const EXPECTED_PLAN_BLOB = "5c9494787c67bbe419e5ec550826f900387f502c";
+const EXPECTED_PLAN_BLOB = "c7590b7f133ce9af66ec37d6dfcce837b1e78117";
 const EXPECTED_REVIEWED_BLOB =
-  "25a0913606baa3303743f36a8c79f3c7a14ea159";
-const EXPECTED_REVIEWED_BYTES = 70661;
+  "9738f14111fc03dffe9afb04f7bede73ceb13087";
+const EXPECTED_REVIEWED_BYTES = 74322;
 const EXPECTED_REVIEWED_SHA256 =
-  "447411e1853fdff56098e2700c60855aaa6ebc2dfb02104afc82af83c2c97efe";
+  "f3ef0593eae77825f730609b85da51af66168ba11f39848d052a91942e4cc335";
+const EXPECTED_ACCEPTED_LOCK_BLOB =
+  "e66742be948ae418cbdca75542db263050930c15";
 
 function gitBlob(bytes) {
   return createHash("sha1")
@@ -36,9 +43,11 @@ function sha256(bytes) {
 
 const planBytes = readFileSync(PLAN);
 const reviewedBytes = readFileSync(REVIEWED);
+const acceptedLockBytes = readFileSync(ACCEPTED_LOCK);
 
 assert.equal(gitBlob(planBytes), EXPECTED_PLAN_BLOB);
 assert.equal(gitBlob(reviewedBytes), EXPECTED_REVIEWED_BLOB);
+assert.equal(gitBlob(acceptedLockBytes), EXPECTED_ACCEPTED_LOCK_BLOB);
 assert.equal(reviewedBytes.length, EXPECTED_REVIEWED_BYTES);
 assert.equal(sha256(reviewedBytes), EXPECTED_REVIEWED_SHA256);
 
@@ -49,7 +58,7 @@ assert.equal(
 );
 assert.deepEqual(planModule.REVIEWED_SOURCE, {
   repository: "6ZoSo9/void-node",
-  head: "3d7b8041f90b92d66d8de43cd0b28e98cbf194be",
+  head: "cfae72e86e060ec797a86797d71f7be7aa019be8",
   path: REVIEWED_REL,
   git_blob_sha1: EXPECTED_REVIEWED_BLOB,
   bytes: EXPECTED_REVIEWED_BYTES,
@@ -61,6 +70,52 @@ assert.deepEqual(planModule.REVIEWED_SOURCE, {
     "void_buy_void_custody_runtime_v3_" +
     "protected_all_process_reference_census_v1",
 });
+
+assert.deepEqual(planModule.ACCEPTED_SOURCE_LOCK, {
+  repository: "6ZoSo9/void-node",
+  pr: 3777,
+  head: "aebffe89a834eddccbd708495047f369f4dbaf29",
+  path: ACCEPTED_LOCK_REL,
+  git_blob_sha1: EXPECTED_ACCEPTED_LOCK_BLOB,
+  lock_id:
+    "voidbuycustodyallprocreflock3_" +
+    "9738f14111fc03dffe9afb04f7bede73ceb13087",
+  candidate_source_accepted: true,
+  source_head: "cfae72e86e060ec797a86797d71f7be7aa019be8",
+  source_git_blob_sha1: EXPECTED_REVIEWED_BLOB,
+  source_bytes: EXPECTED_REVIEWED_BYTES,
+  source_sha256: EXPECTED_REVIEWED_SHA256,
+  proof_git_blob_sha1: "ba1b8cc6c30c613c2d638e60f1bb61a288266227",
+  document_git_blob_sha1: "86952328f67e74fe8ab600617692733cf1d0a24e",
+  workflow_git_blob_sha1: "5c778dc18be4d11f55a417dccbc61ca57cbf2678",
+});
+
+const acceptedLock = JSON.parse(acceptedLockBytes.toString("utf8"));
+assert.equal(acceptedLock.lock_id, planModule.ACCEPTED_SOURCE_LOCK.lock_id);
+assert.equal(acceptedLock.parent_source_head, planModule.ACCEPTED_SOURCE_LOCK.source_head);
+assert.equal(acceptedLock.candidate_source_accepted, true);
+assert.equal(
+  acceptedLock.candidate_evidence.source_git_blob_sha1,
+  EXPECTED_REVIEWED_BLOB,
+);
+assert.equal(
+  acceptedLock.candidate_evidence.source_sha256,
+  EXPECTED_REVIEWED_SHA256,
+);
+for (const key of [
+  "protected_install_authorized",
+  "protected_source_installed",
+  "live_privileged_census_authorized",
+  "live_privileged_census_executed",
+  "replacement_apply_authorized",
+  "runtime_integration",
+  "payment_acceptance",
+  "public_presale_activation",
+  "production_gate_ready",
+  "funds_movement",
+]) {
+  assert.equal(acceptedLock[key], false, "accepted_lock_authority:" + key);
+}
 
 assert.deepEqual(planModule.INSTALL_CONTRACT, {
   install_parent: "/opt",
@@ -188,6 +243,7 @@ assert.equal(first.version, 1);
 assert.equal(first.status, "HOLD_SOURCE_ONLY_NO_INSTALL_AUTHORITY");
 assert.match(first.plan_id, /^voidbuycustodyprocrefinstallplan1_[0-9a-f]{64}$/);
 assert.deepEqual(first.reviewed_source, planModule.REVIEWED_SOURCE);
+assert.deepEqual(first.accepted_source_lock, planModule.ACCEPTED_SOURCE_LOCK);
 assert.deepEqual(first.install_contract, planModule.INSTALL_CONTRACT);
 assert.equal(first.authority, authority);
 
@@ -387,6 +443,9 @@ console.log("exact_plan_source_blob=true");
 console.log("reviewed_protected_source_blob_exact=true");
 console.log("reviewed_protected_source_bytes_exact=true");
 console.log("reviewed_protected_source_sha256_exact=true");
+console.log("accepted_v3_source_lock_blob_exact=true");
+console.log("accepted_v3_source_lock_semantics_bound=true");
+console.log("accepted_v3_source_lock_negative_authority_preserved=true");
 console.log("fixed_protected_install_paths_bound=true");
 console.log("create_only_no_clobber_contract=true");
 console.log("atomic_renameat2_noreplace_publication_required=true");
