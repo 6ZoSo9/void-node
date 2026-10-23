@@ -62,9 +62,10 @@ The **future** supervisor must therefore prove all thirteen additional propertie
 6. When an abnormal exit or timeout leaves mutation state unknown, classify
    **indeterminate** even if the worker did not send an explicit mutation flag;
    never retry automatically or infer no effect from missing receipt bytes.
-7. Terminal source/store/peer revalidation occurs *after* worker-tree
-   quiescence and *before* acknowledging success, while the supervisor still
-   owns the applicable fencing capability.
+7. Terminal store-generation, authorization winner/slot, durable claim,
+   peer and callback-source revalidation occurs *after* worker-tree quiescence
+   and *before* acknowledging success, while the supervisor still owns the
+   applicable fencing capability.
 8. **Supervisor-owned receipt framing is byte-bounded**, with one canonical
    success frame of fixed maximum size, unambiguous length/delimiter and final
    EOF. Oversized/truncated/duplicate/trailing frames and missing EOF are HOLD;
@@ -178,7 +179,7 @@ training or funds movement.
 
 Content-addressed plan ID (successor to historical `voidapollyonclaimcallbackcontain1_0e0794baead1aa6571c8f0820a32d5951e24dfefb164445c0591c1d94bc5166c`):
 
-`voidapollyonclaimcallbackcontain1_7c0ed39e634dabcfa229b8e0cbca786b79eac85cfd587167c165fe7fe7df8c19` (previous exact-ceiling generation: `voidapollyonclaimcallbackcontain1_d5ede06832f2480774f989e95eadd2759ab7081a2adbab4bcc9dc575afbc965f`; previous supervisor-death generation: `voidapollyonclaimcallbackcontain1_17848cb11147fb0284268258e784826daf75630687abec922c4dd5d972b7be68`)
+`voidapollyonclaimcallbackcontain1_9dd940ac663df8b532be0d25455eb522e9762563e2f04414ac933072aadc3a3f` (previous exact-ceiling generation: `voidapollyonclaimcallbackcontain1_d5ede06832f2480774f989e95eadd2759ab7081a2adbab4bcc9dc575afbc965f`; previous supervisor-death generation: `voidapollyonclaimcallbackcontain1_17848cb11147fb0284268258e784826daf75630687abec922c4dd5d972b7be68`)
 
 ## October 20 — semantic negative-proof and source-role binding
 
@@ -197,7 +198,7 @@ cannot be substituted for `core`, `transaction_lease`, `native_bridge`
 or the two proofs. Two new negative cases swap core/lease roles and
 duplicate the bridge record under the core role; both must fail at
 `bound_source_role_invalid:core`, **not** at the final content hash.
-The earlier semantic-proof generation increased the source-only adversary count from 44 to **48**; the supervisor-death generation raised it to **50**. The exact-ceiling generation added two enforcement requirements plus 18 per-resource adversaries for **70** total. The current durable pre-launch/terminal-clear fencing-order generation adds two more semantic requirements for **72** total, with explicit
+The earlier semantic-proof generation increased the source-only adversary count from 44 to **48**; the supervisor-death generation raised it to **50**. The exact-ceiling generation added two enforcement requirements plus 18 per-resource adversaries for **70** total. Durable pre-launch/terminal-clear fencing added two more for **72**. The current terminal authorization-winner and durable-claim reread generation adds two semantic requirements for **74** total, with explicit
 proof output `negative_cases_failed_at_semantic_gate=true` and
 `bound_source_role_identities_enforced=true`.
 
@@ -217,7 +218,8 @@ pre-exec exact memory/swap/PID/CPU/FD/file-size/filesystem-capacity/I/O quotas a
 supervisor-crash old-worker quiescence, a durably committed UNKNOWN/in-flight epoch
 **before worker launch**, fence clearing only after quiescence plus terminal revalidation,
 post-mutation indeterminate handling without automatic replay, and terminal revalidation of
-store generation, peer identity, and callback source identity.
+store generation, authorization winner/slot, durable claim record, peer identity,
+and callback source identity.
 
 This plan does **not** implement that runtime. It records the exact missing security
 contract so a future candidate cannot claim containment by attaching Promise handlers or
