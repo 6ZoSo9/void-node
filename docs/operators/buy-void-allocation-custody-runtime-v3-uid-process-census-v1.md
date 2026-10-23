@@ -62,7 +62,10 @@ Before an empty result can become a candidate, the census reads bounded
 `/proc/self/mountinfo` and requires the visible `/proc` mount to be procfs
 without a restrictive `hidepid` option. Ambiguous proc mounts or
 `hidepid=1/2/4`-style visibility restrictions HOLD rather than allowing a
-false empty census.
+false empty census. After the two complete UID/thread census passes, the source
+revalidates both this procfs visibility contract and the external host
+PID-namespace lease before a candidate can be emitted. A restrictive remount,
+namespace drift, or any mismatch at this terminal check HOLDs.
 
 The census walks numeric entries under `/proc`, then bounded numeric thread
 entries under each live `/proc/<pid>/task`. It reads only each task's bounded
@@ -102,7 +105,9 @@ process entries HOLD **before sorting**. Across the scan, more than 262,144
 numeric task entries also HOLD before a zero-result candidate is possible.
 
 The custody UID process set is collected twice. Any change between the two
-passes HOLDs.
+passes HOLDs. The host PID-namespace lease and procfs visibility are then
+rechecked after those two passes, so the zero-result candidate cannot rely on a
+single pre-scan visibility observation.
 
 The output does not expose matching process IDs. It emits only:
 
@@ -131,7 +136,8 @@ replacement.
 
 ## Invocation
 
-After focused source/CI qualification:
+After focused source/CI qualification, `-B` is mandatory because the
+production receipt claims no filesystem writes before ordinary module imports:
 
 ```bash
 python3 -I -B \
@@ -140,7 +146,9 @@ python3 -I -B \
   --expected-host-pid-namespace-dev-ino '<reviewed-dev>:<reviewed-ino>'
 ```
 
-No sudo is required or authorized.
+No sudo is required or authorized. Omitting `-B` is a bootstrap HOLD before
+the normal census imports; such an invocation cannot emit a successful
+write-free production receipt.
 
 ## Authority remains false
 
@@ -149,8 +157,10 @@ read_only=true
 proc_status_uid_only=true
 proc_thread_status_uid_only=true
 complete_proc_visibility_verified=true
+complete_proc_visibility_revalidated_after_census=true
 host_pid_namespace_external_lease_required=true
 host_pid_namespace_lease_verified=true
+host_pid_namespace_lease_revalidated_after_census=true
 process_cmdline_read=false
 process_environment_read=false
 process_executable_read=false
