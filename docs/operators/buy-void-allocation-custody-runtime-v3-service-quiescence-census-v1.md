@@ -35,6 +35,10 @@ socket: /run/void-allocation-custody-v1/custody.sock
 
 ## Systemd observation
 
+The focused proof is self-containedly bound to the exact census source Git blob;
+direct proof execution must fail if the census bytes drift, independent of the
+workflow's own path pins.
+
 The production census executes only:
 
 ```text
