@@ -16,12 +16,12 @@ const REVIEWED_REL =
   "protected_all_process_reference_census_v1.py";
 const REVIEWED = path.join(ROOT, REVIEWED_REL);
 
-const EXPECTED_PLAN_BLOB = "01636feac235833d49c1b6253808bea43abf6601";
+const EXPECTED_PLAN_BLOB = "5c9494787c67bbe419e5ec550826f900387f502c";
 const EXPECTED_REVIEWED_BLOB =
-  "25c0e32ae85da4569fb9521a0812e10ab0fcede3";
-const EXPECTED_REVIEWED_BYTES = 56180;
+  "25a0913606baa3303743f36a8c79f3c7a14ea159";
+const EXPECTED_REVIEWED_BYTES = 70661;
 const EXPECTED_REVIEWED_SHA256 =
-  "d87dc3c539d32aff9722b802ec4b172441e98095a5bcc5cd5edac868572b4e0a";
+  "447411e1853fdff56098e2700c60855aaa6ebc2dfb02104afc82af83c2c97efe";
 
 function gitBlob(bytes) {
   return createHash("sha1")
@@ -49,7 +49,7 @@ assert.equal(
 );
 assert.deepEqual(planModule.REVIEWED_SOURCE, {
   repository: "6ZoSo9/void-node",
-  head: "0fcd557319fbec6ffec78cb94a8fdeda41f67366",
+  head: "3d7b8041f90b92d66d8de43cd0b28e98cbf194be",
   path: REVIEWED_REL,
   git_blob_sha1: EXPECTED_REVIEWED_BLOB,
   bytes: EXPECTED_REVIEWED_BYTES,
@@ -93,6 +93,16 @@ assert.deepEqual(planModule.INSTALL_CONTRACT, {
   install_parent_uid: 0,
   install_parent_gid: 0,
   install_parent_group_world_writable: false,
+  install_parent_directory: true,
+  install_parent_symlink: false,
+  install_parent_direct_child_of_filesystem_root_required: true,
+  install_parent_symlink_free_ancestry_required: true,
+  install_parent_retained_descriptor_required: true,
+  install_parent_descriptor_identity_bound: true,
+  install_parent_linux_mount_id_bound: true,
+  install_parent_descriptor_anchors_stage_creation_and_publication_required: true,
+  install_parent_revalidation_before_publication_required: true,
+  install_parent_revalidation_after_fsync_required: true,
   protected_root_uid: 0,
   protected_root_gid: 0,
   protected_root_mode: "0755",
@@ -123,6 +133,14 @@ for (const [key, expected] of Object.entries({
   renameat2_rename_noreplace_required: true,
   absence_precheck_is_not_publication_authority: true,
   root_owned_same_filesystem_staging_required: true,
+  install_parent_exact_metadata_required: true,
+  install_parent_direct_ancestry_required: true,
+  install_parent_descriptor_retention_required: true,
+  install_parent_descriptor_identity_binding_required: true,
+  install_parent_mount_id_binding_required: true,
+  install_parent_anchors_stage_creation_and_publication_required: true,
+  install_parent_prepublication_revalidation_required: true,
+  install_parent_postfsync_revalidation_required: true,
   stage_directory_exact_metadata_required: true,
   stage_descriptor_relative_creation_required: true,
   stage_parent_descriptor_retention_required: true,
@@ -175,15 +193,17 @@ assert.equal(first.authority, authority);
 
 assert.deepEqual(first.required_future_apply_sequence, [
   "VERIFY_EXACT_REVIEWED_GIT_OBJECT_BYTES",
-  "VERIFY_INSTALL_PARENT_ROOT_CUSTODY_AND_MOUNT",
+  "VERIFY_AND_RETAIN_INSTALL_PARENT_DIRECT_DIRECTORY_ROOT_CUSTODY_IDENTITY_AND_MOUNT",
   "REQUIRE_TARGET_AND_STAGE_NAMES_ABSENT",
   "CREATE_STAGE_DIRECTORY_DESCRIPTOR_RELATIVE_ROOT_ROOT_MODE_0755",
   "REVALIDATE_STAGE_DIRECTORY_TYPE_OWNER_MODE_NLINK_MOUNT_ANCESTRY_AND_EMPTY_STATE",
   "MATERIALIZE_EXACT_BYTES_IN_ROOT_OWNED_SAME_FILESYSTEM_STAGE",
   "FSYNC_SOURCE_AND_STAGE_DIRECTORY",
   "REVERIFY_STAGE_DIRECTORY_EXACT_ENTRY_SET_AND_STAGED_BYTES_BEFORE_PUBLICATION",
+  "REVALIDATE_INSTALL_PARENT_IDENTITY_AND_MOUNT_BEFORE_PUBLICATION",
   "PUBLISH_WITH_RENAMEAT2_RENAME_NOREPLACE",
   "FSYNC_INSTALL_PARENT",
+  "REVALIDATE_INSTALL_PARENT_IDENTITY_AND_MOUNT_AFTER_FSYNC",
   "REVERIFY_INSTALLED_ROOT_EXACT_ENTRY_SET_BYTES_OWNER_MODE_NLINK_AND_ANCESTRY",
   "EMIT_CONTENT_ADDRESSED_INSTALL_RECEIPT",
   "STOP_BEFORE_ROOT_CENSUS_EXECUTION",
@@ -193,6 +213,11 @@ const exactContract = planModule.classifyVoidBuyVoidCustodyProtectedProcRefInsta
 );
 assert.equal(exactContract.ok, true);
 assert.equal(exactContract.status, "SOURCE_CONTRACT_GREEN_NOT_AUTHORIZED");
+assert.equal(exactContract.install_parent_contract_complete, true);
+assert.equal(exactContract.install_parent_descriptor_retention_required, true);
+assert.equal(exactContract.install_parent_mount_id_binding_required, true);
+assert.equal(exactContract.install_parent_prepublication_revalidation_required, true);
+assert.equal(exactContract.install_parent_postfsync_revalidation_required, true);
 assert.equal(exactContract.stage_directory_contract_complete, true);
 assert.equal(exactContract.install_authorized, false);
 assert.equal(exactContract.filesystem_write, false);
@@ -211,6 +236,19 @@ for (const key of Object.keys(planModule.INSTALL_CONTRACT)) {
 }
 
 for (const [key, bad] of Object.entries({
+  install_parent_uid: 1,
+  install_parent_gid: 1,
+  install_parent_group_world_writable: true,
+  install_parent_directory: false,
+  install_parent_symlink: true,
+  install_parent_direct_child_of_filesystem_root_required: false,
+  install_parent_symlink_free_ancestry_required: false,
+  install_parent_retained_descriptor_required: false,
+  install_parent_descriptor_identity_bound: false,
+  install_parent_linux_mount_id_bound: false,
+  install_parent_descriptor_anchors_stage_creation_and_publication_required: false,
+  install_parent_revalidation_before_publication_required: false,
+  install_parent_revalidation_after_fsync_required: false,
   stage_parent: "/tmp",
   stage_uid: 1,
   stage_gid: 1,
@@ -295,6 +333,16 @@ assert(sourceText.includes("stage_descriptor_retained_through_publication_requir
 assert(sourceText.includes("stage_direct_child_of_install_parent_required: true"));
 assert(sourceText.includes("stage_symlink_free_ancestry_required: true"));
 assert(sourceText.includes("stage_revalidation_before_publication_required: true"));
+assert(sourceText.includes("install_parent_directory: true"));
+assert(sourceText.includes("install_parent_symlink: false"));
+assert(sourceText.includes("install_parent_direct_child_of_filesystem_root_required: true"));
+assert(sourceText.includes("install_parent_symlink_free_ancestry_required: true"));
+assert(sourceText.includes("install_parent_retained_descriptor_required: true"));
+assert(sourceText.includes("install_parent_descriptor_identity_bound: true"));
+assert(sourceText.includes("install_parent_linux_mount_id_bound: true"));
+assert(sourceText.includes("install_parent_descriptor_anchors_stage_creation_and_publication_required: true"));
+assert(sourceText.includes("install_parent_revalidation_before_publication_required: true"));
+assert(sourceText.includes("install_parent_revalidation_after_fsync_required: true"));
 
 const node = process.execPath;
 function run(args) {
@@ -344,6 +392,15 @@ console.log("create_only_no_clobber_contract=true");
 console.log("atomic_renameat2_noreplace_publication_required=true");
 console.log("absence_precheck_not_publication_authority=true");
 console.log("same_filesystem_root_staging_required=true");
+console.log("install_parent_exact_metadata_bound=true");
+console.log("install_parent_direct_ancestry_bound=true");
+console.log("install_parent_descriptor_retention_required=true");
+console.log("install_parent_descriptor_identity_bound=true");
+console.log("install_parent_linux_mount_id_bound=true");
+console.log("install_parent_anchors_stage_creation_and_publication=true");
+console.log("install_parent_prepublication_revalidation_required=true");
+console.log("install_parent_postfsync_revalidation_required=true");
+console.log("install_parent_contract_mutation_adversaries_rejected=true");
 console.log("stage_directory_exact_metadata_bound=true");
 console.log("stage_root_root_mode_0755_bound=true");
 console.log("stage_group_world_writable_false_bound=true");
