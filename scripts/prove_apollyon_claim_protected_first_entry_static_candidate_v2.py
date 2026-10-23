@@ -261,7 +261,7 @@ expect_rejected(
     mutated_elf,
 )
 
-source = TARGET.read_text(encoding="utf-8")
+source = raw.decode("utf-8", "strict")
 for required in (
     'PARENT_HEAD = "09760e597668d2888fe6df15ea692873b81840fc"',
     'PREDECESSOR_PROOF_BLOB = "8348bba0a6a8b6c30ffdcc3a12658f20e99b8592"',
