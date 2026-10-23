@@ -12,7 +12,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "7a292a4df12d3ce280c947cedc197f6edfdca1b3"
+EXPECTED_SOURCE_BLOB = "52420cd888474558b1498454b30004779783a51f"
 
 
 def git_blob(raw: bytes) -> str:
@@ -174,6 +174,46 @@ except module.CensusHold as exc:
 else:
     raise AssertionError("hidepid-restricted procfs was accepted")
 
+assert module.parse_dev_ino_lease("12:34") == (12, 34)
+for bad in ("", "0:1", "1:0", "1", "a:b", "1:2:3"):
+    try:
+        module.parse_dev_ino_lease(bad)
+    except module.CensusHold as exc:
+        assert "host_pid_namespace_lease_invalid" in str(exc)
+    else:
+        raise AssertionError("invalid PID namespace lease accepted: " + bad)
+
+class FakeNamespaceStat:
+    def __init__(self, dev: int, ino: int) -> None:
+        self.st_dev = dev
+        self.st_ino = ino
+
+assert module.verify_pid_namespace_lease_stats(
+    FakeNamespaceStat(12, 34),
+    FakeNamespaceStat(12, 34),
+    (12, 34),
+) == (12, 34)
+try:
+    module.verify_pid_namespace_lease_stats(
+        FakeNamespaceStat(12, 34),
+        FakeNamespaceStat(12, 35),
+        (12, 34),
+    )
+except module.CensusHold as exc:
+    assert "not_in_pid1_namespace" in str(exc)
+else:
+    raise AssertionError("private PID namespace relationship was accepted")
+try:
+    module.verify_pid_namespace_lease_stats(
+        FakeNamespaceStat(12, 34),
+        FakeNamespaceStat(12, 34),
+        (12, 35),
+    )
+except module.CensusHold as exc:
+    assert "host_pid_namespace_lease_mismatch" in str(exc)
+else:
+    raise AssertionError("mismatched external PID namespace lease was accepted")
+
 module.self_test()
 
 source = TARGET.read_text(encoding="utf-8")
@@ -184,6 +224,11 @@ for required in (
     "read_proc_status_uid_slots",
     "read_proc_mountinfo",
     "verify_complete_proc_visibility",
+    "parse_dev_ino_lease",
+    "verify_pid_namespace_lease_stats",
+    "verify_host_pid_namespace_lease",
+    "host_pid_namespace_external_lease_required",
+    "host_pid_namespace_lease_verified",
     "numeric_directory_names",
     "proc_numeric_names",
     "task_numeric_names",
@@ -236,6 +281,9 @@ print("four_uid_slots_classified=true")
 print("thread_uid_slots_classified=true")
 print("proc_visibility_verified_before_empty_candidate=true")
 print("hidepid_restricted_proc_holds=true")
+print("host_pid_namespace_external_lease_required=true")
+print("private_pid_namespace_rejected=true")
+print("host_pid_namespace_lease_mismatch_rejected=true")
 print("malformed_live_status_holds=true")
 print("missing_live_status_holds=true")
 print("proc_entry_budget_enforced_before_sort=true")
