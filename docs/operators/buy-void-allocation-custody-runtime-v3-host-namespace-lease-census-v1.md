@@ -88,6 +88,20 @@ The process-reference census still performs its own live equality and terminal
 revalidation. This collector is an independent observed input, not a permanent
 authorization token.
 
+The collector receipt is **not automatically consumable**. A separate review
+step must inspect the exact same-boot receipt before its PID- and mount-namespace
+values are supplied to the process-reference census. Production output therefore
+states:
+
+```text
+namespace_lease_external_review_completed=false
+automatic_process_census_feed_authorized=false
+```
+
+A convenience launcher may collect the receipt and stop. It must not collect
+these values and immediately feed them to the process census in the same
+unreviewed execution.
+
 ## Invocation
 
 After source/CI qualification, `-B` is mandatory. Omitting it HOLDs
@@ -125,6 +139,8 @@ systemd_mutation=false
 process_environment_read=false
 process_arguments_read=false
 namespace_lease_is_install_authority=false
+namespace_lease_external_review_completed=false
+automatic_process_census_feed_authorized=false
 replacement_apply_authorized=false
 runtime_integration=false
 payment_acceptance=false
