@@ -157,11 +157,16 @@ must still perform live-at-use revalidation.
 
 ## Observation is not replacement authority
 
-Even a clean protected run may set only:
+Even a mechanically clean protected run under the supplied namespace leases
+may set only the non-authoritative candidate:
 
 ```text
-all_process_target_reference_absent_observed=true
+host_scoped_target_reference_absent_candidate=true
+all_process_target_reference_absent_observed=false
 ```
+
+Because the census does not authenticate lease provenance itself, it cannot
+promote that candidate into the canonical all-process observation.
 
 It still reports:
 
@@ -228,6 +233,8 @@ proc_cmdline_read=false
 proc_environ_read=false
 proc_fd_target_text_read=false
 proc_maps_path_text_retained=false
+host_scoped_target_reference_absent_candidate_only=true
+all_process_target_reference_absent_observed=false
 all_process_reference_absence_proven=false
 fd_table_stability_proven=false
 mapping_set_stability_proven=false
