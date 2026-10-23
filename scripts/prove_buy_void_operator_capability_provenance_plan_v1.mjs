@@ -5,11 +5,11 @@ import { execFileSync, spawnSync } from "node:child_process";
 
 const MARKER="VOID_BUY_VOID_OPERATOR_CAPABILITY_PROVENANCE_PLAN_V1";
 const ROOT=process.cwd();
-const BASE_HEAD="40e61e4695cd4fd9e95bbd44e95152b5c2e2f432";
-const BASE_TREE="c6d9b9cedd33acd2a114c7577ef11aa3274c3cb3";
+const BASE_HEAD="61b0f81b2112aab32e3dc16084fe2d43178ec4da";
+const BASE_TREE="3e4a3d78c5225b64be24efd70498e540e505fee2";
 const PLAN_PATH="ops/security/buy-void-operator-capability-provenance-plan-v1.json";
-const PLAN_BLOB="6acd4942f22386e8a05c1371e9d8f99d3f5d7a33";
-const PLAN_ID="voidbvcred1_157079efc5c79fa8471b14bfbbf9e2fb32e51e01db08946d1f829dbf69ffbcfc";
+const PLAN_BLOB="12c97a412696c6a61d0b1527e2c05024a238e6c9";
+const PLAN_ID="voidbvcred1_7050f6cc60f4daffc168fc4df973ab39ca4b115d1eee864c61eba4eac1f74349";
 const CREDENTIAL_ID="buy-void-operator-capability-v1";
 const OWNED=Object.freeze([
   ".github/workflows/buy-void-operator-capability-provenance-plan-v1.yml",
