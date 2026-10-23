@@ -439,9 +439,10 @@ def _scan_dir(
                 names.append(entry.name)
     except OSError as exc:
         hold("target_directory_unreadable:" + str(exc.errno))
-    names.sort()
+    names.sort(reverse=True)
 
-    for name in names:
+    while names:
+        name = names.pop()
         _consume_tree_name(totals)
         if name in (".", "..") or "/" in name or "\x00" in name:
             hold("target_tree_name_invalid")
@@ -841,6 +842,7 @@ def self_test() -> None:
     print("special_file_rejection=true")
     print("stage_and_rollback_collision_observed=true")
     print("global_retained_name_budget_bound=true")
+    print("processed_names_released_before_recursion=true")
     print("production_receipt_scoped_write_keys=true")
     print("production_census_read_only=true")
     print("python_no_bytecode_mode_required=true")
