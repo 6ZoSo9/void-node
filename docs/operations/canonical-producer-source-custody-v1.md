@@ -1,9 +1,9 @@
 # Canonical producer source custody — read-only at-use preflight v1
 
-## Current V5 range-router source generation — October 21, 2026
+## Current V5 repaired-range-router source generation — October 21, 2026
 
-The current stacked source-only successor is bound to exact reviewed range-enabled
-`src/index.ts` Git blob `7df1f21c730b554c414c88c550a4475234485370`. V5 preserves V1–V4 guards and observer
+The current stacked source-only successor is bound to exact reviewed range/alias-repaired
+`src/index.ts` Git blob `a09661797aa4295371c036be36d82995e5233269`. V5 preserves V1–V4 guards and observer
 proofs byte-for-byte. It copies the reviewed V4 self-HTTP containment behavior
 with only the marker, exact source blob and self-stack filename changed.
 
@@ -13,7 +13,7 @@ V5 is represented by:
 - `scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs`;
 - `scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs`.
 
-`ops/run-void-node-live-v1.sh` selects V5 only for exact blob `7df1f21c730b554c414c88c550a4475234485370`
+`ops/run-void-node-live-v1.sh` selects V5 only for exact blob `a09661797aa4295371c036be36d82995e5233269`
 after the existing independent source-custody preflight and tracked-worktree
 identity equality check. Unknown source generations still HOLD. The canonical
 observer and live-agent workflows execute V5 on Node 22/24/26 while retaining
