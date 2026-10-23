@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # Source/CI-only protected proc-ref installer candidate.
 # Production --apply is hard-disabled in this generation.
+from __future__ import annotations
+
 import sys as _bootstrap_sys
 
 _BOOTSTRAP_MARKER = "VOID_BUY_VOID_CUSTODY_PROTECTED_PROCREF_INSTALL_CANDIDATE_V1"
@@ -20,8 +22,6 @@ if (
         print("funds_movement=false")
         raise SystemExit(2)
     raise RuntimeError("python_isolated_unoptimized_nobytecode_mode_required")
-
-from __future__ import annotations
 
 import argparse
 import ctypes
