@@ -303,10 +303,6 @@ def verify_complete_proc_visibility(
     }
 
 
-def _pinned_proc_root(fd: int) -> Path:
-    return Path(f"/proc/self/fd/{fd}")
-
-
 def open_pinned_proc_view(
     expected_host_pid_namespace_dev_ino: str,
 ) -> tuple[int, dict[str, Any]]:
@@ -325,17 +321,21 @@ def open_pinned_proc_view(
         ):
             hold("proc_root_rebound")
         mount_id = _fd_mount_id(fd)
-        proc_root = _pinned_proc_root(fd)
         try:
-            self_ns = os.stat(proc_root / "self/ns/pid")
-            init_ns = os.stat(proc_root / "1/ns/pid")
+            self_ns = os.stat(
+                "self/ns/pid", dir_fd=fd, follow_symlinks=True
+            )
+            init_ns = os.stat(
+                "1/ns/pid", dir_fd=fd, follow_symlinks=True
+            )
         except OSError as exc:
             hold("host_pid_namespace_unreadable:" + str(exc.errno))
         observed = verify_pid_namespace_lease_stats(
             self_ns, init_ns, expected
         )
-        mountinfo = _read_bounded_fd_path(
-            proc_root / "self/mountinfo",
+        mountinfo = _read_bounded_at(
+            fd,
+            "self/mountinfo",
             MAX_MOUNTINFO_BYTES,
             allow_zero_size=True,
         )
@@ -366,23 +366,28 @@ def revalidate_pinned_proc_view(
     if (
         opened.st_dev != initial["proc_root_dev"]
         or opened.st_ino != initial["proc_root_ino"]
-        or _fd_mount_id(fd) != initial["proc_mount_id"]
     ):
         hold("proc_root_generation_changed")
-    proc_root = _pinned_proc_root(fd)
     try:
-        self_ns = os.stat(proc_root / "self/ns/pid")
-        init_ns = os.stat(proc_root / "1/ns/pid")
+        self_ns = os.stat(
+            "self/ns/pid", dir_fd=fd, follow_symlinks=True
+        )
+        init_ns = os.stat(
+            "1/ns/pid", dir_fd=fd, follow_symlinks=True
+        )
     except OSError as exc:
         hold("host_pid_namespace_unreadable:" + str(exc.errno))
-    observed = verify_pid_namespace_lease_stats(self_ns, init_ns, expected)
+    observed = verify_pid_namespace_lease_stats(
+        self_ns, init_ns, expected
+    )
     if (
         str(observed[0]) != initial["pid_namespace_dev"]
         or str(observed[1]) != initial["pid_namespace_ino"]
     ):
         hold("host_pid_namespace_scope_changed")
-    mountinfo = _read_bounded_fd_path(
-        proc_root / "self/mountinfo",
+    mountinfo = _read_bounded_at(
+        fd,
+        "self/mountinfo",
         MAX_MOUNTINFO_BYTES,
         allow_zero_size=True,
     )
@@ -392,14 +397,15 @@ def revalidate_pinned_proc_view(
     if visibility != initial["proc_visibility"]:
         hold("proc_visibility_scope_changed")
     visible = os.stat("/proc", follow_symlinks=False)
-    if _identity(visible) != _identity(opened):
-        hold("proc_visible_root_changed")
+    visible_matches = _identity(visible) == _identity(opened)
+    if not visible_matches:
+        hold("visible_proc_root_changed")
     return {
         "host_pid_namespace_lease_revalidated_after_census": True,
         "proc_visibility_revalidated_after_census": True,
         "retained_procfs_view_revalidated_after_census": True,
+        "visible_proc_root_matches_retained_at_terminal": True,
     }
-
 
 def verify_source_inputs() -> dict[str, Any]:
     prestate = _read_bounded_fd_path(
@@ -631,10 +637,24 @@ def target_identity_set(path: Path = TARGET) -> dict[str, Any]:
         os.close(parent_fd)
 
 
-def _proc_stat_identity(pid: int) -> tuple[str, str] | None:
-    path = PROC / str(pid) / "stat"
+def _proc_stat_identity(
+    pid: int,
+    proc_fd: int | None = None,
+) -> tuple[str, str] | None:
     try:
-        raw = _read_bounded_fd_path(path, MAX_STAT_BYTES, allow_zero_size=True)
+        if proc_fd is None:
+            raw = _read_bounded_fd_path(
+                PROC / str(pid) / "stat",
+                MAX_STAT_BYTES,
+                allow_zero_size=True,
+            )
+        else:
+            raw = _read_bounded_at(
+                proc_fd,
+                str(pid) + "/stat",
+                MAX_STAT_BYTES,
+                allow_zero_size=True,
+            )
     except FileNotFoundError:
         return None
     except OSError as exc:
@@ -658,11 +678,14 @@ def _proc_stat_identity(pid: int) -> tuple[str, str] | None:
     return state, start_ticks
 
 
-def _same_uid_pids(uid: int) -> tuple[list[int], int]:
+def _same_uid_pids(
+    uid: int,
+    proc_fd: int | None = None,
+) -> tuple[list[int], int]:
     pids: list[int] = []
     vanished = 0
     numeric_seen = 0
-    with os.scandir(PROC) as iterator:
+    with os.scandir(PROC if proc_fd is None else proc_fd) as iterator:
         for entry in iterator:
             name = entry.name
             if not name.isdigit():
@@ -672,7 +695,17 @@ def _same_uid_pids(uid: int) -> tuple[list[int], int]:
                 hold("proc_pid_limit_exceeded")
             pid = int(name)
             try:
-                st = os.stat(PROC / name, follow_symlinks=False)
+                if proc_fd is None:
+                    st = os.stat(
+                        PROC / name,
+                        follow_symlinks=False,
+                    )
+                else:
+                    st = os.stat(
+                        name,
+                        dir_fd=proc_fd,
+                        follow_symlinks=False,
+                    )
             except FileNotFoundError:
                 vanished += 1
                 continue
@@ -682,7 +715,10 @@ def _same_uid_pids(uid: int) -> tuple[list[int], int]:
     return pids, vanished
 
 
-def _matches_target(st: os.stat_result, identities: set[tuple[int, int]]) -> bool:
+def _matches_target(
+    st: os.stat_result,
+    identities: set[tuple[int, int]],
+) -> bool:
     return (st.st_dev, st.st_ino) in identities
 
 
@@ -690,16 +726,31 @@ def _scan_proc_link(
     pid: int,
     name: str,
     identities: set[tuple[int, int]],
+    proc_fd: int | None = None,
 ) -> tuple[bool, bool]:
-    path = PROC / str(pid) / name
     try:
-        st = os.stat(path, follow_symlinks=True)
+        if proc_fd is None:
+            st = os.stat(
+                PROC / str(pid) / name,
+                follow_symlinks=True,
+            )
+        else:
+            st = os.stat(
+                str(pid) + "/" + name,
+                dir_fd=proc_fd,
+                follow_symlinks=True,
+            )
     except FileNotFoundError:
         return False, True
     except PermissionError:
         return False, True
     except OSError as exc:
-        if exc.errno in (errno.ENOENT, errno.ESRCH, errno.EACCES, errno.EPERM):
+        if exc.errno in (
+            errno.ENOENT,
+            errno.ESRCH,
+            errno.EACCES,
+            errno.EPERM,
+        ):
             return False, True
         raise
     return _matches_target(st, identities), False
@@ -708,14 +759,25 @@ def _scan_proc_link(
 def _scan_fds(
     pid: int,
     identities: set[tuple[int, int]],
+    proc_fd: int | None = None,
 ) -> tuple[int, int]:
-    fd_root = PROC / str(pid) / "fd"
     references = 0
     races = 0
     count = 0
+    fd_dir = -1
     try:
-        iterator = os.scandir(fd_root)
+        if proc_fd is None:
+            iterator = os.scandir(PROC / str(pid) / "fd")
+        else:
+            fd_dir = os.open(
+                str(pid) + "/fd",
+                _directory_flags(),
+                dir_fd=proc_fd,
+            )
+            iterator = os.scandir(fd_dir)
     except (FileNotFoundError, PermissionError):
+        if fd_dir >= 0:
+            os.close(fd_dir)
         return 0, 1
     try:
         with iterator:
@@ -726,33 +788,66 @@ def _scan_fds(
                 if count > MAX_FDS_PER_PROCESS:
                     hold("proc_fd_limit_exceeded")
                 try:
-                    st = os.stat(fd_root / entry.name, follow_symlinks=True)
+                    if proc_fd is None:
+                        st = os.stat(
+                            PROC / str(pid) / "fd" / entry.name,
+                            follow_symlinks=True,
+                        )
+                    else:
+                        st = os.stat(
+                            entry.name,
+                            dir_fd=fd_dir,
+                            follow_symlinks=True,
+                        )
                 except (FileNotFoundError, PermissionError):
                     races += 1
                     continue
                 except OSError as exc:
-                    if exc.errno in (errno.ENOENT, errno.ESRCH, errno.EACCES, errno.EPERM):
+                    if exc.errno in (
+                        errno.ENOENT,
+                        errno.ESRCH,
+                        errno.EACCES,
+                        errno.EPERM,
+                    ):
                         races += 1
                         continue
                     raise
                 if _matches_target(st, identities):
                     references += 1
     finally:
-        pass
+        if fd_dir >= 0:
+            os.close(fd_dir)
     return references, races
 
 
 def _maps_reference_count(
     pid: int,
     identities: set[tuple[int, int]],
+    proc_fd: int | None = None,
 ) -> tuple[int, bool]:
-    path = PROC / str(pid) / "maps"
     try:
-        raw = _read_bounded_fd_path(path, MAX_MAPS_BYTES, allow_zero_size=True)
+        if proc_fd is None:
+            raw = _read_bounded_fd_path(
+                PROC / str(pid) / "maps",
+                MAX_MAPS_BYTES,
+                allow_zero_size=True,
+            )
+        else:
+            raw = _read_bounded_at(
+                proc_fd,
+                str(pid) + "/maps",
+                MAX_MAPS_BYTES,
+                allow_zero_size=True,
+            )
     except (FileNotFoundError, PermissionError):
         return 0, True
     except OSError as exc:
-        if exc.errno in (errno.ENOENT, errno.ESRCH, errno.EACCES, errno.EPERM):
+        if exc.errno in (
+            errno.ENOENT,
+            errno.ESRCH,
+            errno.EACCES,
+            errno.EPERM,
+        ):
             return 0, True
         raise
     try:
@@ -770,7 +865,10 @@ def _maps_reference_count(
             hold("proc_maps_identity_invalid")
         major_text, minor_text = dev.split(":", 1)
         try:
-            device = os.makedev(int(major_text, 16), int(minor_text, 16))
+            device = os.makedev(
+                int(major_text, 16),
+                int(minor_text, 16),
+            )
         except ValueError:
             hold("proc_maps_device_invalid")
         inode = int(inode_text)
@@ -783,8 +881,9 @@ def scan_process(
     pid: int,
     uid: int,
     identities: set[tuple[int, int]],
+    proc_fd: int | None = None,
 ) -> dict[str, Any]:
-    before = _proc_stat_identity(pid)
+    before = _proc_stat_identity(pid, proc_fd)
     if before is None:
         return {"pid": pid, "status": "vanished"}
     state, start_ticks = before
@@ -792,7 +891,17 @@ def scan_process(
         return {"pid": pid, "status": "not_live"}
 
     try:
-        proc_st = os.stat(PROC / str(pid), follow_symlinks=False)
+        if proc_fd is None:
+            proc_st = os.stat(
+                PROC / str(pid),
+                follow_symlinks=False,
+            )
+        else:
+            proc_st = os.stat(
+                str(pid),
+                dir_fd=proc_fd,
+                follow_symlinks=False,
+            )
     except FileNotFoundError:
         return {"pid": pid, "status": "vanished"}
     if proc_st.st_uid != uid:
@@ -807,21 +916,25 @@ def scan_process(
     }
     incomplete = 0
     for name in ("cwd", "root", "exe"):
-        matched, failed = _scan_proc_link(pid, name, identities)
+        matched, failed = _scan_proc_link(
+            pid, name, identities, proc_fd
+        )
         if matched:
             references[name] += 1
         if failed:
             incomplete += 1
 
-    fd_refs, fd_races = _scan_fds(pid, identities)
+    fd_refs, fd_races = _scan_fds(pid, identities, proc_fd)
     references["fd"] = fd_refs
     incomplete += fd_races
 
-    map_refs, maps_incomplete = _maps_reference_count(pid, identities)
+    map_refs, maps_incomplete = _maps_reference_count(
+        pid, identities, proc_fd
+    )
     references["maps"] = map_refs
     incomplete += int(maps_incomplete)
 
-    after = _proc_stat_identity(pid)
+    after = _proc_stat_identity(pid, proc_fd)
     if after is None or after != before:
         return {
             "pid": pid,
@@ -837,7 +950,6 @@ def scan_process(
         "references": references,
         "incomplete_observations": incomplete,
     }
-
 
 def classify_attempt(
     start_pids: list[int],
@@ -895,25 +1007,21 @@ def current_uid_census(
     expected_host_pid_namespace_dev_ino: str,
     target_path: Path = TARGET,
 ) -> dict[str, Any]:
-    global PROC
     uid = _assert_unprivileged_execution()
-    original_proc = PROC
     proc_fd = -1
     try:
         proc_fd, proc_scope = open_pinned_proc_view(
             expected_host_pid_namespace_dev_ino
         )
-        PROC = _pinned_proc_root(proc_fd)
-
         attempts: list[dict[str, Any]] = []
         for attempt in range(1, MAX_SCAN_ATTEMPTS + 1):
             target_before = target_identity_set(target_path)
-            start_pids, vanished = _same_uid_pids(uid)
+            start_pids, vanished = _same_uid_pids(uid, proc_fd)
             rows = [
-                scan_process(pid, uid, target_before["identities"])
+                scan_process(pid, uid, target_before["identities"], proc_fd)
                 for pid in start_pids
             ]
-            end_pids, vanished_end = _same_uid_pids(uid)
+            end_pids, vanished_end = _same_uid_pids(uid, proc_fd)
             target_after = target_identity_set(target_path)
             target_snapshot_stable = (
                 target_before["snapshot_id"] == target_after["snapshot_id"]
@@ -978,7 +1086,6 @@ def current_uid_census(
             "live_at_use_reverification_required": True,
         }
     finally:
-        PROC = original_proc
         if proc_fd >= 0:
             os.close(proc_fd)
 
