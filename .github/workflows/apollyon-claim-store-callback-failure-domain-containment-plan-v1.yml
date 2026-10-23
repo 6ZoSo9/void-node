@@ -50,9 +50,9 @@ jobs:
           test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = 848a061a0b246e138ec8ed775ed8a87f159476f6
 
           # Current content-addressed plan, proof and security doc: fail on drift.
-          test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = b289cb0e2342698b99b8418cf25db75037afe76d
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = d88deca8b7f615073702564b51b0e0e360bae916
-          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 2a5980f79db675c0ebffe6491b65b81f36bf27a6
+          test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = bad29d22c7cd2b159ab9d1b640bd7861226105c4
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = 2d24c98a4c40f65b536e4c9f8a43dcdc247ded78
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 99242ff4a41137c23e57acc02f6e42dfe3c35cf0
 
           git diff --check "$PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -72,11 +72,11 @@ jobs:
           set -euo pipefail
           out="$RUNNER_TEMP/apollyon-callback-containment-plan-selftest.log"
           python3 -I -B scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py --self-test | tee "$out"
-          grep -Fx 'runtime_contract_requirements=32' "$out"
+          grep -Fx 'runtime_contract_requirements=34' "$out"
           grep -Fx 'resource_ceiling_count=18' "$out"
           grep -Fx 'exact_resource_ceilings_enforced=true' "$out"
           grep -Fx 'storage_io_limits_bound=true' "$out"
-          grep -Fx 'rejected_adversaries=70' "$out"
+          grep -Fx 'rejected_adversaries=72' "$out"
           grep -Fx 'negative_cases_failed_at_semantic_gate=true' "$out"
           grep -Fx 'unsafe_supervisor_death_fence_reuse_hazard_observed=true' "$out"
           grep -Fx 'bound_source_role_identities_enforced=true' "$out"
