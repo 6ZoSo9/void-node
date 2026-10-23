@@ -280,8 +280,18 @@ try {
           } else if (swapKind === "symlink") {
             fs.symlinkSync(displaced, file);
           } else if (swapKind === "oversize") {
-            fs.writeFileSync(file, Buffer.alloc(64 * 1024, 65),
-              { mode: 0o600, flag: "wx" });
+            // Create the adversarial large leaf with the saved ORIGINAL
+            // open primitive. Do not recursively invoke the patched hook.
+            const replacementFd = Reflect.apply(originalOpen, fs, [
+              file, fs.constants.O_WRONLY | fs.constants.O_CREAT |
+                fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600,
+            ]);
+            try {
+              const bytes = Buffer.alloc(64 * 1024, 65);
+              assert.equal(fs.writeSync(replacementFd, bytes), bytes.length);
+            } finally {
+              fs.closeSync(replacementFd);
+            }
           } else {
             assert.fail("bad_adversary");
           }
