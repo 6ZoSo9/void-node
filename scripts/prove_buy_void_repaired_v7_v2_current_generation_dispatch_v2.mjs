@@ -59,6 +59,22 @@ const V2_HISTORICAL_SOURCE_BASE="1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c";
 const V2_HISTORICAL_ADDITION_HEAD="0628d81259fed779ea3bb6c4d067b66b19a3e577";
 const V2_HISTORICAL_ADDITION_TREE="282648386bb2f0b79f95af398de61f231e79504c";
 const V2_HISTORICAL_WORKFLOW_BLOB="650360be459bd04083c0fceaf42696ac985abe22";
+const V2_HISTORICAL_SOURCE_FILES=Object.freeze({
+  ".github/workflows/buy-void-verified-payment-transport-v2.yml":
+    "650360be459bd04083c0fceaf42696ac985abe22",
+  "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs":
+    "d0a81327e43a76e7b8171d975b7dde981483219f",
+  "scripts/prove_buy_void_verified_payment_transport_v2.ts":
+    "2714988acfbcded3d4779ef79a141cd3e39b1426",
+  "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts":
+    "d447fad19edbb0897166f67ab2e435fe34d5e164",
+  "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs":
+    "84d956baa930c2edc8142942a8fd6fd8dc4cdf17",
+  "src/economic/buy_void_verified_payment_transport_v2.ts":
+    "61dc219117538f2894b170ac98bb56806f69f430",
+  "src/economic/buy_void_verified_payment_v2_allocation_stage.ts":
+    "ef397b7377a87326187f5e2e9882d6e4bdc0a4f8",
+});
 const V2_SOURCE_BASE="61b0f81b2112aab32e3dc16084fe2d43178ec4da";
 const V2_ACCEPTED_ADDITION_HEAD="f84d380d41e3aefd3c96b3fa956f5f7addf9f908";
 const V2_ACCEPTED_ADDITION_TREE="6d03b668ca51cc7ffa115c164955d09dc9b13e70";
@@ -363,6 +379,11 @@ function verifyV2AcceptedSourceAdditions(){
     "v2_accepted_head_tree_changed",
   );
 
+  assert.deepEqual(
+    Object.keys(V2_HISTORICAL_SOURCE_FILES).sort(),
+    Object.keys(V2_SOURCE_FILES).sort(),
+    "v2_historical_current_source_key_set_mismatch",
+  );
   const expected=Object.keys(V2_SOURCE_FILES)
     .map(relative=>"A\t"+relative).sort();
   const historicalActual=git([
@@ -380,10 +401,9 @@ function verifyV2AcceptedSourceAdditions(){
 
   pin(SELF,V2_FROZEN_V1_PROOF_BLOB,64*1024);
   for(const [relative,blob] of Object.entries(V2_SOURCE_FILES)){
-    const historicalBlob=
-      relative===".github/workflows/buy-void-verified-payment-transport-v2.yml"
-        ? V2_HISTORICAL_WORKFLOW_BLOB
-        : blob;
+    const historicalBlob=V2_HISTORICAL_SOURCE_FILES[relative];
+    assert.equal(typeof historicalBlob,"string",
+      "v2_historical_blob_missing:"+relative);
     assert.equal(
       git(["ls-tree",V2_HISTORICAL_SOURCE_BASE,"--",relative]),
       "",
