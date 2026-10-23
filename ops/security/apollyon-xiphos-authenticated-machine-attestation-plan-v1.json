@@ -91,7 +91,12 @@
     "remote_account_shell_startup_free_fixed_launcher_required": true,
     "remote_account_home_root_owned_nonwritable_required": true,
     "remote_shell_startup_dependency_chain_absent_or_source_bound_required": true,
-    "remote_shell_startup_environment_influence_forbidden_required": true
+    "remote_shell_startup_environment_influence_forbidden_required": true,
+    "client_identity_private_key_ed25519_required": true,
+    "client_identity_public_derivation_method_source_bound_required": true,
+    "client_identity_derived_public_key_matches_bound_digest_required": true,
+    "client_identity_file_generation_stable_through_ssh_required": true,
+    "client_identity_file_owner_mode_nlink_stable_through_ssh_required": true
   },
   "required_attestation_contract": {
     "client_generated_csprng_challenge_required": true,
@@ -126,7 +131,8 @@
     "request_eof_required": true,
     "request_closed_schema_and_canonical_json_required": true,
     "request_duplicate_keys_and_nonfinite_forbidden": true,
-    "response_closed_schema_duplicate_keys_and_nonfinite_forbidden": true
+    "response_closed_schema_duplicate_keys_and_nonfinite_forbidden": true,
+    "client_identity_derived_public_key_digest_bound_into_receipt_required": true
   },
   "authority": {
     "attestation_execution_authorized": false,
@@ -144,5 +150,5 @@
     "funds_movement_authorized": false
   },
   "next_gate": "INDEPENDENTLY_AUTHENTICATE_AND_SOURCE_BIND_XIPHOS_ED25519_HOST_KEY_KNOWN_HOSTS_CLIENT_IDENTITY_AND_ENDPOINT_THEN_SEPARATELY_AUTHORIZE_ATTESTATION_EXECUTION",
-  "plan_id": "voidapollyonxiphosattestplan1_94bd8442fd1904563e9273bc4de6e38417f6a2146978af4a8660fd0f29eb819d"
+  "plan_id": "voidapollyonxiphosattestplan1_b7d9c1600cfe03fd41d4a36f801f82d49d6da72f3ea378c291a12af8bd581d60"
 }
