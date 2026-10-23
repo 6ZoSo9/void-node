@@ -314,6 +314,12 @@ const mismatchedProcess = processReceipt({
     mount_id: 33,
     snapshot_matches_selected_attempt: true,
   },
+  process: {
+    ...processReceipt().process,
+    selected_target_root_dev: 11,
+    selected_target_root_ino: 999,
+    selected_target_mount_id: 33,
+  },
 });
 const mismatch = classify({ process: mismatchedProcess });
 assert.equal(mismatch.diagnostic.target_generation_consistent, false);
