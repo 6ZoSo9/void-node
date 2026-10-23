@@ -20,7 +20,7 @@ future host authority merely because the caller's own object descriptors were
 validated. A changed serializer must be versioned rather than silently changing
 historical V1 hashes.
 
-## Exact source generation
+## Frozen predecessor generation
 
 - base: `main@61b0f81b2112aab32e3dc16084fe2d43178ec4da`
 - frozen V1 path:
@@ -29,16 +29,37 @@ historical V1 hashes.
   `f97fafb0148527ae3a954e2752faef8c7fc9e88e`
 - V2 serializer path:
   `tools/apollyon-claim-contract-canonical-json-v2.mjs`
-- V2 serializer Git blob:
+- predecessor V2 serializer Git blob:
   `07a19a92379aa3e1d1648becf007129820d51a70`
 - V2 proof path:
   `scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs`
-- V2 proof Git blob:
+- predecessor V2 proof Git blob:
   `03de2c24110bbc804a9f7489f8ae62f69c03c59b`
 
-The original V2 generation was four ADD-only paths. This successor modifies
-those same four paths to close revoked-Proxy dispatch. V1 and all current
-consumers remain byte unchanged.
+The original V2 generation was four ADD-only paths. The values above are
+predecessor identities only.
+
+## Revoked-Proxy successor binding
+
+This successor is based on
+`main@80418e33a22ba26a00f32017610517042b18334d` and preserves the frozen V1
+blob above.
+
+- successor V2 serializer Git blob:
+  `6e8056287ae4ac8c73b9230679a6a4b570d8eac8`
+- successor V2 proof Git blob:
+  `041b814ee468efb018b318627db1992543841dca`
+
+The focused workflow is the authoritative non-circular binder for the complete
+candidate generation. It pins the successor base, four-path diff, frozen V1,
+serializer, proof, and document blobs; `EXPECTED_HEAD` binds those bytes plus
+the workflow itself to the candidate commit. This document intentionally does
+not embed its own blob or the workflow blob, because either value would change
+the bytes being named and create a circular self-hash. Those outer identities
+are carried by the reviewed commit and workflow.
+
+This successor modifies the same four paths to close revoked-Proxy dispatch.
+V1 and all current consumers remain byte unchanged.
 
 ## V2 serialization boundary
 

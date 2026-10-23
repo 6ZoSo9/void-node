@@ -33,7 +33,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          BASE=61b0f81b2112aab32e3dc16084fe2d43178ec4da
+          BASE=80418e33a22ba26a00f32017610517042b18334d
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
@@ -51,7 +51,7 @@ jobs:
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
           test "$(git rev-parse HEAD:tools/apollyon-claim-contract-canonical-json-v2.mjs)" = 6e8056287ae4ac8c73b9230679a6a4b570d8eac8
           test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs)" = 041b814ee468efb018b318627db1992543841dca
-          test "$(git rev-parse HEAD:docs/security/apollyon-claim-contract-canonical-json-v2.md)" = 860d9910ab56c09ac5e214af29a7414b964d05b9
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-contract-canonical-json-v2.md)" = e64362bbaec3a7cc0de15e0eb541efa06126c6b5
 
           git diff --check "$BASE" HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
