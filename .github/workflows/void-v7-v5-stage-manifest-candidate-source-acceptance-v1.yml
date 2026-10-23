@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          BASE=a672d6be15815a008bbf664ba099fc9ce72bfc92
+          BASE=0cf12c7cee73a68fcd8bb6a060c8a5572c3b8407
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
           mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | sort)
           expected=(
@@ -46,9 +46,9 @@ jobs:
           )
           test "${#actual[@]}" -eq "${#expected[@]}"
           for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
-          test "$(git rev-parse HEAD:ops/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.json)" = "75d30f839a4752eb3a3877e15e55a4576ad0d72f"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs)" = "ee152e72d4a72525448791392e9e7739c4838f4e"
-          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.md)" = "03d875bceaa78518f212f98fa0022aea68eb590f"
+          test "$(git rev-parse HEAD:ops/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.json)" = "748867d4c77a0568e1123c16836c2ca4b56cedcc"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs)" = "46c3d8e931ab72aa470b21900a8cb5f2d6186ded"
+          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.md)" = "f11754271da565990666c2986979fc6bf4cb32ca"
           git diff --check "$BASE" HEAD
 
       - name: Setup Node
