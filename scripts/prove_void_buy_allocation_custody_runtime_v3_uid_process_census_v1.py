@@ -12,7 +12,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "52420cd888474558b1498454b30004779783a51f"
+EXPECTED_SOURCE_BLOB = "bfa40ef0db1a1bf31b16b4fffabd5e933f4de312"
 
 
 def git_blob(raw: bytes) -> str:
@@ -214,6 +214,52 @@ except module.CensusHold as exc:
 else:
     raise AssertionError("mismatched external PID namespace lease was accepted")
 
+stable_namespace = {
+    "external_lease_required": True,
+    "lease_verified": True,
+    "dev": "12",
+    "ino": "34",
+    "pid1_namespace_matches_self": True,
+}
+stable_visibility = module.verify_complete_proc_visibility(visible_mountinfo)
+assert module.verify_process_scope_revalidation(
+    stable_namespace,
+    dict(stable_namespace),
+    stable_visibility,
+    dict(stable_visibility),
+) == {
+    "host_pid_namespace_revalidated_after_census": True,
+    "proc_visibility_revalidated_after_census": True,
+}
+
+changed_visibility = dict(stable_visibility)
+changed_visibility["super_options"] = ["hidepid=2", "rw"]
+try:
+    module.verify_process_scope_revalidation(
+        stable_namespace,
+        dict(stable_namespace),
+        stable_visibility,
+        changed_visibility,
+    )
+except module.CensusHold as exc:
+    assert "proc_visibility_changed_during_census" in str(exc)
+else:
+    raise AssertionError("post-scan proc visibility drift was accepted")
+
+changed_namespace = dict(stable_namespace)
+changed_namespace["ino"] = "35"
+try:
+    module.verify_process_scope_revalidation(
+        stable_namespace,
+        changed_namespace,
+        stable_visibility,
+        dict(stable_visibility),
+    )
+except module.CensusHold as exc:
+    assert "host_pid_namespace_changed_during_census" in str(exc)
+else:
+    raise AssertionError("post-scan PID namespace drift was accepted")
+
 module.self_test()
 
 source = TARGET.read_text(encoding="utf-8")
@@ -227,6 +273,11 @@ for required in (
     "parse_dev_ino_lease",
     "verify_pid_namespace_lease_stats",
     "verify_host_pid_namespace_lease",
+    "verify_process_scope_revalidation",
+    "closing_pid_namespace = verify_host_pid_namespace_lease",
+    "closing_proc_visibility = verify_complete_proc_visibility",
+    "host_pid_namespace_revalidated_after_census",
+    "proc_visibility_revalidated_after_census",
     "host_pid_namespace_external_lease_required",
     "host_pid_namespace_lease_verified",
     "numeric_directory_names",
@@ -284,6 +335,9 @@ print("hidepid_restricted_proc_holds=true")
 print("host_pid_namespace_external_lease_required=true")
 print("private_pid_namespace_rejected=true")
 print("host_pid_namespace_lease_mismatch_rejected=true")
+print("proc_visibility_revalidated_after_census=true")
+print("host_pid_namespace_revalidated_after_census=true")
+print("postscan_scope_drift_holds=true")
 print("malformed_live_status_holds=true")
 print("missing_live_status_holds=true")
 print("proc_entry_budget_enforced_before_sort=true")
