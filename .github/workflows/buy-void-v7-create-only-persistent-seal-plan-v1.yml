@@ -1,0 +1,61 @@
+name: Buy VOID V7 create-only persistent seal plan v1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json'
+      - 'scripts/prove_buy_void_v7_create_only_persistent_seal_plan_v1.mjs'
+      - 'docs/architecture/buy-void-v7-create-only-persistent-seal-plan-v1.md'
+      - '.github/workflows/buy-void-v7-create-only-persistent-seal-plan-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-v7-create-only-persistent-seal-plan-v1-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          SOURCE_BASE: 0d93be0a7ae1395449a386d4fbe14bb680f51c3f
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$SOURCE_BASE" "$EXPECTED_HEAD")" = "$SOURCE_BASE"
+          cat > "$RUNNER_TEMP/expected" <<'EOF'
+          A	.github/workflows/buy-void-v7-create-only-persistent-seal-plan-v1.yml
+          A	docs/architecture/buy-void-v7-create-only-persistent-seal-plan-v1.md
+          A	ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json
+          A	scripts/prove_buy_void_v7_create_only_persistent_seal_plan_v1.mjs
+          EOF
+          git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual"
+          sort "$RUNNER_TEMP/expected" > "$RUNNER_TEMP/expected.sorted"
+          diff -u "$RUNNER_TEMP/expected.sorted" "$RUNNER_TEMP/actual"
+          git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json)" = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_create_only_persistent_seal_plan_v1.mjs)" = "ea04d677b173f9c3b1600158f26bccdb6b6b62b0"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-create-only-persistent-seal-plan-v1.md)" = "73534f9316834ac0cd6c912d6b1e39d6857b9ed4"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove source-only create-only seal plan
+        run: node scripts/prove_buy_void_v7_create_only_persistent_seal_plan_v1.mjs
