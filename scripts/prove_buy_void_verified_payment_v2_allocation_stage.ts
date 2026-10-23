@@ -201,6 +201,9 @@ try {
   assert.equal(result.request.request_id, id);
   assert.equal(result.event_snapshot_sha256.length, 64);
   assert.equal(result.request_snapshot_sha256.length, 64);
+  assert.equal(result.payment_instruction_amount_bound, true);
+  assert.equal(result.original_first_request_history_qualified, false);
+  assert.equal(result.locked_writer_preappend_history_gate_required, true);
   assert.equal(result.allocation_ledger_root, VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1);
   assert.equal(result.allocation_high_water_root, VOID_BUY_VOID_ALLOCATION_HIGH_WATER_ROOT_V1);
   assert.equal(result.with_launch_authority_mutation, serverCallbacks.with_launch_authority_mutation);
@@ -232,6 +235,7 @@ try {
     const allowed = serverInput();
     allowed.request.quoted_void = canonicalQuote;
     allowed.request.usdc_amount = usdcAmount;
+    allowed.request.payment_instructions.amount = usdcAmount;
     allowed.event = verifiedEventFor(allowed.request);
     const admitted = stage(allowed).result;
     assert.equal(admitted?.status, "staged_unmounted");
@@ -267,6 +271,27 @@ try {
     bad.request[field] = value;
     negative(bad, "event_request_original_identity_mismatch");
   }
+  const instructionMismatch = serverInput();
+  instructionMismatch.request.payment_instructions.amount = "30";
+  negative(instructionMismatch, "event_request_original_identity_mismatch");
+
+  const instructionMissing = serverInput();
+  delete instructionMissing.request.payment_instructions.amount;
+  negative(instructionMissing, "event_request_original_identity_mismatch");
+
+  const instructionsMissing = serverInput();
+  delete instructionsMissing.request.payment_instructions;
+  negative(instructionsMissing, "event_request_original_identity_mismatch");
+
+  for (const badAmount of [
+    null, "", "0", 0, "-3", "03", "3 ", "3e0", "3.0000001",
+    true, {}, [],
+  ]) {
+    const bad = serverInput();
+    bad.request.payment_instructions.amount = badAmount;
+    negative(bad, "event_request_original_identity_mismatch");
+  }
+
   for (const [field, value] of [
     ["amount_units", "3000001"],
     ["requested_units", "2999999"],
@@ -352,6 +377,21 @@ try {
     assert.equal((result as any)[key], false, key);
     assert.equal((VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_AUTHORITY as any)[key], false, key);
   }
+  assert.equal(
+    VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_AUTHORITY
+      .payment_instruction_amount_bound_to_original_and_verifier,
+    true,
+  );
+  assert.equal(
+    VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_AUTHORITY
+      .original_first_request_history_qualified,
+    false,
+  );
+  assert.equal(
+    VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_AUTHORITY
+      .locked_writer_preappend_history_gate_required,
+    true,
+  );
   assert.equal(Object.isFrozen(VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_AUTHORITY), true);
   assert.equal(sideEffects, 0, "no payment, sale, RPC or allocation callback may run");
   assert.equal(fs.existsSync(path.join(scratch, "operator-events.jsonl")), false);
@@ -371,6 +411,10 @@ console.log("server_only_event_and_request_snapshotted=true");
 console.log("numeric_and_text_canonical_void_quotes_supported=true");
 console.log("real_canonical_verifier_event_without_quote_stages=true");
 console.log("request_quote_bound_to_verified_usdc_micro_units_and_rate=true");
+console.log("payment_instruction_amount_bound_to_request_and_verifier=true");
+console.log("missing_mismatched_or_invalid_payment_instruction_amount_rejected=true");
+console.log("original_first_request_history_qualified=false");
+console.log("locked_writer_preappend_history_gate_required=true");
 console.log("equal_missing_zero_or_invalid_void_quotes_rejected=true");
 console.log("auth_denial_precedes_untrusted_planning=true");
 console.log("payment_only_writer_unreachable=true");
