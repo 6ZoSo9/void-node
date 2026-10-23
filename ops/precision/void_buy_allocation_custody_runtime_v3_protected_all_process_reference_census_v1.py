@@ -827,13 +827,23 @@ def _task_stat(
 
 def _all_pids(proc_fd: int | None = None) -> list[int]:
     pids: list[int] = []
-    with os.scandir(PROC if proc_fd is None else proc_fd) as iterator:
-        for entry in iterator:
-            if not entry.name.isdigit():
-                continue
-            pids.append(int(entry.name))
-            if len(pids) > MAX_PIDS:
-                hold("proc_pid_limit_exceeded")
+    scan_fd = -1
+    try:
+        if proc_fd is None:
+            iterator = os.scandir(PROC)
+        else:
+            scan_fd = os.open(".", _directory_flags(), dir_fd=proc_fd)
+            iterator = os.scandir(scan_fd)
+        with iterator:
+            for entry in iterator:
+                if not entry.name.isdigit():
+                    continue
+                pids.append(int(entry.name))
+                if len(pids) > MAX_PIDS:
+                    hold("proc_pid_limit_exceeded")
+    finally:
+        if scan_fd >= 0:
+            os.close(scan_fd)
     pids.sort()
     return pids
 
@@ -983,25 +993,28 @@ def _scan_fd_root(
                     st = (
                         os.stat(Path(root) / entry.name, follow_symlinks=True)
                         if proc_fd is None
-                        else os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=True)
+                        else os.stat(
+                            entry.name,
+                            dir_fd=directory_fd,
+                            follow_symlinks=True,
+                        )
                     )
-            except OSError as exc:
-                if exc.errno in (
-                    errno.ENOENT,
-                    errno.ESRCH,
-                    errno.EACCES,
-                    errno.EPERM,
-                ):
-                    incomplete += 1
-                    continue
-                raise
+                except OSError as exc:
+                    if exc.errno in (
+                        errno.ENOENT,
+                        errno.ESRCH,
+                        errno.EACCES,
+                        errno.EPERM,
+                    ):
+                        incomplete += 1
+                        continue
+                    raise
                 if _matches(st, identities):
                     refs += 1
     finally:
         if directory_fd >= 0:
             os.close(directory_fd)
     return refs, incomplete
-
 
 def _scan_fds(
     pid: int,
@@ -1080,7 +1093,7 @@ def scan_process(
             return {"pid": pid, "status": "generation_changed_or_vanished"}
         return {"pid": pid, "status": "kernel_thread_skipped"}
     if before["state"] in ("Z", "X"):
-        after = _proc_stat(pid)
+        after = _proc_stat(pid, proc_fd)
         if after != before:
             return {"pid": pid, "status": "generation_changed_or_vanished"}
         return {"pid": pid, "status": "not_live"}
@@ -1119,7 +1132,7 @@ def scan_process(
         incomplete += task_incomplete
 
     tasks_after = _task_inventory(pid, proc_fd)
-    after = _proc_stat(pid)
+    after = _proc_stat(pid, proc_fd)
     if (
         after is None
         or after != before
