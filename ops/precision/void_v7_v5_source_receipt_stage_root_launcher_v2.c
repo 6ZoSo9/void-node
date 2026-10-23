@@ -538,7 +538,6 @@ static void verify_complete_receipt_inventory(const receipt_v1 *r){
     for(size_t i=0;i<r->count;i++){
         const receipt_entry_v1 *e=&r->entries[i];
         if(e->kind=='D'){verify_receipt_directory_inventory(r,e);continue;}
-        if(e->size>(uint64_t)SIZE_MAX)hold("receipt_inventory_file_size_overflow");
         char path[PATH_MAX];fixed_receipt_path(path,e->path);
         struct file_id id;
         int fd=open_regular_mode(path,(size_t)e->size,e->mode,e->mode==0555,&id);

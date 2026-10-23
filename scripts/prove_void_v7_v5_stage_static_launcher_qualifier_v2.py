@@ -12,7 +12,7 @@ import tempfile
 MARKER="VOID_V7_V5_STAGE_STATIC_LAUNCHER_QUALIFIER_V2_PROOF"
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 LAUNCHER_REL="ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c"
-LAUNCHER_BLOB="fa44ee6e817a204d40a6e3f5921ce0c51b803b3e"
+LAUNCHER_BLOB="b60923b5efd1bd2a8686e5bc6c5f430a1ba7eb3a"
 QUALIFIER_REL="ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py"
 QUALIFIER_BLOB="a5295192146a154004e8053ad9d411b564bdf40b"
 PLAN_REL="ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json"

@@ -35,7 +35,7 @@ manifest identity is correct but the observed receipt content hash is wrong;
 that case must be rejected.
 
 Current repaired launcher source blob:
-`fa44ee6e817a204d40a6e3f5921ce0c51b803b3e`.
+`b60923b5efd1bd2a8686e5bc6c5f430a1ba7eb3a`.
 
 The default compile-time values remain:
 
