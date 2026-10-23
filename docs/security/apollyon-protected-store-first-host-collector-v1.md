@@ -80,8 +80,11 @@ property set. No start, stop, restart, reload, enable, disable, daemon-reload,
 kill, signal, or unit mutation is implemented.
 
 For a live MainPID, the collector reads bounded process-status identity and
-capability fields plus executable identity only. It does not read raw argv,
-environment, open file names, sockets, memory, or credentials.
+capability fields plus executable identity only. It brackets those observations
+with bounded `/proc/<pid>/stat` start-time reads and HOLDs if the process
+generation changes, preventing PID reuse from splicing two processes into one
+receipt. It does not read raw argv, environment, open file names, sockets,
+memory, or credentials.
 
 ## Authority semantics
 
@@ -132,9 +135,9 @@ source. It verifies:
 
 No Xiphos host pass is performed by CI.
 
-Source blob: `48f46f9b98626a4881d267ed7ed6d88faad063c4`.
+Source blob: `8bf39498a5429f45e2859a846e01157790136a04`.
 
-Proof blob: `01cb5251a713f7da4ac0229cba2751500be39e16`.
+Proof blob: `813e34ec4897a004b28488d12f91e84a3be1dd85`.
 
 ## Next gate
 
