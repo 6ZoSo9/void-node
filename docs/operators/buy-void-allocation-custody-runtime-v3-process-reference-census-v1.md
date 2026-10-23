@@ -27,8 +27,11 @@ The census binds:
 The target is observed metadata-only.
 
 The census descriptor-walks the fixed legacy target, rejects special files,
-cross-device entries and cross-mount directory substitutions, and builds a
-bounded set of `(st_dev, st_ino)` identities for the root and descendants.
+cross-device entries, cross-mount directory substitutions, and same-filesystem
+file bind mounts. Regular files are opened metadata-only through retained
+`O_NOFOLLOW|O_NONBLOCK` descriptors so their Linux mount IDs and generations
+are checked without reading file bodies. It builds a bounded set of
+`(st_dev, st_ino)` identities for the root and descendants.
 
 The target scan is limited to 32,768 entries and depth 64, matching the current
 qualified prestate generation and covering the observed legacy-tree scale while
@@ -38,7 +41,9 @@ are not followed or read.
 Each target traversal derives a deterministic metadata-only `snapshot_id`
 over the root generation plus every relative path/type/dev/inode/UID/GID/mode/
 link-count/size/mtime/ctime record. No file body or symlink target text enters
-that snapshot.
+that snapshot. The receipt's top-level target identity is copied from the
+selected process attempt's **before** snapshot; it is never produced by a later
+unbound target rescan.
 
 ## Process scope
 
@@ -134,6 +139,8 @@ read_only=true
 production_filesystem_write=false
 root_execution_forbidden=true
 target_snapshot_stable_required=true
+regular_file_mount_id_checked=true
+receipt_target_bound_to_selected_attempt=true
 fd_table_stability_proven=false
 mapping_set_stability_proven=false
 live_at_use_reverification_required=true
