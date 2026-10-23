@@ -5,11 +5,11 @@ import { execFileSync } from "node:child_process";
 
 const MARKER="VOID_BUY_VOID_VERIFIED_PAYMENT_OPERATOR_PRINCIPAL_AUTH_PLAN_V1";
 const ROOT=process.cwd();
-const BASE_HEAD="e83b1df4bc3b52d08d5e38e076fa6c80085f7e01";
-const BASE_TREE="016ed94a40ad7b25565f9233e3ad29375f7f37b3";
+const BASE_HEAD="a3e0fdc4a9ee3c39c84f5783064c2e38f9481f97";
+const BASE_TREE="4eeb6d9d382d9520b60ae9b698b1135da85b05df";
 const PLAN_PATH="ops/security/buy-void-verified-payment-operator-principal-auth-plan-v1.json";
-const PLAN_BLOB="4e6bc4228bf21b4f461683d1caf36858493ccfb6";
-const PLAN_ID="voidbuyopauth1_c5f0e1ac8d0dff89df7458877f2cb814f5166cf1edd138595835c5ada603471f";
+const PLAN_BLOB="8258f7ff9ddd489c483c0e6daf675c9a2a58523e";
+const PLAN_ID="voidbuyopauth1_35d73623a820ffb06acd4bf49769237ad13cf2db0ad7f40f2613229d92f2c2d1";
 const OWNED=Object.freeze([
   ".github/workflows/buy-void-verified-payment-operator-principal-auth-plan-v1.yml",
   "docs/architecture/buy-void-verified-payment-operator-principal-auth-plan-v1.md",
