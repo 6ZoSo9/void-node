@@ -49,7 +49,7 @@ jobs:
 
           test "$(git rev-parse HEAD:ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json)" = 1dd4f5a6fdf1781ce1986e17ce1edb1074bb8d63
           test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_authenticated_machine_attestation_plan_v1.py)" = e3cdd5754d82c2fc1d3a704829b7997b62e49b62
-          test "$(git rev-parse HEAD:docs/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.md)" = d3c735f3658fb367f60dd78d1318cc9cd1ae5a6b
+          test "$(git rev-parse HEAD:docs/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.md)" = fef9e29d64f071a05417003e031aef0b88c3e9c3
 
           test "$(git rev-parse HEAD:ops/security/apollyon-xiphos-machine-id-provenance-hold-v2.json)" = bd75e2606cb13beb3ba1c6f80f596e2729709c37
           test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v2.py)" = 5a105aa167488e864b93c4490ddb58e99e70b784
