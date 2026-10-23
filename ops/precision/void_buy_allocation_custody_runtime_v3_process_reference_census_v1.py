@@ -1513,6 +1513,72 @@ def self_test() -> None:
     else:
         hold("self_test_pid_namespace_lease_mismatch_accepted")
 
+    fake_self_mnt = type("FakeStat", (), {"st_dev": 22, "st_ino": 44})()
+    fake_init_mnt = type("FakeStat", (), {"st_dev": 22, "st_ino": 44})()
+    if verify_mount_namespace_lease_stats(
+        fake_self_mnt, fake_init_mnt, (22, 44)
+    ) != (22, 44):
+        hold("self_test_mount_namespace_lease_verify_invalid")
+    try:
+        verify_mount_namespace_lease_stats(
+            fake_self_mnt,
+            type("FakeStat", (), {"st_dev": 22, "st_ino": 45})(),
+            (22, 44),
+        )
+    except CensusHold as exc:
+        if "not_in_pid1_mount_namespace" not in str(exc):
+            raise
+    else:
+        hold("self_test_private_mount_namespace_accepted")
+    try:
+        verify_mount_namespace_lease_stats(
+            fake_self_mnt, fake_init_mnt, (22, 45)
+        )
+    except CensusHold as exc:
+        if "host_mount_namespace_lease_mismatch" not in str(exc):
+            raise
+    else:
+        hold("self_test_mount_namespace_lease_mismatch_accepted")
+
+    fake_root = type(
+        "FakeRootStat",
+        (),
+        {
+            "st_dev": 33,
+            "st_ino": 55,
+            "st_mode": stat.S_IFDIR | 0o755,
+            "st_uid": 0,
+            "st_gid": 0,
+        },
+    )()
+    if verify_host_root_stat(fake_root, (33, 55)) != (33, 55):
+        hold("self_test_host_root_lease_verify_invalid")
+    try:
+        verify_host_root_stat(fake_root, (33, 56))
+    except CensusHold as exc:
+        if "host_root_lease_mismatch" not in str(exc):
+            raise
+    else:
+        hold("self_test_host_root_lease_mismatch_accepted")
+    unsafe_root = type(
+        "FakeRootStat",
+        (),
+        {
+            "st_dev": 33,
+            "st_ino": 55,
+            "st_mode": stat.S_IFDIR | 0o777,
+            "st_uid": 0,
+            "st_gid": 0,
+        },
+    )()
+    try:
+        verify_host_root_stat(unsafe_root, (33, 55))
+    except CensusHold as exc:
+        if "host_root_custody_invalid" not in str(exc):
+            raise
+    else:
+        hold("self_test_unsafe_host_root_accepted")
+
     visible_mountinfo = (
         b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
         b" - proc proc rw,hidepid=0\n"
