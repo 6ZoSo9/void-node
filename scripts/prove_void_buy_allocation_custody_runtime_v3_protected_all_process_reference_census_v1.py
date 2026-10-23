@@ -14,7 +14,7 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "8bba1d591b1f3a5e111ff9149209d23ddd4cb4be"
+EXPECTED_SOURCE_BLOB = "25c0e32ae85da4569fb9521a0812e10ab0fcede3"
 
 
 def git_blob(raw: bytes) -> str:
