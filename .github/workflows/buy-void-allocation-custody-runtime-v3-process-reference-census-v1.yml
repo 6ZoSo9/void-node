@@ -31,7 +31,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          BASE="332367d1ac93a206437c0c977082b97ed4895cd0"
+          BASE="836f5e704a603f67b77b2406aeec9174f640497e"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
@@ -46,13 +46,13 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "65916e49b7297e3b592049a3878683141d364152"
+            "e2c36f188396774d090731ad3cba78a9e919acc0"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "554ffb2a2bd57c3972dcdc40484c0922ec756cce"
+            "7ec218eb6593fd69b68e8d1bb1360a7d4388d235"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.md)" = \
-            "7fa8924f32c433132c67d8b9e68ac79e3180575f"
+            "d9766d0e80c8e11d1786dfb1d07884eced3877b9"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "c2e0c53336665578e4ab26204f7d67908c66ad3f"
+            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
@@ -80,6 +80,11 @@ jobs:
             'archive_lock_exact=true' \
             'target_identity_metadata_only=true' \
             'current_uid_process_scope=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'private_pid_namespace_rejected=true' \
+            'host_pid_namespace_lease_mismatch_rejected=true' \
+            'complete_proc_visibility_required=true' \
+            'hidepid_restricted_proc_holds=true' \
             'proc_cmdline_read=false' \
             'proc_environ_read=false' \
             'proc_fd_target_text_read=false' \
@@ -124,6 +129,16 @@ jobs:
             'archive_lock_exact=true' \
             'target_identity_metadata_only=true' \
             'current_uid_process_scope=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'private_pid_namespace_rejected=true' \
+            'host_pid_namespace_lease_mismatch_rejected=true' \
+            'complete_proc_visibility_required=true' \
+            'hidepid_restricted_proc_holds=true' \
+            'retained_procfs_view_required=true' \
+            'retained_procfs_view_descriptor_relative=true' \
+            'retained_procfs_view_revalidated_after_census=true' \
+            'missing_host_pid_namespace_lease_holds=true' \
+            'target_streaming_entry_budget=true' \
             'cwd_inode_reference_tested=true' \
             'fd_inode_reference_tested=true' \
             'mapped_inode_reference_tested=true' \
