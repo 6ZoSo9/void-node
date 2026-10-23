@@ -175,65 +175,53 @@ def _read_bounded_at(
     *,
     allow_zero_size: bool,
 ) -> bytes:
+    _safe_relative(relative)
     if maximum < 1 or maximum > 16 * 1024 * 1024:
         hold("read_limit_invalid")
-    parts = _safe_relative(relative)
-    current_fd = os.dup(root_fd)
-    leaf_fd = -1
+
+    before = os.stat(
+        relative,
+        dir_fd=root_fd,
+        follow_symlinks=False,
+    )
+    if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode):
+        hold("relative_file_shape_invalid:" + relative)
+    if not allow_zero_size and before.st_size < 1:
+        hold("relative_file_empty:" + relative)
+    if before.st_size > maximum:
+        hold("relative_file_too_large:" + relative)
+
+    fd = os.open(relative, _leaf_flags(), dir_fd=root_fd)
     try:
-        for component in parts[:-1]:
-            before = os.stat(component, dir_fd=current_fd, follow_symlinks=False)
-            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
-                hold("relative_directory_invalid:" + component)
-            next_fd = os.open(
-                component,
-                _directory_flags(),
-                dir_fd=current_fd,
-            )
-            opened = os.fstat(next_fd)
-            if _identity(before) != _identity(opened):
-                os.close(next_fd)
-                hold("relative_directory_rebound:" + component)
-            os.close(current_fd)
-            current_fd = next_fd
-
-        leaf = parts[-1]
-        before = os.stat(leaf, dir_fd=current_fd, follow_symlinks=False)
-        if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode):
-            hold("relative_file_shape_invalid:" + leaf)
-        if not allow_zero_size and before.st_size < 1:
-            hold("relative_file_empty:" + leaf)
-        if before.st_size > maximum:
-            hold("relative_file_too_large:" + leaf)
-        leaf_fd = os.open(leaf, _leaf_flags(), dir_fd=current_fd)
-        opened = os.fstat(leaf_fd)
-        if _identity(before) != _identity(opened):
-            hold("relative_file_rebound:" + leaf)
-
+        opened = os.fstat(fd)
+        if _generation(before) != _generation(opened):
+            hold("relative_file_rebound:" + relative)
         raw = bytearray()
         while len(raw) <= maximum:
             chunk = os.read(
-                leaf_fd,
+                fd,
                 min(65536, maximum + 1 - len(raw)),
             )
             if not chunk:
                 break
             raw.extend(chunk)
         if len(raw) > maximum:
-            hold("relative_file_too_large:" + leaf)
+            hold("relative_file_too_large:" + relative)
 
-        after = os.fstat(leaf_fd)
-        visible = os.stat(leaf, dir_fd=current_fd, follow_symlinks=False)
+        after = os.fstat(fd)
+        visible = os.stat(
+            relative,
+            dir_fd=root_fd,
+            follow_symlinks=False,
+        )
         if (
-            _identity(opened) != _identity(after)
-            or _identity(after) != _identity(visible)
+            _generation(opened) != _generation(after)
+            or _generation(after) != _generation(visible)
         ):
-            hold("relative_file_generation_changed:" + leaf)
+            hold("relative_file_generation_changed:" + relative)
         return bytes(raw)
     finally:
-        if leaf_fd >= 0:
-            os.close(leaf_fd)
-        os.close(current_fd)
+        os.close(fd)
 
 
 def _fd_mount_id(fd: int) -> int:
