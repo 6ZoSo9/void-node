@@ -29,6 +29,22 @@ const workflow = readFileSync(
   resolve(ROOT, ".github/workflows/void-public-node-connect-focus-v1.yml"),
   "utf8",
 );
+const pack = JSON.parse(
+  readFileSync(
+    resolve(
+      ROOT,
+      "public/public-node/connect/public-node-connect-pack-v1.json",
+    ),
+    "utf8",
+  ),
+);
+const rootIndex = JSON.parse(
+  readFileSync(resolve(ROOT, "public/public-node/index.json"), "utf8"),
+);
+const connectDoc = readFileSync(
+  resolve(ROOT, "docs/public/public-node-connect-pack-v1.md"),
+  "utf8",
+);
 
 const publicLinks = [
   "/public-node/connect/public-node-connect-pack-v1.json",
@@ -36,6 +52,7 @@ const publicLinks = [
 ];
 const dialCommand =
   "curl --fail-with-body --silent --show-error -X POST -H 'content-type: application/json'";
+const machineDialCommand = `${dialCommand} --data '{"addr":"<PEER_HOST>:<PEER_P2P_PORT>"}' http://127.0.0.1:4100/p2p/dial | jq .`;
 const requiredGuidance = [
   "Run this only against a local node you administer.",
   "This POST asks the local node to start an outgoing connection and may update its local peer state.",
@@ -88,12 +105,56 @@ for (const [name, html] of Object.entries(pages)) {
   }
 }
 
+assert.equal(pack.example_commands?.dial_peer, machineDialCommand);
+assert.equal(pack.boundary?.read_only, false);
+assert.equal(pack.boundary?.mutation_route_enabled, true);
+assert.equal(pack.boundary?.automatic_peer_dial_enabled_by_this_pack, false);
+assert.match(pack.dial_outcomes?.accepted || "", /does not prove/u);
+assert.match(pack.dial_outcomes?.rejected || "", /before retrying/u);
+assert.match(pack.dial_outcomes?.connection_verification || "", /\/p2p\/peers/u);
+assert.ok(
+  pack.operator_flow?.some((step) => step.includes("may update local peer state")),
+  "machine operator flow must disclose the dial side effect",
+);
+assert.ok(
+  pack.operator_flow?.some((step) => step.includes("not proof that the peer connected")),
+  "machine operator flow must bound accepted dial semantics",
+);
+assert.ok(
+  pack.operator_flow?.some((step) => step.includes("do not retry blindly")),
+  "machine operator flow must provide rejection guidance",
+);
+
+const rootPackBoundary = rootIndex.public_node_connect_pack?.boundary;
+assert.equal(rootPackBoundary?.read_only, false);
+assert.equal(rootPackBoundary?.mutation_route_enabled, true);
+assert.equal(rootPackBoundary?.automatic_peer_dial_enabled_by_this_pack, false);
+
+assert.ok(connectDoc.includes(machineDialCommand));
+assert.ok(connectDoc.includes("may update local peer state"));
+assert.ok(connectDoc.includes("does not prove that the peer connected"));
+
 assert.ok(
   workflow.includes(
     '"public/public-node/connect/public-node-connect-pack-v1.html"',
   ),
   "workflow must watch the alternate public HTML surface",
 );
+for (const watchedPath of [
+  "public/public-node/connect/public-node-connect-pack-v1.json",
+  "public/public-node/index.json",
+  "docs/public/public-node-connect-pack-v1.md",
+  "tools/proof-public-node-connect-pack-v1.mjs",
+  "tools/proof-public-node-connect-pack-closeout-v1.mjs",
+  "tools/proof-public-node-connect-lane-closeout-v1.mjs",
+  "tools/proof-public-node-operator-quickstart-closeout-v1.mjs",
+  "tools/proof-public-node-operator-status-rollup-closeout-v1.mjs",
+]) {
+  assert.ok(
+    workflow.includes(`"${watchedPath}"`),
+    `workflow must watch ${watchedPath}`,
+  );
+}
 assert.ok(
   workflow.includes('merge_base="$(git merge-base "$BASE" "$HEAD")"'),
   "workflow must derive the common ancestor from the moving base tip",
@@ -193,6 +254,8 @@ console.log("focus_not_removed=true");
 console.log("public_html_surfaces=2");
 console.log("dial_side_effect_disclosed=true");
 console.log("dial_result_semantics_bounded=true");
+console.log("machine_readable_dial_contract_aligned=true");
+console.log("public_index_dial_boundary_aligned=true");
 console.log("public_resource_links=2");
 console.log("moving_base_merge_base_hygiene=true");
 console.log("disjoint_base_advance_regression=true");
