@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_host_namespace_crosscheck_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "542ac103bc2607cc50f6913abde137097487c00c"
+EXPECTED_SOURCE_BLOB = "75e66b2e56606c63cd55477fffa1f76d9780f21a"
 
 
 def git_blob(raw: bytes) -> str:
@@ -37,10 +37,10 @@ assert module.CANDIDATE_COLLECTOR_GIT_BLOB == (
     "ce6e416f5cccd79d421e9404f6f4fa12a416fc6a"
 )
 assert module.OBSERVATION_COLLECTOR_GIT_BLOB == (
-    "08094872d5a8aca720ae0a9f710866890d8132e7"
+    "073e1f1400def53831a089a3e9c14d6e1f311bf5"
 )
 assert module.PROCESS_CENSUS_GIT_BLOB == (
-    "ded737a228a627a241a84131113db6d3521f635c"
+    "6bf476e3383b7b18966320df13b4041da9c8c11f"
 )
 assert module.DESIGNATED_HOST_POLICY_GIT_BLOB == (
     "4234379cb7e283e03c654e10d0d7fe8986e99897"
