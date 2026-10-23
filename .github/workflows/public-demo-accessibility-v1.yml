@@ -1,0 +1,47 @@
+name: Public demo accessibility v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/public-demo-accessibility-v1.yml"
+      - "public/demo/index.html"
+      - "scripts/prove_void_public_demo_accessibility_v1.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/public-demo-accessibility-v1.yml"
+      - "public/demo/index.html"
+      - "scripts/prove_void_public_demo_accessibility_v1.mjs"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-demo-accessibility-v1-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove exact candidate and public demo accessibility
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node scripts/prove_void_public_demo_accessibility_v1.mjs
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

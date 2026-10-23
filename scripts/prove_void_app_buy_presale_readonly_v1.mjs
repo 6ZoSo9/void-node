@@ -9,6 +9,21 @@ const source = readFileSync(viewsPath, "utf8");
 const client = readFileSync(clientPath, "utf8");
 const canonicalSource = readFileSync(canonicalPricePath, "utf8");
 const canonicalLaunchGate = readFileSync("src/economic/buy_void_coupled_launch_gate_v1.mjs", "utf8");
+const checkoutContractDoc = readFileSync(
+  "docs/public/buy-void-public-checkout-contract-v1.md", "utf8",
+);
+// Internal duplicate suppression is not an authenticated public 200/201
+// recovery path. A buyer must not infer that a lost POST was unsuccessful.
+assert.match(checkoutContractDoc,
+  /unauthenticated public POST returns a generic HTTP 409/u,
+  "public checkout contract must describe anonymous duplicate conflict");
+assert.match(checkoutContractDoc,
+  /REQUEST OUTCOME UNCONFIRMED — DO NOT SEND FUNDS OR RESUBMIT/u,
+  "public checkout contract must forbid payment/retry after ambiguous POST");
+assert.doesNotMatch(checkoutContractDoc,
+  /Repeating the same\s+amount on the same payment chain is idempotent/u,
+  "public checkout must not misrepresent a generic 409 as successful recovery");
+
 assert.match(canonicalLaunchGate, /const LIVE_ACTIVATION_MAX_LEASE_MS = 5 \* 60 \* 1000;/u,
   "client checkout receipt lifetime must match canonical five-minute activation lease");
 
@@ -172,6 +187,9 @@ for (const required of [
   "BUY_RECEIPT_MAX_CLOCK_SKEW_MS = 5000",
   "BUY_RECEIPT_MAX_LIVE_LEASE_MS = 5 * 60 * 1000",
   "instructionExpiresAtMs",
+  "document.addEventListener('visibilitychange'",
+  "window.addEventListener('pageshow'",
+  "window.addEventListener('focus'",
 ]) {
   assert.ok(client.includes(required), `missing launch gate/client binding: ${required}`);
 }
@@ -250,13 +268,20 @@ const replaceBuyView = () => {
   buyViewNode = {};
 };
 const fetchCalls = [];
+const windowEventHandlers = new Map();
+const documentEventHandlers = new Map();
 let syntheticMonoMs = 100000;
 const sandbox = {
   performance: { now: () => syntheticMonoMs },
   console,
   location: { hash: "#/buy" },
-  window: { addEventListener() {} },
+  window: {
+    addEventListener(name, handler) {
+      windowEventHandlers.set(name, handler);
+    },
+  },
   document: {
+    visibilityState: "visible",
     querySelector(selector) {
       if (selector === "[data-buy-submit]") return submitButton;
       if (selector === "[data-buy-amount]") return amountInput;
@@ -280,7 +305,9 @@ const sandbox = {
       }
       return [];
     },
-    addEventListener() {},
+    addEventListener(name, handler) {
+      documentEventHandlers.set(name, handler);
+    },
     getElementById() { return null; },
   },
   MutationObserver: class {
@@ -1009,6 +1036,69 @@ assert.equal(submitButton.disabled, true, "same-generation render retains succes
 buyTest.updateSubmit();
 assert.match(buyResultNode.textContent, /buyvoid_ethereum_open_v1/u);
 
+// Wallet-app return and browser history restoration must preserve a *valid*
+// same-generation checkout receipt. The expiry fix must not invent a fresh
+// readiness GET, retry the request POST, or discard still-valid instructions.
+// Earlier expiry fixtures prove the opposite (expired receipt) behavior.
+const onBuyVisibilityChange = documentEventHandlers.get("visibilitychange");
+const onBuyPageshow = windowEventHandlers.get("pageshow");
+const onBuyFocus = windowEventHandlers.get("focus");
+for (const handler of [onBuyVisibilityChange, onBuyPageshow, onBuyFocus]) {
+  assert.equal(typeof handler, "function", "resume handler must be installed");
+}
+const validReceiptBeforeResume = buyResultNode.textContent;
+const networkCallsBeforeResume = fetchCalls.length;
+assert.match(validReceiptBeforeResume,
+  /REQUEST CREATED — VERIFY BEFORE PAYMENT[\s\S]*buyvoid_ethereum_open_v1/u);
+sandbox.document.visibilityState = "hidden";
+onBuyVisibilityChange();
+assert.equal(buyResultNode.textContent, validReceiptBeforeResume,
+  "background visibility event must preserve valid instructions");
+sandbox.document.visibilityState = "visible";
+onBuyVisibilityChange();
+assert.equal(buyResultNode.textContent, validReceiptBeforeResume,
+  "wallet-app return within unchanged live lease must preserve receipt");
+onBuyPageshow({ persisted: true });
+assert.equal(buyResultNode.textContent, validReceiptBeforeResume,
+  "bfcache pageshow within valid lease must preserve receipt");
+onBuyFocus();
+assert.equal(buyResultNode.textContent, validReceiptBeforeResume,
+  "focus within valid lease must preserve receipt");
+assert.equal(fetchCalls.length, networkCallsBeforeResume,
+  "resume events must issue neither readiness GET nor checkout POST");
+assert.equal(submitButton.disabled, true,
+  "same valid Buy intent remains no-retry after resume");
+
+// A browser event fired outside the Buy route must not touch any stale Buy
+// content. Also refuse to render against an absent Buy DOM on the Buy route.
+sandbox.location.hash = "#/home";
+const inactiveRouteSentinel = "non_buy_route_receipt_must_not_be_rewritten";
+buyResultNode.textContent = inactiveRouteSentinel;
+onBuyVisibilityChange();
+onBuyPageshow({ persisted: true });
+onBuyFocus();
+assert.equal(buyResultNode.textContent, inactiveRouteSentinel,
+  "resume signals cannot render Buy content on non-Buy routes");
+sandbox.location.hash = "#/buy";
+const activeBuyNodeBeforeNoDom = buyViewNode;
+buyViewNode = null;
+const absentBuyDomSentinel = "missing_buy_view_must_not_be_rewritten";
+buyResultNode.textContent = absentBuyDomSentinel;
+onBuyVisibilityChange();
+onBuyPageshow({ persisted: true });
+onBuyFocus();
+assert.equal(buyResultNode.textContent, absentBuyDomSentinel,
+  "resume signals cannot render into a missing Buy view");
+buyViewNode = activeBuyNodeBeforeNoDom;
+buyTest.updateSubmit();
+assert.equal(buyResultNode.textContent, validReceiptBeforeResume,
+  "returning to unchanged Buy DOM still restores the matching valid receipt");
+await buyTest.submitBuy({ preventDefault() {} });
+assert.equal(fetchCalls.length, networkCallsBeforeResume,
+  "resume/reentry events and same-intent submit must never repeat POST");
+assert.equal(submitButton.disabled, true,
+  "same-intent receipt remains fenced after all resume events");
+
 // A confirmed request must not vanish when readiness briefly changes to
 // HOLD or SOLD OUT. Never display payment instructions while closed.
 const soldOutSnapshot = buyTest.validateSnapshot(
@@ -1532,7 +1622,28 @@ try {
       // performance.now(): this is untrusted, never extended validity.
       sandbox.__buyTestWallMs += 20000;
     }
-    buyTest.updateSubmit();
+    // Synthetic timers never fire. A suspended tab can retain the previous
+    // text until a page-visible, bfcache pageshow, or focus event rechecks it.
+    assert.match(buyResultNode.textContent, new RegExp(id, "u"),
+      name + ": old instructions remain before the resume signal");
+    if (change === "deadline") {
+      const onVisibilityChange = documentEventHandlers.get("visibilitychange");
+      assert.equal(typeof onVisibilityChange, "function");
+      sandbox.document.visibilityState = "hidden";
+      onVisibilityChange();
+      assert.match(buyResultNode.textContent, new RegExp(id, "u"),
+        name + ": hidden event must not revive or rewrite receipt");
+      sandbox.document.visibilityState = "visible";
+      onVisibilityChange();
+    } else if (change === "rollback") {
+      const onPageShow = windowEventHandlers.get("pageshow");
+      assert.equal(typeof onPageShow, "function");
+      onPageShow({ persisted: true });
+    } else {
+      const onFocus = windowEventHandlers.get("focus");
+      assert.equal(typeof onFocus, "function");
+      onFocus();
+    }
     assert.match(buyResultNode.textContent,
       /REQUEST INSTRUCTIONS EXPIRED — DO NOT SEND FUNDS/u, name);
     assert.doesNotMatch(buyResultNode.textContent,
@@ -2181,6 +2292,9 @@ console.log("buy_receipt_canonical_creation_envelope_bound=true");
 console.log("buy_receipt_request_id_bounded_and_safe=true");
 console.log("buy_receipt_deadline_bound_to_launch_authority=true");
 console.log("expired_payment_instructions_never_restored=true");
+console.log("resume_visibility_pageshow_focus_recheck_expiry_without_post=true");
+console.log("resume_still_valid_wallet_app_bfcache_focus_preserves_receipt_no_network=true");
+console.log("resume_non_buy_route_and_missing_dom_no_render=true");
 console.log("server_timestamp_and_monotonic_instruction_deadline_bound=true");
 console.log("wall_rollback_suspension_and_skew_fail_closed=true");
 console.log("same_intent_repost_after_receipt_blocked=1");
@@ -2193,6 +2307,7 @@ console.log("multi_intent_guard_memory_bounded=32");
 console.log("prior_receipt_not_misbound_to_different_intent=1");
 console.log("equivalent_usdc_atoms_retry_blocked=1");
 console.log("ambiguous_server_commit_not_declared_not_created=1");
+console.log("anonymous_duplicate_checkout_409_no_resubmit_documented=true");
 console.log("request_outcome_survives_readiness_refresh=1");
 console.log("confirmed_receipt_bound_to_readiness_serial=1");
 console.log("open_to_open_readiness_refresh_retires_payment_instructions=1");

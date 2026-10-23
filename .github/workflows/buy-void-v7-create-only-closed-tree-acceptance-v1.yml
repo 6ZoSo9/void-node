@@ -1,0 +1,55 @@
+name: VOID V7 closed-tree acceptance v1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/security/buy-void-v7-create-only-closed-tree-acceptance-v1.json'
+      - 'scripts/prove_buy_void_v7_create_only_closed_tree_acceptance_v1.py'
+      - 'docs/security/buy-void-v7-create-only-closed-tree-acceptance-v1.md'
+      - '.github/workflows/buy-void-v7-create-only-closed-tree-acceptance-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact acceptance scope and dependencies
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-create-only-closed-tree-acceptance-v1.json)" = "919db72903a5fcff59dec7635a4288f41d1753d9"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_create_only_closed_tree_acceptance_v1.py)" = "9a97ab0e7b2554a0d0098246e56704069e9a635c"
+          test "$(git rev-parse HEAD:docs/security/buy-void-v7-create-only-closed-tree-acceptance-v1.md)" = "4c6e1f3a642273385b9b27b3c7984b50610356a5"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json)" = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_create_only_closed_tree_bootstrap_v1.c)" = "2a8397c85d698d168f2257ec801557281b73c04d"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_create_only_closed_tree_bootstrap_v1.py)" = "2bec40bb30b26f229e5a9a290ce262cd40e344c5"
+          git merge-base --is-ancestor 1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c HEAD
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cat > /tmp/expected <<'EOF'
+          A	.github/workflows/buy-void-v7-create-only-closed-tree-acceptance-v1.yml
+          A	docs/security/buy-void-v7-create-only-closed-tree-acceptance-v1.md
+          A	ops/security/buy-void-v7-create-only-closed-tree-acceptance-v1.json
+          A	scripts/prove_buy_void_v7_create_only_closed_tree_acceptance_v1.py
+          EOF
+            git diff --name-status "${{ github.event.pull_request.base.sha }}" HEAD -- | sort > /tmp/actual
+            sort /tmp/expected > /tmp/expected.sorted
+            diff -u /tmp/expected.sorted /tmp/actual
+          fi
+          git diff --check
+
+      - name: Prove acceptance boundary
+        run: |
+          set -euo pipefail
+          git switch -C main HEAD
+          test "$(git rev-parse --abbrev-ref HEAD)" = main
+          test "$(git rev-parse --is-shallow-repository)" = false
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          python3 -I -B scripts/prove_buy_void_v7_create_only_closed_tree_acceptance_v1.py

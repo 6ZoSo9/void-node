@@ -4,7 +4,15 @@ on:
   pull_request:
     paths:
       - "public/public-node/connect/index.html"
+      - "public/public-node/connect/public-node-connect-pack-v1.html"
+      - "public/public-node/connect/public-node-connect-pack-v1.json"
+      - "docs/public/public-node-connect-pack-v1.md"
       - "scripts/prove_void_public_node_connect_focus_v1.mjs"
+      - "tools/proof-public-node-connect-pack-v1.mjs"
+      - "tools/proof-public-node-connect-pack-closeout-v1.mjs"
+      - "tools/proof-public-node-connect-lane-closeout-v1.mjs"
+      - "tools/proof-public-node-operator-quickstart-closeout-v1.mjs"
+      - "tools/proof-public-node-operator-status-rollup-closeout-v1.mjs"
       - ".github/workflows/void-public-node-connect-focus-v1.yml"
 
 permissions:
@@ -22,11 +30,16 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Prove keyboard focus contract
+      - name: Prove keyboard focus and dial guidance contract
         run: |
           set -euo pipefail
           node --check scripts/prove_void_public_node_connect_focus_v1.mjs
           node scripts/prove_void_public_node_connect_focus_v1.mjs
+          node tools/proof-public-node-connect-pack-v1.mjs
+          node tools/proof-public-node-connect-pack-closeout-v1.mjs
+          node tools/proof-public-node-connect-lane-closeout-v1.mjs
+          node tools/proof-public-node-operator-quickstart-closeout-v1.mjs
+          node tools/proof-public-node-operator-status-rollup-closeout-v1.mjs
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Diff hygiene

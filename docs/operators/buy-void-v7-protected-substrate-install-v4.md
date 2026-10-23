@@ -39,6 +39,53 @@ No source-release chmod or chown is introduced. Child tree nodes remain root-own
 
 The tree digest still binds every child directory mode, regular-file mode/size/SHA-256, and symlink target. Root mode is represented separately in the V4 operation-bound plan so a `0555` immutable source release cannot be confused with the `0755` protected publication root. The plan also binds the exact installed-qualification V3 blob, and a successful create-only install points only to `RUN_INSTALLED_QUALIFICATION_V3`.
 
+## Current direct repository-evidence authority — October 21, 2026
+
+This section **supersedes the earlier V4 Git-observer acceptance text below** for the
+installer itself.
+
+Exact-head review of the landed post-#3650 generation found that dropping to runtime
+UID/GID before executing `/usr/bin/git` removed root-time dynamic execution, but did
+not make Git output trustworthy: UID 1000 could still influence Git's dynamic loader or
+shared-library closure and forge `rev-parse`, `status`, or `ls-tree` evidence that the
+root parent treated as authoritative.
+
+The current V4 source therefore executes **no Git subprocess at all** for repository
+acceptance. It removes `FIXED_GIT`, the runtime observer subprocess path, and every
+`git_text` / `git_bytes` / `git_is_ancestor` authority call.
+
+Repository authority is now direct and closed:
+
+- the trusted launcher must provide both `--expected-head <40 lowercase hex>` and
+  `--expected-tree <40 lowercase hex>`;
+- `.git/HEAD` must be exactly `ref: refs/heads/main\n`;
+- `.git/refs/heads/main` is read directly with retained-generation checks and must
+  equal the supplied expected HEAD;
+- the visible worktree is converted directly to the Git tree object ID using Git's
+  blob/tree SHA-1 framing, file modes, symlink targets, directory entries, and Git tree
+  ordering rules;
+- that directly derived tree ID must equal the supplied expected tree;
+- accepted dependency files and the V7 candidate lock are read directly from the
+  authenticated worktree and checked against their compile-bound Git blob IDs;
+- untracked or otherwise extra worktree paths necessarily change the directly derived
+  tree ID and HOLD;
+- the same direct HEAD/tree checks are used for the immutable source release, private
+  source stage, and installed protected source target.
+
+The operation-bound V4 plan body includes both `expected_head` and `expected_tree`.
+Apply must replay the exact pair, exact plan ID, and the existing create-only
+confirmation token. A changed tree under the same requested HEAD cannot replay the
+plan.
+
+Hosted source proof may use `/usr/bin/git` only as a **test oracle** in a disposable
+repository: it compares V4's direct tree calculation with Git's `HEAD^{tree}`, including
+an executable, symlink, nested tree, Git prefix-order adversary, and untracked-path
+negative case. Git output is not production installer authority.
+
+This repair proves worktree/ref identity, not full historical object connectivity.
+Full-history provenance remains a separate protected-source-replica concern and does
+not grant this installer additional host authority.
+
 ## Installed qualification V3 closure
 
 Historical qualifier V2 remains unchanged. It had no role-specific root-mode contract, so following V4 with V2 would reintroduce the same host mismatch. V3 preserves canonical source-custody, exact commit/tree/symbolic-main/clean-worktree checks, source/target byte-identity comparison, exact native/selector/launcher identities, double native self-tests, and all false payment/activation/funds authority.
@@ -52,6 +99,10 @@ Its source-only self-test explicitly rejects swapped modes and non-root ownershi
 ## Lifecycle
 
 V4 uses a fresh `voidv7substrateinstallplan4_<sha256>` namespace and confirmation token `INSTALL_ACCEPTED_VOID_V7_PROTECTED_SUBSTRATE_V4_CREATE_ONLY`.
+
+The plan/apply request is bound to the trusted launcher supplied **HEAD + tree pair**.
+Both `--expected-head` and `--expected-tree` are mandatory, are incorporated into the
+operation-bound plan body, and must be replayed unchanged for apply.
 
 Source/CI GREEN does not authorize `--apply`. A real `/opt` create-only publication remains a separate operator lifecycle action after an exact plan-only run is reviewed.
 
