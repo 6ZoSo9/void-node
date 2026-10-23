@@ -51,8 +51,8 @@ jobs:
 
           # Current content-addressed plan, proof and security doc: fail on drift.
           test "$(git rev-parse HEAD:ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json)" = 54c0b81eec3aa05406b0fd465b1d34c7e324a8f3
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = 04cbfc5c8f62e3b5cd9ed1d01b1441e7d58b5dd6
-          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = eda4aef8bd52351aaa4523024e89ca87e12bdfeb
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_store_callback_failure_domain_containment_plan_v1.py)" = e707b51decfdaf6a25103338321891e1e83fc1e6
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.md)" = 013b2d12b98ac63f38ff3d65d7db564c16ed6caf
 
           git diff --check "$PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -80,6 +80,7 @@ jobs:
           grep -Fx 'negative_cases_failed_at_semantic_gate=true' "$out"
           grep -Fx 'unsafe_supervisor_death_fence_reuse_hazard_observed=true' "$out"
           grep -Fx 'bound_source_role_identities_enforced=true' "$out"
+          grep -Fx 'source_uid_gid_nlink_metadata_drift_rejected=true' "$out"
           grep -Fx 'failure_domain_containment_proven=false' "$out"
           grep -Fx 'trusted_callback_origin_proven=false' "$out"
           grep -Fx 'protected_host_execution_authorized=false' "$out"
