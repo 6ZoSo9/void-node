@@ -163,6 +163,12 @@ substituting a fake canonical measurement before the fixed
 
 The future attestation uses a **32-byte client-generated CSPRNG challenge**.
 
+The request itself must be one closed-schema canonical JSON frame plus EOF.
+Duplicate keys, non-finite values, trailing bytes, additional frames and
+noncanonical encodings are HOLD. The response has the same closed-schema,
+duplicate-key/nonfinite rejection requirement in addition to the existing
+canonical single-frame + EOF rule.
+
 The remote command must be exact reviewed bytes; neither command nor remote
 path may be caller-selected. The remote measurement runtime/interpreter and
 absolute execution path must themselves be reviewed/bound, and the command
@@ -220,13 +226,13 @@ The proof:
 - requires all transport identities to remain null/unbound;
 - requires all authority fields false;
 - validates content-addressed plan ID
-  `voidapollyonxiphosattestplan1_e3f13c2059ead38ee0c8ec05101d575976439a2f3381a035f8a6b35ddbaee5ff`;
-- executes **118 semantic adversaries**; and
+  `voidapollyonxiphosattestplan1_b0449a1b41766da2fad19a248f5eec3c9c9287b87eede149f6ea2eab09f6bc15`;
+- executes **123 semantic adversaries**; and
 - performs no network or host access.
 
-Plan blob: `9a49983ee4cb27c7d8ab0a64180e831f26d78925`.
+Plan blob: `267919390927de0552cf7cfad6f0ae1fa721bdb8`.
 
-Proof blob: `6f120814733e7ef845fcec59f7a10e8eef8915ae`.
+Proof blob: `7e8a18665b0140ca0a1820e273943dc4be7e7190`.
 
 ## Next gate
 
