@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json"
 MARKER = "VOID_APOLLYON_CLAIM_STORE_CALLBACK_FAILURE_DOMAIN_CONTAINMENT_PLAN_V1_PROOF"
 PARENT = "187a4da4992b7d81330b9474e535b8af631de0d4"
-PLAN_ID = "voidapollyonclaimcallbackcontain1_17848cb11147fb0284268258e784826daf75630687abec922c4dd5d972b7be68"
+PLAN_ID = "voidapollyonclaimcallbackcontain1_1b222a07a3ea1c3c4ed078dad78b60b51d0c144207ba8c970ea8cbb007dd082e"
 
 PINS = {
     "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs":
@@ -48,6 +48,27 @@ SURFACES = [
     "transaction_release_result",
     "native_bridge_revalidator_result",
 ]
+RESOURCE_CEILINGS = {
+    "worker_deadline_ms": 5000,
+    "worker_tree_reap_timeout_ms": 5000,
+    "canonical_receipt_frame_bytes_max": 65536,
+    "stdout_capture_bytes_max": 8192,
+    "stderr_capture_bytes_max": 8192,
+    "diagnostic_capture_bytes_max": 8192,
+    "memory_max_bytes": 268435456,
+    "memory_swap_max_bytes": 0,
+    "pids_max": 32,
+    "cpu_quota_us": 100000,
+    "cpu_period_us": 100000,
+    "rlimit_nofile": 64,
+    "rlimit_fsize_bytes": 1048576,
+    "private_filesystem_bytes_max": 16777216,
+    "io_read_bytes_per_second_max": 16777216,
+    "io_write_bytes_per_second_max": 8388608,
+    "io_read_iops_max": 1024,
+    "io_write_iops_max": 512,
+}
+
 REQUIREMENTS = [
     "separate_os_process_failure_domain_required",
     "one_request_per_isolated_process_required",
@@ -173,6 +194,7 @@ def validate(value: object) -> dict:
             "bound_sources",
             "observed_gap",
             "required_future_runtime_contract",
+            "worker_resource_ceiling_contract",
             "authority",
             "next_gate",
             "plan_id",
@@ -236,6 +258,24 @@ def validate(value: object) -> dict:
     for key in REQUIREMENTS:
         need(required[key] is True, "missing_requirement:" + key)
 
+    ceilings = closed(
+        plan["worker_resource_ceiling_contract"],
+        list(RESOURCE_CEILINGS),
+        "resource_ceiling_contract",
+    )
+    for key, expected in RESOURCE_CEILINGS.items():
+        need(
+            type(ceilings[key]) is int and ceilings[key] == expected,
+            "resource_ceiling_invalid:" + key,
+        )
+    need(
+        ceilings["cpu_quota_us"] <= ceilings["cpu_period_us"]
+        and ceilings["canonical_receipt_frame_bytes_max"] <= 65536
+        and ceilings["rlimit_fsize_bytes"] <= ceilings["private_filesystem_bytes_max"]
+        and ceilings["io_write_bytes_per_second_max"] <= ceilings["private_filesystem_bytes_max"],
+        "resource_ceiling_relations_invalid",
+    )
+
     authority = closed(plan["authority"], AUTHORITY, "authority")
     for key in AUTHORITY:
         need(authority[key] is False, "forbidden_authority:" + key)
@@ -279,6 +319,16 @@ def adversarial_self_test(plan: dict) -> int:
         bad = copy.deepcopy(plan)
         bad["authority"][key] = True
         expect_reason(bad, "forbidden_authority:" + key, "authority:" + key)
+        rejected += 1
+
+    for key, expected in RESOURCE_CEILINGS.items():
+        bad = copy.deepcopy(plan)
+        bad["worker_resource_ceiling_contract"][key] = expected + 1
+        expect_reason(
+            bad,
+            "resource_ceiling_invalid:" + key,
+            "resource_ceiling:" + key,
+        )
         rejected += 1
 
     for key in ("trusted_callback_origin_proven", "failure_domain_containment_proven"):
@@ -423,6 +473,9 @@ def main() -> None:
     print("source_only=true")
     print("rejected_promise_surfaces=" + str(len(SURFACES)))
     print("runtime_contract_requirements=" + str(len(REQUIREMENTS)))
+    print("resource_ceiling_count=" + str(len(RESOURCE_CEILINGS)))
+    print("exact_resource_ceilings_enforced=true")
+    print("storage_io_limits_bound=true")
     print("rejected_adversaries=" + str(rejected))
     print("unsafe_supervisor_death_fence_reuse_hazard_observed=true")
     print("negative_cases_failed_at_semantic_gate=true")
