@@ -316,6 +316,37 @@ def verify_pid_namespace_lease_stats(
     return observed
 
 
+def verify_mount_namespace_lease_stats(
+    self_ns: os.stat_result,
+    init_ns: os.stat_result,
+    expected: tuple[int, int],
+) -> tuple[int, int]:
+    observed = (int(self_ns.st_dev), int(self_ns.st_ino))
+    init_observed = (int(init_ns.st_dev), int(init_ns.st_ino))
+    if observed != init_observed:
+        hold("not_in_pid1_mount_namespace")
+    if observed != expected:
+        hold("host_mount_namespace_lease_mismatch")
+    return observed
+
+
+def verify_host_root_stat(
+    root_st: os.stat_result,
+    expected: tuple[int, int],
+) -> tuple[int, int]:
+    if (
+        not stat.S_ISDIR(root_st.st_mode)
+        or root_st.st_uid != 0
+        or root_st.st_gid != 0
+        or stat.S_IMODE(root_st.st_mode) & 0o022
+    ):
+        hold("host_root_custody_invalid")
+    observed = (int(root_st.st_dev), int(root_st.st_ino))
+    if observed != expected:
+        hold("host_root_lease_mismatch")
+    return observed
+
+
 def verify_complete_proc_visibility(
     raw: bytes,
     expected_mount_id: int,
@@ -393,8 +424,26 @@ def parse_proc_self_stat_pid(raw: bytes, expected_pid: int) -> int:
 
 def open_pinned_proc_view(
     expected_host_pid_namespace_dev_ino: str,
+    expected_host_mount_namespace_dev_ino: str,
+    expected_host_root_dev_ino: str,
 ) -> tuple[int, dict[str, Any]]:
-    expected = parse_dev_ino_lease(expected_host_pid_namespace_dev_ino)
+    expected_pid = parse_dev_ino_lease(
+        expected_host_pid_namespace_dev_ino,
+        "host_pid_namespace_lease_invalid",
+    )
+    expected_mount = parse_dev_ino_lease(
+        expected_host_mount_namespace_dev_ino,
+        "host_mount_namespace_lease_invalid",
+    )
+    expected_root = parse_dev_ino_lease(
+        expected_host_root_dev_ino,
+        "host_root_lease_invalid",
+    )
+    host_root_before = os.stat("/", follow_symlinks=False)
+    host_root_observed = verify_host_root_stat(
+        host_root_before,
+        expected_root,
+    )
     before = os.stat("/proc", follow_symlinks=False)
     if (
         not stat.S_ISDIR(before.st_mode)
@@ -422,11 +471,27 @@ def open_pinned_proc_view(
             init_ns = os.stat(
                 "1/ns/pid", dir_fd=fd, follow_symlinks=True
             )
+            self_mnt_ns = os.stat(
+                "self/ns/mnt", dir_fd=fd, follow_symlinks=True
+            )
+            init_mnt_ns = os.stat(
+                "1/ns/mnt", dir_fd=fd, follow_symlinks=True
+            )
         except OSError as exc:
-            hold("host_pid_namespace_unreadable:" + str(exc.errno))
+            hold("host_namespace_unreadable:" + str(exc.errno))
         observed = verify_pid_namespace_lease_stats(
-            self_ns, init_ns, expected
+            self_ns, init_ns, expected_pid
         )
+        observed_mount = verify_mount_namespace_lease_stats(
+            self_mnt_ns, init_mnt_ns, expected_mount
+        )
+        host_root_after = os.stat("/", follow_symlinks=False)
+        terminal_root = verify_host_root_stat(
+            host_root_after,
+            expected_root,
+        )
+        if terminal_root != host_root_observed:
+            hold("host_root_scope_changed")
         mountinfo = _read_bounded_at(
             fd,
             "self/mountinfo",
@@ -447,6 +512,15 @@ def open_pinned_proc_view(
             "pid_namespace_dev": str(observed[0]),
             "pid_namespace_ino": str(observed[1]),
             "pid1_namespace_matches_self": True,
+            "host_mount_namespace_external_lease_required": True,
+            "host_mount_namespace_lease_verified": True,
+            "mount_namespace_dev": str(observed_mount[0]),
+            "mount_namespace_ino": str(observed_mount[1]),
+            "pid1_mount_namespace_matches_self": True,
+            "host_root_external_lease_required": True,
+            "host_root_lease_verified": True,
+            "host_root_dev": str(host_root_observed[0]),
+            "host_root_ino": str(host_root_observed[1]),
             "proc_root_dev": opened.st_dev,
             "proc_root_ino": opened.st_ino,
             "proc_mount_id": mount_id,
@@ -464,9 +538,22 @@ def open_pinned_proc_view(
 def revalidate_pinned_proc_view(
     fd: int,
     expected_host_pid_namespace_dev_ino: str,
+    expected_host_mount_namespace_dev_ino: str,
+    expected_host_root_dev_ino: str,
     initial: dict[str, Any],
 ) -> dict[str, bool]:
-    expected = parse_dev_ino_lease(expected_host_pid_namespace_dev_ino)
+    expected_pid = parse_dev_ino_lease(
+        expected_host_pid_namespace_dev_ino,
+        "host_pid_namespace_lease_invalid",
+    )
+    expected_mount = parse_dev_ino_lease(
+        expected_host_mount_namespace_dev_ino,
+        "host_mount_namespace_lease_invalid",
+    )
+    expected_root = parse_dev_ino_lease(
+        expected_host_root_dev_ino,
+        "host_root_lease_invalid",
+    )
     opened = os.fstat(fd)
     if (
         opened.st_dev != initial["proc_root_dev"]
@@ -481,16 +568,39 @@ def revalidate_pinned_proc_view(
         init_ns = os.stat(
             "1/ns/pid", dir_fd=fd, follow_symlinks=True
         )
+        self_mnt_ns = os.stat(
+            "self/ns/mnt", dir_fd=fd, follow_symlinks=True
+        )
+        init_mnt_ns = os.stat(
+            "1/ns/mnt", dir_fd=fd, follow_symlinks=True
+        )
     except OSError as exc:
-        hold("host_pid_namespace_unreadable:" + str(exc.errno))
+        hold("host_namespace_unreadable:" + str(exc.errno))
     observed = verify_pid_namespace_lease_stats(
-        self_ns, init_ns, expected
+        self_ns, init_ns, expected_pid
+    )
+    observed_mount = verify_mount_namespace_lease_stats(
+        self_mnt_ns, init_mnt_ns, expected_mount
     )
     if (
         str(observed[0]) != initial["pid_namespace_dev"]
         or str(observed[1]) != initial["pid_namespace_ino"]
     ):
         hold("host_pid_namespace_scope_changed")
+    if (
+        str(observed_mount[0]) != initial["mount_namespace_dev"]
+        or str(observed_mount[1]) != initial["mount_namespace_ino"]
+    ):
+        hold("host_mount_namespace_scope_changed")
+    host_root = verify_host_root_stat(
+        os.stat("/", follow_symlinks=False),
+        expected_root,
+    )
+    if (
+        str(host_root[0]) != initial["host_root_dev"]
+        or str(host_root[1]) != initial["host_root_ino"]
+    ):
+        hold("host_root_scope_changed")
     mountinfo = _read_bounded_at(
         fd,
         "self/mountinfo",
@@ -515,6 +625,8 @@ def revalidate_pinned_proc_view(
         hold("visible_proc_root_changed")
     return {
         "host_pid_namespace_lease_revalidated_after_census": True,
+        "host_mount_namespace_lease_revalidated_after_census": True,
+        "host_root_lease_revalidated_after_census": True,
         "proc_visibility_revalidated_after_census": True,
         "proc_self_pid_revalidated_after_census": True,
         "retained_procfs_view_revalidated_after_census": True,
@@ -1185,13 +1297,17 @@ def _assert_unprivileged_execution() -> int:
 
 def current_uid_census(
     expected_host_pid_namespace_dev_ino: str,
+    expected_host_mount_namespace_dev_ino: str,
+    expected_host_root_dev_ino: str,
     target_path: Path = TARGET,
 ) -> dict[str, Any]:
     uid = _assert_unprivileged_execution()
     proc_fd = -1
     try:
         proc_fd, proc_scope = open_pinned_proc_view(
-            expected_host_pid_namespace_dev_ino
+            expected_host_pid_namespace_dev_ino,
+            expected_host_mount_namespace_dev_ino,
+            expected_host_root_dev_ino,
         )
         attempts: list[dict[str, Any]] = []
         for attempt in range(1, MAX_SCAN_ATTEMPTS + 1):
@@ -1233,6 +1349,8 @@ def current_uid_census(
         terminal_scope = revalidate_pinned_proc_view(
             proc_fd,
             expected_host_pid_namespace_dev_ino,
+            expected_host_mount_namespace_dev_ino,
+            expected_host_root_dev_ino,
             proc_scope,
         )
         selected = attempts[-1]
@@ -1260,6 +1378,9 @@ def current_uid_census(
             "all_process_reference_absence_proven": False,
             "privileged_all_process_scan": False,
             "custody_principal_process_scan_performed": False,
+            "target_host_mount_namespace_bound": True,
+            "host_mount_namespace_external_lease_required": True,
+            "host_root_external_lease_required": True,
             "target_snapshot_stable_required": True,
             "fd_table_stability_proven": False,
             "mapping_set_stability_proven": False,
@@ -1269,11 +1390,17 @@ def current_uid_census(
         if proc_fd >= 0:
             os.close(proc_fd)
 
-def census(expected_host_pid_namespace_dev_ino: str) -> dict[str, Any]:
+def census(
+    expected_host_pid_namespace_dev_ino: str,
+    expected_host_mount_namespace_dev_ino: str,
+    expected_host_root_dev_ino: str,
+) -> dict[str, Any]:
     _assert_unprivileged_execution()
     lock = verify_source_inputs()
     process = current_uid_census(
         expected_host_pid_namespace_dev_ino,
+        expected_host_mount_namespace_dev_ino,
+        expected_host_root_dev_ino,
         TARGET,
     )
     target_public = {
@@ -1305,6 +1432,13 @@ def census(expected_host_pid_namespace_dev_ino: str) -> dict[str, Any]:
         "host_pid_namespace_external_lease_required": True,
         "host_pid_namespace_lease_verified": True,
         "host_pid_namespace_lease_revalidated_after_census": True,
+        "host_mount_namespace_external_lease_required": True,
+        "host_mount_namespace_lease_verified": True,
+        "host_mount_namespace_lease_revalidated_after_census": True,
+        "host_root_external_lease_required": True,
+        "host_root_lease_verified": True,
+        "host_root_lease_revalidated_after_census": True,
+        "target_host_mount_namespace_bound": True,
         "complete_proc_visibility_verified": True,
         "proc_mount_root_is_slash_required": True,
         "proc_mount_point_exact_required": True,
@@ -1511,6 +1645,13 @@ def self_test() -> None:
     print("host_pid_namespace_external_lease_required=true")
     print("private_pid_namespace_rejected=true")
     print("host_pid_namespace_lease_mismatch_rejected=true")
+    print("host_mount_namespace_external_lease_required=true")
+    print("private_mount_namespace_rejected=true")
+    print("host_mount_namespace_lease_mismatch_rejected=true")
+    print("host_root_external_lease_required=true")
+    print("host_root_lease_mismatch_rejected=true")
+    print("host_root_custody_required=true")
+    print("target_host_mount_namespace_bound=true")
     print("complete_proc_visibility_required=true")
     print("proc_mount_root_is_slash_required=true")
     print("proc_mount_point_exact_required=true")
@@ -1557,6 +1698,8 @@ def main(argv: list[str]) -> int:
     group.add_argument("--self-test", action="store_true")
     group.add_argument("--census", action="store_true")
     parser.add_argument("--expected-host-pid-namespace-dev-ino")
+    parser.add_argument("--expected-host-mount-namespace-dev-ino")
+    parser.add_argument("--expected-host-root-dev-ino")
     args = parser.parse_args(argv)
     if args.self_test:
         self_test()
@@ -1564,9 +1707,17 @@ def main(argv: list[str]) -> int:
     if args.census:
         if args.expected_host_pid_namespace_dev_ino is None:
             hold("expected_host_pid_namespace_lease_required")
+        if args.expected_host_mount_namespace_dev_ino is None:
+            hold("expected_host_mount_namespace_lease_required")
+        if args.expected_host_root_dev_ino is None:
+            hold("expected_host_root_lease_required")
         print(
             json.dumps(
-                census(args.expected_host_pid_namespace_dev_ino),
+                census(
+                    args.expected_host_pid_namespace_dev_ino,
+                    args.expected_host_mount_namespace_dev_ino,
+                    args.expected_host_root_dev_ino,
+                ),
                 sort_keys=True,
                 separators=(",", ":"),
             )
@@ -1585,6 +1736,11 @@ if __name__ == "__main__":
         print("read_only=true")
         print("host_pid_namespace_external_lease_required=true")
         print("host_pid_namespace_lease_verified=false")
+        print("host_mount_namespace_external_lease_required=true")
+        print("host_mount_namespace_lease_verified=false")
+        print("host_root_external_lease_required=true")
+        print("host_root_lease_verified=false")
+        print("target_host_mount_namespace_bound=false")
         print("retained_procfs_view_used=false")
         print("production_filesystem_write=false")
         print("root_execution_forbidden=true")
