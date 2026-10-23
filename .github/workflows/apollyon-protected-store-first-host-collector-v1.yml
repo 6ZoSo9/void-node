@@ -53,8 +53,8 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_protected_store_first_host_collector_v1.py)" = 36f77c85a2716989726af77679160de2b9e48f76
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = 67a73d6da5018944bc79e5ed07460f7e6512e57e
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = 286a5b0528bdf1cd8cd6a1a3628222f6a3b5dbb9
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = cb64889f227c3a8e810c51156ae572fdfd806d08
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = 10b3c6a741eeee360d1b826dd6c915b22f1df8f2
 
           test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26
           test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 45ab6a6cbfea05d61617de294d18ed7dec07fae9
@@ -123,6 +123,7 @@ jobs:
             'mount_source_drift_bound=true' \
             'mount_super_options_drift_bound=true' \
             'raw_mount_source_not_emitted=true' \
+            'adversarial_mount_material_not_emitted=true' \
             'systemctl_show_only_contract=true' \
             'inert_full_pass_orchestration_executed=true' \
             'whole_pass_drift_adversaries_rejected=true' \
