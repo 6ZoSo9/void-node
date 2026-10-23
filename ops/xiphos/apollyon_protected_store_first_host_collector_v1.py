@@ -78,6 +78,7 @@ FILE_FLAGS = (
 )
 MAX_MACHINE_ID_BYTES = 4096
 MAX_STATUS_BYTES = 256 * 1024
+MAX_STAT_BYTES = 64 * 1024
 MAX_MOUNTINFO_BYTES = 1024 * 1024
 
 STATUS_KEYS = (
@@ -295,6 +296,28 @@ def parse_status(raw: bytes) -> dict[str, str]:
             hold("process_status_capability_invalid:" + key)
     return found
 
+def parse_proc_stat_start_ticks(raw: bytes, expected_pid: int) -> str:
+    try:
+        text = raw.decode("ascii", "strict").strip()
+    except UnicodeError as exc:
+        raise Hold("process_stat_non_ascii") from exc
+    left = text.find("(")
+    right = text.rfind(")")
+    if left <= 0 or right <= left or right + 2 > len(text):
+        hold("process_stat_shape_invalid")
+    pid_text = text[:left].strip()
+    if not pid_text.isdigit() or int(pid_text) != expected_pid:
+        hold("process_stat_pid_mismatch")
+    fields = text[right + 1:].strip().split()
+    # After comm (field 2), fields[0] is state (field 3).
+    # starttime is field 22, therefore index 19 here.
+    if len(fields) < 20:
+        hold("process_stat_shape_invalid")
+    start_ticks = fields[19]
+    if not start_ticks.isdigit() or int(start_ticks) <= 0:
+        hold("process_stat_start_ticks_invalid")
+    return start_ticks
+
 def parse_systemctl_show(text: str) -> dict[str, str]:
     found: dict[str, str] = {}
     for line in text.splitlines():
@@ -342,7 +365,11 @@ def _process_observation(pid_text: str) -> dict[str, Any] | None:
         hold("service_mainpid_invalid")
     pid = int(pid_text)
     status_path = PROC_ROOT / str(pid) / "status"
+    stat_path = PROC_ROOT / str(pid) / "stat"
     exe_path = PROC_ROOT / str(pid) / "exe"
+    start_before = parse_proc_stat_start_ticks(
+        _read_bounded(stat_path, MAX_STAT_BYTES, "process_stat_before"), pid
+    )
     raw = _read_bounded(status_path, MAX_STATUS_BYTES, "process_status")
     status = parse_status(raw)
     try:
@@ -353,8 +380,14 @@ def _process_observation(pid_text: str) -> dict[str, Any] | None:
         raise Hold("process_executable_identity_unavailable") from exc
     if not stat.S_ISLNK(exe_link.st_mode) or not stat.S_ISREG(exe_stat.st_mode):
         hold("process_executable_identity_invalid")
+    start_after = parse_proc_stat_start_ticks(
+        _read_bounded(stat_path, MAX_STAT_BYTES, "process_stat_after"), pid
+    )
+    if start_before != start_after:
+        hold("process_generation_changed")
     return {
         "pid": pid,
+        "start_ticks": start_after,
         "status": status,
         "executable_path": exe_target,
         "executable_metadata": _meta(exe_stat),
@@ -584,6 +617,9 @@ def self_test() -> None:
     parsed = parse_status(status)
     if parsed["NoNewPrivs"] != "1":
         hold("selftest_status_failed")
+    proc_stat = b"123 (test worker) S " + (b"1 " * 19) + b"987654 0 0 0\n"
+    if parse_proc_stat_start_ticks(proc_stat, 123) != "987654":
+        hold("selftest_process_stat_failed")
     systemd = "\n".join(
         f"{key}=" + ("0" if key == "MainPID" else "inactive")
         for key in SYSTEMCTL_KEYS
