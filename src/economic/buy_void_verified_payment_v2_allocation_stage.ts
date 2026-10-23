@@ -58,6 +58,80 @@ const NATIVE_USDC_BY_CHAIN: Readonly<Record<string, string>> = Object.freeze({
   ethereum: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
 });
 
+const MAX_LINEAGE_HISTORY_BYTES = 64 * 1024 * 1024;
+const LINEAGE_TYPED_ARRAY_PROTO = Object.getPrototypeOf(Uint8Array.prototype);
+const LINEAGE_TYPED_ARRAY_LENGTH_GETTER =
+  Object.getOwnPropertyDescriptor(LINEAGE_TYPED_ARRAY_PROTO, "length")?.get;
+const LINEAGE_TYPED_ARRAY_BUFFER_GETTER =
+  Object.getOwnPropertyDescriptor(LINEAGE_TYPED_ARRAY_PROTO, "buffer")?.get;
+const LINEAGE_REFLECT_APPLY_NATIVE = Reflect.apply;
+const LINEAGE_IS_SHARED_BACKING_NATIVE = utilTypes.isSharedArrayBuffer;
+const LINEAGE_ARRAY_BUFFER_SLICE_NATIVE = ArrayBuffer.prototype.slice;
+const LINEAGE_TYPED_ARRAY_SET_NATIVE = Uint8Array.prototype.set;
+
+function detachLineageHistoryBuffer(
+  value: unknown,
+  label: string,
+): Buffer {
+  const invalid = (): never => hold(label + "_bytes_invalid");
+  if (
+    utilTypes.isProxy(value) ||
+    !Buffer.isBuffer(value) ||
+    Object.getPrototypeOf(value) !== Buffer.prototype ||
+    Object.getOwnPropertyDescriptor(value, "length") ||
+    Object.getOwnPropertyDescriptor(value, "byteLength") ||
+    Object.getOwnPropertyDescriptor(value, "buffer") ||
+    !LINEAGE_TYPED_ARRAY_LENGTH_GETTER ||
+    !LINEAGE_TYPED_ARRAY_BUFFER_GETTER
+  ) {
+    return invalid();
+  }
+
+  let count: number;
+  let backing: ArrayBufferLike;
+  try {
+    count = LINEAGE_REFLECT_APPLY_NATIVE(
+      LINEAGE_TYPED_ARRAY_LENGTH_GETTER,
+      value,
+      [],
+    ) as number;
+    backing = LINEAGE_REFLECT_APPLY_NATIVE(
+      LINEAGE_TYPED_ARRAY_BUFFER_GETTER,
+      value,
+      [],
+    ) as ArrayBufferLike;
+  } catch {
+    return invalid();
+  }
+
+  if (
+    !Number.isSafeInteger(count) ||
+    count < 0 ||
+    count > MAX_LINEAGE_HISTORY_BYTES ||
+    LINEAGE_IS_SHARED_BACKING_NATIVE(backing)
+  ) {
+    return invalid();
+  }
+
+  try {
+    // A detached backing store must not silently become empty history.
+    LINEAGE_REFLECT_APPLY_NATIVE(
+      LINEAGE_ARRAY_BUFFER_SLICE_NATIVE,
+      backing,
+      [0, 0],
+    );
+    const detached = Buffer.alloc(count);
+    LINEAGE_REFLECT_APPLY_NATIVE(
+      LINEAGE_TYPED_ARRAY_SET_NATIVE,
+      detached,
+      [value, 0],
+    );
+    return detached;
+  } catch {
+    return invalid();
+  }
+}
+
 export type BuyVoidVerifiedPaymentV2LineageHistoryInput = Readonly<{
   requests_jsonl: Buffer;
   prior_operator_events_jsonl: Buffer;
@@ -89,11 +163,13 @@ function captureLineageHistoryInput(
   for (const key of HISTORY_INPUT_KEYS) {
     const descriptor = Object.getOwnPropertyDescriptor(input, key);
     if (!descriptor || !descriptor.enumerable ||
-        !Object.hasOwn(descriptor, "value") ||
-        !Buffer.isBuffer(descriptor.value)) {
+        !Object.hasOwn(descriptor, "value")) {
       hold("lineage_history_fields_invalid");
     }
-    captured[key] = Buffer.from(descriptor.value);
+    captured[key] = detachLineageHistoryBuffer(
+      descriptor.value,
+      "lineage_history_" + key,
+    );
   }
   for (const key of keys) {
     if (typeof key !== "string" || !HISTORY_INPUT_KEYS.includes(key)) {
