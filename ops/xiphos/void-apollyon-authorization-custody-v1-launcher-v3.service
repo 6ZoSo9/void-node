@@ -1,0 +1,39 @@
+[Unit]
+Description=VOID Apollyon authorization custody v1
+After=local-fs.target
+RefuseManualStart=yes
+RefuseManualStop=yes
+
+[Service]
+Type=simple
+User=voidapollyoncustody
+Group=voidapollyoncustody
+SupplementaryGroups=voidapollyonipc
+UMask=0077
+EnvironmentFile=/etc/void/apollyon-custody-v1/custody.env
+UnsetEnvironment=GCONV_PATH LD_AUDIT LD_LIBRARY_PATH LD_PRELOAD NODE_OPTIONS NODE_PATH OPENSSL_CONF
+ExecStart=/opt/void-apollyon-node-runtime-v1/node /opt/void-apollyon-custody-service-v2-reviewed-v1/tools/apollyon-authorization-custody-launcher-v3.mjs --socket-path ${VOID_APOLLYON_CUSTODY_SOCKET_PATH} --state-root ${VOID_APOLLYON_CUSTODY_STATE_ROOT} --socket-group-gid ${VOID_APOLLYON_CUSTODY_SOCKET_GROUP_GID} --expected-operator-public-key-raw-sha256 ${VOID_APOLLYON_CUSTODY_OPERATOR_PUBLIC_KEY_RAW_SHA256} --operator-public-key-file ${VOID_APOLLYON_CUSTODY_OPERATOR_PUBLIC_KEY_FILE}
+ExecStopPost=/usr/bin/python3 -I -B /opt/void-apollyon-custody-lifecycle-v1/apollyon_custody_stale_socket_cleanup_v1.py --cleanup
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictAddressFamilies=AF_UNIX
+
+ReadWritePaths=/run/void-apollyon-custody-v1
+ReadWritePaths=/var/lib/void-apollyon-custody-v1
+
+Restart=no

@@ -109,17 +109,20 @@ decimal formatting, refreshing live readiness, or rechecking acknowledgements
 cannot silently repeat it. A different rail, amount or destination is treated
 as a new request. A newly rendered Buy view begins a new local guard lifetime.
 
-A valid returned request ID and its payment instructions remain visible through
-an OPEN readiness refresh. A transport or validation error after POST is shown
+A valid returned request ID and its payment instructions remain actionable
+only within the original verified readiness generation and bounded lease. Any
+later readiness GET, including OPEN → OPEN, permanently retires those payment
+instructions; the browser instead warns to verify the original request with
+the operator. A transport or validation error after POST is shown
 as **REQUEST OUTCOME UNCONFIRMED — DO NOT SEND FUNDS OR RESUBMIT**, with a warning
 that the server may have persisted the request and an instruction to confirm
 its status with the operator. It is no longer claimed that the request was
 definitively not created. If live readiness becomes HOLD or SOLD OUT, the page
 shows the authoritative DO NOT SEND status instead of any payment instructions.
-Both the attempted-intent guard and its last result remain in memory. When the
-same Buy view returns to verified OPEN, the exact matching intent's previous
-REQUEST CREATED instructions or REQUEST OUTCOME UNCONFIRMED warning reappears;
-Submit stays disabled for that attempted intent.
+Both the attempted-intent guard and its last result remain in memory. When the same Buy view returns to verified OPEN, its matching uncertain-outcome
+warning may reappear. Previously confirmed payment instructions do not regain
+authority after a newer readiness GET. Submit remains disabled for the
+attempted intent.
 
 **Limits:** This is an in-memory, one-Buy-view safeguard and not a server-side
 idempotency key, durable browser history, payment-finality attestation,
@@ -143,16 +146,17 @@ request…** and no earlier payment instructions or uncertain-result notice.
 The result is recorded in memory after the POST succeeds or fails. If that
 happens after readiness changes to HOLD, SOLD OUT, or a failed/unavailable
 readiness state, the authoritative **DO NOT SEND** text remains on screen.
-Only a later verified OPEN refresh restores the exact matching result; no
-in-flight or completed POST may bypass its per-view duplicate guard.
+A later verified OPEN refresh may restore the matching uncertain-outcome
+warning, but never previously confirmed instructions from a retired readiness
+generation. No in-flight or completed POST may bypass its duplicate guard.
 
 The displayed result is bound to the **latest attempted intent**. Selecting a
 different intent never displays the latest attempt's payment instructions as
 though they belonged to the new amount, chain, or destination. Instead a
 conservative warning requires checking prior attempts with the operator. During
-HOLD/SOLD OUT, no prior payment receipt or instructions are displayed. A later
-verified OPEN refresh restores the previous result only for its matching
-canonical intent; a different intent sees the prior-request warning. No
+HOLD/SOLD OUT, no prior payment receipt or instructions are displayed. A later verified OPEN refresh may restore a matching non-actionable uncertain
+outcome; previously confirmed instructions from an older readiness generation
+remain retired. A different intent sees the prior-request warning. No
 browser/client action is authority to send money or activate the presale.
 
 ### Rail-specific receipt restoration gate
@@ -162,12 +166,28 @@ separately disabled payment rail. If Ethereum request intake changes to HOLD
 while Base remains OPEN, the browser keeps any already attempted Ethereum
 intent in its bounded local duplicate guard but renders **DO NOT SEND FUNDS**
 instead of the remembered Ethereum payment instructions. The same rule applies
-when a pending Ethereum POST resolves after the rail became HOLD. Receipt text
-may reappear only when live verified readiness is OPEN **and** the original
-selected rail is individually enabled for the exact matching intent.
+when a pending Ethereum POST resolves after the rail became HOLD. Receipt text can appear only when live verified readiness is OPEN **and** the
+original selected rail is individually enabled for the matching intent.
+Confirmed instructions may reappear after a rail-only HOLD only within the
+unchanged readiness generation; any newer readiness GET retires them.
 
 The existing browser VM regression checks both settled and late-successful
 Ethereum responses through rail HOLD and subsequent verified reopening;
 no additional POST or wallet transaction is performed. This remains a
 browser-only safety condition, not server payment idempotency or presale
 activation.
+
+## Suspended-tab and browser-history receipt recheck
+
+Browser timers may be throttled or suspended in inactive tabs or while a page
+is stored in the back-forward cache. The Buy view now calls its existing
+fail-closed receipt-expiry/clock-skew checker when the tab becomes visible,
+the window regains focus, or a page is shown again. A hidden visibility-change
+event does not revalidate a receipt. The existing irreversible expiration
+flag remains authoritative even if the wall clock later moves backwards.
+
+This is an immediate in-memory check only: it does **not** fetch a new
+readiness generation, extend an old payment lease, retry any POST, recover
+server request status, sign, or move funds. The existing VM proof injects
+suspended timers, elapsed monotonic time, a rolled-back wall clock, and
+wall-time-only suspension, then checks all three resume signals.
