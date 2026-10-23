@@ -27,6 +27,26 @@ The current fixture observer includes the terminal root mode/owner/access/defaul
 ACL and retained/visible generation revalidation that closed the #3551 TOCTOU
 finding. A fixture receipt remains non-authoritative for the real Xiphos store.
 
+### Direct dependency pin closure
+
+The executable V2 proof authenticates every direct repository dependency that
+constructs or validates its candidate fixtures. In addition to the V2 contract
+source and the three #3551 parent artifacts above, it pins:
+
+- candidate-training-attempt claim contract:
+  `f97fafb0148527ae3a954e2752faef8c7fc9e88e`;
+- durable claim-store V2 contract:
+  `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`;
+- authorization-slot V1 contract:
+  `25629371f6da164e12fecfc08c5f26815418e3a8`;
+- training-start consumption V1 contract:
+  `f557d92e89f3502ee6ac1243411cd43191ec1f37`.
+
+The focused workflow independently asserts these four Git blobs before running
+the proof. The proof's complete PINS census therefore contains eight exact
+repository artifacts. This is source provenance only, not installed package or
+runtime identity proof.
+
 ## Candidate content address
 
 The historical contract rebuilt an ordinary object and used
@@ -255,7 +275,7 @@ Current V2 source generation before this document:
 - contract source blob:
   `4c78459826c25cab43870b0b322b566575d18667`;
 - proof blob:
-  `9a5819e115373950a980d5effbc849d8f5f4c26b`.
+  `2e919af52e44c6dcfec41dc47567a73f658874c3`.
 
 Next gate:
 `apollyon_training_start_protected_store_revalidator_implementation_v2`,
