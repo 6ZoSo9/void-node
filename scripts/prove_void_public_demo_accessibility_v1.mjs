@@ -87,12 +87,12 @@ function requireDemoAccessibility(html) {
   );
   assert.match(
     html,
-    /\$\("resultBox"\)\.textContent = "Timed out waiting for result\."\;\s*\$\("resultStatusLabel"\)\.textContent = "Timed out waiting for result\."\;\s*return false;/u,
+    /\$\("resultBox"\)\.textContent = "Timed out waiting for result\.";\s*\$\("resultStatusLabel"\)\.textContent = "Timed out waiting for result\.";\s*return false;/u,
     "timeout announcement must remain bound to the polling-expiry result update",
   );
   assert.match(
     html,
-    /\$\("resultBox"\)\.textContent = "Submitting\.\.\."\;\s*\$\("resultStatusLabel"\)\.textContent = "Submitting job\.";/u,
+    /\$\("resultBox"\)\.textContent = "Submitting\.\.\.";\s*\$\("resultStatusLabel"\)\.textContent = "Submitting job\.";/u,
     "submission announcement must remain bound to the submitting result update",
   );
   assert.match(
