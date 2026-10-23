@@ -6,9 +6,11 @@ Status: **source/test/CI identity binding only**. This generation does not perfo
 
 ## Purpose
 
-Parent Draft #3749 deliberately remained machine-identity UNBOUND even after its metadata-safe first-host evidence plan reached 18/18 GREEN and a clean exact-head review. Its next gate required separately authenticated Xiphos machine evidence before any host pass could be authorized.
+Parent Draft #3749 deliberately remained machine-identity UNBOUND even after its metadata-safe first-host evidence plan reached 18/18 GREEN and a clean exact-head review. Its next gate required a stable machine digest before any later authenticated-host decision.
 
-The operator then performed a read-only Xiphos measurement. The command:
+The operator then performed a read-only Xiphos machine-ID measurement over an existing operator path. That observation binds one exact normalized digest for future comparison, but it does **not** independently authenticate the SSH endpoint, Xiphos host key, client identity, or transport path. Canonical #3768/#3770 preserve that provenance HOLD.
+
+The measurement: The command:
 
 - observed hostname `Xiphos`;
 - read only `/etc/machine-id`;
@@ -49,19 +51,22 @@ immutable while permitting a one-way cumulative successor workflow.
 
 ## Binding semantics
 
-Only this authority advances:
+Only this narrow fact advances:
 
 ```text
 machine_identity_bound=true
 ```
 
-The future first-host pass must independently reread `/etc/machine-id` using the same normalization and require exact SHA-256 equality. Hostname `Xiphos` alone is insufficient. Unreadable, malformed, changing, or mismatched machine identity must HOLD.
+Here `machine_identity_bound` means **the observed normalized digest is content-bound for future equality checks**. It does not mean the machine was independently authenticated as Xiphos. The future host path must first establish an authenticated transport attestation, then independently reread `/etc/machine-id` using the same normalization and require exact SHA-256 equality. Hostname `Xiphos` and the observed digest by themselves are insufficient. Unreadable, malformed, changing, mismatched, or unauthenticated transport identity must HOLD.
 
 The binding does **not** imply that the protected store exists, belongs to the expected service, matches the reviewed source/runtime generation, or contains current winner/claim/consumption state.
 
 These remain false:
 
 ```text
+authenticated_transport_attestation_present=false
+authenticated_xiphos_machine_identity_proven=false
+host_pass_authorized=false
 host_pass_performed=false
 protected_store_origin_proven=false
 current_store_generation_revalidation_performed=false
@@ -78,6 +83,10 @@ signing=false
 transaction=false
 funds_movement=false
 ```
+
+## Authentication boundary
+
+This binding is intentionally subordinate to the authenticated-attestation chain in #3768/#3770. Before any first-host pass can be authorized, a separately reviewed transport must bind the numeric endpoint, independently authenticated Ed25519 Xiphos host key, canonical known_hosts bytes, and the selected client identity/public-key relationship, then attest the same machine-ID digest. No field in this binding substitutes for that provenance.
 
 ## Preserved first-host safety boundary
 
@@ -100,12 +109,12 @@ Root privilege, if separately authorized and required for otherwise-hidden metad
 
 Binding ID:
 
-`voidapollyonhostidbind1_84b546de51ba3f22cd1f5775eb0230d5683e53254d3d3426b9a97fc2d3037f1d`
+`voidapollyonhostidbind1_71ad71a32fed9e24ccb3e06499f8777d7835ddac6280fb9f4a92423bfbd02198`
 
 The proof rejects duplicate JSON keys and non-finite JSON constants before content addressing, pins every parent blob, mutates every binding requirement and negative authority independently, and rejects any change to the target host, identity kind, normalization, digest, raw-ID secrecy, read-only observation facts, parent generation, next gate, or binding ID.
 
 Next gate:
 
-`SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS`
+`AUTHENTICATE_XIPHOS_TRANSPORT_AND_ATTEST_MACHINE_IDENTITY_THEN_SEPARATELY_AUTHORIZE_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS`
 
 **PROTECT THE CORE.**
