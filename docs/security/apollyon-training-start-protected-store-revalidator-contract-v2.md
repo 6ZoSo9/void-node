@@ -141,6 +141,50 @@ been performed:
 All matching `*_proven`, `*_revalidated` and `*_performed` fields remain
 false in this source candidate.
 
+## Full #3557 future-host matrix
+
+The machine-readable candidate now binds the complete **future** qualification
+matrix from #3557 rather than using `full_3557_future_host_matrix_bound=true`
+as a prose-only rollup.
+
+In addition to the retained store/writer gates above, the contract requires:
+
+- exact installed source generation, package closure, trusted
+  interpreter/runtime, and service/process identity;
+- rejection of ambient environment and mutable external provenance;
+- a privileged fixed-root capability with mount/bind-alias namespace
+  provenance; caller-selected roots or directory FDs never grant authority;
+- cross-UID kernel peer credential provenance, protected operator/claim-service
+  identity, and bounded ephemeral delegated capability lifetime;
+- exact record content-digest/ID cross-binding, pending/partial-record HOLD,
+  and no unlink/rollback/release after an indeterminate outcome;
+- post-publication revalidation of root, generation, winner, claim and
+  consumption state plus parent-fsync evidence;
+- stopped-trainer identity revalidation, a separate native releaser gate, and
+  the separate sole-writer/exact-frame/EOF/protected-credential gate;
+- the rule that a protected-store receipt conveys **no** key, signing, wallet,
+  transaction, payment, token-allocation or treasury authority;
+- complete negative-fixture FD census, exactly-once close attempts, zero
+  protected mutation/stable synthetic namespace, and terminal-close failure
+  provenance; and
+- a separately authorized first host pass that is read-only and metadata-safe,
+  with credentials/keys/wallets and mutation/service/training actions forbidden.
+
+The public candidate keeps the corresponding host facts false, including
+installed source/package/runtime/process proof, fixed-root/mount provenance,
+cross-UID and protected-role provenance, delegated-capability proof,
+post-publication checks, stopped-trainer reread, releaser/sole-writer gates,
+and `first_host_pass_performed=false`.
+
+The executable proof flips **all 27 new required fields** to false one at a
+time and all **15 new proof/performance fields** to true one at a time. Every
+mutation must fail candidate qualification before its stale content address
+could be treated as authority.
+
+These are source-contract obligations only. They do not claim an installed
+observer, Xiphos read, service/process qualification, writer invocation,
+release, credential use, training, signing, transaction, or funds action.
+
 ## Parent request cross-binding
 
 `qualifyApollyonTrainingStartProtectedStoreRevalidatorAgainstRequestV2()`
@@ -159,6 +203,21 @@ Only source/test facts advance. These remain false:
 ```text
 reviewed_canonicalizer_v2_host_integration_proven=false
 parent_revalidation_request_v1_host_realm_proven=false
+installed_source_generation_identity_proven=false
+installed_package_closure_identity_proven=false
+trusted_interpreter_runtime_identity_proven=false
+installed_service_process_identity_proven=false
+privileged_fixed_root_capability_origin_proven=false
+mount_namespace_and_bind_alias_provenance_proven=false
+cross_uid_kernel_peer_credential_provenance_proven=false
+protected_operator_and_claim_service_identity_proven=false
+ephemeral_delegated_capability_lifetime_proven=false
+stopped_trainer_identity_revalidation_performed=false
+postpublication_revalidation_performed=false
+postpublication_parent_fsync_evidence_proven=false
+separate_native_releaser_gate_satisfied=false
+sole_writer_exact_frame_eof_and_credential_gate_satisfied=false
+first_host_pass_performed=false
 fixture_custody_receipt_authoritative=false
 protected_store_origin_proven=false
 current_store_generation_revalidation_performed=false
@@ -194,9 +253,9 @@ candidate_weight_mutation_performed=false
 Current V2 source generation before this document:
 
 - contract source blob:
-  `1699ac4d826e778854ea0c91541cf4412b30fb50`;
+  `4c78459826c25cab43870b0b322b566575d18667`;
 - proof blob:
-  `f2d8a63296931babcb5153819301a3e251f10e3a`.
+  `9a5819e115373950a980d5effbc849d8f5f4c26b`.
 
 Next gate:
 `apollyon_training_start_protected_store_revalidator_implementation_v2`,
