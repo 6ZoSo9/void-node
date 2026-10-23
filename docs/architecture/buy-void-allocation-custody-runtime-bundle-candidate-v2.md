@@ -88,3 +88,27 @@ byte-identical cross-node candidates.
 No host install, service/systemd mutation, private storage read, credential/key
 access, signing, RPC/transaction, reserve/recover, payment acceptance, public
 presale/WC activation, treasury/liquidity action or funds movement.
+
+
+## October 22 independent-review repair — candidate identity and reader controls
+
+The V2 verifier now requires the exact candidate ID and canonical wire SHA-256
+from hosted three-Node comparison run `39680421006`:
+`voidbuycustodybundle2_85d68cef4b2ed3e682efb665c41d8d918bd00908bb5f3aa486dedc3f7e74d0a6`,
+`5edc11a1960389a25c48534b8fff90397fd58a1ec61d174fba455de23987d4f9`.
+The value is **not** accepted from a candidate's self-declared identity alone.
+This pins all runtime file sizes, SHA-256/imports, compiler fingerprints,
+build recipe and source records; exact top-level HOLD flags are still checked.
+
+Both source/build and candidate-artifact reads now walk ancestor directories
+through retained O_DIRECTORY/O_NOFOLLOW/O_NONBLOCK descriptors, open the leaf
+with O_NOFOLLOW/O_NONBLOCK, require single-link regular-file exact metadata,
+perform bounded reads with an EOF-growth probe, and recheck descriptor and
+visible-path generations before using bytes. Adversarial disposable-file
+tests swap in FIFO, symlink and oversized leaf bytes at the **actual** open
+boundary, requiring fail-closed rejection without blocking.
+
+This is exact source/CI candidate security, **not** independent runtime
+acceptance, an authorized service installation, a custody reserve/recover
+activation, or payment/presale authority. Existing V1 archive and lock are
+immutable and still pin the older reader; do not install them as V2.

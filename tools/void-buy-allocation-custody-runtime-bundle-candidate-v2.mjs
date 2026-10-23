@@ -43,6 +43,12 @@ export const VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_AUTHORITY_V2 =
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ENTRY = "tools/void-buy-allocation-custody-service-v2.mjs";
 const EXPECTED_TYPESCRIPT_VERSION = "5.9.3";
+// Immutable hosted Node 22/24/26 equality receipt, run 39680421006.
+// An arbitrary recomputed self-hash is NOT independently accepted evidence.
+export const VOID_BUY_VOID_CUSTODY_RUNTIME_V2_HOSTED_ID =
+  "voidbuycustodybundle2_85d68cef4b2ed3e682efb665c41d8d918bd00908bb5f3aa486dedc3f7e74d0a6";
+export const VOID_BUY_VOID_CUSTODY_RUNTIME_V2_HOSTED_SHA256 =
+  "5edc11a1960389a25c48534b8fff90397fd58a1ec61d174fba455de23987d4f9";
 
 export const VOID_BUY_VOID_CUSTODY_RUNTIME_BUNDLE_PREDECESSOR_V1 =
   Object.freeze({
@@ -160,42 +166,131 @@ function safeRelative(root, absolute) {
   return relative;
 }
 
+// Read only exact regular files through retained no-follow, nonblocking
+// descriptors. Every ancestor is opened as a directory via /proc/self/fd.
+function sameOpenedGeneration(left, right) {
+  return left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.uid === right.uid &&
+    left.gid === right.gid &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs;
+}
+
+function descriptorBoundRegularReadV2(absolute, maximum, code) {
+  const { O_RDONLY, O_DIRECTORY, O_NOFOLLOW, O_NONBLOCK } = fs.constants;
+  if ([O_RDONLY, O_DIRECTORY, O_NOFOLLOW, O_NONBLOCK].some(
+    value => typeof value !== "number") ||
+    !fs.existsSync("/proc/self/fd") ||
+    !path.isAbsolute(absolute) || path.resolve(absolute) !== absolute ||
+    !Number.isSafeInteger(maximum) || maximum < 1 ||
+    maximum > 32 * 1024 * 1024) {
+    fail("custody_bundle_descriptor_read_capability_invalid");
+  }
+  const components = absolute.split("/").filter(Boolean);
+  if (components.length === 0 || components.some(
+    name => name === "." || name === ".." || name.includes("\0"))) {
+    fail(code + "_path_invalid");
+  }
+  let parentFd = -1;
+  let fileFd = -1;
+  const directoryFlags = O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_NONBLOCK;
+  try {
+    parentFd = fs.openSync("/", directoryFlags);
+    for (const name of components.slice(0, -1)) {
+      const child = "/proc/self/fd/" + String(parentFd) + "/" + name;
+      const beforeDir = fs.lstatSync(child, { bigint: true });
+      if (!beforeDir.isDirectory() || beforeDir.isSymbolicLink()) {
+        fail(code + "_ancestor_not_direct_directory");
+      }
+      let nextFd = -1;
+      try {
+        nextFd = fs.openSync(child, directoryFlags);
+        const openedDir = fs.fstatSync(nextFd, { bigint: true });
+        if (!openedDir.isDirectory() ||
+            !sameOpenedGeneration(beforeDir, openedDir)) {
+          fail(code + "_ancestor_rebound");
+        }
+        fs.closeSync(parentFd);
+        parentFd = nextFd;
+        nextFd = -1;
+      } finally {
+        if (nextFd >= 0) fs.closeSync(nextFd);
+      }
+    }
+
+    const leaf = "/proc/self/fd/" + String(parentFd) + "/" +
+      components.at(-1);
+    const visibleBefore = fs.lstatSync(leaf, { bigint: true });
+    const withinLimit = st => st.isFile() && !st.isSymbolicLink() &&
+      st.nlink === 1n && st.size > 0n && st.size <= BigInt(maximum);
+    if (!withinLimit(visibleBefore)) {
+      fail(code + "_file_not_direct_regular_or_size_invalid");
+    }
+    fileFd = fs.openSync(leaf, O_RDONLY | O_NOFOLLOW | O_NONBLOCK);
+    const before = fs.fstatSync(fileFd, { bigint: true });
+    if (!withinLimit(before) ||
+        !sameOpenedGeneration(visibleBefore, before)) {
+      fail(code + "_open_generation_invalid");
+    }
+    const size = Number(before.size);
+    const out = Buffer.alloc(size);
+    let offset = 0;
+    while (offset < size) {
+      const count = fs.readSync(fileFd, out, offset,
+        Math.min(65536, size - offset), offset);
+      if (count <= 0) fail(code + "_short_read");
+      offset += count;
+    }
+    const extra = Buffer.alloc(1);
+    if (fs.readSync(fileFd, extra, 0, 1, size) !== 0) {
+      fail(code + "_growth_after_bounded_read");
+    }
+    const after = fs.fstatSync(fileFd, { bigint: true });
+    const stillPinned = fs.lstatSync(leaf, { bigint: true });
+    const stillVisible = fs.lstatSync(absolute, { bigint: true });
+    if (![after, stillPinned, stillVisible].every(st =>
+      withinLimit(st) && sameOpenedGeneration(before, st))) {
+      fail(code + "_changed_during_read");
+    }
+    return out;
+  } finally {
+    if (fileFd >= 0) fs.closeSync(fileFd);
+    if (parentFd >= 0) fs.closeSync(parentFd);
+  }
+}
+
 function readRegular(root, relative, maximum = 32 * 1024 * 1024) {
-  if (
-    typeof relative !== "string" ||
-    relative.length === 0 ||
-    path.isAbsolute(relative) ||
-    relative.split("/").includes("..")
-  ) {
+  if (typeof relative !== "string" || relative.length === 0 ||
+      path.isAbsolute(relative) || relative.split("/").includes("..")) {
     fail("custody_bundle_relative_path_invalid");
   }
   const absolute = path.resolve(root, relative);
   if (safeRelative(root, absolute) !== relative.split(path.sep).join("/")) {
     fail("custody_bundle_relative_path_not_canonical");
   }
-  const st = fs.lstatSync(absolute);
-  if (!st.isFile() || st.isSymbolicLink() || st.nlink !== 1) {
-    fail("custody_bundle_file_not_direct_regular:" + relative);
-  }
-  if (st.size < 1 || st.size > maximum) {
-    fail("custody_bundle_file_size_invalid:" + relative);
-  }
-  return fs.readFileSync(absolute);
+  return descriptorBoundRegularReadV2(
+    absolute, maximum, "custody_bundle_source");
 }
 
 function readCandidateArtifact(candidatePath) {
   if (typeof candidatePath !== "string" || candidatePath.length === 0) {
     fail("custody_bundle_candidate_path_invalid");
   }
-  const absolute = path.resolve(candidatePath);
-  const st = fs.lstatSync(absolute);
-  if (!st.isFile() || st.isSymbolicLink() || st.nlink !== 1) {
-    fail("custody_bundle_candidate_file_not_direct_regular");
-  }
-  if (st.size < 1 || st.size > 4 * 1024 * 1024) {
-    fail("custody_bundle_candidate_file_size_invalid");
-  }
-  return fs.readFileSync(absolute);
+  return descriptorBoundRegularReadV2(
+    path.resolve(candidatePath), 4 * 1024 * 1024, "custody_bundle_candidate");
+}
+
+// These exports only exercise the source-only reader in disposable proofs.
+// They never install the runtime, execute custody code or admit a payment.
+export function testOnlyReadCustodyBundleSourceV2(root, relative, maximum) {
+  return readRegular(root, relative, maximum);
+}
+export function testOnlyReadCustodyBundleArtifactV2(candidatePath) {
+  return readCandidateArtifact(candidatePath);
 }
 
 function verifyPinnedSources(root) {
@@ -434,6 +529,11 @@ export function verifyVoidBuyVoidCustodyRuntimeBundleCandidateV2(candidate) {
     body.version !== 2 ||
     body.repository !== "6ZoSo9/void-node" ||
     body.entrypoint !== ENTRY ||
+    body.runtime_layout !== "repository_relative_package_free_v1" ||
+    body.install_target_selected !== false ||
+    body.request_root_selected !== false ||
+    body.shared_directory_selected !== false ||
+    body.node_binary_identity_verified !== false ||
     body.candidate_accepted !== false ||
     body.runtime_integration !== false ||
     body.production_gate_ready !== false ||
@@ -502,6 +602,20 @@ export function verifyVoidBuyVoidCustodyRuntimeBundleCandidateV2(candidate) {
     fail("custody_bundle_candidate_compiler_identity_invalid");
   }
 
+  const expectedRecipe = Object.freeze({
+    dependency_install: "npm ci --ignore-scripts --no-audit --no-fund",
+    compile: "node node_modules/typescript/bin/tsc -p tsconfig.build.json",
+    supported_node_majors: [22, 24, 26],
+    three_node_byte_equality_required: true,
+  });
+  if (canonicalJsonV2(body.build_recipe) !==
+      canonicalJsonV2(expectedRecipe) ||
+      !Array.isArray(body.external_node_builtins) ||
+      body.external_node_builtins.length === 0 ||
+      body.external_node_builtins.some(name =>
+        typeof name !== "string" || !name.startsWith("node:"))) {
+    fail("custody_bundle_candidate_build_or_import_contract_invalid");
+  }
   if (
     !Array.isArray(body.third_party_runtime_packages) ||
     body.third_party_runtime_packages.length !== 0 ||
@@ -509,6 +623,14 @@ export function verifyVoidBuyVoidCustodyRuntimeBundleCandidateV2(candidate) {
     body.node_modules_runtime_files.length !== 0
   ) {
     fail("custody_bundle_candidate_package_free_invalid");
+  }
+  // Bind every runtime digest, byte count, import graph, compiler fingerprint,
+  // source record and top-level HOLD to independently compared hosted bytes.
+  // This does not set candidate_accepted or permit host installation.
+  const wire = Buffer.from(canonicalJsonV2(candidate) + "\n", "utf8");
+  if (observedId !== VOID_BUY_VOID_CUSTODY_RUNTIME_V2_HOSTED_ID ||
+      sha256(wire) !== VOID_BUY_VOID_CUSTODY_RUNTIME_V2_HOSTED_SHA256) {
+    fail("custody_bundle_candidate_hosted_identity_invalid");
   }
   return true;
 }
