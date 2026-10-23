@@ -412,10 +412,19 @@ def _scan_dir(
     if _fd_mount_id(fd) != expected_mnt_id:
         hold("target_tree_cross_mount_directory_forbidden:" + relative_prefix)
 
+    remaining = MAX_TREE_ENTRIES - totals["entries"]
+    if remaining < 0:
+        hold("target_tree_entry_limit_exceeded")
+    names: list[str] = []
     try:
-        names = sorted(os.listdir(fd))
+        with os.scandir(fd) as iterator:
+            for entry in iterator:
+                names.append(entry.name)
+                if len(names) > remaining:
+                    hold("target_tree_entry_limit_exceeded")
     except OSError as exc:
         hold("target_directory_unreadable:" + str(exc.errno))
+    names.sort()
 
     for name in names:
         if name in (".", "..") or "/" in name or "\x00" in name:
