@@ -54,6 +54,11 @@ jobs:
             'docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md' \
             'scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs' \
             'tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs' \
+            '.github/workflows/apollyon-training-start-consumption-directory-custody-candidate-v1.yml' \
+            '.github/workflows/apollyon-training-start-consumption-protected-writer-v1.yml' \
+            '.github/workflows/apollyon-training-start-store-revalidation-request-v1.yml' \
+            'scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs' \
+            'scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs' \
             | LC_ALL=C sort > "$expected"
           git diff --no-renames --name-only "$PARENT" "$EXPECTED_HEAD" -- \
             | LC_ALL=C sort > "$actual"
@@ -65,6 +70,8 @@ jobs:
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 079576db7f880872f2d4dea8e7759bd536161516
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 76f5a6bcbc9854a1133cd1324eb862cb50102c0e
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_consumption_protected_writer_v1.mjs)" = 7a21050ba73e6954027a71751f05343f35720add
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_store_revalidation_request_v1.mjs)" = a2658dbe5413f0663a10ce544995deb21f2fa0e7
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = ed6eb47c2f83b35b489d0e9034a4b87c2d10b9dd
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-contract-v2.mjs)" = 6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe
