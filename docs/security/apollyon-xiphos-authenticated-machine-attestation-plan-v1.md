@@ -107,7 +107,19 @@ public-key identity must all be source-bound before execution authority can
 become true.
 
 The future binding must be at least as strict as the repository's reviewed
-custody SSH adapter pattern:
+custody SSH adapter pattern.
+
+The host key cannot become "independently authenticated" from a boolean or
+from the same network session it is meant to authenticate. The binding
+generation must source-bind a reviewed independent host-key authentication
+artifact (and its content digest/provenance), and that artifact must originate
+outside the attestation transport being authorized.
+
+Digest conventions are exact and shared with the reviewed custody transport:
+- host-key SHA-256 is SHA-256 of the decoded raw SSH `ssh-ed25519` public-key blob;
+- client-public-key SHA-256 uses the same raw SSH public-key blob convention;
+- known-hosts SHA-256 is over the exact complete known-hosts file bytes,
+  including its single canonical trailing newline.
 
 - destination uses one exact source-bound numeric endpoint; the string
   `xiphos` is only the host-key alias, not a DNS trust decision;
@@ -139,7 +151,8 @@ ambient interpreter/module search path. It may read only the fixed
 1. require exact lowercase 32-hex machine-ID text after allowed outer
    whitespace normalization;
 2. perform descriptor/generation stability checks around the read;
-3. never return the raw machine ID;
+3. never transmit the raw machine ID on stdout, stderr, command arguments,
+   environment, framing fields, diagnostics, or any other attestation channel;
 4. return only its SHA-256;
 5. bind the client challenge by digest;
 6. emit one canonical JSON frame plus EOF;
@@ -185,13 +198,13 @@ The proof:
 - requires all transport identities to remain null/unbound;
 - requires all authority fields false;
 - validates content-addressed plan ID
-  `voidapollyonxiphosattestplan1_7de3728e503515db7f15a3ac4824ed3012af342f89a860baab776c42f1cedffc`;
-- executes **100 semantic adversaries**; and
+  `voidapollyonxiphosattestplan1_bb22aae1db88ec8dbfaaf4a40d952e8b67d25754b0a060ecf6a439c263081fab`;
+- executes **106 semantic adversaries**; and
 - performs no network or host access.
 
-Plan blob: `1dd4f5a6fdf1781ce1986e17ce1edb1074bb8d63`.
+Plan blob: `835291d036668b3d0bbe7aeb02e51f61ff0b2a72`.
 
-Proof blob: `e3cdd5754d82c2fc1d3a704829b7997b62e49b62`.
+Proof blob: `a721cc5e7e49bd969301d4918ad224c17b6009cf`.
 
 ## Next gate
 
