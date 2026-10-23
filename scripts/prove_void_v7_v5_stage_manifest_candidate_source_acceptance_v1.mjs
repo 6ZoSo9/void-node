@@ -7,10 +7,10 @@ import path from "node:path";
 import {execFileSync} from "node:child_process";
 
 const MARKER="VOID_V7_V5_STAGE_MANIFEST_CANDIDATE_SOURCE_ACCEPTANCE_V1";
-const BASE="a672d6be15815a008bbf664ba099fc9ce72bfc92";
+const BASE="0cf12c7cee73a68fcd8bb6a060c8a5572c3b8407";
 const ACCEPTANCE="ops/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.json";
-const ACCEPTANCE_BLOB="75d30f839a4752eb3a3877e15e55a4576ad0d72f";
-const EXPECTED_ID="voidv7v5stagemanifestcandidateaccept1_d3b7f15b65a2d91dbf64b0d5c093612ae8092669a480e80d25c174d31d22bf0b";
+const ACCEPTANCE_BLOB="748867d4c77a0568e1123c16836c2ca4b56cedcc";
+const EXPECTED_ID="voidv7v5stagemanifestcandidateaccept1_1b87eb12658f133da04a9bb0d9e3b460cb66adca6163aac0d759c88be2b5b431";
 
 const LAUNCHER="ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c";
 const LAUNCHER_BLOB="2337466b713b6572cc5ec832817899bbcb4e2ac2";
@@ -19,11 +19,11 @@ const ADMISSION_BLOB="c7ff1128ff04f3ce5f995206af52f844564c6b39";
 const HISTORICAL_WORKFLOW=".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml";
 const HISTORICAL_WORKFLOW_BLOB="b82f0d1ea2f9c101343c2023bbf88516c948fa67";
 const QUALIFIER="ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py";
-const QUALIFIER_BLOB="661fa682fab32704f9596d7984b8899f968d5649";
+const QUALIFIER_BLOB="4de9e927d73f8ec5acd0b9cce26617355456efcd";
 const QUALIFIER_PROOF="scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py";
-const QUALIFIER_PROOF_BLOB="89b7e89a69a08e0218a2bfa4a8bc0a1e6df44d60";
+const QUALIFIER_PROOF_BLOB="9199a09bda1e9c40a68ef9387f23dd73dc33bf73";
 const QUALIFIER_WORKFLOW=".github/workflows/void-v7-v5-stage-static-launcher-qualifier-v2.yml";
-const QUALIFIER_WORKFLOW_BLOB="27570b2658be891ecb5c17157cb4d2c37b9ffb06";
+const QUALIFIER_WORKFLOW_BLOB="7c1463a30f370892ef8e882efb6ead2ea85e2043";
 
 const SELF="scripts/prove_void_v7_v5_stage_manifest_candidate_source_acceptance_v1.mjs";
 const DOC="docs/security/void-v7-v5-stage-manifest-candidate-source-acceptance-v1.md";
