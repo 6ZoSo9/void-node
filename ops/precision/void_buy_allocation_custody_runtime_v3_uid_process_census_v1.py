@@ -6,20 +6,21 @@ _BOOTSTRAP_MARKER = "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_UID_PROCESS_CENSUS_V1"
 if (
     _bootstrap_sys.flags.isolated != 1
     or not getattr(_bootstrap_sys.flags, "safe_path", False)
+    or _bootstrap_sys.flags.dont_write_bytecode != 1
     or _bootstrap_sys.flags.optimize != 0
     or not __debug__
 ):
     if __name__ == "__main__":
         print(_BOOTSTRAP_MARKER)
         print("status=HOLD")
-        print("reason=python_isolated_unoptimized_mode_required")
+        print("reason=python_isolated_unoptimized_nobytecode_mode_required")
         print("process_signal=false")
         print("service_mutation=false")
         print("production_census_filesystem_write=false")
         print("self_test_private_fixture_writes=false")
         print("funds_movement=false")
         raise SystemExit(2)
-    raise RuntimeError("python_isolated_unoptimized_mode_required")
+    raise RuntimeError("python_isolated_unoptimized_nobytecode_mode_required")
 
 import argparse
 import grp
@@ -494,6 +495,27 @@ def stable_uid_process_census(
     return first
 
 
+def revalidate_proc_scope(
+    expected_host_pid_namespace_dev_ino: str,
+    initial_pid_namespace: dict[str, Any],
+    initial_proc_visibility: dict[str, Any],
+) -> dict[str, bool]:
+    terminal_pid_namespace = verify_host_pid_namespace_lease(
+        expected_host_pid_namespace_dev_ino
+    )
+    terminal_proc_visibility = verify_complete_proc_visibility(
+        read_proc_mountinfo()
+    )
+    if terminal_pid_namespace != initial_pid_namespace:
+        hold("host_pid_namespace_scope_changed")
+    if terminal_proc_visibility != initial_proc_visibility:
+        hold("proc_visibility_scope_changed")
+    return {
+        "host_pid_namespace_lease_revalidated_after_census": True,
+        "proc_visibility_revalidated_after_census": True,
+    }
+
+
 def census(
     expected_host_pid_namespace_dev_ino: str,
 ) -> dict[str, Any]:
@@ -518,6 +540,12 @@ def census(
         zero_uid_processes_observed = False
         dedicated_uid_quiescence_candidate = False
 
+    terminal_scope = revalidate_proc_scope(
+        expected_host_pid_namespace_dev_ino,
+        pid_namespace,
+        proc_visibility,
+    )
+
     body = {
         "schema": SCHEMA,
         "marker": MARKER,
@@ -537,6 +565,7 @@ def census(
             "proc_root": str(PROC_ROOT),
             "pid_namespace": pid_namespace,
             "proc_visibility": proc_visibility,
+            **terminal_scope,
             "uid_slots_examined": [
                 "real",
                 "effective",
@@ -555,8 +584,10 @@ def census(
         "proc_status_uid_only": True,
         "proc_thread_status_uid_only": True,
         "complete_proc_visibility_verified": True,
+        "complete_proc_visibility_revalidated_after_census": True,
         "host_pid_namespace_external_lease_required": True,
         "host_pid_namespace_lease_verified": True,
+        "host_pid_namespace_lease_revalidated_after_census": True,
         "process_cmdline_read": False,
         "process_environment_read": False,
         "process_executable_read": False,
@@ -720,6 +751,9 @@ def self_test() -> None:
     print("four_uid_slots_classified=true")
     print("thread_uid_slots_classified=true")
     print("proc_visibility_verified_before_empty_candidate=true")
+    print("proc_visibility_revalidated_after_two_pass_census=true")
+    print("host_pid_namespace_revalidated_after_two_pass_census=true")
+    print("python_no_bytecode_mode_required=true")
     print("hidepid_restricted_proc_holds=true")
     print("host_pid_namespace_external_lease_required=true")
     print("private_pid_namespace_rejected=true")
