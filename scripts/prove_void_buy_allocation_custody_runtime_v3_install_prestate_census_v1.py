@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import os
 from pathlib import Path
@@ -13,7 +14,13 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "f5e2c3cfd76c9af43d0758a4e7c8a0b6521c5628"
+EXPECTED_SOURCE_BLOB = "feb6508133a1feda9bda793646a5c949f1fdc7f0"
+
+def git_blob(raw: bytes) -> str:
+    prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
+    return hashlib.sha1(prefix + raw).hexdigest()
+
+assert git_blob(TARGET.read_bytes()) == EXPECTED_SOURCE_BLOB
 
 spec = importlib.util.spec_from_file_location(
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1",
@@ -144,6 +151,26 @@ with tempfile.TemporaryDirectory(
         raise AssertionError("FIFO target entry was accepted")
     fifo.unlink()
 
+    overflow = target / "overflow"
+    overflow.mkdir(mode=0o700)
+    for index in range(module.MAX_TREE_ENTRIES + 1):
+        (overflow / f"entry-{index:05d}").touch()
+    try:
+        module.collect_prestate(
+            parent,
+            module.TARGET_NAME,
+            module.PROPOSED_STAGE_NAME,
+            module.PROPOSED_ROLLBACK_NAME,
+            require_root_owned_parent=False,
+        )
+    except module.CensusHold as exc:
+        assert "target_tree_entry_limit_exceeded" in str(exc)
+    else:
+        raise AssertionError("oversized directory enumerated past entry budget")
+    for child in overflow.iterdir():
+        child.unlink()
+    overflow.rmdir()
+
     rollback = parent / module.PROPOSED_ROLLBACK_NAME
     rollback.mkdir(mode=0o700)
     collision = module.collect_prestate(
@@ -166,6 +193,7 @@ for required in (
     "open_bound_directory",
     "read_bound_regular",
     "scan_target_at",
+    "os.scandir(fd)",
     "_hash_symlink_at",
     "_observe_regular_at",
     "metadata_sha256",
@@ -229,6 +257,8 @@ print("absent_target_create_only_candidate_proven=true")
 print("present_target_rollback_candidate_proven=true")
 print("special_file_rejection=true")
 print("collision_fail_closed=true")
+print("entry_budget_enforced_before_sort=true")
+print("exact_source_blob_asserted=true")
 print("host_census_not_executed_in_ci=true")
 print("read_only=true")
 print("filesystem_write=false")
