@@ -46,9 +46,9 @@ This successor is based on
 blob above.
 
 - successor V2 serializer Git blob:
-  `6e8056287ae4ac8c73b9230679a6a4b570d8eac8`
+  `4d4b970fa2df3a3e7cae176b18c62aff52e94adc`
 - successor V2 proof Git blob:
-  `041b814ee468efb018b318627db1992543841dca`
+  `a0831748098a26087cc9a1ee79132fba16bdb20e`
 
 The focused workflow is the authoritative non-circular binder for the complete
 candidate generation. It pins the successor base, four-path diff, frozen V1,
@@ -58,7 +58,7 @@ not embed its own blob or the workflow blob, because either value would change
 the bytes being named and create a circular self-hash. Those outer identities
 are carried by the reviewed commit and workflow.
 
-This successor modifies the same four paths to close revoked-Proxy dispatch.
+This successor modifies the same four paths to close revoked-Proxy dispatch, including callable and revoked-callable Proxy values before type/array dispatch.
 V1 and all current consumers remain byte unchanged.
 
 ## V2 serialization boundary
