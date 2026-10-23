@@ -18,7 +18,7 @@ import {
 
 const SOURCE =
   "tools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs";
-const EXPECTED_SOURCE_BLOB = "6aefcbccc250ba393f59d7c5f1bcd54905d8ac46";
+const EXPECTED_SOURCE_BLOB = "a1e405b3a08360c8b992eaf75bbc0dfbb1896ea8";
 
 function gitBlob(bytes) {
   return crypto
@@ -202,6 +202,9 @@ function processReceipt(overrides = {}) {
     process: {
       current_uid_target_reference_absent_candidate: true,
       selected_target_snapshot_stable: true,
+      selected_target_root_dev: 11,
+      selected_target_root_ino: 22,
+      selected_target_mount_id: 33,
       all_process_reference_absence_proven: false,
       privileged_all_process_scan: false,
       custody_principal_process_scan_performed: false,
@@ -367,6 +370,30 @@ assert.equal(
   true,
 );
 
+for (const field of [
+  "service_inactive_observed",
+  "socket_absent_observed",
+  "runtime_directory_absent_observed",
+  "daemon_reload_clear_observed",
+  "unit_state_safe_observed",
+]) {
+  const rejected = classify({
+    quiescence: quiescenceReceipt({
+      service_observation: {
+        ...quiescenceReceipt().service_observation,
+        [field]: false,
+      },
+    }),
+  });
+  assert.equal(
+    rejected.status,
+    "HOLD",
+    "quiescence candidate support flip accepted: " + field,
+  );
+  assert.match(rejected.reason, /quiescence_candidate_support_invalid/u);
+  assert.equal(rejected.replacement_apply_authorized, false);
+}
+
 const quiescenceOverclaim = quiescenceReceipt({
   service_observation: {
     ...quiescenceReceipt().service_observation,
@@ -377,6 +404,28 @@ const quiescenceRejected = classify({ quiescence: quiescenceOverclaim });
 assert.equal(quiescenceRejected.status, "HOLD");
 assert.match(quiescenceRejected.reason, /quiescence_proof_overclaim/u);
 assert.equal(quiescenceRejected.replacement_apply_authorized, false);
+
+for (const [field, bad] of [
+  ["selected_target_root_dev", 999],
+  ["selected_target_root_ino", 999],
+  ["selected_target_mount_id", 999],
+]) {
+  const rejected = classify({
+    process: processReceipt({
+      process: {
+        ...processReceipt().process,
+        [field]: bad,
+      },
+    }),
+  });
+  assert.equal(
+    rejected.status,
+    "HOLD",
+    "selected process target identity mismatch accepted: " + field,
+  );
+  assert.match(rejected.reason, /process_selected_target_identity_mismatch/u);
+  assert.equal(rejected.replacement_apply_authorized, false);
+}
 
 const processOverclaim = processReceipt({
   process: {
@@ -561,6 +610,8 @@ console.log("forged_all_process_proof_rejected=true");
 console.log("caller_apply_authority_injection_rejected=true");
 console.log("receipt_contract_mutation_overclaims_rejected=true");
 console.log("nested_process_contract_overclaims_rejected=true");
+console.log("quiescence_candidate_support_observations_bound=true");
+console.log("process_selected_attempt_identity_bound=true");
 console.log("repaired_prestate_process_sources_bound=true");
 console.log("privileged_all_process_reference_absence_required=true");
 console.log("live_node_binary_identity_verification_required=true");
