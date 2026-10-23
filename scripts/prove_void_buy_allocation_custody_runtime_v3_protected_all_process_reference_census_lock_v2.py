@@ -37,15 +37,15 @@ SOURCE_WORKFLOW = (
       "protected-all-process-reference-census-v1.yml"
 )
 
-LOCK_BLOB = "5e53aa44bbd1f983dacea2c072fc6abf01031caf"
-SOURCE_BLOB = "25a0913606baa3303743f36a8c79f3c7a14ea159"
-SOURCE_BYTES = 70661
-SOURCE_PROOF_BLOB = "3f9e30ddd89f36b37f6d7f9754f95f7d190d4da3"
-SOURCE_DOC_BLOB = "6424b96d89a4109a42ed73b3dc8c88b78e9589d4"
-SOURCE_WORKFLOW_BLOB = "74dadcfb40b2eab81260dd58b9783085f3cba8fe"
-PARENT_HEAD = "3d7b8041f90b92d66d8de43cd0b28e98cbf194be"
-FOCUSED_RUN = 40015277813
-FOCUSED_JOB = 120625660577
+LOCK_BLOB = "2acfdfcda3af5fd68db2986bf9d4109badf45177"
+SOURCE_BLOB = "9738f14111fc03dffe9afb04f7bede73ceb13087"
+SOURCE_BYTES = 74322
+SOURCE_PROOF_BLOB = "127340dbc839718ae40e216b9edf0ba9fcaf4435"
+SOURCE_DOC_BLOB = "dacabdee63158c37f39d22489dc1cbf87752705d"
+SOURCE_WORKFLOW_BLOB = "661a110e2fe8694ebdf948ff6033890da03cb2a3"
+PARENT_HEAD = "cfae72e86e060ec797a86797d71f7be7aa019be8"
+FOCUSED_RUN = 40018911504
+FOCUSED_JOB = 120638054198
 
 MARKER = (
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_"
@@ -177,13 +177,13 @@ def main() -> None:
         lock.get("lineage")
         == {
             "parent_current_uid_head":
-                "5bfd56c850513c7b416fe0b2f854ee9b12e764e4",
+                "7736a3a5c53da37448c357a5d98e4dad09f3f617",
             "parent_current_uid_source_git_blob_sha1":
-                "ded737a228a627a241a84131113db6d3521f635c",
+                "6bf476e3383b7b18966320df13b4041da9c8c11f",
             "prestate_head":
-                "836f5e704a603f67b77b2406aeec9174f640497e",
+                "7736a3a5c53da37448c357a5d98e4dad09f3f617",
             "prestate_source_git_blob_sha1":
-                "4d9c6e5809a5cc64454626760f71e60ed99354bc",
+                "e32ebd94ad09cd80e03489079e74657aab159d7a",
             "archive_lock_git_blob_sha1":
                 "edb4ea2b833373ab387762e45ba7da4032c860f3",
             "archive_lock_sha256":
@@ -203,6 +203,10 @@ def main() -> None:
         "zombie_leader_live_worker_rejected": True,
         "host_namespace_lease_provenance_authenticated_by_census": False,
         "separately_reviewed_host_namespace_lease_required": True,
+        "host_user_namespace_external_lease_required": True,
+        "host_user_namespace_terminal_revalidation_required": True,
+        "private_user_namespace_rejected": True,
+        "host_user_namespace_lease_mismatch_rejected": True,
         "mount_namespace_reference_scan_performed": False,
         "mount_namespace_reference_absence_proven": False,
         "all_process_target_reference_absent_observed": False,
@@ -269,6 +273,10 @@ def main() -> None:
         "retained_host_root_used",
         '"host_namespace_lease_provenance_authenticated_by_census": False',
         '"separately_reviewed_host_namespace_lease_required": True',
+        '"host_user_namespace_external_lease_required": True',
+        '"host_user_namespace_lease_revalidated_after_census": True',
+        'print("private_user_namespace_rejected=true")',
+        'print("host_user_namespace_lease_mismatch_rejected=true")',
         '"mount_namespace_reference_scan_performed": False',
         '"mount_namespace_reference_absence_proven": False',
         '"all_process_target_reference_absent_observed": False',
@@ -311,6 +319,10 @@ def main() -> None:
     print("task_mount_namespace_generation_stability_required=true")
     print("host_namespace_lease_provenance_authenticated_by_census=false")
     print("separately_reviewed_host_namespace_lease_required=true")
+    print("host_user_namespace_external_lease_required=true")
+    print("host_user_namespace_terminal_revalidation_required=true")
+    print("private_user_namespace_rejected=true")
+    print("host_user_namespace_lease_mismatch_rejected=true")
     print("mount_namespace_reference_scan_performed=false")
     print("mount_namespace_reference_absence_proven=false")
     print("all_process_target_reference_absent_observed=false")
