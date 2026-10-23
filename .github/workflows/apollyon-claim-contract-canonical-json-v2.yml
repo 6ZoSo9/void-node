@@ -49,9 +49,9 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
-          test "$(git rev-parse HEAD:tools/apollyon-claim-contract-canonical-json-v2.mjs)" = 5580cf87064deba12dc6191465db4ce9824828fc
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs)" = b4d36417fbbe0ce4532375f432e31c6f488debbb
-          test "$(git rev-parse HEAD:docs/security/apollyon-claim-contract-canonical-json-v2.md)" = 43aafe652b868f60490396f5ee25e8f1701ad278
+          test "$(git rev-parse HEAD:tools/apollyon-claim-contract-canonical-json-v2.mjs)" = c131e29a35543d7f9dc1d02b37a9a9dbfd086e79
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs)" = b113f5f9868e8f0bbda8ee0c00ff2e82caf51bed
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-contract-canonical-json-v2.md)" = 7b8b73fda09c3d923cd64ccd5660b303f25771fc
 
           git diff --check "$BASE" HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -77,6 +77,8 @@ jobs:
             'post_import_array_tojson_poison_resisted=true' \
             'post_import_json_stringify_poison_resisted=true' \
             'captured_own_primitive_survived_poison=true' \
+            'array_prototype_index_setter_hits=0' \
+            'proto_key_rejected=true' \
             'proxy_traps_executed=0' \
             'accessor_getter_executed=0' \
             'closed_surface_adversaries_rejected=true' \
