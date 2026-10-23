@@ -496,6 +496,19 @@ if (
   fail("intentional toast live region marker is missing");
 }
 
+const routeContainerTag =
+  html.match(/<div\b[^>]*\bid=["']view-root["'][^>]*>/i)?.[0] ?? "";
+if (!routeContainerTag) {
+  fail("route content container is missing");
+}
+if (
+  /\baria-live\s*=|\brole\s*=\s*["'](?:status|log|alert)["']/i.test(
+    routeContainerTag
+  )
+) {
+  fail("route content container must not be a live region");
+}
+
 const inertOpenIndex = appJs.indexOf("setModalBackgroundInert(true);");
 const modalFocusIndex = appJs.indexOf("target.querySelector('button, input, a')?.focus();");
 const inertCloseIndex = appJs.indexOf("setModalBackgroundInert(false);");
