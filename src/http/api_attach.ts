@@ -24,9 +24,9 @@ export type AttachBlockRangeErrorV1 = {
   ok: false;
   error: "bad range";
   code: typeof ATTACH_BLOCK_RANGE_ERROR_CODE_V1;
-  reason: "invalid_bounds" | "range_span_exceeds_limit";
+  reason: "invalid_head" | "invalid_bounds" | "range_span_exceeds_limit";
   max_heights: number;
-  recovery: { from: number; to: number };
+  recovery: { from: number; to: number } | null;
   aliases: { from: ["from", "start"]; to: ["to", "end"] };
 };
 
@@ -69,11 +69,21 @@ export function attachBlockRangeErrorV1(
   const from = normalizeAttachBlockRangeBoundV1(fromRaw, 0);
   const to = normalizeAttachBlockRangeBoundV1(toRaw, head);
   const validHead = Number.isSafeInteger(head) && head >= -1;
+  if (!validHead) {
+    return {
+      ok: false,
+      error: "bad range",
+      code: ATTACH_BLOCK_RANGE_ERROR_CODE_V1,
+      reason: "invalid_head",
+      max_heights: ATTACH_BLOCK_RANGE_MAX_SPAN,
+      recovery: null,
+      aliases: { from: ["from", "start"], to: ["to", "end"] },
+    };
+  }
+
   const validFrom = from !== null;
-  const boundedTo =
-    validHead && to !== null ? Math.min(to, head) : Number.NaN;
+  const boundedTo = to !== null ? Math.min(to, head) : Number.NaN;
   const reason =
-    validHead &&
     from !== null &&
     to !== null &&
     to >= from &&
@@ -82,19 +92,18 @@ export function attachBlockRangeErrorV1(
       ? "range_span_exceeds_limit"
       : "invalid_bounds";
 
-  const recoveryFrom = validHead && head < 0 ? 0 : validFrom ? from : 0;
+  const recoveryFrom = head < 0 ? 0 : validFrom ? from : 0;
   const recoveryCeiling =
     recoveryFrom <=
     Number.MAX_SAFE_INTEGER - (ATTACH_BLOCK_RANGE_MAX_SPAN - 1)
       ? recoveryFrom + ATTACH_BLOCK_RANGE_MAX_SPAN - 1
       : recoveryFrom;
-  const recoveryTo = validHead
-    ? head < 0
+  const recoveryTo =
+    head < 0
       ? 0
       : recoveryFrom > head
         ? recoveryFrom
-        : Math.min(head, recoveryCeiling)
-    : recoveryCeiling;
+        : Math.min(head, recoveryCeiling);
 
   return {
     ok: false,
