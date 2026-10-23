@@ -67,6 +67,7 @@ MAX_TASKS_PER_PROCESS = 65536
 MAX_TOTAL_TASKS = 262144
 MAX_STAT_BYTES = 4096
 MAX_MAPS_BYTES = 8 * 1024 * 1024
+MAX_MOUNTINFO_BYTES = 4 * 1024 * 1024
 MAX_SCAN_ATTEMPTS = 3
 MAX_SOURCE_BYTES = 2 * 1024 * 1024
 
@@ -179,8 +180,41 @@ def _read_proc_file(path: Path, maximum: int) -> bytes:
         os.close(fd)
 
 
-def _fd_mount_id(fd: int) -> int:
-    raw = _read_proc_file(Path(f"/proc/self/fdinfo/{fd}"), 64 * 1024)
+def _read_proc_at(proc_fd: int, relative: str, maximum: int) -> bytes:
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or relative.startswith("/")
+        or "\x00" in relative
+        or any(part in ("", ".", "..") for part in relative.split("/"))
+    ):
+        hold("proc_relative_path_invalid")
+    before = os.stat(relative, dir_fd=proc_fd, follow_symlinks=False)
+    if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode):
+        hold("proc_file_shape_invalid:" + relative)
+    fd = os.open(relative, _leaf_flags(), dir_fd=proc_fd)
+    try:
+        opened = os.fstat(fd)
+        if _identity(before) != _identity(opened):
+            hold("proc_file_rebound:" + relative)
+        raw = _read_open_fd(fd, maximum)
+        after = os.fstat(fd)
+        visible = os.stat(relative, dir_fd=proc_fd, follow_symlinks=False)
+        if (
+            _identity(opened) != _identity(after)
+            or _identity(after) != _identity(visible)
+        ):
+            hold("proc_file_identity_changed:" + relative)
+        return raw
+    finally:
+        os.close(fd)
+
+
+def _fd_mount_id(fd: int, proc_fd: int | None = None) -> int:
+    if proc_fd is None:
+        raw = _read_proc_file(Path(f"/proc/self/fdinfo/{fd}"), 64 * 1024)
+    else:
+        raw = _read_proc_at(proc_fd, f"self/fdinfo/{fd}", 64 * 1024)
     try:
         text = raw.decode("ascii")
     except UnicodeDecodeError:
@@ -194,6 +228,226 @@ def _fd_mount_id(fd: int) -> int:
     if len(values) != 1 or values[0] <= 0:
         hold("mount_id_missing_or_ambiguous")
     return values[0]
+
+
+def parse_dev_ino_lease(value: str, code: str) -> tuple[int, int]:
+    if not isinstance(value, str) or len(value) > 41 or value.count(":") != 1:
+        hold(code)
+    dev_text, ino_text = value.split(":", 1)
+    if (
+        not dev_text.isdigit()
+        or not ino_text.isdigit()
+        or dev_text.startswith("0")
+        or ino_text.startswith("0")
+        or len(dev_text) > 20
+        or len(ino_text) > 20
+    ):
+        hold(code)
+    dev = int(dev_text, 10)
+    ino = int(ino_text, 10)
+    if dev <= 0 or ino <= 0:
+        hold(code)
+    return dev, ino
+
+
+def verify_pid_namespace_lease_stats(
+    self_ns: os.stat_result,
+    init_ns: os.stat_result,
+    expected: tuple[int, int],
+) -> tuple[int, int]:
+    observed = (int(self_ns.st_dev), int(self_ns.st_ino))
+    init_observed = (int(init_ns.st_dev), int(init_ns.st_ino))
+    if observed != init_observed:
+        hold("not_in_pid1_namespace")
+    if observed != expected:
+        hold("host_pid_namespace_lease_mismatch")
+    return observed
+
+
+def verify_mount_namespace_lease_stats(
+    self_ns: os.stat_result,
+    init_ns: os.stat_result,
+    expected: tuple[int, int],
+) -> tuple[int, int]:
+    observed = (int(self_ns.st_dev), int(self_ns.st_ino))
+    init_observed = (int(init_ns.st_dev), int(init_ns.st_ino))
+    if observed != init_observed:
+        hold("not_in_pid1_mount_namespace")
+    if observed != expected:
+        hold("host_mount_namespace_lease_mismatch")
+    return observed
+
+
+def verify_complete_proc_visibility(
+    raw: bytes,
+    expected_mount_id: int,
+) -> dict[str, Any]:
+    try:
+        text = raw.decode("utf-8", "strict")
+    except UnicodeDecodeError as exc:
+        hold("proc_mountinfo_encoding_invalid:" + type(exc).__name__)
+    matches: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
+    for line in text.splitlines():
+        parts = line.split()
+        try:
+            separator = parts.index("-")
+        except ValueError:
+            hold("proc_mountinfo_row_invalid")
+        if separator < 6 or separator + 3 >= len(parts):
+            hold("proc_mountinfo_row_invalid")
+        if not parts[0].isdigit():
+            hold("proc_mountinfo_row_invalid")
+        if int(parts[0], 10) != expected_mount_id:
+            continue
+        if parts[separator + 1] != "proc":
+            hold("proc_mount_identity_not_procfs")
+        mount_options = tuple(sorted(set(parts[5].split(","))))
+        super_options = tuple(sorted(set(parts[separator + 3].split(","))))
+        matches.append((mount_options, super_options))
+    if len(matches) != 1:
+        hold("proc_mount_selection_invalid")
+    mount_options, super_options = matches[0]
+    all_options = set(mount_options) | set(super_options)
+    hidden = sorted(
+        option for option in all_options
+        if option.startswith("hidepid=") and option != "hidepid=0"
+    )
+    if hidden:
+        hold("proc_visibility_restricted:" + ",".join(hidden))
+    return {
+        "mount_id": expected_mount_id,
+        "mount_options": list(mount_options),
+        "super_options": list(super_options),
+        "hidepid_restricted": False,
+        "complete_process_visibility_required": True,
+    }
+
+
+def open_pinned_proc_view(
+    expected_host_pid_namespace_dev_ino: str,
+    expected_host_mount_namespace_dev_ino: str,
+) -> tuple[int, dict[str, Any]]:
+    expected_pid = parse_dev_ino_lease(
+        expected_host_pid_namespace_dev_ino,
+        "host_pid_namespace_lease_invalid",
+    )
+    expected_mount = parse_dev_ino_lease(
+        expected_host_mount_namespace_dev_ino,
+        "host_mount_namespace_lease_invalid",
+    )
+    before = os.stat("/proc", follow_symlinks=False)
+    if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+        hold("proc_root_not_direct_directory")
+    fd = os.open("/proc", _directory_flags())
+    try:
+        opened = os.fstat(fd)
+        visible = os.stat("/proc", follow_symlinks=False)
+        if (
+            not stat.S_ISDIR(opened.st_mode)
+            or _identity(before) != _identity(opened)
+            or _identity(opened) != _identity(visible)
+        ):
+            hold("proc_root_rebound")
+        mount_id = _fd_mount_id(fd, fd)
+        try:
+            self_pid_ns = os.stat("self/ns/pid", dir_fd=fd, follow_symlinks=True)
+            init_pid_ns = os.stat("1/ns/pid", dir_fd=fd, follow_symlinks=True)
+            self_mount_ns = os.stat("self/ns/mnt", dir_fd=fd, follow_symlinks=True)
+            init_mount_ns = os.stat("1/ns/mnt", dir_fd=fd, follow_symlinks=True)
+        except OSError as exc:
+            hold("host_namespace_unreadable:" + str(exc.errno))
+        observed_pid = verify_pid_namespace_lease_stats(
+            self_pid_ns, init_pid_ns, expected_pid
+        )
+        observed_mount = verify_mount_namespace_lease_stats(
+            self_mount_ns, init_mount_ns, expected_mount
+        )
+        visibility = verify_complete_proc_visibility(
+            _read_proc_at(fd, "self/mountinfo", MAX_MOUNTINFO_BYTES),
+            mount_id,
+        )
+        return fd, {
+            "host_pid_namespace_external_lease_required": True,
+            "host_pid_namespace_lease_verified": True,
+            "host_pid_namespace_dev": str(observed_pid[0]),
+            "host_pid_namespace_ino": str(observed_pid[1]),
+            "pid1_namespace_matches_self": True,
+            "host_mount_namespace_external_lease_required": True,
+            "host_mount_namespace_lease_verified": True,
+            "host_mount_namespace_dev": str(observed_mount[0]),
+            "host_mount_namespace_ino": str(observed_mount[1]),
+            "pid1_mount_namespace_matches_self": True,
+            "proc_root_dev": opened.st_dev,
+            "proc_root_ino": opened.st_ino,
+            "proc_mount_id": mount_id,
+            "proc_visibility": visibility,
+            "host_namespace_lease_provenance_authenticated_by_census": False,
+            "separately_reviewed_host_namespace_lease_required": True,
+        }
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def revalidate_pinned_proc_view(
+    fd: int,
+    expected_host_pid_namespace_dev_ino: str,
+    expected_host_mount_namespace_dev_ino: str,
+    initial: dict[str, Any],
+) -> dict[str, bool]:
+    expected_pid = parse_dev_ino_lease(
+        expected_host_pid_namespace_dev_ino,
+        "host_pid_namespace_lease_invalid",
+    )
+    expected_mount = parse_dev_ino_lease(
+        expected_host_mount_namespace_dev_ino,
+        "host_mount_namespace_lease_invalid",
+    )
+    opened = os.fstat(fd)
+    if (
+        opened.st_dev != initial["proc_root_dev"]
+        or opened.st_ino != initial["proc_root_ino"]
+    ):
+        hold("proc_root_generation_changed")
+    try:
+        self_pid_ns = os.stat("self/ns/pid", dir_fd=fd, follow_symlinks=True)
+        init_pid_ns = os.stat("1/ns/pid", dir_fd=fd, follow_symlinks=True)
+        self_mount_ns = os.stat("self/ns/mnt", dir_fd=fd, follow_symlinks=True)
+        init_mount_ns = os.stat("1/ns/mnt", dir_fd=fd, follow_symlinks=True)
+    except OSError as exc:
+        hold("host_namespace_unreadable:" + str(exc.errno))
+    observed_pid = verify_pid_namespace_lease_stats(
+        self_pid_ns, init_pid_ns, expected_pid
+    )
+    if (
+        str(observed_pid[0]) != initial["host_pid_namespace_dev"]
+        or str(observed_pid[1]) != initial["host_pid_namespace_ino"]
+    ):
+        hold("host_pid_namespace_scope_changed")
+    observed_mount = verify_mount_namespace_lease_stats(
+        self_mount_ns, init_mount_ns, expected_mount
+    )
+    if (
+        str(observed_mount[0]) != initial["host_mount_namespace_dev"]
+        or str(observed_mount[1]) != initial["host_mount_namespace_ino"]
+    ):
+        hold("host_mount_namespace_scope_changed")
+    visibility = verify_complete_proc_visibility(
+        _read_proc_at(fd, "self/mountinfo", MAX_MOUNTINFO_BYTES),
+        initial["proc_mount_id"],
+    )
+    if visibility != initial["proc_visibility"]:
+        hold("proc_visibility_scope_changed")
+    visible = os.stat("/proc", follow_symlinks=False)
+    if _identity(visible) != _identity(opened):
+        hold("visible_proc_root_changed")
+    return {
+        "host_pid_namespace_lease_revalidated_after_census": True,
+        "host_mount_namespace_lease_revalidated_after_census": True,
+        "proc_visibility_revalidated_after_census": True,
+        "retained_procfs_view_revalidated_after_census": True,
+        "visible_proc_root_matches_retained_at_terminal": True,
+    }
 
 
 def _open_bound_directory(path: Path) -> tuple[int, os.stat_result]:
@@ -332,6 +586,7 @@ def _observe_regular_at(
     before: os.stat_result,
     expected_mnt: int,
     relative: str,
+    proc_fd: int | None = None,
 ) -> os.stat_result:
     descriptor = os.open(name, _leaf_flags(), dir_fd=parent_fd)
     try:
@@ -341,7 +596,7 @@ def _observe_regular_at(
             or _generation(before) != _generation(opened)
         ):
             hold("target_file_rebound:" + relative)
-        if _fd_mount_id(descriptor) != expected_mnt:
+        if _fd_mount_id(descriptor, proc_fd) != expected_mnt:
             hold("target_file_mount_boundary_invalid:" + relative)
         after = os.fstat(descriptor)
         visible = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
@@ -364,6 +619,7 @@ def _target_records(
     identities: set[tuple[int, int]],
     totals: dict[str, int],
     depth: int,
+    proc_fd: int | None = None,
 ) -> None:
     if depth > MAX_TARGET_DEPTH:
         hold("target_depth_exceeded")
@@ -371,7 +627,7 @@ def _target_records(
     if (
         not stat.S_ISDIR(root.st_mode)
         or root.st_dev != expected_dev
-        or _fd_mount_id(fd) != expected_mnt
+        or _fd_mount_id(fd, proc_fd) != expected_mnt
     ):
         hold("target_directory_boundary_invalid")
     identities.add((root.st_dev, root.st_ino))
@@ -405,7 +661,7 @@ def _target_records(
 
         if kind == "file":
             before = _observe_regular_at(
-                fd, name, before, expected_mnt, relative
+                fd, name, before, expected_mnt, relative, proc_fd
             )
 
         identities.add((before.st_dev, before.st_ino))
@@ -441,6 +697,7 @@ def _target_records(
                     identities,
                     totals,
                     depth + 1,
+                    proc_fd,
                 )
                 after = os.fstat(child)
                 visible = os.stat(name, dir_fd=fd, follow_symlinks=False)
@@ -453,7 +710,10 @@ def _target_records(
                 os.close(child)
 
 
-def target_snapshot(path: Path = TARGET) -> dict[str, Any]:
+def target_snapshot(
+    path: Path = TARGET,
+    proc_fd: int | None = None,
+) -> dict[str, Any]:
     parent_fd, parent_st = _open_bound_directory(path.parent)
     target_fd = -1
     try:
@@ -464,8 +724,8 @@ def target_snapshot(path: Path = TARGET) -> dict[str, Any]:
         opened = os.fstat(target_fd)
         if _identity(before) != _identity(opened):
             hold("target_root_rebound")
-        parent_mnt = _fd_mount_id(parent_fd)
-        target_mnt = _fd_mount_id(target_fd)
+        parent_mnt = _fd_mount_id(parent_fd, proc_fd)
+        target_mnt = _fd_mount_id(target_fd, proc_fd)
         if opened.st_dev != parent_st.st_dev or target_mnt != parent_mnt:
             hold("target_root_mount_boundary_invalid")
 
@@ -481,6 +741,7 @@ def target_snapshot(path: Path = TARGET) -> dict[str, Any]:
             identities,
             totals,
             0,
+            proc_fd,
         )
         after = os.fstat(target_fd)
         visible = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
@@ -525,10 +786,17 @@ def _parse_proc_stat(raw: bytes, label: str) -> dict[str, Any]:
     }
 
 
-def _proc_stat(pid: int) -> dict[str, Any] | None:
-    path = PROC / str(pid) / "stat"
+def _proc_stat(
+    pid: int,
+    proc_fd: int | None = None,
+) -> dict[str, Any] | None:
     try:
-        return _parse_proc_stat(_read_proc_file(path, MAX_STAT_BYTES), "proc_stat")
+        raw = (
+            _read_proc_file(PROC / str(pid) / "stat", MAX_STAT_BYTES)
+            if proc_fd is None
+            else _read_proc_at(proc_fd, f"{pid}/stat", MAX_STAT_BYTES)
+        )
+        return _parse_proc_stat(raw, "proc_stat")
     except FileNotFoundError:
         return None
     except OSError as exc:
@@ -537,10 +805,18 @@ def _proc_stat(pid: int) -> dict[str, Any] | None:
         raise
 
 
-def _task_stat(pid: int, tid: int) -> dict[str, Any] | None:
-    path = PROC / str(pid) / "task" / str(tid) / "stat"
+def _task_stat(
+    pid: int,
+    tid: int,
+    proc_fd: int | None = None,
+) -> dict[str, Any] | None:
     try:
-        return _parse_proc_stat(_read_proc_file(path, MAX_STAT_BYTES), "proc_task_stat")
+        raw = (
+            _read_proc_file(PROC / str(pid) / "task" / str(tid) / "stat", MAX_STAT_BYTES)
+            if proc_fd is None
+            else _read_proc_at(proc_fd, f"{pid}/task/{tid}/stat", MAX_STAT_BYTES)
+        )
+        return _parse_proc_stat(raw, "proc_task_stat")
     except FileNotFoundError:
         return None
     except OSError as exc:
@@ -549,9 +825,9 @@ def _task_stat(pid: int, tid: int) -> dict[str, Any] | None:
         raise
 
 
-def _all_pids() -> list[int]:
+def _all_pids(proc_fd: int | None = None) -> list[int]:
     pids: list[int] = []
-    with os.scandir(PROC) as iterator:
+    with os.scandir(PROC if proc_fd is None else proc_fd) as iterator:
         for entry in iterator:
             if not entry.name.isdigit():
                 continue
@@ -562,26 +838,41 @@ def _all_pids() -> list[int]:
     return pids
 
 
-def _task_inventory(pid: int) -> dict[int, tuple[str, str]] | None:
-    root = PROC / str(pid) / "task"
+def _task_inventory(
+    pid: int,
+    proc_fd: int | None = None,
+) -> dict[int, tuple[str, str]] | None:
     tids: list[int] = []
+    task_fd = -1
     try:
-        iterator = os.scandir(root)
+        if proc_fd is None:
+            iterator = os.scandir(PROC / str(pid) / "task")
+        else:
+            task_fd = os.open(
+                f"{pid}/task", _directory_flags(), dir_fd=proc_fd
+            )
+            iterator = os.scandir(task_fd)
     except OSError as exc:
+        if task_fd >= 0:
+            os.close(task_fd)
         if exc.errno in (errno.ENOENT, errno.ESRCH, errno.EACCES, errno.EPERM):
             return None
         raise
-    with iterator:
-        for entry in iterator:
-            if not entry.name.isdigit():
-                continue
-            tids.append(int(entry.name))
-            if len(tids) > MAX_TASKS_PER_PROCESS:
-                hold("proc_task_limit_exceeded")
+    try:
+        with iterator:
+            for entry in iterator:
+                if not entry.name.isdigit():
+                    continue
+                tids.append(int(entry.name))
+                if len(tids) > MAX_TASKS_PER_PROCESS:
+                    hold("proc_task_limit_exceeded")
+    finally:
+        if task_fd >= 0:
+            os.close(task_fd)
     tids.sort()
     observed: dict[int, tuple[str, str]] = {}
     for tid in tids:
-        row = _task_stat(pid, tid)
+        row = _task_stat(pid, tid, proc_fd)
         if row is None:
             return None
         observed[tid] = (row["state"], row["start_ticks"])
@@ -621,8 +912,17 @@ def _scan_link(
     pid: int,
     name: str,
     identities: set[tuple[int, int]],
+    proc_fd: int | None = None,
 ) -> tuple[bool, bool]:
-    return _scan_link_path(PROC / str(pid) / name, identities)
+    if proc_fd is None:
+        return _scan_link_path(PROC / str(pid) / name, identities)
+    try:
+        st = os.stat(f"{pid}/{name}", dir_fd=proc_fd, follow_symlinks=True)
+    except OSError as exc:
+        if exc.errno in (errno.ENOENT, errno.ESRCH, errno.EACCES, errno.EPERM):
+            return False, True
+        raise
+    return _matches(st, identities), False
 
 
 def _scan_task_link(
@@ -630,35 +930,61 @@ def _scan_task_link(
     tid: int,
     name: str,
     identities: set[tuple[int, int]],
+    proc_fd: int | None = None,
 ) -> tuple[bool, bool]:
-    return _scan_link_path(
-        PROC / str(pid) / "task" / str(tid) / name,
-        identities,
-    )
+    if proc_fd is None:
+        return _scan_link_path(
+            PROC / str(pid) / "task" / str(tid) / name,
+            identities,
+        )
+    try:
+        st = os.stat(
+            f"{pid}/task/{tid}/{name}",
+            dir_fd=proc_fd,
+            follow_symlinks=True,
+        )
+    except OSError as exc:
+        if exc.errno in (errno.ENOENT, errno.ESRCH, errno.EACCES, errno.EPERM):
+            return False, True
+        raise
+    return _matches(st, identities), False
 
 
 def _scan_fd_root(
-    root: Path,
+    root: Path | str,
     identities: set[tuple[int, int]],
+    proc_fd: int | None = None,
 ) -> tuple[int, int]:
     refs = 0
     incomplete = 0
     seen = 0
+    directory_fd = -1
     try:
-        iterator = os.scandir(root)
+        if proc_fd is None:
+            iterator = os.scandir(root)
+        else:
+            directory_fd = os.open(str(root), _directory_flags(), dir_fd=proc_fd)
+            iterator = os.scandir(directory_fd)
     except OSError as exc:
+        if directory_fd >= 0:
+            os.close(directory_fd)
         if exc.errno in (errno.ENOENT, errno.ESRCH, errno.EACCES, errno.EPERM):
             return 0, 1
         raise
-    with iterator:
-        for entry in iterator:
-            if not entry.name.isdigit():
-                continue
-            seen += 1
-            if seen > MAX_FDS_PER_PROCESS:
-                hold("proc_fd_limit_exceeded")
-            try:
-                st = os.stat(root / entry.name, follow_symlinks=True)
+    try:
+        with iterator:
+            for entry in iterator:
+                if not entry.name.isdigit():
+                    continue
+                seen += 1
+                if seen > MAX_FDS_PER_PROCESS:
+                    hold("proc_fd_limit_exceeded")
+                try:
+                    st = (
+                        os.stat(Path(root) / entry.name, follow_symlinks=True)
+                        if proc_fd is None
+                        else os.stat(entry.name, dir_fd=directory_fd, follow_symlinks=True)
+                    )
             except OSError as exc:
                 if exc.errno in (
                     errno.ENOENT,
@@ -669,30 +995,48 @@ def _scan_fd_root(
                     incomplete += 1
                     continue
                 raise
-            if _matches(st, identities):
-                refs += 1
+                if _matches(st, identities):
+                    refs += 1
+    finally:
+        if directory_fd >= 0:
+            os.close(directory_fd)
     return refs, incomplete
 
 
-def _scan_fds(pid: int, identities: set[tuple[int, int]]) -> tuple[int, int]:
-    return _scan_fd_root(PROC / str(pid) / "fd", identities)
+def _scan_fds(
+    pid: int,
+    identities: set[tuple[int, int]],
+    proc_fd: int | None = None,
+) -> tuple[int, int]:
+    root = PROC / str(pid) / "fd" if proc_fd is None else f"{pid}/fd"
+    return _scan_fd_root(root, identities, proc_fd)
 
 
 def _scan_task_fds(
     pid: int,
     tid: int,
     identities: set[tuple[int, int]],
+    proc_fd: int | None = None,
 ) -> tuple[int, int]:
-    return _scan_fd_root(
-        PROC / str(pid) / "task" / str(tid) / "fd",
-        identities,
+    root = (
+        PROC / str(pid) / "task" / str(tid) / "fd"
+        if proc_fd is None
+        else f"{pid}/task/{tid}/fd"
     )
+    return _scan_fd_root(root, identities, proc_fd)
 
 
-def _scan_maps(pid: int, identities: set[tuple[int, int]]) -> tuple[int, bool]:
-    path = PROC / str(pid) / "maps"
+def _scan_maps(
+    pid: int,
+    identities: set[tuple[int, int]],
+    proc_fd: int | None = None,
+) -> tuple[int, bool]:
     try:
-        raw = _read_proc_file(path, MAX_MAPS_BYTES)
+        raw = (
+            _read_proc_file(PROC / str(pid) / "maps", MAX_MAPS_BYTES)
+            if proc_fd is None
+            else _read_proc_at(proc_fd, f"{pid}/maps", MAX_MAPS_BYTES)
+        )
     except OSError as exc:
         if exc.errno in (
             errno.ENOENT,
@@ -722,12 +1066,16 @@ def _scan_maps(pid: int, identities: set[tuple[int, int]]) -> tuple[int, bool]:
     return refs, False
 
 
-def scan_process(pid: int, identities: set[tuple[int, int]]) -> dict[str, Any]:
-    before = _proc_stat(pid)
+def scan_process(
+    pid: int,
+    identities: set[tuple[int, int]],
+    proc_fd: int | None = None,
+) -> dict[str, Any]:
+    before = _proc_stat(pid, proc_fd)
     if before is None:
         return {"pid": pid, "status": "vanished"}
     if before["kernel_thread"]:
-        after = _proc_stat(pid)
+        after = _proc_stat(pid, proc_fd)
         if after != before:
             return {"pid": pid, "status": "generation_changed_or_vanished"}
         return {"pid": pid, "status": "kernel_thread_skipped"}
@@ -737,7 +1085,7 @@ def scan_process(pid: int, identities: set[tuple[int, int]]) -> dict[str, Any]:
             return {"pid": pid, "status": "generation_changed_or_vanished"}
         return {"pid": pid, "status": "not_live"}
 
-    tasks_before = _task_inventory(pid)
+    tasks_before = _task_inventory(pid, proc_fd)
     if tasks_before is None:
         return {
             "pid": pid,
@@ -752,10 +1100,10 @@ def scan_process(pid: int, identities: set[tuple[int, int]]) -> dict[str, Any]:
     # CLONE_THREAD implies CLONE_VM on Linux, so exe/maps are process-mm
     # observations. files_struct and fs_struct may be unshared per thread;
     # inspect cwd/root/fd for every live TID rather than only the TGID leader.
-    matched, failed = _scan_link(pid, "exe", identities)
+    matched, failed = _scan_link(pid, "exe", identities, proc_fd)
     refs["exe"] += int(matched)
     incomplete += int(failed)
-    refs["maps"], maps_incomplete = _scan_maps(pid, identities)
+    refs["maps"], maps_incomplete = _scan_maps(pid, identities, proc_fd)
     incomplete += int(maps_incomplete)
 
     for tid, (state, _start_ticks) in sorted(tasks_before.items()):
@@ -763,14 +1111,14 @@ def scan_process(pid: int, identities: set[tuple[int, int]]) -> dict[str, Any]:
             continue
         live_tasks += 1
         for name in ("cwd", "root"):
-            matched, failed = _scan_task_link(pid, tid, name, identities)
+            matched, failed = _scan_task_link(pid, tid, name, identities, proc_fd)
             refs[name] += int(matched)
             incomplete += int(failed)
-        task_refs, task_incomplete = _scan_task_fds(pid, tid, identities)
+        task_refs, task_incomplete = _scan_task_fds(pid, tid, identities, proc_fd)
         refs["fd"] += task_refs
         incomplete += task_incomplete
 
-    tasks_after = _task_inventory(pid)
+    tasks_after = _task_inventory(pid, proc_fd)
     after = _proc_stat(pid)
     if (
         after is None
@@ -860,57 +1208,86 @@ def classify_attempt(
     }
 
 
-def all_process_census() -> dict[str, Any]:
-    attempts: list[dict[str, Any]] = []
-    for attempt in range(1, MAX_SCAN_ATTEMPTS + 1):
-        target_before = target_snapshot(TARGET)
-        identities = target_before["identities"]
-        start_pids = _all_pids()
-        rows: list[dict[str, Any]] = []
-        total_tasks = 0
-        for pid in start_pids:
-            row = scan_process(pid, identities)
-            total_tasks += int(row.get("task_count", 0))
-            if total_tasks > MAX_TOTAL_TASKS:
-                hold("proc_total_task_limit_exceeded")
-            rows.append(row)
-        end_pids = _all_pids()
-        target_after = target_snapshot(TARGET)
-        stable = (
-            target_before["root_dev"] == target_after["root_dev"]
-            and target_before["root_ino"] == target_after["root_ino"]
-            and target_before["mount_id"] == target_after["mount_id"]
-            and target_before["metadata_sha256"] == target_after["metadata_sha256"]
-            and target_before["identity_count"] == target_after["identity_count"]
+def all_process_census(
+    expected_host_pid_namespace_dev_ino: str,
+    expected_host_mount_namespace_dev_ino: str,
+) -> dict[str, Any]:
+    proc_fd = -1
+    try:
+        proc_fd, proc_scope = open_pinned_proc_view(
+            expected_host_pid_namespace_dev_ino,
+            expected_host_mount_namespace_dev_ino,
         )
-        classified = classify_attempt(start_pids, end_pids, rows, stable)
-        attempts.append({"attempt": attempt, **classified})
-        if classified["referenced_process_count"] > 0:
-            break
-        if classified["all_process_target_reference_absent_observed"]:
-            break
+        attempts: list[dict[str, Any]] = []
+        for attempt in range(1, MAX_SCAN_ATTEMPTS + 1):
+            target_before = target_snapshot(TARGET, proc_fd)
+            identities = target_before["identities"]
+            start_pids = _all_pids(proc_fd)
+            rows: list[dict[str, Any]] = []
+            total_tasks = 0
+            for pid in start_pids:
+                row = scan_process(pid, identities, proc_fd)
+                total_tasks += int(row.get("task_count", 0))
+                if total_tasks > MAX_TOTAL_TASKS:
+                    hold("proc_total_task_limit_exceeded")
+                rows.append(row)
+            end_pids = _all_pids(proc_fd)
+            target_after = target_snapshot(TARGET, proc_fd)
+            stable = (
+                target_before["root_dev"] == target_after["root_dev"]
+                and target_before["root_ino"] == target_after["root_ino"]
+                and target_before["mount_id"] == target_after["mount_id"]
+                and target_before["metadata_sha256"] == target_after["metadata_sha256"]
+                and target_before["identity_count"] == target_after["identity_count"]
+            )
+            classified = classify_attempt(start_pids, end_pids, rows, stable)
+            attempts.append({"attempt": attempt, **classified})
+            if classified["referenced_process_count"] > 0:
+                break
+            if classified["all_process_target_reference_absent_observed"]:
+                break
 
-    selected = attempts[-1]
-    return {
-        "attempt_count": len(attempts),
-        "attempts": attempts,
-        "selected_attempt": selected["attempt"],
-        "all_process_target_reference_absent_observed":
-            selected["all_process_target_reference_absent_observed"],
-        "all_process_reference_absence_proven": False,
-        "fd_table_stability_proven": False,
-        "mapping_set_stability_proven": False,
-        "task_inventory_generation_stability_required": True,
-        "per_thread_files_fs_reference_scan_required": True,
-        "process_reference_snapshot_race_free": False,
-        "live_at_use_reverification_required": True,
-    }
+        terminal_scope = revalidate_pinned_proc_view(
+            proc_fd,
+            expected_host_pid_namespace_dev_ino,
+            expected_host_mount_namespace_dev_ino,
+            proc_scope,
+        )
+        selected = attempts[-1]
+        return {
+            "proc_scope": proc_scope,
+            **terminal_scope,
+            "host_namespace_lease_provenance_authenticated_by_census": False,
+            "separately_reviewed_host_namespace_lease_required": True,
+            "target_resolved_in_host_mount_namespace": True,
+            "attempt_count": len(attempts),
+            "attempts": attempts,
+            "selected_attempt": selected["attempt"],
+            "all_process_target_reference_absent_observed":
+                selected["all_process_target_reference_absent_observed"],
+            "all_process_reference_absence_proven": False,
+            "fd_table_stability_proven": False,
+            "mapping_set_stability_proven": False,
+            "task_inventory_generation_stability_required": True,
+            "per_thread_files_fs_reference_scan_required": True,
+            "process_reference_snapshot_race_free": False,
+            "live_at_use_reverification_required": True,
+        }
+    finally:
+        if proc_fd >= 0:
+            os.close(proc_fd)
 
 
-def census() -> dict[str, Any]:
+def census(
+    expected_host_pid_namespace_dev_ino: str,
+    expected_host_mount_namespace_dev_ino: str,
+) -> dict[str, Any]:
     source = _protected_source_admission()
     python_runtime = _python_runtime_observation()
-    process = all_process_census()
+    process = all_process_census(
+        expected_host_pid_namespace_dev_ino,
+        expected_host_mount_namespace_dev_ino,
+    )
     body = {
         "schema": SCHEMA,
         "marker": MARKER,
@@ -927,6 +1304,16 @@ def census() -> dict[str, Any]:
         "python_runtime": python_runtime,
         "target": str(TARGET),
         "process": process,
+        "host_pid_namespace_external_lease_required": True,
+        "host_pid_namespace_lease_verified": True,
+        "host_mount_namespace_external_lease_required": True,
+        "host_mount_namespace_lease_verified": True,
+        "target_resolved_in_host_mount_namespace": True,
+        "complete_proc_visibility_verified": True,
+        "retained_procfs_view_used": True,
+        "retained_procfs_view_revalidated_after_census": True,
+        "host_namespace_lease_provenance_authenticated_by_census": False,
+        "separately_reviewed_host_namespace_lease_required": True,
         "production_read_only": True,
         "production_filesystem_write": False,
         "process_environment_read": False,
@@ -1010,6 +1397,67 @@ def self_test() -> None:
         if snapshot["entry_count"] != 2 or snapshot["identity_count"] != 3:
             hold("self_test_target_snapshot_invalid")
 
+    if parse_dev_ino_lease("12:34", "test_lease_invalid") != (12, 34):
+        hold("self_test_namespace_lease_parse_invalid")
+    fake_self = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
+    fake_init = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
+    if verify_pid_namespace_lease_stats(
+        fake_self, fake_init, (12, 34)
+    ) != (12, 34):
+        hold("self_test_pid_namespace_lease_verify_invalid")
+    try:
+        verify_pid_namespace_lease_stats(
+            fake_self,
+            type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
+            (12, 34),
+        )
+    except CensusHold as exc:
+        if "not_in_pid1_namespace" not in str(exc):
+            raise
+    else:
+        hold("self_test_private_pid_namespace_accepted")
+    try:
+        verify_pid_namespace_lease_stats(fake_self, fake_init, (12, 35))
+    except CensusHold as exc:
+        if "host_pid_namespace_lease_mismatch" not in str(exc):
+            raise
+    else:
+        hold("self_test_pid_namespace_lease_mismatch_accepted")
+    if verify_mount_namespace_lease_stats(
+        fake_self, fake_init, (12, 34)
+    ) != (12, 34):
+        hold("self_test_mount_namespace_lease_verify_invalid")
+    try:
+        verify_mount_namespace_lease_stats(
+            fake_self,
+            type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
+            (12, 34),
+        )
+    except CensusHold as exc:
+        if "not_in_pid1_mount_namespace" not in str(exc):
+            raise
+    else:
+        hold("self_test_private_mount_namespace_accepted")
+    visible_mountinfo = (
+        b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
+        b" - proc proc rw,hidepid=0\n"
+    )
+    hidden_mountinfo = (
+        b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
+        b" - proc proc rw,hidepid=2\n"
+    )
+    if verify_complete_proc_visibility(
+        visible_mountinfo, 42
+    )["hidepid_restricted"] is not False:
+        hold("self_test_proc_visibility_invalid")
+    try:
+        verify_complete_proc_visibility(hidden_mountinfo, 42)
+    except CensusHold as exc:
+        if "proc_visibility_restricted" not in str(exc):
+            raise
+    else:
+        hold("self_test_hidepid_restriction_accepted")
+
     print(MARKER + "_SELF_TEST_GREEN")
     print("protected_source_fixed_path_required=true")
     print("root_owned_nonwritable_ancestry_required=true")
@@ -1019,6 +1467,20 @@ def self_test() -> None:
     print("all_numeric_pids_scope=true")
     print("kernel_thread_explicit_skip=true")
     print("pid_generation_recheck=true")
+    print("host_pid_namespace_external_lease_required=true")
+    print("private_pid_namespace_rejected=true")
+    print("host_pid_namespace_lease_mismatch_rejected=true")
+    print("host_mount_namespace_external_lease_required=true")
+    print("private_mount_namespace_rejected=true")
+    print("host_mount_namespace_lease_mismatch_rejected=true")
+    print("complete_proc_visibility_required=true")
+    print("hidepid_restricted_proc_holds=true")
+    print("retained_procfs_view_required=true")
+    print("retained_procfs_view_descriptor_relative=true")
+    print("retained_procfs_view_revalidated_after_census=true")
+    print("target_resolved_in_host_mount_namespace=true")
+    print("host_namespace_lease_provenance_authenticated_by_census=false")
+    print("separately_reviewed_host_namespace_lease_required=true")
     print("task_inventory_generation_stability_required=true")
     print("per_thread_files_fs_reference_scan_required=true")
     print("bounded_task_inventory_required=true")
@@ -1049,12 +1511,27 @@ def main(argv: list[str]) -> int:
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--self-test", action="store_true")
     group.add_argument("--census", action="store_true")
+    parser.add_argument("--expected-host-pid-namespace-dev-ino")
+    parser.add_argument("--expected-host-mount-namespace-dev-ino")
     args = parser.parse_args(argv)
     if args.self_test:
         self_test()
         return 0
     if args.census:
-        print(json.dumps(census(), sort_keys=True, separators=(",", ":")))
+        if args.expected_host_pid_namespace_dev_ino is None:
+            hold("expected_host_pid_namespace_lease_required")
+        if args.expected_host_mount_namespace_dev_ino is None:
+            hold("expected_host_mount_namespace_lease_required")
+        print(
+            json.dumps(
+                census(
+                    args.expected_host_pid_namespace_dev_ino,
+                    args.expected_host_mount_namespace_dev_ino,
+                ),
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        )
         return 0
     return 2
 
@@ -1067,6 +1544,13 @@ if __name__ == "__main__":
         print("status=HOLD")
         print("reason=" + str(exc))
         print("production_read_only=true")
+        print("host_pid_namespace_external_lease_required=true")
+        print("host_pid_namespace_lease_verified=false")
+        print("host_mount_namespace_external_lease_required=true")
+        print("host_mount_namespace_lease_verified=false")
+        print("host_namespace_lease_provenance_authenticated_by_census=false")
+        print("separately_reviewed_host_namespace_lease_required=true")
+        print("retained_procfs_view_used=false")
         print("production_filesystem_write=false")
         print("all_process_reference_absence_proven=false")
         print("fd_table_stability_proven=false")
