@@ -5,6 +5,8 @@ import hashlib
 import importlib.util
 import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -13,7 +15,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "d3c648df3f43ab642d60b8eacedb05c851e4fd2c"
+EXPECTED_SOURCE_BLOB = "65916e49b7297e3b592049a3878683141d364152"
 
 
 def git_blob(raw: bytes) -> str:
@@ -38,7 +40,7 @@ assert module.SCHEMA == (
     "void_buy_void_custody_runtime_v3_process_reference_census_v1"
 )
 assert module.PRESTATE_SOURCE_BLOB == (
-    "caaf668b25879b5bbcddbf865e574a7b5162143e"
+    "c2e0c53336665578e4ab26204f7d67908c66ad3f"
 )
 assert module.ARCHIVE_LOCK_BLOB == (
     "edb4ea2b833373ab387762e45ba7da4032c860f3"
@@ -61,6 +63,24 @@ assert lock["public_presale_activation"] is False
 assert lock["funds_movement"] is False
 
 module.self_test()
+
+without_b = subprocess.run(
+    [sys.executable, "-I", str(TARGET), "--self-test"],
+    cwd="/",
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=10,
+    env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+)
+assert without_b.returncode == 2, without_b
+assert (
+    "reason=python_isolated_unoptimized_nobytecode_mode_required"
+    in without_b.stdout
+), without_b.stdout
+assert "production_filesystem_write=false" in without_b.stdout
 
 clean_row = {
     "pid": 101,
@@ -218,6 +238,7 @@ for forbidden in (
 
 for required in (
     "root_execution_forbidden_for_user_owned_diagnostic",
+    "dont_write_bytecode",
     "follow_symlinks=True",
     "os.makedev",
     "MAX_MAPS_BYTES",
@@ -261,6 +282,8 @@ print("target_snapshot_stable_required=true")
 print("regular_file_mount_id_checked=true")
 print("receipt_target_bound_to_selected_attempt=true")
 print("legacy_tree_entry_limit=32768")
+print("python_no_bytecode_mode_required=true")
+print("without_dash_b_bootstrap_hold=true")
 print("proc_cmdline_read=false")
 print("proc_environ_read=false")
 print("proc_fd_target_text_read=false")
