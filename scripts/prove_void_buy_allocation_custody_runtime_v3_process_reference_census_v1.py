@@ -15,7 +15,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "e2c36f188396774d090731ad3cba78a9e919acc0"
+EXPECTED_SOURCE_BLOB = "a99b752cf499c5057dc63e5ad2422af6f7fd1055"
 
 
 def git_blob(raw: bytes) -> str:
@@ -51,6 +51,7 @@ assert module.ARCHIVE_LOCK_SHA256 == (
 assert module.TARGET == Path("/opt/void-buy-allocation-custody-runtime-v1")
 assert module.MAX_TARGET_ENTRIES == 32768
 assert module.MAX_PIDS == 32768
+assert module.MAX_STATUS_BYTES == 64 * 1024
 assert module.MAX_FDS_PER_PROCESS == 65536
 assert module.MAX_SCAN_ATTEMPTS == 3
 
@@ -61,6 +62,10 @@ assert lock["runtime_integration"] is False
 assert lock["payment_acceptance"] is False
 assert lock["public_presale_activation"] is False
 assert lock["funds_movement"] is False
+
+assert module.parse_proc_uid_slots(
+    b"Name:\tfixture\nUid:\t1000\t1001\t1002\t1003\n"
+) == (1000, 1001, 1002, 1003)
 
 assert module.parse_dev_ino_lease("12:34") == (12, 34)
 for bad in ("", "0:34", "12:0", "12", "12:34:56", "x:y"):
@@ -195,6 +200,14 @@ with tempfile.TemporaryDirectory(
     (pid_root / "stat").write_text(
         "101 (fixture process) " + " ".join(fields) + "\n",
         encoding="ascii",
+    )
+    uid = os.geteuid()
+    (pid_root / "status").write_text(
+        "Name:\tfixture-process\n"
+        + "Uid:\t"
+        + "\t".join([str(uid)] * 4)
+        + "\n",
+        encoding="utf-8",
     )
 
     major = os.major(target_st.st_dev)
@@ -342,6 +355,10 @@ for required in (
     "host_pid_namespace_external_lease_required",
     "retained_procfs_view_used",
     "retained_procfs_view_revalidated_after_census",
+    "parse_proc_uid_slots",
+    "_proc_uid_slots",
+    "proc_status_effective_uid_classification",
+    "process_uid_slots_stable_during_reference_scan",
 ):
     assert required in source, required
 
@@ -361,6 +378,9 @@ proc_scan_source = pre_self_test.split("def _same_uid_pids(", 1)[1].split(
 assert "os.scandir(PROC if proc_fd is None else proc_fd)" in proc_scan_source
 assert "dir_fd=proc_fd" in proc_scan_source
 assert "_read_bounded_at(" in proc_scan_source
+assert "_proc_uid_slots(" in proc_scan_source
+assert "st.st_uid == uid" not in proc_scan_source
+assert "uid_slots_after != uid_slots_before" in proc_scan_source
 assert "_pinned_proc_root(" not in pre_self_test
 
 print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V1_PROOF_GREEN")
@@ -369,6 +389,8 @@ print("prestate_source_exact=true")
 print("archive_lock_exact=true")
 print("target_identity_metadata_only=true")
 print("current_uid_process_scope=true")
+print("proc_status_effective_uid_classification=true")
+print("process_uid_slots_stable_during_reference_scan=true")
 print("host_pid_namespace_external_lease_required=true")
 print("private_pid_namespace_rejected=true")
 print("host_pid_namespace_lease_mismatch_rejected=true")
