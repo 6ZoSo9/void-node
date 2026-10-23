@@ -44,9 +44,12 @@ The candidate ID is:
 
 The executable proof poisons `JSON.stringify`, installs an inherited
 `Object.prototype.toJSON` getter, and replaces the live reflection helpers
-after module import. It additionally poisons the live Proxy detector, RegExp
-test method, hash update/digest methods, Buffer allocation/encoding helpers,
-`Reflect.apply`, and the Array iterator/index-setter surface. Qualifying and
+after module import. It additionally poisons the live Proxy detector, both
+RegExp `test` and `exec`, hash update/digest methods, Buffer
+allocation/encoding helpers and a synthetic `Buffer.prototype.length` getter,
+`Reflect.apply`, and the Array iterator/index-setter surface. The source uses
+captured `RegExp.exec` directly and a captured typed-array length intrinsic
+for generated Buffer lengths. Qualifying and
 encoding an already-built V2 candidate must still produce identical bytes
 without executing the inherited getter or Array index setter. Revoked Proxy
 candidates and accessor-bearing inputs fail closed.
@@ -61,9 +64,16 @@ canonicalizer generation rather than silently trusting the legacy V1 request
 serializer. The current reviewed source reference is:
 
 - #3740 head:
-  `4306d608fbf5b13a8e20b02d8d416b9f55726b8f`;
+  `1f5dbd8f505d90ed197e80a97015066c567e8ced`;
 - `tools/apollyon-claim-contract-canonical-json-v2.mjs` blob:
-  `6e8056287ae4ac8c73b9230679a6a4b570d8eac8`.
+  `4d4b970fa2df3a3e7cae176b18c62aff52e94adc`.
+
+The superseded #3740 tuple
+`4306d608fbf5b13a8e20b02d8d416b9f55726b8f` /
+`6e8056287ae4ac8c73b9230679a6a4b570d8eac8` is intentionally rejected by
+the V2 proof. The current serializer generation moves captured Proxy detection
+ahead of both object and function dispatch, including callable/revoked-callable
+Proxy cases, and is 15/15 exact-head CI green.
 
 This contract records:
 
@@ -178,9 +188,9 @@ candidate_weight_mutation_performed=false
 Current V2 source generation before this document:
 
 - contract source blob:
-  `de63f8801abfe483b5ce63c56581ed52d2c2aadd`;
+  `f03d1fbcd49113acb03772ab16664ab1ddc68870`;
 - proof blob:
-  `a8c95d09fcbed4809788a30024a95e6d84016ad8`.
+  `4083cc06109056c437931129d829bd475fc33b2c`.
 
 Next gate:
 `apollyon_training_start_protected_store_revalidator_implementation_v2`,
