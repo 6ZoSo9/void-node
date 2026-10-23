@@ -1,0 +1,65 @@
+name: VOID V7 V5 stage two-role source contract v1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/security/void_v7_v5_stage_role_separation_contract_v1.json'
+      - 'scripts/prove_void_v7_v5_stage_role_separation_contract_v1.py'
+      - 'docs/security/void-v7-v5-stage-role-separation-contract-v1.md'
+      - '.github/workflows/void-v7-stage-role-separation-contract-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stage-role-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Bind exact upstream and source-only scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b"
+          test "$(git rev-parse HEAD:ops/security/void_v7_v5_stage_role_separation_contract_v1.json)" = "9fc65073c54d7fe70283439ef3ea107dd3f856f6"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_role_separation_contract_v1.py)" = "1ed433393d1b87cb932dbbe856bb3c2c3e179310"
+          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-role-separation-contract-v1.md)" = "104036617a8c16a3bedc8b77d98e6db073c22c77"
+          git merge-base --is-ancestor 555db189091321a727b98d5177c7428430fd23a1 "$EXPECTED_HEAD"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            test "$BASE" = "555db189091321a727b98d5177c7428430fd23a1"
+            cat > /tmp/v7-expected-scope <<'SCOPE'
+          A	.github/workflows/void-v7-stage-role-separation-contract-v1.yml
+          A	docs/security/void-v7-v5-stage-role-separation-contract-v1.md
+          A	ops/security/void_v7_v5_stage_role_separation_contract_v1.json
+          A	scripts/prove_void_v7_v5_stage_role_separation_contract_v1.py
+          SCOPE
+            git diff --name-status "$BASE" "$EXPECTED_HEAD" -- | sort > /tmp/v7-actual-scope
+            sort /tmp/v7-expected-scope > /tmp/v7-expected-scope.sorted
+            diff -u /tmp/v7-expected-scope.sorted /tmp/v7-actual-scope
+            git diff --check "$BASE" "$EXPECTED_HEAD" --
+          fi
+
+      - name: Exact legacy boundary and 19 negative role models
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(id -u)" -ne 0
+          python3 -I -B scripts/prove_void_v7_v5_stage_role_separation_contract_v1.py
