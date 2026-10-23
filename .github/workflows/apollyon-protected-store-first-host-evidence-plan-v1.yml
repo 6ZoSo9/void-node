@@ -47,9 +47,9 @@ jobs:
           git diff --no-renames --name-only "$PARENT" HEAD -- | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json)" = 567fbcd1f68e897128c73cedad8665b443d61701
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py)" = b0b5929f7654d09e110c55a4b19325dba22a359d
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md)" = 3d9bf8059f91a61164bf380e92c5d6960cb02dc2
+          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json)" = 6ff56be54c33b60e66c1441f0fe1939fb48f8586
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py)" = 120d399c140a0e1f8a65f581f4240f5b058012e0
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md)" = 671ded6ae9549e7cba911e7869e272e49553fff0
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 4c78459826c25cab43870b0b322b566575d18667
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 2e919af52e44c6dcfec41dc47567a73f658874c3
@@ -78,14 +78,17 @@ jobs:
 
           for marker in \
             'VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_EVIDENCE_PLAN_V1_PROOF_GREEN' \
-            'plan_id=voidapollyonfirsthostplan1_658cd84a07a7162ce3c9e650feffdf388d9ab08a17bf41ce461f81e96ed9960f' \
+            'plan_id=voidapollyonfirsthostplan1_be2b83c33630bce1e9bc635cbdd90981f55df38ab0e929706acd4cd7798015ca' \
             'parent_pr=3743' \
             'parent_head=3706aecf2e258c9c7021137da05428187bbe6654' \
             'parent_blob_count=4' \
-            'first_pass_requirement_count=38' \
-            'negative_authority_count=15' \
-            'rejected_adversaries=59' \
+            'first_pass_requirement_count=39' \
+            'negative_authority_count=16' \
+            'rejected_adversaries=65' \
             'hosted_candidate_identity_bound=true' \
+            'machine_identity_binding_required=true' \
+            'machine_identity_bound=false' \
+            'duplicate_json_keys_rejected=true' \
             'cross_node_candidate_evidence_bound=true' \
             'read_only_metadata_safe_first_pass_required=true' \
             'protected_record_contents_read_forbidden=true' \
@@ -107,4 +110,6 @@ jobs:
           python3 -I -B scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py --run > "$RUNNER_TEMP/run.txt"
           grep -Fx 'VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_EVIDENCE_PLAN_V1_PROOF_GREEN' "$RUNNER_TEMP/run.txt"
           grep -Fx 'host_read_performed=false' "$RUNNER_TEMP/run.txt"
+          grep -Fx 'machine_identity_bound=false' "$RUNNER_TEMP/run.txt"
+          grep -Fx 'duplicate_json_keys_rejected=true' "$RUNNER_TEMP/run.txt"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
