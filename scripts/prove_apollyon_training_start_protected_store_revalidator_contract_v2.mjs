@@ -32,7 +32,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE_REL=
   "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs";
 const PINS=Object.freeze({
-  [SOURCE_REL]:"17802032a56dc0c2334f03d0a7f5012ec92b2f90",
+  [SOURCE_REL]:"1699ac4d826e778854ea0c91541cf4412b30fb50",
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
     "079576db7f880872f2d4dea8e7759bd536161516",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
@@ -627,6 +627,7 @@ for(const required of [
   "const TYPED_ARRAY_LENGTH=",
   "const TYPED_ARRAY_SET=Uint8Array.prototype.set;",
   "concatBuffers(parts)",
+  "return frameRecord(value,true);",
   "bufferLength(raw)",
   "bufferLength(keyBytes)",
   "bufferLength(payload)",
@@ -699,6 +700,7 @@ console.log("captured_frame_qualifier_primordials_bound=true");
 console.log("captured_regexp_exec_primordial_bound=true");
 console.log("captured_buffer_length_intrinsic_bound=true");
 console.log("captured_typed_array_set_primordial_bound=true");
+console.log("private_frame_return_without_buffer_copy=true");
 console.log("current_canonicalizer_v2_generation_bound=true");
 console.log("superseded_canonicalizer_v2_generation_rejected=true");
 console.log("revoked_proxy_candidate_rejected=true");
