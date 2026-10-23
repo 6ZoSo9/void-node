@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "ops/xiphos/apollyon_release_pipe_pair_generation_v1.c"
 PARENT = ROOT / "ops/xiphos/apollyon_training_start_release_native_candidate_v1.c"
 EXPECTED_SOURCE_BLOB = "93390eefd1e72e70af7206e9982c8eaa5e042149"
-EXPECTED_PARENT_BLOB = "3c81dbbe694f421a0e6cbc18d8fb7d6f4c7fd983"
+EXPECTED_PARENT_BLOB = "098276fc92c247fa1465c11c6403c2c50a61629a"
 MARKER = "VOID_APOLLYON_RELEASE_PIPE_PAIR_GENERATION_V1_SELF_TEST=GREEN"
 
 def git_blob(data: bytes) -> str:
