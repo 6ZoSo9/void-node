@@ -131,7 +131,7 @@ const CANDIDATE_ID=
   /^apollyon_training_start_protected_store_revalidator_v2:[0-9a-f]{64}$/u;
 const SLOT_LEAF=/^training-start-consumption-v1-[0-9a-f]{64}\.json$/u;
 
-const TRUE_KEYS=new Set([
+const TRUE_KEYS=Object.freeze([
   "source_contract_only",
   "flat_primitive_content_address_required",
   "candidate_frame_hash_json_independent",
@@ -167,7 +167,7 @@ const TRUE_KEYS=new Set([
   "protected_writer_invocation_required",
 ]);
 
-const FALSE_KEYS=new Set([
+const FALSE_KEYS=Object.freeze([
   "reviewed_canonicalizer_v2_host_integration_proven",
   "parent_revalidation_request_v1_host_realm_proven",
   "candidate_material_derivation_host_realm_proven",
@@ -279,6 +279,13 @@ const MATERIAL_KEYS=Object.freeze([
   "next_gate",
 ]);
 const FULL_KEYS=Object.freeze([...MATERIAL_KEYS,"revalidator_candidate_id"]);
+function keyLookup(keys){
+  const out=Object.create(null);
+  for(let index=0;index<keys.length;index+=1)out[keys[index]]=true;
+  return Object.freeze(out);
+}
+const MATERIAL_KEY_LOOKUP=keyLookup(MATERIAL_KEYS);
+const FULL_KEY_LOOKUP=keyLookup(FULL_KEYS);
 
 function fail(code){throw new Error(code);}
 function sha256(raw){return APPLY(CREATE_HASH,crypto,["sha256"]).update(raw).digest("hex");}
@@ -289,70 +296,84 @@ const GET_OWN_PROPERTY_DESCRIPTOR=Object.getOwnPropertyDescriptor;
 const HAS_OWN=Object.hasOwn;
 const CREATE_NULL=Object.create;
 const FREEZE=Object.freeze;
+const OBJECT_PROTOTYPE=Object.prototype;
 const ARRAY_IS_ARRAY=Array.isArray;
 const IS_SAFE_INTEGER=Number.isSafeInteger;
+const IS_PROXY=utilTypes.isProxy;
 const PRIMITIVE_STRING=String;
 const CREATE_HASH=crypto.createHash;
+const BUFFER_CTOR=Buffer;
 const BUFFER_FROM=Buffer.from;
 const BUFFER_CONCAT=Buffer.concat;
 const BUFFER_ALLOC=Buffer.alloc;
 const WRITE_U32=Buffer.prototype.writeUInt32BE;
 function bytes(text,encoding="utf8"){
-  return APPLY(BUFFER_FROM,Buffer,[text,encoding]);
+  return APPLY(BUFFER_FROM,BUFFER_CTOR,[text,encoding]);
 }
 function u32(value){
   if(!IS_SAFE_INTEGER(value)||value<0||value>0xffffffff){
     fail("apollyon_training_start_protected_store_revalidator_v2_frame_length_invalid");
   }
-  const out=APPLY(BUFFER_ALLOC,Buffer,[4]);
+  const out=APPLY(BUFFER_ALLOC,BUFFER_CTOR,[4]);
   APPLY(WRITE_U32,out,[value,0]);
   return out;
 }
 function primitivePayload(value){
   if(typeof value==="string"){
     const raw=bytes(value);
-    return APPLY(BUFFER_CONCAT,Buffer,[[bytes("s","ascii"),u32(raw.length),raw]]);
+    return APPLY(BUFFER_CONCAT,BUFFER_CTOR,[[bytes("s","ascii"),u32(raw.length),raw]]);
   }
   if(typeof value==="boolean"){
     return bytes(value?"b1":"b0","ascii");
   }
   if(typeof value==="number"&&IS_SAFE_INTEGER(value)){
     const raw=bytes(PRIMITIVE_STRING(value),"ascii");
-    return APPLY(BUFFER_CONCAT,Buffer,[[bytes("i","ascii"),u32(raw.length),raw]]);
+    return APPLY(BUFFER_CONCAT,BUFFER_CTOR,[[bytes("i","ascii"),u32(raw.length),raw]]);
   }
   fail("apollyon_training_start_protected_store_revalidator_v2_frame_value_invalid");
 }
 function frameRecord(value,withId){
   const snapshot=snapshotFlat(value,withId);
   const keys=withId?FULL_KEYS:MATERIAL_KEYS;
-  const chunks=[bytes("VOID_APOLLYON_PROTECTED_STORE_REVALIDATOR_V2_FRAME_1\0","ascii")];
-  for(const key of keys){
+  const chunks=new Array(1+keys.length*4);
+  chunks[0]=bytes("VOID_APOLLYON_PROTECTED_STORE_REVALIDATOR_V2_FRAME_1\0","ascii");
+  let offset=1;
+  for(let index=0;index<keys.length;index+=1){
+    const key=keys[index];
     const keyBytes=bytes(key);
     const payload=primitivePayload(snapshot[key]);
-    chunks.push(u32(keyBytes.length),keyBytes,u32(payload.length),payload);
+    chunks[offset]=u32(keyBytes.length);
+    chunks[offset+1]=keyBytes;
+    chunks[offset+2]=u32(payload.length);
+    chunks[offset+3]=payload;
+    offset+=4;
   }
-  return APPLY(BUFFER_CONCAT,Buffer,[chunks]);
+  return APPLY(BUFFER_CONCAT,BUFFER_CTOR,[chunks]);
 }
 function sameFlat(left,right,keys){
-  for(const key of keys)if(left[key]!==right[key])return false;
+  for(let index=0;index<keys.length;index+=1){
+    const key=keys[index];
+    if(left[key]!==right[key])return false;
+  }
   return true;
 }
 
 function snapshotFlat(input,withId){
   const code="apollyon_training_start_protected_store_revalidator_v2_candidate_schema_invalid";
   if(
-    !input||typeof input!=="object"||utilTypes.isProxy(input)||
+    !input||typeof input!=="object"||IS_PROXY(input)||
     ARRAY_IS_ARRAY(input)
   )fail(code);
   const proto=GET_PROTOTYPE_OF(input);
-  if(proto!==Object.prototype&&proto!==null)fail(code);
+  if(proto!==OBJECT_PROTOTYPE&&proto!==null)fail(code);
   const expected=withId?FULL_KEYS:MATERIAL_KEYS;
+  const allowed=withId?FULL_KEY_LOOKUP:MATERIAL_KEY_LOOKUP;
   const own=REFLECT_OWN_KEYS(input);
-  if(own.length!==expected.length||own.some(key=>typeof key!=="string"))fail(code);
-  const allowed=new Set(expected);
+  if(own.length!==expected.length)fail(code);
   const out=CREATE_NULL(null);
-  for(const key of own){
-    if(!allowed.has(key))fail(code);
+  for(let index=0;index<own.length;index+=1){
+    const key=own[index];
+    if(typeof key!=="string"||!HAS_OWN(allowed,key))fail(code);
     const descriptor=GET_OWN_PROPERTY_DESCRIPTOR(input,key);
     if(!descriptor?.enumerable||!HAS_OWN(descriptor,"value"))fail(code);
     const value=descriptor.value;
@@ -367,7 +388,9 @@ function snapshotFlat(input,withId){
     }
     out[key]=value;
   }
-  for(const key of expected)if(!HAS_OWN(out,key))fail(code);
+  for(let index=0;index<expected.length;index+=1){
+    if(!HAS_OWN(out,expected[index]))fail(code);
+  }
   return out;
 }
 
@@ -429,8 +452,12 @@ function validateMaterial(value){
       value.trainer_gid<=0||value.trainer_gid>65533||
     !HASH64.test(value.trainer_source_identity_sha256)
   )fail(code);
-  for(const key of TRUE_KEYS)if(value[key]!==true)fail(code);
-  for(const key of FALSE_KEYS)if(value[key]!==false)fail(code);
+  for(let index=0;index<TRUE_KEYS.length;index+=1){
+    if(value[TRUE_KEYS[index]]!==true)fail(code);
+  }
+  for(let index=0;index<FALSE_KEYS.length;index+=1){
+    if(value[FALSE_KEYS[index]]!==false)fail(code);
+  }
 }
 
 function materialFromRequest(request){
@@ -630,7 +657,7 @@ export function encodeApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(
   input,
 ){
   const value=qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2(input);
-  return APPLY(BUFFER_FROM,Buffer,[frameRecord(value,true)]);
+  return APPLY(BUFFER_FROM,BUFFER_CTOR,[frameRecord(value,true)]);
 }
 
 export const APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_MATERIAL_KEYS_V2 =
