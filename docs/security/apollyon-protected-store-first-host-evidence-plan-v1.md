@@ -33,6 +33,8 @@ claim_state_root=/var/lib/void-apollyon-attempt-claim-v2
 consumption_directory=/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1
 ```
 
+The hostname `Xiphos` is **not** sufficient host identity. Before any host pass is authorized, a separate authenticated evidence step must supply the expected SHA-256 of Xiphos's canonical `/etc/machine-id`; the operator pass must re-read and match that value. This source-only plan deliberately keeps `expected_machine_id_sha256=null`, `machine_identity_bound=false`, and status `UNBOUND_REQUIRES_SEPARATE_AUTHENTICATED_XIPHOS_MACHINE_ID_EVIDENCE`. A renamed/replacement machine must therefore HOLD rather than inherit Xiphos authority.
+
 The first pass must use fixed paths and retained descriptors with no-follow/nonblocking/CLOEXEC semantics where applicable. It must verify stable retained-versus-visible inode generations, owner/group/mode/link/type policy, trusted ancestor metadata, access/default ACL absence, and mount/bind provenance metadata. Installed source/package/runtime/process identity may be observed only through bounded metadata-safe probes.
 
 The first pass must HOLD on unreadable, ambiguous, unsupported, or changing evidence. Absence is evidence of absence only; it is not permission to create, repair, install, start, publish, or retry anything.
@@ -68,7 +70,7 @@ The plan pins exact #3743 head `3706aecf2e258c9c7021137da05428187bbe6654` and:
 
 The content-addressed plan ID is:
 
-`voidapollyonfirsthostplan1_658cd84a07a7162ce3c9e650feffdf388d9ab08a17bf41ce461f81e96ed9960f`.
+`voidapollyonfirsthostplan1_be2b83c33630bce1e9bc635cbdd90981f55df38ab0e929706acd4cd7798015ca`.
 
 The source proof validates the closed plan schema, re-hashes the plan ID, reads and Git-blob-verifies all four exact parent artifacts, flips every first-pass requirement and every forbidden authority field independently, and rejects candidate/host/parent identity tampering.
 
@@ -80,6 +82,7 @@ These remain false:
 
 ```text
 host_pass_performed=false
+machine_identity_bound=false
 protected_store_origin_proven=false
 current_store_generation_revalidation_performed=false
 authorization_winner_reread_performed=false
@@ -100,6 +103,6 @@ The first host pass itself remains a separate operator authorization gate. If it
 
 Next gate:
 
-`SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS`
+`BIND_AUTHENTICATED_XIPHOS_MACHINE_ID_THEN_SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS`
 
 **PROTECT THE CORE.**
