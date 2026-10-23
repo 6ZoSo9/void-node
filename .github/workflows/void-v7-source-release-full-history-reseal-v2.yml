@@ -1,0 +1,108 @@
+name: VOID V7 full-history source-release reseal v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_v7_source_release_full_history_reseal_v2.py"
+      - "scripts/prove_void_v7_source_release_full_history_reseal_v2.py"
+      - "docs/operators/void-v7-source-release-full-history-reseal-v2.md"
+      - ".github/workflows/void-v7-source-release-full-history-reseal-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reseal-v5-source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact reseal successor head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact four-file scope and blobs
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PARENT=5535f696e28dc60b4217015922bffbad310283cc
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v2.py)" = "0c41cc63ad22b10b8383840f760e3624ab7163d5"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v2.py)" = "3215121343e93faba43304129908be9ca9556b4c"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v2.md)" = "692b3b490ef923e6be32157f418b2a355ed8bfd3"
+          mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
+          expected=(
+            $'A\t.github/workflows/void-v7-source-release-full-history-reseal-v2.yml'
+            $'A\tdocs/operators/void-v7-source-release-full-history-reseal-v2.md'
+            $'A\tops/precision/void_v7_source_release_full_history_reseal_v2.py'
+            $'A\tscripts/prove_void_v7_source_release_full_history_reseal_v2.py'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "$PARENT" HEAD
+
+      - name: Normalize disposable CI checkout and prove source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git switch -C main HEAD
+          test "$(git rev-parse --abbrev-ref HEAD)" = main
+          rm -f -- .git/config.worktree
+          git config --local --unset-all extensions.worktreeConfig || true
+          test ! -e .git/config.worktree
+          test "$(git rev-parse --is-shallow-repository)" = false
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for rel in (
+              "ops/precision/void_v7_source_release_full_history_reseal_v2.py",
+              "scripts/prove_void_v7_source_release_full_history_reseal_v2.py",
+          ):
+              compile(Path(rel).read_bytes(), rel, "exec", dont_inherit=True, optimize=0)
+          PY
+          python3 -I -B scripts/prove_void_v7_source_release_full_history_reseal_v2.py
+
+      - name: Build and verify disposable V5 full-history candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACCOUNT_HOME="$(python3 -I -B - <<'PY'
+          import os, pwd
+          print(pwd.getpwuid(os.getuid()).pw_dir)
+          PY
+          )"
+          test -n "$ACCOUNT_HOME"
+          test -d "$ACCOUNT_HOME"
+          test ! -L "$ACCOUNT_HOME"
+          mkdir -p "$ACCOUNT_HOME/Downloads"
+          test -d "$ACCOUNT_HOME/Downloads"
+          test ! -L "$ACCOUNT_HOME/Downloads"
+          OUT="$ACCOUNT_HOME/Downloads/void-v7-v5-full-history-candidate"
+          python3 -I -B ops/precision/void_v7_source_release_full_history_reseal_v2.py \
+            --build \
+            --output "$OUT" \
+            | tee "$RUNNER_TEMP/reseal-v2.log"
+          grep -Fx 'status=FULL_HISTORY_RESEAL_CANDIDATE_GREEN' "$RUNNER_TEMP/reseal-v2.log"
+          grep -Fx 'descriptor_bound_candidate_mutation=true' "$RUNNER_TEMP/reseal-v2.log"
+          grep -Fx 'mountpoint_alias_rejection=true' "$RUNNER_TEMP/reseal-v2.log"
+          grep -Fx 'candidate_cleanup_attempted=false' "$RUNNER_TEMP/reseal-v2.log"
+          grep -Fx 'current_uid_filesystem_write_boundary=true' "$RUNNER_TEMP/reseal-v2.log"
+          grep -Fx 'same_uid_namespace_relocation_isolation=false' "$RUNNER_TEMP/reseal-v2.log"
+          grep -Fx 'intended_source_repository_mutation=false' "$RUNNER_TEMP/reseal-v2.log"
+          grep -Fx 'intended_protected_filesystem_mutation=false' "$RUNNER_TEMP/reseal-v2.log"
+          grep -Fx 'source_repository_mutation=unknown' "$RUNNER_TEMP/reseal-v2.log"
+          grep -Fx 'protected_filesystem_mutation=unknown' "$RUNNER_TEMP/reseal-v2.log"
+          grep -Fx 'network=false' "$RUNNER_TEMP/reseal-v2.log"
+          test ! -e "$OUT/.git/shallow"
+          test "$(git -C "$OUT" rev-parse --is-shallow-repository)" = false
+          test "$(git -C "$OUT" rev-list --count 3dc143bb16d7c1d1d5e0f674881cf12621818661)" = 18390
+          test "$(git -C "$OUT" rev-parse HEAD)" = 3dc143bb16d7c1d1d5e0f674881cf12621818661
+          test "$(git -C "$OUT" rev-parse 'HEAD^{tree}')" = 21e7fae2d3dfeb6a918c11799ae6644c6ca70a64
+          test "$(git -C "$OUT" rev-list --parents -n 1 HEAD)" = "3dc143bb16d7c1d1d5e0f674881cf12621818661 b9d8ad7aec19592b104d47da4a496710d4fde8db"
+          test -z "$(git -C "$OUT" status --porcelain=v1 --untracked-files=all)"
