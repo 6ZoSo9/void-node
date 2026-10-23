@@ -49,7 +49,7 @@ jobs:
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs)" = \
             "a1e405b3a08360c8b992eaf75bbc0dfbb1896ea8"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_replacement_readiness_plan_v1.mjs)" = \
-            "63879ccec0fba8751a5a8e662429cc15384ca740"
+            "b7164e4e4540b0debec691ffc85bcf6ae169bf79"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-replacement-readiness-plan-v1.md)" = \
             "8a3d072938a2abb1a1a8504b0e71d26c6b311022"
 
