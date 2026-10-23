@@ -26,20 +26,20 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify exact hardened parent and four-path scope
+      - name: Verify qualifier custody successor parent and four-path scope
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          PARENT=d162c564f72666530f48c604c8f9a7b13aa04495
+          PARENT=a672d6be15815a008bbf664ba099fc9ce72bfc92
           test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
           mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
           expected=(
             $'M\t.github/workflows/void-v7-v5-stage-static-launcher-qualifier-v2.yml'
             $'M\tdocs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md'
-            $'M\tops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c'
+            $'M\tops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py'
             $'M\tscripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py'
           )
           test "${#actual[@]}" -eq "${#expected[@]}"
@@ -51,9 +51,9 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c)" = "2337466b713b6572cc5ec832817899bbcb4e2ac2"
-          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py)" = "f7ea902b7d145d4c770d76f41b0c2fb974ee3f3e"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py)" = "06a52c04b0d9b3256c9897e08608040f4dfb95e7"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md)" = "be65b8ec0f2043d541e9d35b5e9d0cd4201888fe"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py)" = "4de9e927d73f8ec5acd0b9cce26617355456efcd"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py)" = "9199a09bda1e9c40a68ef9387f23dd73dc33bf73"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md)" = "c62bf1177ae528a6894737128709a953f5744940"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json)" = "c7ff1128ff04f3ce5f995206af52f844564c6b39"
 
       - name: Python syntax
@@ -95,6 +95,17 @@ jobs:
           grep -Fx 'caller_path_authority=false' "$out"
           grep -Fx 'caller_source_generation_authority=false' "$out"
           grep -Fx 'read_only_pair_qualifier_self_test_green=true' "$out"
+          grep -Fx 'receipt_verified_fd_metadata_bound=true' "$out"
+          grep -Fx 'receipt_path_substitution_rejected=true' "$out"
+          grep -Fx 'recursive_source_custody_bound=true' "$out"
+          grep -Fx 'whole_tree_node_limit_includes_root=true' "$out"
+          grep -Fx 'whole_tree_node_cap_boundary_tested=true' "$out"
+          grep -Fx 'node_limit_preaccess_enforced=true' "$out"
+          grep -Fx 'all_child_types_depth_limited=true' "$out"
+          grep -Fx 'regular_file_depth_cap_plus_one_rejected=true' "$out"
+          grep -Fx 'writable_descendant_file_rejected=true' "$out"
+          grep -Fx 'writable_descendant_directory_rejected=true' "$out"
+          grep -Fx 'staged_tree_generation_change_detected=true' "$out"
           grep -Fx 'source_stage_mode_0755_bound=true' "$out"
           grep -Fx 'source_internal_stage_build_v1_bound=true' "$out"
           grep -Fx 'predecessor_0555_tmp_v1_not_reused=true' "$out"

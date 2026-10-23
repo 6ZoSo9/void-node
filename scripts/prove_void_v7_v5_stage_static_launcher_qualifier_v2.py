@@ -14,7 +14,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 LAUNCHER_REL="ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c"
 LAUNCHER_BLOB="2337466b713b6572cc5ec832817899bbcb4e2ac2"
 QUALIFIER_REL="ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py"
-QUALIFIER_BLOB="f7ea902b7d145d4c770d76f41b0c2fb974ee3f3e"
+QUALIFIER_BLOB="4de9e927d73f8ec5acd0b9cce26617355456efcd"
 PLAN_REL="ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json"
 PLAN_BLOB="c7ff1128ff04f3ce5f995206af52f844564c6b39"
 SOURCE_INSTALLER_REL="ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
@@ -146,6 +146,20 @@ for token in (
     'expected_root_mode=0o755',
     'expected_root_mode=None',
     'source_stage_root_mode_0755_required=true',
+    'def scan_staged_tree_custody(',
+    'def _claim_custody_node(',
+    'max_nodes:int=MAX_CUSTODY_NODES',
+    'max_depth:int=MAX_CUSTODY_DEPTH',
+    'child_depth=depth+1',
+    'whole_tree_node_limit_includes_root=true',
+    'node_limit_preaccess_enforced=true',
+    'def visit(fd:int,rel:str,depth:int,*,claimed:bool=False)->None:',
+    'visit(child_fd,child_rel,child_depth,claimed=True)',
+    'regular_file_depth_cap_plus_one_rejected=true',
+    'os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC',
+    'receipt_path_substitution_rejected=true',
+    'recursive_source_custody_bound=true',
+    'same_generation(st,visible,label+"_terminal")',
     'fixed_v4_source_root_owned_nonwritable_required=true',
     'RECEIPT_STAGE=pathlib.Path(',
     '"/var/lib/void-source-finality-v7/.deployment-receipt.json.stage-v5"',
@@ -232,6 +246,17 @@ for marker in (
     "VOID_V7_V5_SOURCE_RECEIPT_STAGE_PAIR_QUALIFIER_V2_SELF_TEST_GREEN",
     "fixed_paths_only=true",
     "source_stage_root_mode_0755_required=true",
+    "receipt_verified_fd_metadata_bound=true",
+    "receipt_path_substitution_rejected=true",
+    "recursive_source_custody_bound=true",
+    "whole_tree_node_limit_includes_root=true",
+    "whole_tree_node_cap_boundary_tested=true",
+    "node_limit_preaccess_enforced=true",
+    "all_child_types_depth_limited=true",
+    "regular_file_depth_cap_plus_one_rejected=true",
+    "writable_descendant_file_rejected=true",
+    "writable_descendant_directory_rejected=true",
+    "staged_tree_generation_change_detected=true",
     "fixed_v4_source_root_owned_nonwritable_required=true",
     "source_internal_stage_build_v1_required=true",
     "journal_fence_path_selection_deferred=true",
@@ -247,6 +272,11 @@ for marker in (
 print(MARKER+"_GREEN")
 print("launcher_blob="+LAUNCHER_BLOB)
 print("qualifier_blob="+QUALIFIER_BLOB)
+print("whole_tree_node_limit_includes_root=true")
+print("whole_tree_node_cap_boundary_tested=true")
+print("node_limit_preaccess_enforced=true")
+print("all_child_types_depth_limited=true")
+print("regular_file_depth_cap_plus_one_rejected=true")
 print("trusted_admission_plan_blob="+PLAN_BLOB)
 print("launcher_compiles_with_werror=true")
 print("launcher_self_test_green=true")
@@ -264,6 +294,12 @@ print("read_only_pair_qualifier_self_test_green=true")
 print("source_stage_mode_0755_bound=true")
 print("source_internal_stage_build_v1_bound=true")
 print("predecessor_0555_tmp_v1_not_reused=true")
+print("receipt_verified_fd_metadata_bound=true")
+print("receipt_path_substitution_rejected=true")
+print("recursive_source_custody_bound=true")
+print("writable_descendant_file_rejected=true")
+print("writable_descendant_directory_rejected=true")
+print("staged_tree_generation_change_detected=true")
 print("journal_fence_path_selection_deferred=true")
 print("launcher_install_authorized=false")
 print("root_execution_authorized=false")
