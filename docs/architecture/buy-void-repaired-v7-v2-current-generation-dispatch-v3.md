@@ -50,7 +50,7 @@ local Git object database.
 - frozen current-inventory SHA-256: `65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589`
 - frozen Dispatch V2 proof: `5f5e76a594c358639571a190dc48fc9e11fc8b01`
 
-Dispatch V3 proof Git blob: `db35665f536e1fddbac5faf3dc19b37c62f73953`.
+Dispatch V3 proof Git blob: `fd4dc893171a666b8abba83873a63261466d36fd`.
 
 ## Deliberate boundary
 
@@ -64,3 +64,5 @@ signing, transaction broadcast, chain-2050 mutation, presale activation, or
 funds movement.
 
 Current repaired-router reader composition inventory SHA-256: `c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d`.
+
+Current V3 candidate/lock proof blobs: `96ae15c0a76d4cc463ea64688fa2c5fd119b09fc` / `a3b2aad30e22ead3cc73bbd0def3d1fb4f934d01`.
