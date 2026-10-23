@@ -667,8 +667,6 @@ def self_test() -> None:
                 hold("self_test_fifo_substitution_accepted")
         finally:
             os.open = original_open
-        if not swapped or not target.is_fifo() if hasattr(Path, "is_fifo") else False:
-            pass
         if not swapped or not stat.S_ISFIFO(os.stat(target, follow_symlinks=False).st_mode):
             hold("self_test_fifo_fixture_not_exercised")
         if displaced.read_bytes() != b"reader-fixture\n":
