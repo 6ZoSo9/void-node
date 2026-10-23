@@ -130,6 +130,7 @@ const REQUEST_ID=
 const CANDIDATE_ID=
   /^apollyon_training_start_protected_store_revalidator_v2:[0-9a-f]{64}$/u;
 const SLOT_LEAF=/^training-start-consumption-v1-[0-9a-f]{64}\.json$/u;
+const START_TICKS=/^[1-9][0-9]{0,19}$/u;
 
 const TRUE_KEYS=Object.freeze([
   "source_contract_only",
@@ -287,7 +288,7 @@ function keyLookup(keys){
 const MATERIAL_KEY_LOOKUP=keyLookup(MATERIAL_KEYS);
 const FULL_KEY_LOOKUP=keyLookup(FULL_KEYS);
 
-function fail(code){throw new Error(code);}
+function fail(code){throw new ERROR_CTOR(code);}
 function sha256(raw){
   const hash=APPLY(CREATE_HASH,crypto,["sha256"]);
   APPLY(HASH_UPDATE,hash,[raw]);
@@ -300,8 +301,10 @@ const APPLY=Reflect.apply;
 const REFLECT_OWN_KEYS=Reflect.ownKeys;
 const GET_PROTOTYPE_OF=Object.getPrototypeOf;
 const GET_OWN_PROPERTY_DESCRIPTOR=Object.getOwnPropertyDescriptor;
+const DEFINE_PROPERTY=Object.defineProperty;
 const HAS_OWN=Object.hasOwn;
 const CREATE_NULL=Object.create;
+const ERROR_CTOR=Error;
 const FREEZE=Object.freeze;
 const OBJECT_PROTOTYPE=Object.prototype;
 const ARRAY_CTOR=Array;
@@ -348,16 +351,21 @@ function frameRecord(value,withId){
   const snapshot=snapshotFlat(value,withId);
   const keys=withId?FULL_KEYS:MATERIAL_KEYS;
   const chunks=new ARRAY_CTOR(1+keys.length*4);
-  chunks[0]=bytes("VOID_APOLLYON_PROTECTED_STORE_REVALIDATOR_V2_FRAME_1\0","ascii");
+  const put=(index,value)=>{
+    APPLY(DEFINE_PROPERTY,Object,[chunks,PRIMITIVE_STRING(index),{
+      value,writable:true,enumerable:true,configurable:true,
+    }]);
+  };
+  put(0,bytes("VOID_APOLLYON_PROTECTED_STORE_REVALIDATOR_V2_FRAME_1\0","ascii"));
   let offset=1;
   for(let index=0;index<keys.length;index+=1){
     const key=keys[index];
     const keyBytes=bytes(key);
     const payload=primitivePayload(snapshot[key]);
-    chunks[offset]=u32(keyBytes.length);
-    chunks[offset+1]=keyBytes;
-    chunks[offset+2]=u32(payload.length);
-    chunks[offset+3]=payload;
+    put(offset,u32(keyBytes.length));
+    put(offset+1,keyBytes);
+    put(offset+2,u32(payload.length));
+    put(offset+3,payload);
     offset+=4;
   }
   return APPLY(BUFFER_CONCAT,BUFFER_CTOR,[chunks]);
@@ -457,7 +465,7 @@ function validateMaterial(value){
     !matches(HASH64,value.trainer_boot_id_sha256)||
     !IS_SAFE_INTEGER(value.trainer_pid)||value.trainer_pid<=1||
     typeof value.trainer_process_start_time_ticks!=="string"||
-    !/^[1-9][0-9]{0,19}$/u.test(value.trainer_process_start_time_ticks)||
+    !matches(START_TICKS,value.trainer_process_start_time_ticks)||
     !IS_SAFE_INTEGER(value.trainer_uid)||
       value.trainer_uid<=0||value.trainer_uid>65533||
     !IS_SAFE_INTEGER(value.trainer_gid)||
