@@ -14,7 +14,7 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "f2288b01fa37d6facf7cc223db2604f9bc30fd57"
+EXPECTED_SOURCE_BLOB = "3fc9ff1878001dacc01cc8f951c910dfc3dc5b28"
 
 
 def git_blob(raw: bytes) -> str:
@@ -36,16 +36,16 @@ assert module.MARKER == (
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS_V1"
 )
 assert module.PARENT_CURRENT_UID_HEAD == (
-    "9c95a400add17d7cc45866f4129602755f2f92ac"
+    "0a09df2649b4db27ed32865915b04f18530fd925"
 )
 assert module.PARENT_CURRENT_UID_SOURCE_BLOB == (
-    "6bf476e3383b7b18966320df13b4041da9c8c11f"
+    "2a064c670bd3fafc44d3a3b213c6672df533f72b"
 )
 assert module.PRESTATE_HEAD == (
     "836f5e704a603f67b77b2406aeec9174f640497e"
 )
 assert module.PRESTATE_SOURCE_BLOB == (
-    "e32ebd94ad09cd80e03489079e74657aab159d7a"
+    "4d9c6e5809a5cc64454626760f71e60ed99354bc"
 )
 assert module.ARCHIVE_LOCK_BLOB == (
     "edb4ea2b833373ab387762e45ba7da4032c860f3"
