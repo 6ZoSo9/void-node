@@ -35,14 +35,15 @@ jobs:
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git hash-object --no-filters ops/precision/void_v7_static_privilege_bridge_v1.c)" = "91a37d6291dd4370c251ac7895595a3ccf5c5d91"
           test "$(git hash-object --no-filters scripts/prove_void_v7_static_privilege_bridge_v1.py)" = "3271fcfad470e96eb28d8b3a7e4e2a3d94a764b1"
           test "$(git hash-object --no-filters docs/operators/void-v7-static-privilege-bridge-v1.md)" = "2ac2c38d1e161e2bca534fc418b07ed1fdc3cd7f"
-          git diff --check
           if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git diff --check "$PR_BASE" "$EXPECTED_HEAD" --
             cat > /tmp/voidpriv-expected.txt <<'SCOPE'
           A	.github/workflows/void-v7-static-privilege-bridge-v1.yml
           A	docs/operators/void-v7-static-privilege-bridge-v1.md
@@ -52,6 +53,8 @@ jobs:
             git diff --name-status "${{ github.event.pull_request.base.sha }}" HEAD -- | sort > /tmp/voidpriv-actual.txt
             sort /tmp/voidpriv-expected.txt > /tmp/voidpriv-expected.sorted.txt
             diff -u /tmp/voidpriv-expected.sorted.txt /tmp/voidpriv-actual.txt
+          else
+            git diff --check "$EXPECTED_HEAD^" "$EXPECTED_HEAD" --
           fi
 
       - name: Source-bound nonroot built-in privilege proof
