@@ -90,7 +90,9 @@ authorization token.
 
 ## Invocation
 
-After source/CI qualification:
+After source/CI qualification, `-B` is mandatory. Omitting it HOLDs
+before ordinary imports so a successful production receipt cannot silently
+write Python bytecode caches:
 
 ```bash
 python3 -I -B \
@@ -111,6 +113,7 @@ read_only=true
 production_filesystem_write=false
 root_execution=false
 sudo_used=false
+python_no_bytecode_mode_required=true
 designated_host_identity_verified=true
 pid1_pid_namespace_matches_self=true
 pid1_mount_namespace_matches_self=true
