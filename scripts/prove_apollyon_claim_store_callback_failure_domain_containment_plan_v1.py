@@ -379,7 +379,7 @@ def adversarial_self_test(plan: dict) -> int:
 
 
 def source_metadata_identity_adversaries() -> None:
-    """Synthetic descriptor metadata drift; never mutate protected inputs."""
+    """Synthetic open/terminal metadata drift; never mutate protected inputs."""
     with tempfile.TemporaryDirectory(prefix="void-apollyon-source-identity-") as td:
         candidate = Path(td) / "source-proof.txt"
         payload = b"source-only-metadata-identity-fixture\n"
@@ -387,6 +387,7 @@ def source_metadata_identity_adversaries() -> None:
         need(read_regular(candidate) == payload, "metadata_fixture_positive_failed")
         baseline = candidate.lstat()
         original_fstat = os.fstat
+        original_lstat = Path.lstat
 
         class _DriftedStat:
             def __init__(self, observed: object, changed_field: str) -> None:
@@ -399,8 +400,20 @@ def source_metadata_identity_adversaries() -> None:
                     return value + 1
                 return value
 
+        def expect_read_hold(expected_prefix: str, label: str) -> None:
+            try:
+                read_regular(candidate)
+            except Hold as exc:
+                need(
+                    str(exc).startswith(expected_prefix),
+                    "metadata_fixture_wrong_hold:" + label + ":" + str(exc),
+                )
+            else:
+                raise Hold("source_metadata_identity_drift_accepted:" + label)
+
         for field in ("st_uid", "st_gid", "st_nlink"):
-            def changed_fstat(fd: int, selected: str = field) -> object:
+            # Open-time descriptor mismatch proves the first before->opened gate.
+            def first_fstat_drift(fd: int, selected: str = field) -> object:
                 observed = original_fstat(fd)
                 if (
                     observed.st_dev == baseline.st_dev
@@ -410,20 +423,66 @@ def source_metadata_identity_adversaries() -> None:
                 return observed
 
             try:
-                os.fstat = changed_fstat
-                try:
-                    read_regular(candidate)
-                except Hold as exc:
-                    need(
-                        str(exc).startswith("source_generation_changed:"),
-                        "metadata_fixture_wrong_hold:" + field + ":" + str(exc),
-                    )
-                else:
-                    raise Hold("source_metadata_identity_drift_accepted:" + field)
+                os.fstat = first_fstat_drift
+                expect_read_hold(
+                    "source_generation_changed:",
+                    "open:" + field,
+                )
             finally:
                 os.fstat = original_fstat
-    print("source_uid_gid_nlink_metadata_drift_rejected=true")
 
+            # Preserve the first opened descriptor observation; drift only its
+            # terminal fstat so the post-read descriptor comparison is covered.
+            fd_calls = [0]
+
+            def terminal_fstat_drift(fd: int, selected: str = field) -> object:
+                observed = original_fstat(fd)
+                if (
+                    observed.st_dev == baseline.st_dev
+                    and observed.st_ino == baseline.st_ino
+                ):
+                    fd_calls[0] += 1
+                    if fd_calls[0] == 2:
+                        return _DriftedStat(observed, selected)
+                return observed
+
+            try:
+                os.fstat = terminal_fstat_drift
+                expect_read_hold(
+                    "source_terminal_generation_changed:",
+                    "terminal_fd:" + field,
+                )
+            finally:
+                os.fstat = original_fstat
+            need(fd_calls[0] >= 2, "metadata_fixture_terminal_fstat_not_reached:" + field)
+
+            # Keep descriptor observations stable but drift the second pathname
+            # lstat. This independently proves the terminal visible-generation
+            # comparison rather than inferring it from descriptor drift.
+            path_calls = [0]
+
+            def terminal_lstat_drift(self: Path, selected: str = field) -> object:
+                observed = original_lstat(self)
+                if self == candidate:
+                    path_calls[0] += 1
+                    if path_calls[0] == 2:
+                        return _DriftedStat(observed, selected)
+                return observed
+
+            try:
+                Path.lstat = terminal_lstat_drift
+                expect_read_hold(
+                    "source_terminal_generation_changed:",
+                    "terminal_visible:" + field,
+                )
+            finally:
+                Path.lstat = original_lstat
+            need(path_calls[0] >= 2, "metadata_fixture_terminal_lstat_not_reached:" + field)
+
+    print("source_uid_gid_nlink_metadata_drift_rejected=true")
+    print("source_uid_gid_nlink_open_metadata_drift_rejected=true")
+    print("source_uid_gid_nlink_terminal_fd_drift_rejected=true")
+    print("source_uid_gid_nlink_terminal_visible_drift_rejected=true")
 
 def observe_unsafe_supervisor_death_fence_reuse() -> None:
     """Prove *hazard*, not protection, on disposable Linux file/processes.
