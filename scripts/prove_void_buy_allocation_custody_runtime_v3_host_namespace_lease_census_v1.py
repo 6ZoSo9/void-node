@@ -4,6 +4,8 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 from pathlib import Path
+import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = (
@@ -11,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_host_namespace_lease_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "8c5a8937a15d18844048559385138c1e86d6759d"
+EXPECTED_SOURCE_BLOB = "e533763f03d0fd985ca9ef83ece24415d6f06dcc"
 
 
 def git_blob(raw: bytes) -> str:
@@ -84,6 +86,24 @@ else:
 
 module.self_test()
 
+without_b = subprocess.run(
+    [sys.executable, "-I", str(TARGET), "--self-test"],
+    cwd="/",
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=10,
+    env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+)
+assert without_b.returncode == 2, without_b
+assert (
+    "reason=python_isolated_unoptimized_nobytecode_mode_required"
+    in without_b.stdout
+), without_b.stdout
+assert "production_filesystem_write=false" in without_b.stdout
+
 source = TARGET.read_text(encoding="utf-8")
 pre_self_test = source.split("def self_test()", 1)[0]
 
@@ -143,6 +163,8 @@ print("complete_proc_visibility_required=true")
 print("hidepid_restricted_proc_holds=true")
 print("boot_id_same_boot_binding=true")
 print("descriptor_relative_bounded_reader_tested=true")
+print("python_no_bytecode_mode_required=true")
+print("without_dash_b_bootstrap_hold=true")
 print("host_collection_not_executed_in_ci=true")
 print("production_filesystem_write=false")
 print("test_fixture_filesystem_write=true")
