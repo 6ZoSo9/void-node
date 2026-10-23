@@ -52,6 +52,25 @@ This generation is deliberately **unprivileged**.
 It refuses UID 0 execution from a user-owned diagnostic source and scans only
 processes whose procfs directory is owned by the caller's effective UID.
 
+Before any attempt may classify a clean current-UID result, the operator must
+supply a separately reviewed **host PID-namespace lease** in exact
+`<st_dev>:<st_ino>` form. The census does not manufacture that lease from its
+own namespace view.
+
+It requires:
+
+- canonical root-owned `/proc`;
+- `/proc/self/ns/pid` and `/proc/1/ns/pid` to be the same namespace;
+- that exact namespace dev/inode to equal the supplied external lease;
+- `/proc/self/stat` to report the running census PID;
+- the canonical `/proc` mount to be `procfs` with root `/`; and
+- no `hidepid` mount option.
+
+The host procfs/namespace view is checked before and after each process-scan
+attempt. Any mismatch or change HOLDS before a clean candidate can be emitted.
+This closes the private-PID-namespace false-clean condition without granting
+root or all-process authority.
+
 It never reads:
 
 ```text
@@ -124,13 +143,19 @@ process-reference absence as complete.
 
 After source/CI qualification, isolated no-bytecode mode is mandatory; omitting
 `-B` HOLDs before ordinary imports so a successful production receipt cannot
-silently permit Python bytecode-cache writes:
+silently permit Python bytecode-cache writes.
+
+The host PID-namespace lease must come from a separate reviewed host-level
+observation and is supplied explicitly:
 
 ```bash
 python3 -I -B \
   ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py \
-  --census
+  --census \
+  --host-pid-namespace-lease '<st_dev>:<st_ino>'
 ```
+
+The census will not derive or substitute that lease for the operator.
 
 Do not run this source with sudo. Root execution intentionally HOLDs.
 
@@ -141,6 +166,11 @@ read_only=true
 production_filesystem_write=false
 root_execution_forbidden=true
 python_no_bytecode_mode_required=true
+host_pid_namespace_external_lease_required=true
+host_pid_namespace_external_lease_matched=true
+host_procfs_visibility_required=true
+pid1_namespace_matches_self=true
+procfs_hidepid_absent=true
 target_snapshot_stable_required=true
 regular_file_mount_id_checked=true
 receipt_target_bound_to_selected_attempt=true
