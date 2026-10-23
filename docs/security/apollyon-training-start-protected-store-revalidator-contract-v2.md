@@ -40,12 +40,20 @@ source and the three #3551 parent artifacts above, it pins:
 - authorization-slot V1 contract:
   `25629371f6da164e12fecfc08c5f26815418e3a8`;
 - training-start consumption V1 contract:
-  `f557d92e89f3502ee6ac1243411cd43191ec1f37`.
+  `f557d92e89f3502ee6ac1243411cd43191ec1f37`;
+- durable claim-store service-source candidate V2:
+  `87019ae1245a2054407dd47835b0b7a891d4d9a2`;
+- live source-session terminal receipt V2:
+  `e27f0ebb968f4611bfc069670325c3f5e6df1c65`; and
+- live custody service/source-session binding V2:
+  `981935515e08634be96446e58922c16be56d33ad`.
 
-The focused workflow independently asserts these four Git blobs before running
-the proof. The proof's complete PINS census therefore contains eight exact
-repository artifacts. This is source provenance only, not installed package or
-runtime identity proof.
+The focused workflow independently asserts these seven additional dependency
+Git blobs before running the proof. The proof's complete PINS census therefore
+contains **eleven** exact repository artifacts. The last three close the
+transitive/runtime dependency paths used while constructing the parent
+revalidation request and loading the store-contract/session-binding chain.
+This is source provenance only, not installed package or runtime identity proof.
 
 ## Candidate content address
 
@@ -275,7 +283,7 @@ Current V2 source generation before this document:
 - contract source blob:
   `4c78459826c25cab43870b0b322b566575d18667`;
 - proof blob:
-  `2e919af52e44c6dcfec41dc47567a73f658874c3`.
+  `62ff7e94e57a6333cdcfc78f6f63d8ef67288a20`.
 
 Next gate:
 `apollyon_training_start_protected_store_revalidator_implementation_v2`,

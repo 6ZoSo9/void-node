@@ -11,6 +11,9 @@ on:
       - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
       - "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
       - "tools/apollyon-training-start-consumption-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
       - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
       - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
@@ -57,8 +60,8 @@ jobs:
           diff -u "$expected" "$actual"
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 4c78459826c25cab43870b0b322b566575d18667
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 2e919af52e44c6dcfec41dc47567a73f658874c3
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 9f5a94967abd85d81d6f693bf6ff51d086623de9
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 62ff7e94e57a6333cdcfc78f6f63d8ef67288a20
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 16eb15388c6cc5d12097cbf69f1d04c9bc6c10d3
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 079576db7f880872f2d4dea8e7759bd536161516
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 76f5a6bcbc9854a1133cd1324eb862cb50102c0e
@@ -67,6 +70,9 @@ jobs:
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-contract-v2.mjs)" = 6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe
           test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = 25629371f6da164e12fecfc08c5f26815418e3a8
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-contract-v1.mjs)" = f557d92e89f3502ee6ac1243411cd43191ec1f37
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs)" = 87019ae1245a2054407dd47835b0b7a891d4d9a2
+          test "$(git rev-parse HEAD:tools/apollyon-live-source-session-terminal-receipt-v2.mjs)" = e27f0ebb968f4611bfc069670325c3f5e6df1c65
+          test "$(git rev-parse HEAD:tools/apollyon-live-custody-service-source-session-binding-v2.mjs)" = 981935515e08634be96446e58922c16be56d33ad
 
           git diff --check "$PARENT" "$EXPECTED_HEAD"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -92,7 +98,7 @@ jobs:
             'exact_parent_revalidation_request_blob_bound=true' \
             'exact_parent_protected_writer_blob_bound=true' \
             'exact_fixture_custody_source_blob_bound=true' \
-            'direct_dependency_blob_count=8' \
+            'direct_dependency_blob_count=11' \
             'all_direct_source_and_proof_dependency_blobs_bound=true' \
             'flat_primitive_frame_hash_json_independent=true' \
             'post_import_json_tojson_poisoning_does_not_change_candidate_bytes=true' \

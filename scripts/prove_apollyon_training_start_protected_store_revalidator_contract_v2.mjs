@@ -47,6 +47,12 @@ const PINS=Object.freeze({
     "25629371f6da164e12fecfc08c5f26815418e3a8",
   "tools/apollyon-training-start-consumption-contract-v1.mjs":
     "f557d92e89f3502ee6ac1243411cd43191ec1f37",
+  "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs":
+    "87019ae1245a2054407dd47835b0b7a891d4d9a2",
+  "tools/apollyon-live-source-session-terminal-receipt-v2.mjs":
+    "e27f0ebb968f4611bfc069670325c3f5e6df1c65",
+  "tools/apollyon-live-custody-service-source-session-binding-v2.mjs":
+    "981935515e08634be96446e58922c16be56d33ad",
 });
 
 function sha256(value){return crypto.createHash("sha256").update(value).digest("hex");}
