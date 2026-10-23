@@ -14,6 +14,22 @@ const liveRoles = new Set([
   "status", "alert", "log", "marquee", "timer", "progressbar",
 ]);
 
+const recognizedRoles = new Set([
+  "alert", "alertdialog", "application", "article", "banner", "blockquote",
+  "button", "caption", "cell", "checkbox", "code", "columnheader",
+  "combobox", "complementary", "contentinfo", "definition", "deletion",
+  "dialog", "directory", "document", "emphasis", "feed", "figure", "form",
+  "generic", "grid", "gridcell", "group", "heading", "img", "insertion",
+  "link", "list", "listbox", "listitem", "log", "main", "marquee", "math",
+  "menu", "menubar", "menuitem", "menuitemcheckbox", "menuitemradio",
+  "meter", "navigation", "none", "note", "option", "paragraph",
+  "presentation", "progressbar", "radio", "radiogroup", "region", "row",
+  "rowgroup", "rowheader", "scrollbar", "search", "searchbox", "separator",
+  "slider", "spinbutton", "status", "strong", "subscript", "superscript",
+  "switch", "tab", "table", "tablist", "tabpanel", "term", "textbox",
+  "time", "timer", "toolbar", "tooltip", "tree", "treegrid", "treeitem",
+]);
+
 function htmlAttributeValue(tag, name) {
   assert.ok(name === "role" || name === "aria-live");
   const pattern = new RegExp(
@@ -33,7 +49,11 @@ function tagCreatesLiveRegion(tag) {
       .toLowerCase()
       .split(/[\t\n\f\r ]+/u)
       .filter(Boolean);
-    if (tokens.some(token => liveRoles.has(token))) return true;
+    for (const token of tokens) {
+      if (!recognizedRoles.has(token)) continue;
+      if (liveRoles.has(token)) return true;
+      break;
+    }
   }
   const ariaLive = htmlAttributeValue(tag, "aria-live");
   return ariaLive !== null &&
@@ -143,6 +163,13 @@ function requireDemoAccessibility(html) {
 }
 
 requireDemoAccessibility(source);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" role="presentation status">\n      <h2>Latest Result</h2>',
+  ),
+);
 
 const negativeMutations = [
   {
