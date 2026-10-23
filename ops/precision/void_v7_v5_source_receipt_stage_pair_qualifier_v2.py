@@ -267,11 +267,12 @@ def scan_staged_tree_custody(
     try:
         same_generation(root_before,_fd_meta(root_fd),"staged_tree_root_open")
 
-        def visit(fd:int,rel:str,depth:int)->None:
+        def visit(fd:int,rel:str,depth:int,*,claimed:bool=False)->None:
             nonlocal count
-            count=_claim_custody_node(
-                count,depth,max_nodes=max_nodes,max_depth=max_depth
-            )
+            if not claimed:
+                count=_claim_custody_node(
+                    count,depth,max_nodes=max_nodes,max_depth=max_depth
+                )
             here_before=_fd_meta(fd)
             if here_before["kind"]!="directory":
                 raise QualifyError("staged_tree_directory_kind_invalid")
@@ -304,8 +305,13 @@ def scan_staged_tree_custody(
                     raise QualifyError("staged_tree_name_invalid")
                 child_rel=name if not rel else rel+"/"+name
                 child_depth=depth+1
-                if child_depth>max_depth:
-                    raise QualifyError("staged_tree_depth_limit")
+                # Reserve the child before any metadata lookup/open. A sibling
+                # reached after recursive descendants consume the remaining
+                # budget must HOLD without touching that over-cap node.
+                count=_claim_custody_node(
+                    count,child_depth,
+                    max_nodes=max_nodes,max_depth=max_depth,
+                )
                 before=os.stat(name,dir_fd=fd,follow_symlinks=False)
                 if stat.S_ISLNK(before.st_mode):
                     raise QualifyError("staged_tree_symlink_forbidden:"+child_rel)
@@ -341,12 +347,8 @@ def scan_staged_tree_custody(
                     if is_dir:
                         if opened["kind"]!="directory" or opened["mode"]!=0o755:
                             raise QualifyError("staged_tree_directory_mode_invalid:"+child_rel)
-                        visit(child_fd,child_rel,child_depth)
+                        visit(child_fd,child_rel,child_depth,claimed=True)
                     else:
-                        count=_claim_custody_node(
-                            count,child_depth,
-                            max_nodes=max_nodes,max_depth=max_depth,
-                        )
                         if (opened["kind"]!="regular" or
                             opened["mode"] not in (0o444,0o755) or
                             opened["nlink"]!=1):
@@ -502,6 +504,47 @@ def self_test()->None:
             assert "staged_tree_depth_limit" in str(exc)
         else:
             raise AssertionError("tree_depth_cap_plus_one_accepted")
+        # The count is a pre-access budget, not merely a post-observation
+        # accounting total. A recursive first sibling can consume the last
+        # available node; the next sibling must be rejected before stat/open.
+        from unittest import mock
+        with tempfile.TemporaryDirectory(
+            prefix="void-v5-custody-preaccess-bound-"
+        ) as cap_td:
+            cap_root=pathlib.Path(cap_td)/"source"
+            cap_nested=cap_root/"a-nested"
+            cap_nested.mkdir(parents=True)
+            os.chmod(cap_root,0o755)
+            os.chmod(cap_nested,0o755)
+            cap_leaf=cap_nested/"leaf.txt"
+            cap_leaf.write_bytes(b"inside-budget")
+            os.chmod(cap_leaf,0o444)
+            cap_over=cap_root/"z-over-cap.txt"
+            cap_over.write_bytes(b"must-not-be-inspected")
+            os.chmod(cap_over,0o444)
+            real_stat=os.stat
+            over_cap_metadata_touched=[False]
+            def guarded_stat(path,*args,**kwargs):
+                if (
+                    path=="z-over-cap.txt"
+                    and kwargs.get("dir_fd") is not None
+                ):
+                    over_cap_metadata_touched[0]=True
+                    raise AssertionError("over_cap_child_metadata_touched")
+                return real_stat(path,*args,**kwargs)
+            with mock.patch.object(os,"stat",side_effect=guarded_stat):
+                try:
+                    scan_staged_tree_custody(
+                        cap_root,
+                        expected_uid=os.getuid(),
+                        expected_gid=os.getgid(),
+                        max_nodes=3,
+                    )
+                except QualifyError as exc:
+                    assert "staged_tree_node_limit" in str(exc)
+                else:
+                    raise AssertionError("over_cap_child_accepted")
+            assert over_cap_metadata_touched[0] is False
         try:
             scan_staged_tree_custody(
                 root,expected_uid=os.getuid(),expected_gid=os.getgid(),
@@ -577,6 +620,7 @@ def self_test()->None:
     print(MARKER+"_SELF_TEST_GREEN")
     print("whole_tree_node_limit_includes_root=true")
     print("whole_tree_node_cap_boundary_tested=true")
+    print("node_limit_preaccess_enforced=true")
     print("all_child_types_depth_limited=true")
     print("regular_file_depth_cap_plus_one_rejected=true")
     print("receipt_verified_fd_metadata_bound=true")
