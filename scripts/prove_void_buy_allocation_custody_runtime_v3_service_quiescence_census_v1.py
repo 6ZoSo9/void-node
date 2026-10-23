@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 from pathlib import Path
 
@@ -11,6 +12,12 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py"
 )
 EXPECTED_SOURCE_BLOB = "7fc110cea870b3ec6aed4df84e5b7bb2ce2f635f"
+
+def git_blob(raw: bytes) -> str:
+    prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
+    return hashlib.sha1(prefix + raw).hexdigest()
+
+assert git_blob(TARGET.read_bytes()) == EXPECTED_SOURCE_BLOB
 
 spec = importlib.util.spec_from_file_location(
     "void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1",
@@ -185,6 +192,7 @@ print("canonical_system_unit_bound=true")
 print("canonical_socket_path_bound=true")
 print("systemctl_show_only=true")
 print("systemctl_mutating_verbs_absent=true")
+print("exact_source_blob_asserted=true")
 print("inactive_service_candidate_classified=true")
 print("active_service_rejected=true")
 print("present_socket_rejected=true")
