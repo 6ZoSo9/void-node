@@ -9,6 +9,7 @@
 #include <linux/magic.h>
 #include <linux/seccomp.h>
 #include <poll.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -40,6 +41,7 @@
 
 #if defined(__x86_64__)
 #define EXPECTED_AUDIT_ARCH AUDIT_ARCH_X86_64
+#define X32_SYSCALL_BIT_V1 0x40000000U
 #elif defined(__aarch64__)
 #define EXPECTED_AUDIT_ARCH AUDIT_ARCH_AARCH64
 #else
@@ -778,6 +780,15 @@ static int install_noexec_seccomp(void) {
         BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,EXPECTED_AUDIT_ARCH,1,0),
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_KILL_PROCESS),
         BPF_STMT(BPF_LD|BPF_W|BPF_ABS,(uint32_t)offsetof(struct seccomp_data,nr)),
+#if defined(__x86_64__)
+        /*
+         * AUDIT_ARCH_X86_64 also covers the x32 ABI. Fail closed on the
+         * namespace bit before ordinary syscall-number dispatch so x32
+         * execve/execveat cannot bypass the post-first-entry no-exec barrier.
+         */
+        BPF_JUMP(BPF_JMP|BPF_JSET|BPF_K,X32_SYSCALL_BIT_V1,0,1),
+        BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_KILL_PROCESS),
+#endif
 #ifdef __NR_execve
         BPF_JUMP(BPF_JMP|BPF_JEQ|BPF_K,__NR_execve,0,1),
         BPF_STMT(BPF_RET|BPF_K,SECCOMP_RET_ERRNO|(EPERM&SECCOMP_RET_DATA)),
@@ -925,6 +936,23 @@ static int selftest_noexec(void) {
     return 0;
 }
 
+static int selftest_x32_namespace(void) {
+#if defined(__x86_64__)
+    pid_t child=fork();
+    if(child<0) return 45;
+    if(child==0){
+        if(prctl(PR_SET_NO_NEW_PRIVS,1,0,0,0)!=0) _exit(46);
+        if(install_noexec_seccomp()!=0) _exit(47);
+        (void)syscall((long)(X32_SYSCALL_BIT_V1 | (uint32_t)__NR_getpid));
+        _exit(48);
+    }
+    int status=0;
+    if(waitpid(child,&status,0)!=child) return 49;
+    if(!WIFSIGNALED(status)||WTERMSIG(status)!=SIGSYS) return 50;
+#endif
+    return 0;
+}
+
 static int selftest_environment(void) {
     if(setenv("LD_PRELOAD","/tmp/forbidden.so",1)!=0) return 50;
     if(environment_clean()) return 51;
@@ -943,6 +971,7 @@ static int self_test(void) {
         return 63;
     }
     if(selftest_noexec()!=0) return 64;
+    if(selftest_x32_namespace()!=0) return 73;
     if(selftest_environment()!=0) return 65;
     int self_pidfd=open_self_pidfd();
     if(self_pidfd<0) return 66;
@@ -992,6 +1021,7 @@ static int self_test(void) {
     puts("hostile_nonzero_capability_rejected=true");
     puts("hostile_supplementary_group_rejected=true");
     puts("post_first_entry_exec_forbidden=true");
+    puts("x32_syscall_namespace_rejected=true");
     puts("hostile_loader_runtime_environment_rejected=true");
     puts("private_release_channel_origin_proven=false");
     puts("release_writer_exclusivity_proven=false");
@@ -1187,6 +1217,7 @@ static void run_gate(
     printf("procfs_self_pid_bound_to_getpid=true\n");
     printf("procfs_generation_revalidated=true\n");
     printf("post_first_entry_exec_forbidden=true\n");
+    printf("x32_syscall_namespace_rejected=true\n");
     printf("private_release_channel_origin_proven=false\n");
     printf("release_writer_exclusivity_proven=false\n");
     printf("trainer_releaser_lineage_proven=false\n");
