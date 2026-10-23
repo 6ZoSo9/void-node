@@ -396,6 +396,22 @@ def _observe_regular_at(
     finally:
         os.close(fd)
 
+def _reserve_tree_name(totals: dict[str, int]) -> None:
+    if (
+        totals["entries"] < 0
+        or totals["reserved_names"] < 0
+        or totals["entries"] + totals["reserved_names"] >= MAX_TREE_ENTRIES
+    ):
+        hold("target_tree_entry_limit_exceeded")
+    totals["reserved_names"] += 1
+
+
+def _consume_tree_name(totals: dict[str, int]) -> None:
+    if totals["reserved_names"] <= 0:
+        hold("target_tree_reserved_name_counter_invalid")
+    totals["reserved_names"] -= 1
+
+
 def _scan_dir(
     fd: int,
     relative_prefix: str,
@@ -415,21 +431,18 @@ def _scan_dir(
     if _fd_mount_id(fd) != expected_mnt_id:
         hold("target_tree_cross_mount_directory_forbidden:" + relative_prefix)
 
-    remaining = MAX_TREE_ENTRIES - totals["entries"]
-    if remaining < 0:
-        hold("target_tree_entry_limit_exceeded")
     names: list[str] = []
     try:
         with os.scandir(fd) as iterator:
             for entry in iterator:
+                _reserve_tree_name(totals)
                 names.append(entry.name)
-                if len(names) > remaining:
-                    hold("target_tree_entry_limit_exceeded")
     except OSError as exc:
         hold("target_directory_unreadable:" + str(exc.errno))
     names.sort()
 
     for name in names:
+        _consume_tree_name(totals)
         if name in (".", "..") or "/" in name or "\x00" in name:
             hold("target_tree_name_invalid")
         relative = name if not relative_prefix else relative_prefix + "/" + name
@@ -529,6 +542,7 @@ def scan_target_at(
         records: list[dict[str, Any]] = []
         totals = {
             "entries": 0,
+            "reserved_names": 0,
             "directories": 0,
             "files": 0,
             "symlinks": 0,
@@ -543,6 +557,8 @@ def scan_target_at(
             opened.st_dev,
             target_mnt_id,
         )
+        if totals["reserved_names"] != 0:
+            hold("target_tree_reserved_name_counter_invalid")
 
         final_opened = os.fstat(target_fd)
         final_visible = os.stat(
@@ -703,8 +719,8 @@ def census() -> dict[str, Any]:
             "archive_candidate_accepted": lock["archive_candidate_accepted"],
         },
         "prestate": prestate,
-        "read_only": True,
-        "filesystem_write": False,
+        "production_census_read_only": True,
+        "production_census_filesystem_write": False,
         "archive_extraction": False,
         "permission_mutation": False,
         "service_state_checked": False,
@@ -824,6 +840,8 @@ def self_test() -> None:
     print("symlink_opaque_identity_bound=true")
     print("special_file_rejection=true")
     print("stage_and_rollback_collision_observed=true")
+    print("global_retained_name_budget_bound=true")
+    print("production_receipt_scoped_write_keys=true")
     print("production_census_read_only=true")
     print("python_no_bytecode_mode_required=true")
     print("production_census_filesystem_write=false")
