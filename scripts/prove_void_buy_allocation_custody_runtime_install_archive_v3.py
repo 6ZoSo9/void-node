@@ -93,7 +93,20 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
     parent = Path(tmp)
     os.chmod(parent, 0o700)
     archive_path = parent / module.ARCHIVE_BASENAME
-    module.write_create_only(archive_path, raw)
+    original_fsync = module.os.fsync
+    successful_fsync_kinds: list[int] = []
+
+    def record_success_fsync(fd: int) -> None:
+        successful_fsync_kinds.append(stat.S_IFMT(module.os.fstat(fd).st_mode))
+        original_fsync(fd)
+
+    module.os.fsync = record_success_fsync
+    try:
+        module.write_create_only(archive_path, raw)
+    finally:
+        module.os.fsync = original_fsync
+    assert stat.S_IFREG in successful_fsync_kinds
+    assert stat.S_IFDIR in successful_fsync_kinds
     assert stat.S_IMODE(archive_path.stat().st_mode) & 0o077 == 0
 
     inspected = module.inspect_archive(archive_path)
@@ -278,6 +291,7 @@ for required in [
     "archive_bytes_validated_before_final_publication=true",
     "failed_validation_final_path_absent=true",
     "single_create_only_final_publication_after_validation=true",
+    "successful_output_parent_fsync=true",
     "retained_parent_cleanup_survives_path_rebind=true",
     "output_parent_not_private_or_bound",
     "archive_candidate_accepted",
@@ -311,6 +325,7 @@ print("partial_output_cleanup_on_failure=true")
 print("archive_bytes_validated_before_final_publication=true")
 print("failed_validation_final_path_absent=true")
 print("single_create_only_final_publication_after_validation=true")
+print("successful_output_parent_fsync=true")
 print("retained_parent_cleanup_survives_path_rebind=true")
 print("symlink_output_parent_rejected=true")
 print("fifo_substitution_rejected_without_blocking=true")
