@@ -507,20 +507,21 @@ export function classifyVoidP2PReachabilityRuntimeV1(
       entry.kind === "authenticated_dialback" &&
       entry.outcome === "failure",
   );
-  // A success observer contributes to independence only while all of its fresh
-  // successes agree on one declared failure domain. Otherwise one authenticated
-  // identity could rotate labels and help satisfy both set-size thresholds.
-  const domainsBySuccessObserver = new Map<string, Set<string>>();
-  for (const entry of successes) {
+  // A success observer contributes to independence only while all of its
+  // fresh authenticated observations agree on one declared failure domain.
+  // Failures and outbound observations still reveal identity/domain rotation,
+  // but they do not increase the raw dialback-success count.
+  const domainsByFreshObserver = new Map<string, Set<string>>();
+  for (const entry of fresh) {
     const domains =
-      domainsBySuccessObserver.get(entry.observer_node_id) ??
+      domainsByFreshObserver.get(entry.observer_node_id) ??
       new Set<string>();
     domains.add(entry.observer_failure_domain);
-    domainsBySuccessObserver.set(entry.observer_node_id, domains);
+    domainsByFreshObserver.set(entry.observer_node_id, domains);
   }
   const independentSuccesses = successes.filter(
     (entry) =>
-      domainsBySuccessObserver.get(entry.observer_node_id)?.size === 1,
+      domainsByFreshObserver.get(entry.observer_node_id)?.size === 1,
   );
   const successObservers = new Set(
     independentSuccesses.map((entry) => entry.observer_node_id),
