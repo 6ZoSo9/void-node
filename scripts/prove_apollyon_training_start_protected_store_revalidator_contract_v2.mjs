@@ -31,7 +31,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const SOURCE_REL=
   "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs";
 const PINS=Object.freeze({
-  [SOURCE_REL]:"cf934d43324370a05bb2790bfa5fad0f482121cc",
+  [SOURCE_REL]:"bb5281d9836d9879cc086eba75585b276d2768fe",
   "tools/apollyon-training-start-store-revalidation-request-v1.mjs":
     "079576db7f880872f2d4dea8e7759bd536161516",
   "tools/apollyon-training-start-consumption-protected-writer-v1.mjs":
@@ -238,6 +238,20 @@ for(const key of [
   "candidate_content_address_json_independent",
   "reviewed_canonicalizer_v2_required_for_future_host",
   "fixture_terminal_root_policy_revalidation_source_bound",
+  "trusted_ancestor_custody_required",
+  "root_and_consumption_access_acl_absence_required",
+  "root_and_consumption_default_acl_absence_required",
+  "symlink_fifo_device_hardlink_rejection_required",
+  "record_regular_single_link_required",
+  "record_bounded_canonical_eof_required",
+  "record_retained_visible_generation_required",
+  "terminal_receipt_reread_required",
+  "custody_record_reread_required",
+  "publish_request_binding_revalidation_required",
+  "transaction_lease_fencing_required",
+  "lease_loss_maps_to_hold_required",
+  "indeterminate_close_maps_to_hold_required",
+  "automatic_retry_forbidden",
   "fixture_custody_source_required",
   "protected_store_origin_required",
   "current_store_generation_revalidation_required",
@@ -258,6 +272,14 @@ for(const key of [
 for(const key of [
   "reviewed_canonicalizer_v2_host_integration_proven",
   "parent_revalidation_request_v1_host_realm_proven",
+  "trusted_ancestor_custody_proven",
+  "root_and_consumption_acl_policy_revalidated",
+  "record_type_link_bounds_revalidated",
+  "record_terminal_eof_revalidated",
+  "terminal_receipt_reread_performed",
+  "custody_record_reread_performed",
+  "publish_request_binding_revalidation_performed",
+  "transaction_lease_fencing_performed",
   "fixture_custody_receipt_authoritative","protected_store_origin_proven",
   "current_store_generation_revalidation_performed",
   "store_generation_record_reread_performed",
@@ -288,6 +310,28 @@ for(const [key,expected] of Object.entries({
   reviewed_canonicalizer_v2_host_integration_proven:false,
   parent_revalidation_request_v1_host_realm_proven:false,
   fixture_terminal_root_policy_revalidation_source_bound:true,
+  trusted_ancestor_custody_required:true,
+  trusted_ancestor_custody_proven:false,
+  root_and_consumption_access_acl_absence_required:true,
+  root_and_consumption_default_acl_absence_required:true,
+  root_and_consumption_acl_policy_revalidated:false,
+  symlink_fifo_device_hardlink_rejection_required:true,
+  record_regular_single_link_required:true,
+  record_type_link_bounds_revalidated:false,
+  record_bounded_canonical_eof_required:true,
+  record_terminal_eof_revalidated:false,
+  record_retained_visible_generation_required:true,
+  terminal_receipt_reread_required:true,
+  terminal_receipt_reread_performed:false,
+  custody_record_reread_required:true,
+  custody_record_reread_performed:false,
+  publish_request_binding_revalidation_required:true,
+  publish_request_binding_revalidation_performed:false,
+  transaction_lease_fencing_required:true,
+  transaction_lease_fencing_performed:false,
+  lease_loss_maps_to_hold_required:true,
+  indeterminate_close_maps_to_hold_required:true,
+  automatic_retry_forbidden:true,
   fixture_custody_source_required:true,
   fixture_custody_receipt_authoritative:false,
   protected_store_origin_proven:false,
@@ -468,6 +512,18 @@ for(const required of [
   "reviewed_canonicalizer_v2_host_integration_proven:false",
   "parent_revalidation_request_v1_host_realm_proven:false",
   "fixture_terminal_root_policy_revalidation_source_bound:true",
+  "trusted_ancestor_custody_required:true",
+  "root_and_consumption_access_acl_absence_required:true",
+  "root_and_consumption_default_acl_absence_required:true",
+  "record_regular_single_link_required:true",
+  "record_bounded_canonical_eof_required:true",
+  "terminal_receipt_reread_required:true",
+  "custody_record_reread_required:true",
+  "publish_request_binding_revalidation_required:true",
+  "transaction_lease_fencing_required:true",
+  "lease_loss_maps_to_hold_required:true",
+  "indeterminate_close_maps_to_hold_required:true",
+  "automatic_retry_forbidden:true",
   "fixture_custody_receipt_authoritative:false",
   "protected_store_origin_proven:false",
   "writer_directory_capability_origin_proven:false",
@@ -530,6 +586,11 @@ console.log("post_import_json_tojson_poisoning_does_not_change_candidate_bytes=t
 console.log("captured_reflection_primordials_bound=true");
 console.log("revoked_proxy_candidate_rejected=true");
 console.log("reviewed_canonicalizer_v2_future_host_required=true");
+console.log("full_3557_future_host_matrix_bound=true");
+console.log("automatic_retry_forbidden=true");
+console.log("transaction_lease_fencing_performed=false");
+console.log("terminal_receipt_reread_performed=false");
+console.log("custody_record_reread_performed=false");
 console.log("parent_v1_request_host_realm_proven=false");
 console.log("public_candidate_not_bearer_authority=true");
 console.log("parent_request_cross_binding_required=true");
