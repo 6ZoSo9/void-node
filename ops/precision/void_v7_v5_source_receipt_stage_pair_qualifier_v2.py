@@ -183,6 +183,8 @@ def verify_receipt(
     *,
     expected_uid:int=0,
     expected_gid:int=0,
+    max_nodes:int=MAX_CUSTODY_NODES,
+    max_depth:int=MAX_CUSTODY_DEPTH,
 )->dict[str,Any]:
     raw,st=read_regular(path,64*1024,label)
     if len(raw)!=expected_bytes:
@@ -215,6 +217,27 @@ def verify_receipt(
 MAX_CUSTODY_NODES=250000
 MAX_CUSTODY_DEPTH=64
 
+def _claim_custody_node(
+    count:int,
+    depth:int,
+    *,
+    max_nodes:int=MAX_CUSTODY_NODES,
+    max_depth:int=MAX_CUSTODY_DEPTH,
+)->int:
+    if (
+        type(count) is not int or count<0 or
+        type(depth) is not int or depth<0 or
+        type(max_nodes) is not int or max_nodes<1 or max_nodes>MAX_CUSTODY_NODES or
+        type(max_depth) is not int or max_depth<0 or max_depth>MAX_CUSTODY_DEPTH
+    ):
+        raise QualifyError("staged_tree_bound_invalid")
+    if depth>max_depth:
+        raise QualifyError("staged_tree_depth_limit")
+    claimed=count+1
+    if claimed>max_nodes:
+        raise QualifyError("staged_tree_node_limit")
+    return claimed
+
 def _fd_meta(fd:int)->dict[str,Any]:
     st=os.fstat(fd)
     return {
@@ -246,8 +269,9 @@ def scan_staged_tree_custody(
 
         def visit(fd:int,rel:str,depth:int)->None:
             nonlocal count
-            if depth>MAX_CUSTODY_DEPTH:
-                raise QualifyError("staged_tree_depth_limit")
+            count=_claim_custody_node(
+                count,depth,max_nodes=max_nodes,max_depth=max_depth
+            )
             here_before=_fd_meta(fd)
             if here_before["kind"]!="directory":
                 raise QualifyError("staged_tree_directory_kind_invalid")
@@ -271,17 +295,17 @@ def scan_staged_tree_custody(
             with os.scandir(fd) as iterator:
                 for entry in iterator:
                     names.append(entry.name)
-                    if len(names)>MAX_CUSTODY_NODES-count:
+                    if len(names)>max_nodes-count:
                         raise QualifyError("staged_tree_node_limit")
             for name in sorted(names):
                 if (name in ("",".","..") or "/" in name or
                     not name.isprintable() or
                     len(name.encode("utf-8","strict"))>255):
                     raise QualifyError("staged_tree_name_invalid")
-                count+=1
-                if count>MAX_CUSTODY_NODES:
-                    raise QualifyError("staged_tree_node_limit")
                 child_rel=name if not rel else rel+"/"+name
+                child_depth=depth+1
+                if child_depth>max_depth:
+                    raise QualifyError("staged_tree_depth_limit")
                 before=os.stat(name,dir_fd=fd,follow_symlinks=False)
                 if stat.S_ISLNK(before.st_mode):
                     raise QualifyError("staged_tree_symlink_forbidden:"+child_rel)
@@ -317,8 +341,12 @@ def scan_staged_tree_custody(
                     if is_dir:
                         if opened["kind"]!="directory" or opened["mode"]!=0o755:
                             raise QualifyError("staged_tree_directory_mode_invalid:"+child_rel)
-                        visit(child_fd,child_rel,depth+1)
+                        visit(child_fd,child_rel,child_depth)
                     else:
+                        count=_claim_custody_node(
+                            count,child_depth,
+                            max_nodes=max_nodes,max_depth=max_depth,
+                        )
                         if (opened["kind"]!="regular" or
                             opened["mode"] not in (0o444,0o755) or
                             opened["nlink"]!=1):
@@ -458,7 +486,31 @@ def self_test()->None:
         scan=scan_staged_tree_custody(
             root,expected_uid=os.getuid(),expected_gid=os.getgid()
         )
-        assert scan["nodes"]==2
+        assert scan["nodes"]==3
+        assert _claim_custody_node(
+            MAX_CUSTODY_NODES-1,MAX_CUSTODY_DEPTH
+        )==MAX_CUSTODY_NODES
+        try:
+            _claim_custody_node(MAX_CUSTODY_NODES,0)
+        except QualifyError as exc:
+            assert "staged_tree_node_limit" in str(exc)
+        else:
+            raise AssertionError("whole_tree_node_cap_plus_one_accepted")
+        try:
+            _claim_custody_node(0,MAX_CUSTODY_DEPTH+1)
+        except QualifyError as exc:
+            assert "staged_tree_depth_limit" in str(exc)
+        else:
+            raise AssertionError("tree_depth_cap_plus_one_accepted")
+        try:
+            scan_staged_tree_custody(
+                root,expected_uid=os.getuid(),expected_gid=os.getgid(),
+                max_depth=1,
+            )
+        except QualifyError as exc:
+            assert "staged_tree_depth_limit" in str(exc)
+        else:
+            raise AssertionError("regular_file_beyond_depth_cap_accepted")
         os.chmod(leaf,0o666)
         try:
             scan_staged_tree_custody(
@@ -523,6 +575,10 @@ def self_test()->None:
         finally:
             globals()["read_regular"]=baseline
     print(MARKER+"_SELF_TEST_GREEN")
+    print("whole_tree_node_limit_includes_root=true")
+    print("whole_tree_node_cap_boundary_tested=true")
+    print("all_child_types_depth_limited=true")
+    print("regular_file_depth_cap_plus_one_rejected=true")
     print("receipt_verified_fd_metadata_bound=true")
     print("receipt_path_substitution_rejected=true")
     print("recursive_source_custody_bound=true")
