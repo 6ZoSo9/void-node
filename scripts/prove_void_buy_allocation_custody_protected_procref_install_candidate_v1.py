@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_protected_procref_install_candidate_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "e9d57aa3bb531eee4135af30c39ff7abf92ceac6"
+EXPECTED_SOURCE_BLOB = "7abf70b7421ba6ae42eab08fad0647f63b997f8c"
 PLAN = ROOT / "tools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs"
 PLAN_BLOB = "a2431fffbee7be4de2ee1152b70e5fcccafd40c9"
 LOCK = (
@@ -153,10 +153,17 @@ assert publish_block.index("_revalidate_parent(") < publish_block.index(
     "_rename_noreplace("
 )
 assert publish_block.index("_rename_noreplace(") < publish_block.index(
-    "os.fsync(parent_fd)"
+    "_post_publication_checks("
 )
-assert publish_block.index("os.fsync(parent_fd)") < publish_block.rindex(
-    "_verify_root_at("
+
+post_block = source.split("def _post_publication_checks(", 1)[1].split(
+    "def _publish_into_parent(", 1
+)[0]
+assert post_block.index("_fsync_fn(parent_fd)") < post_block.index(
+    "_revalidate_parent("
+)
+assert post_block.index("_revalidate_parent(") < post_block.index(
+    "_verify_fn("
 )
 
 cmd = [sys.executable, "-I", "-B", str(TARGET)]
@@ -188,6 +195,8 @@ for line in (
     "stage_fsync_fixture_green=true",
     "install_parent_fsync_fixture_green=true",
     "post_publication_exact_reverification_fixture_green=true",
+    "content_addressed_install_receipt_fixture_green=true",
+    "truthful_post_publication_failure_classification=true",
     "prepublication_stage_cleanup_fixture_green=true",
     "install_parent_drift_rejected=true",
     "production_apply_exposed=false",
@@ -224,6 +233,8 @@ for line in (
     "install_parent_descriptor_retained=true",
     "same_mount_staging_required=true",
     "post_publication_exact_reverification_required=true",
+    "content_addressed_install_receipt_fixture_green=true",
+    "truthful_post_publication_failure_classification=true",
     "install_receipt_external_review_required=true",
     "root_census_execution_authorized=false",
     "host_write=false",
@@ -291,6 +302,8 @@ print("create_only_no_clobber_fixture_green=true")
 print("parent_descriptor_and_mount_revalidation_fixture_green=true")
 print("prepublication_stage_cleanup_fixture_green=true")
 print("post_publication_exact_reverification_fixture_green=true")
+print("content_addressed_install_receipt_fixture_green=true")
+print("truthful_post_publication_failure_classification=true")
 print("production_apply_exposed=false")
 print("production_apply_authorized=false")
 print("root_census_execution_authorized=false")
