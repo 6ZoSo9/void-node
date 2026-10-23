@@ -71,7 +71,9 @@ store authority merely from matching metadata.
 
 Mount evidence records only the covering fixed mount identity, filesystem type,
 a SHA-256 of the selected mount row, exact-mountpoint status, and the count of
-mount rows sharing the same root/device. It does not emit unrelated mount paths.
+mount rows sharing the same root/device. If more than one covering mount has the
+same greatest mount-point specificity, the collector HOLDs instead of choosing
+one row by file order. It does not emit unrelated mount paths.
 
 ## Service/process boundary
 
@@ -144,9 +146,9 @@ source. It verifies:
 
 No Xiphos host pass is performed by CI.
 
-Source blob: `9cca0579810e91a7e55293041ab52bcc632823c2`.
+Source blob: `7a5380491c31eb4967547c7f1f3c84ba28161230`.
 
-Proof blob: `79e269468b74f783889d22acdfb697af0402001d`.
+Proof blob: `379dc89bccc127fcaedd728a34cd392c34b134da`.
 
 ## Next gate
 
