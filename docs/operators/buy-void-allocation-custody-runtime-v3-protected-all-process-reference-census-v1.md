@@ -5,7 +5,7 @@ Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS
 Status: **source/CI candidate only; protected source not installed; live privileged census not authorized**.
 
 This successor follows the current host-scoped current-UID process-reference census at
-`9c95a400add17d7cc45866f4129602755f2f92ac`.
+`0a09df2649b4db27ed32865915b04f18530fd925`.
 
 Its purpose is to define the missing all-process observation boundary required
 by the existing custody replacement plan without making the mutable repository
@@ -41,10 +41,10 @@ This generation does not install that protected path.
 The source records:
 
 ```text
-parent_current_uid_head=9c95a400add17d7cc45866f4129602755f2f92ac
-parent_current_uid_source_git_blob_sha1=6bf476e3383b7b18966320df13b4041da9c8c11f
+parent_current_uid_head=0a09df2649b4db27ed32865915b04f18530fd925
+parent_current_uid_source_git_blob_sha1=2a064c670bd3fafc44d3a3b213c6672df533f72b
 prestate_head=836f5e704a603f67b77b2406aeec9174f640497e
-prestate_source_git_blob_sha1=e32ebd94ad09cd80e03489079e74657aab159d7a
+prestate_source_git_blob_sha1=4d9c6e5809a5cc64454626760f71e60ed99354bc
 archive_lock_git_blob_sha1=edb4ea2b833373ab387762e45ba7da4032c860f3
 archive_lock_sha256=ab96f16d93895b42c977fd26aef2c008115580e3ce31927275ed92986c86f8e7
 ```
