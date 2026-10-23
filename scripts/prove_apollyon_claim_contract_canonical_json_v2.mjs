@@ -162,6 +162,23 @@ try{
   Object.hasOwn=originalHasOwn;
 }
 
+const originalArrayZero=Object.getOwnPropertyDescriptor(Array.prototype,"0");
+let arrayIndexSetterHits=0;
+let arraySetterResult;
+try{
+  Object.defineProperty(Array.prototype,"0",{
+    configurable:true,
+    set(){
+      arrayIndexSetterHits+=1;
+    },
+  });
+  arraySetterResult=canonicalApollyonClaimContractJsonV2(nestedFixture);
+}finally{
+  restoreDescriptor(Array.prototype,"0",originalArrayZero);
+}
+assert.equal(arraySetterResult,nestedBaseline);
+assert.equal(arrayIndexSetterHits,0);
+
 let getterHits=0;
 const accessor={};
 Object.defineProperty(accessor,"a",{
@@ -195,6 +212,19 @@ expectCode(
   "proxy_rejected",
 );
 assert.equal(proxyTrapHits,0);
+
+const protoKeyObject={a:1};
+Object.defineProperty(protoKeyObject,"__proto__",{
+  value:{poisoned:true},
+  enumerable:true,
+  configurable:true,
+  writable:true,
+});
+expectCode(
+  ()=>canonicalApollyonClaimContractJsonV2(protoKeyObject),
+  /apollyon_claim_canonical_v2_object_key_invalid/u,
+  "proto_key_rejected",
+);
 
 const symbolObject={a:1};
 symbolObject[Symbol("hidden")]=2;
@@ -306,6 +336,8 @@ console.log("post_import_object_tojson_poison_resisted=true");
 console.log("post_import_array_tojson_poison_resisted=true");
 console.log("post_import_json_stringify_poison_resisted=true");
 console.log("captured_own_primitive_survived_poison=true");
+console.log("array_prototype_index_setter_hits=0");
+console.log("proto_key_rejected=true");
 console.log("proxy_traps_executed=0");
 console.log("accessor_getter_executed=0");
 console.log("closed_surface_adversaries_rejected=true");
