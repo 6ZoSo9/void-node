@@ -231,6 +231,63 @@ def _read_bounded_fd_path(
 
 
 
+
+def _read_bounded_at(
+    directory_fd: int,
+    relative: str,
+    maximum: int,
+    *,
+    allow_zero_size: bool,
+) -> bytes:
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or relative.startswith("/")
+        or "\x00" in relative
+        or any(part in ("", ".", "..") for part in relative.split("/"))
+    ):
+        hold("bounded_read_relative_path_invalid")
+    if maximum < 1 or maximum > 16 * 1024 * 1024:
+        hold("bounded_read_limit_invalid")
+    before = os.stat(
+        relative,
+        dir_fd=directory_fd,
+        follow_symlinks=False,
+    )
+    if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode):
+        hold("bounded_read_shape_invalid:" + relative)
+    if not allow_zero_size and (
+        before.st_size < 1 or before.st_size > maximum
+    ):
+        hold("bounded_read_visible_size_invalid:" + relative)
+    fd = os.open(relative, _leaf_flags(), dir_fd=directory_fd)
+    try:
+        opened = os.fstat(fd)
+        if _generation(before) != _generation(opened):
+            hold("bounded_read_rebound:" + relative)
+        raw = bytearray()
+        while len(raw) <= maximum:
+            chunk = os.read(fd, min(65536, maximum + 1 - len(raw)))
+            if not chunk:
+                break
+            raw.extend(chunk)
+        if len(raw) > maximum:
+            hold("bounded_read_ceiling_exceeded:" + relative)
+        after = os.fstat(fd)
+        visible = os.stat(
+            relative,
+            dir_fd=directory_fd,
+            follow_symlinks=False,
+        )
+        if (
+            _generation(opened) != _generation(after)
+            or _generation(after) != _generation(visible)
+        ):
+            hold("bounded_read_identity_changed:" + relative)
+        return bytes(raw)
+    finally:
+        os.close(fd)
+
 def parse_dev_ino_lease(
     value: str,
     code: str = "host_pid_namespace_lease_invalid",
@@ -1281,6 +1338,25 @@ def self_test() -> None:
     else:
         hold("self_test_hidepid_restriction_accepted")
 
+    with tempfile.TemporaryDirectory(
+        prefix="void-custody-procref-readat-selftest-"
+    ) as tmp:
+        root = Path(tmp)
+        leaf = root / "probe"
+        leaf.write_bytes(b"descriptor-relative-probe")
+        directory_fd = os.open(root, _directory_flags())
+        try:
+            observed = _read_bounded_at(
+                directory_fd,
+                "probe",
+                4096,
+                allow_zero_size=False,
+            )
+            if observed != b"descriptor-relative-probe":
+                hold("self_test_descriptor_relative_read_invalid")
+        finally:
+            os.close(directory_fd)
+
     clean_rows = [{
         "pid": 101,
         "status": "scanned",
@@ -1350,6 +1426,7 @@ def self_test() -> None:
     print("host_pid_namespace_lease_mismatch_rejected=true")
     print("complete_proc_visibility_required=true")
     print("hidepid_restricted_proc_holds=true")
+    print("descriptor_relative_bounded_reader_tested=true")
     print("proc_cmdline_read=false")
     print("proc_environ_read=false")
     print("proc_fd_target_text_read=false")
