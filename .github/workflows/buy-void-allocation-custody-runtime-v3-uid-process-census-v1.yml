@@ -9,8 +9,6 @@ on:
       - ".github/workflows/buy-void-allocation-custody-runtime-v3-uid-process-census-v1.yml"
       - "ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json"
       - "tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs"
-  workflow_dispatch:
-
 permissions:
   contents: read
 
@@ -28,12 +26,18 @@ jobs:
       - name: Bind exact UID-process census successor
         shell: bash
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
-          BASE="4f0150a53a4c938c273c634f506f5dbbc56475e7"
+          test -n "$EXPECTED_HEAD"
+          test -n "$BASE_REF"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+          LIVE_BASE_REF="refs/remotes/origin/$BASE_REF"
+          LIVE_BASE="$(git rev-parse "$LIVE_BASE_REF")"
+          BASE="$(git merge-base "$EXPECTED_HEAD" "$LIVE_BASE_REF")"
+          test "$BASE" = "$LIVE_BASE"
+          printf 'live_parent=%s\n' "$BASE"
 
           mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
           expected=(
