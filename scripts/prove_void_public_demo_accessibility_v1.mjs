@@ -178,28 +178,108 @@ const htmlRawTextElements = new Set([
 ]);
 const htmlRcdataElements = new Set(["textarea", "title"]);
 
-function nextHtmlTag(html, index, limit, rawTextName) {
+function appropriateEndTagAt(lowerHtml, index, name) {
+  const needle = "</" + name;
+  if (!lowerHtml.startsWith(needle, index)) return false;
+  const afterName = lowerHtml[index + needle.length];
+  return afterName === ">" || afterName === "/" ||
+    isAsciiWhitespace(afterName);
+}
+
+function scriptStartTagAt(lowerHtml, index) {
+  const needle = "<script";
+  if (!lowerHtml.startsWith(needle, index)) return false;
+  const afterName = lowerHtml[index + needle.length];
+  return afterName === ">" || afterName === "/" ||
+    isAsciiWhitespace(afterName);
+}
+
+function scriptDataEndTagIndex(html, index, limit) {
+  const lowerHtml = html.toLowerCase();
+  let state = "data";
+  let cursor = index;
+  while (cursor < limit) {
+    if (state === "data") {
+      if (lowerHtml.startsWith("<!--", cursor)) {
+        state = "escaped";
+        cursor += 4;
+        continue;
+      }
+      if (appropriateEndTagAt(lowerHtml, cursor, "script")) return cursor;
+      cursor += 1;
+      continue;
+    }
+    if (state === "escaped") {
+      if (lowerHtml.startsWith("-->", cursor)) {
+        state = "data";
+        cursor += 3;
+        continue;
+      }
+      if (scriptStartTagAt(lowerHtml, cursor)) {
+        state = "double-escaped";
+        cursor += "<script".length;
+        continue;
+      }
+      if (appropriateEndTagAt(lowerHtml, cursor, "script")) return cursor;
+      cursor += 1;
+      continue;
+    }
+    if (appropriateEndTagAt(lowerHtml, cursor, "script")) {
+      state = "escaped";
+      cursor += "</script".length;
+      continue;
+    }
+    cursor += 1;
+  }
+  return -1;
+}
+
+function simpleRawTextEndTagIndex(html, index, limit, name) {
+  const lowerHtml = html.toLowerCase();
+  const needle = "</" + name;
+  let start = lowerHtml.indexOf(needle, index);
+  while (start !== -1 && start < limit) {
+    if (appropriateEndTagAt(lowerHtml, start, name)) return start;
+    start = lowerHtml.indexOf(needle, start + needle.length);
+  }
+  return -1;
+}
+
+function nextHtmlTag(html, index, limit, rawTextName, foreignCdataAllowed) {
   if (rawTextName === "plaintext") return null;
 
   let start = -1;
   if (rawTextName !== null) {
-    const lowerHtml = html.toLowerCase();
-    const needle = "</" + rawTextName;
-    start = lowerHtml.indexOf(needle, index);
-    while (start !== -1 && start < limit) {
-      const afterName = lowerHtml[start + needle.length];
-      if (afterName === ">" || afterName === "/" || isAsciiWhitespace(afterName)) {
-        break;
-      }
-      start = lowerHtml.indexOf(needle, start + needle.length);
-    }
+    start = rawTextName === "script"
+      ? scriptDataEndTagIndex(html, index, limit)
+      : simpleRawTextEndTagIndex(html, index, limit, rawTextName);
     if (start === -1 || start >= limit) return null;
   } else {
     start = html.indexOf("<", index);
-    while (start !== -1 && start < limit && html.startsWith("<!--", start)) {
-      const commentEnd = html.indexOf("-->", start + 4);
-      if (commentEnd === -1 || commentEnd >= limit) return null;
-      start = html.indexOf("<", commentEnd + 3);
+    while (start !== -1 && start < limit) {
+      if (html.startsWith("<!--", start)) {
+        const commentEnd = html.indexOf("-->", start + 4);
+        if (commentEnd === -1 || commentEnd >= limit) return null;
+        start = html.indexOf("<", commentEnd + 3);
+        continue;
+      }
+      if (html.startsWith("<![CDATA[", start)) {
+        const marker = foreignCdataAllowed ? "]]>" : ">";
+        const cdataEnd = html.indexOf(
+          marker,
+          start + "<![CDATA[".length,
+        );
+        if (cdataEnd === -1 || cdataEnd >= limit) return null;
+        start = html.indexOf("<", cdataEnd + marker.length);
+        continue;
+      }
+      if (html.startsWith("<!", start) || html.startsWith("<?", start)) {
+        const declarationEnd = html.indexOf(">", start + 2);
+        if (declarationEnd === -1 || declarationEnd >= limit) return null;
+        start = html.indexOf("<", declarationEnd + 1);
+        continue;
+      }
+      break;
     }
     if (start === -1 || start >= limit) return null;
   }
@@ -210,7 +290,9 @@ function nextHtmlTag(html, index, limit, rawTextName) {
   const nameStart = cursor;
   while (cursor < html.length && /[a-z0-9:-]/iu.test(html[cursor])) cursor += 1;
   if (cursor === nameStart) {
-    return nextHtmlTag(html, start + 1, limit, rawTextName);
+    return nextHtmlTag(
+      html, start + 1, limit, rawTextName, foreignCdataAllowed,
+    );
   }
   const name = html.slice(nameStart, cursor).toLowerCase();
 
@@ -348,7 +430,11 @@ function requireResultPayloadOutsideLiveAncestors(html) {
   let index = 0;
   let rawTextName = null;
   while (index < resultIndex) {
-    const parsed = nextHtmlTag(html, index, resultIndex, rawTextName);
+    const foreignCdataAllowed = stack.length > 0 &&
+      !isForeignContentHtmlBoundary(stack.at(-1));
+    const parsed = nextHtmlTag(
+      html, index, resultIndex, rawTextName, foreignCdataAllowed,
+    );
     if (parsed === null) break;
     index = parsed.nextIndex;
     const tag = parsed.tag;
@@ -668,6 +754,22 @@ const negativeMutations = [
     error: /must not be nested inside a live region/u,
   },
   {
+    name: "result_payload_script_double_escaped_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<div role="status"><script><!--<script></script></div>--></script>\n<pre id="resultBox">No result yet.</pre></div>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_foreign_cdata_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<div role="status"><svg><![CDATA[</svg></div>]]></svg>\n<pre id="resultBox">No result yet.</pre></div>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
     name: "result_payload_multitoken_role_live_ancestor",
     html: source.replace(
       '<section class="card mt">\n      <h2>Latest Result</h2>',
@@ -789,5 +891,7 @@ console.log("foreign_unquoted_slash_attribute_not_self_closing=true");
 console.log("foreign_html_integration_live_ancestor_rejected=true");
 console.log("foreign_html_breakout_live_ancestor_rejected=true");
 console.log("script_data_live_ancestor_rejected=true");
+console.log("script_double_escaped_live_ancestor_rejected=true");
+console.log("foreign_cdata_live_ancestor_rejected=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=27");
+console.log("negative_mutations=29");
