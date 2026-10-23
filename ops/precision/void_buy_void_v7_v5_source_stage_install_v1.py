@@ -434,7 +434,7 @@ def _read_regular_stable(
         or before.st_size > maximum
     ):
         raise InstallError(label + "_metadata_invalid:" + os.fspath(path))
-    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         opened = os.fstat(fd)
         if _metadata_identity(opened) != _metadata_identity(before):
@@ -481,7 +481,7 @@ def _stream_regular_hashes_stable(
         or before.st_size > maximum
     ):
         raise InstallError(label + "_metadata_invalid:" + os.fspath(path))
-    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     try:
         opened = os.fstat(fd)
         opened_identity = _metadata_identity(opened)
@@ -544,7 +544,13 @@ def _sha1_fd_prefix(fd: int, size: int, label: str) -> bytes:
         offset += len(part)
     return h.digest()
 
-def _open_stable_regular(path: pathlib.Path, label: str, maximum: int) -> tuple[int, tuple[int, int, int, int, int, int, int, int, int]]:
+def _open_stable_regular(
+    path: pathlib.Path,
+    label: str,
+    maximum: int,
+    *,
+    before_open: Any | None = None,
+) -> tuple[int, tuple[int, int, int, int, int, int, int, int, int]]:
     before = path.lstat()
     if (
         not stat.S_ISREG(before.st_mode)
@@ -554,8 +560,17 @@ def _open_stable_regular(path: pathlib.Path, label: str, maximum: int) -> tuple[
         or before.st_size > maximum
     ):
         raise InstallError(label + "_metadata_invalid")
-    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    if before_open is not None:
+        before_open(path, before)
+    fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
     opened = os.fstat(fd)
+    if (
+        not stat.S_ISREG(opened.st_mode)
+        or stat.S_ISLNK(opened.st_mode)
+        or opened.st_nlink != 1
+    ):
+        os.close(fd)
+        raise InstallError(label + "_opened_type_invalid")
     identity = _metadata_identity(opened)
     if identity != _metadata_identity(before):
         os.close(fd)
@@ -978,7 +993,7 @@ class _ObjectStore:
             or before.st_size > MAX_FILE_BYTES
         ):
             raise InstallError(self.label + "_loose_metadata_invalid")
-        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             opened = os.fstat(fd)
             identity = _metadata_identity(opened)
@@ -2180,7 +2195,7 @@ def _copy_regular_at(
         raise InstallError("copy_source_regular_invalid:" + name)
     sfd = os.open(
         name,
-        os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+        os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
         dir_fd=src_dir_fd,
     )
     dfd = None
@@ -2249,7 +2264,7 @@ def _prepare_private_stage_for_runtime_verification() -> None:
                 raise InstallError("stage_prepare_kind_invalid:" + os.fspath(path))
 
     for path in files:
-        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             private_mode = stat.S_IMODE(os.fstat(fd).st_mode)
             if private_mode == 0o400:
@@ -2306,7 +2321,7 @@ def _seal_verified_stage_for_publication() -> None:
                 raise InstallError("stage_seal_kind_invalid:" + os.fspath(path))
 
     for path in files:
-        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        fd = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             verification_mode = stat.S_IMODE(os.fstat(fd).st_mode)
             if verification_mode == 0o440:
@@ -2860,6 +2875,35 @@ def self_test() -> None:
                 raise AssertionError("rename_noreplace_fixture_state_invalid")
         finally:
             os.close(fd)
+    with tempfile.TemporaryDirectory(prefix="void-v7-regular-open-fifo-self-test-") as td:
+        probe = pathlib.Path(td) / "probe"
+        original = pathlib.Path(td) / "probe.original"
+        probe.write_bytes(b"regular")
+        before = probe.lstat()
+        if not stat.S_ISREG(before.st_mode):
+            raise AssertionError("fifo_swap_fixture_not_regular")
+        def swap_before_open(path: pathlib.Path, _before: os.stat_result) -> None:
+            if path != probe:
+                raise AssertionError("fifo_swap_fixture_path_mismatch")
+            probe.rename(original)
+            os.mkfifo(probe, 0o600)
+        try:
+            _open_stable_regular(
+                probe,
+                "self_test_fifo_swap",
+                64,
+                before_open=swap_before_open,
+            )
+        except InstallError as exc:
+            if str(exc) not in (
+                "self_test_fifo_swap_opened_type_invalid",
+                "self_test_fifo_swap_rebound",
+            ):
+                raise
+        else:
+            raise AssertionError("fifo_swap_not_rejected")
+    print("regular_leaf_nonblocking_open_required=true")
+    print("lstat_fifo_substitution_rejected=true")
     print(MARKER + "_SELF_TEST_GREEN")
     print("create_only_target=true")
     print("fixed_v4_source_mutation=false")
@@ -2921,7 +2965,7 @@ def self_test() -> None:
         acl_path = pathlib.Path(acl_td) / "probe"
         acl_path.write_bytes(b"x")
         os.chmod(acl_path, 0o400)
-        acl_fd = os.open(acl_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        acl_fd = os.open(acl_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             acl_blob = _runtime_uid_read_acl_blob(0o4, 0o4)
             os.setxattr(acl_fd, POSIX_ACL_ACCESS_XATTR, acl_blob)
@@ -2952,7 +2996,7 @@ def self_test() -> None:
     with tempfile.TemporaryDirectory(prefix="void-v7-index-extension-self-test-") as td:
         ext_path = pathlib.Path(td) / "extensions.bin"
         ext_path.write_bytes(b"TREE" + struct.pack(">I", 3) + b"abc")
-        ext_fd = os.open(ext_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        ext_fd = os.open(ext_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             if _next_optional_index_extension(
                 ext_fd, 0, 11, "self_test_index"
@@ -2961,7 +3005,7 @@ def self_test() -> None:
         finally:
             os.close(ext_fd)
         ext_path.write_bytes(b"link" + struct.pack(">I", 0))
-        ext_fd = os.open(ext_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+        ext_fd = os.open(ext_path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
         try:
             try:
                 _next_optional_index_extension(

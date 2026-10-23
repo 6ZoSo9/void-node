@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import hashlib, pathlib, subprocess, sys
+import hashlib, pathlib, re, subprocess, sys
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 TARGET=ROOT/"ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
 MARKER="VOID_BUY_VOID_V7_V5_SOURCE_STAGE_INSTALL_V1_PROOF"
@@ -41,10 +41,19 @@ assert 'if len(SOURCE_PARENTS) != 1:' in text
 assert '_verify_full_history_root(TARGET, 0, 0, 0o755)' in text
 assert '_verify_full_history_root(STAGE, 0, 0, 0o755)' in text
 assert 'os.fchmod(fd, 0o755)' in text
+unsafe_regular_open=re.compile(
+ r"os\\.O_RDONLY\\s*\\|\\s*os\\.O_CLOEXEC\\s*\\|\\s*os\\.O_NOFOLLOW"
+ r"(?!\\s*\\|\\s*os\\.O_NONBLOCK)"
+)
+assert unsafe_regular_open.search(text) is None,"regular_leaf_open_missing_nonblock"
+assert "before_open: Any | None = None" in text
+assert 'raise InstallError(label + "_opened_type_invalid")' in text
 cp=subprocess.run([sys.executable,"-I","-B",str(TARGET),"--self-test"],
  stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=60,check=False)
 assert cp.returncode==0 and cp.stderr=="",cp.stdout+cp.stderr
 assert "VOID_V7_V5_SOURCE_STAGE_INSTALL_V1_SELF_TEST_GREEN" in cp.stdout.splitlines()
+assert "regular_leaf_nonblocking_open_required=true" in cp.stdout.splitlines()
+assert "lstat_fifo_substitution_rejected=true" in cp.stdout.splitlines()
 sp=subprocess.run([sys.executable,"-I","-B",str(TARGET),"--source-plan"],
  stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,timeout=60,check=False)
 assert sp.returncode==0 and sp.stderr=="",sp.stdout+sp.stderr

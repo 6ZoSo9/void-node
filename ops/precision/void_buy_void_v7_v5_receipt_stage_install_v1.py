@@ -1,6 +1,26 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys as _bootstrap_sys
+
+_BOOTSTRAP_MARKER = "VOID_BUY_VOID_V7_V5_RECEIPT_STAGE_INSTALL_V1"
+if (
+    _bootstrap_sys.flags.isolated != 1
+    or not getattr(_bootstrap_sys.flags, "safe_path", False)
+    or _bootstrap_sys.flags.optimize != 0
+    or not __debug__
+):
+    if __name__ == "__main__":
+        print(_BOOTSTRAP_MARKER)
+        print("status=HOLD")
+        print("reason=python_isolated_unoptimized_mode_required")
+        print("protected_filesystem_mutation=false")
+        print("fixed_receipt_exchange_authority=false")
+        print("service_mutation=false")
+        print("funds_movement=false")
+        raise SystemExit(2)
+    raise RuntimeError("python_isolated_unoptimized_mode_required")
+
 import argparse
 import ctypes
 import hashlib
@@ -11,7 +31,7 @@ import re
 import stat
 import sys
 
-MARKER="VOID_BUY_VOID_V7_V5_RECEIPT_STAGE_INSTALL_V1"
+MARKER=_BOOTSTRAP_MARKER
 PLAN_PREFIX="voidv7v5receiptstageinstall1_"
 CONFIRM_TOKEN="INSTALL_VOID_V7_V5_RECEIPT_STAGE_V1_CREATE_ONLY"
 RENAME_NOREPLACE=1

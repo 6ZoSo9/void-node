@@ -11,7 +11,6 @@ on:
       - "scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py"
       - "ops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json"
       - "ops/security/buy-void-source-finality-v7-deployment-receipt-v5.json"
-  workflow_dispatch:
 
 permissions:
   contents: read

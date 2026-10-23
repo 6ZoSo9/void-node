@@ -1,3 +1,15 @@
+## Current source-security repair — October 23, 2026
+
+This generation closes the remaining exact-source review blockers before any trusted-admission successor may rely on these installers:
+
+- receipt-stage Python enforces isolated + safe-path + unoptimized execution immediately after the compiler-only future directive and before any shadowable standard-library import;
+- receipt proof includes a hostile local `argparse.py` regression and requires refusal before that module can execute;
+- retained regular-file reads in the source-stage installer require `O_NONBLOCK|O_NOFOLLOW`, preserving descriptor-generation checks while preventing lstat→FIFO substitution from blocking before validation;
+- source self-test performs a real regular-file→FIFO substitution through the retained-open test seam and requires fail-closed type/generation rejection;
+- the focused workflow is intentionally PR-generation-only; the unstable default-branch `workflow_dispatch` entrypoint is removed rather than weakening the exact six-file source boundary.
+
+Canonical implementation decision: this #3715 lineage is the sole selected V5 staging implementation for the current successor stack. The independent #3712 implementation remains Draft/historical and has no concurrent apply authority over the shared protected staging destinations. This selection does **not** itself grant root execution or stage-apply authority.
+
 # V7 V5 create-only source and receipt stage installers V1
 
 Status: **source/test/CI only**. This generation implements the create-only
