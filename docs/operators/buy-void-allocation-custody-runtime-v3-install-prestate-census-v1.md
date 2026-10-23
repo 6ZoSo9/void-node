@@ -71,15 +71,16 @@ entry counter is charged before descending into a child, so traversal cannot
 retain depth × 32,768 pending names before the 32,768-entry HOLD. Canonical
 output remains deterministic because the completed metadata records are sorted
 globally by relative path before hashing. Symlinks are treated as opaque legacy
-entries: the census never follows them, records only their metadata plus the
-byte length and SHA-256 of the link text, and never prints the link target.
-FIFOs, sockets, devices and other special files HOLD.
+entries: the census never follows them and **does not read their target text at
+all**. Only `lstat` metadata contributes to the tree digest. FIFOs, sockets,
+devices and other special files HOLD with fixed reason codes that do not embed
+untrusted entry names.
 
 The census emits a bounded **metadata digest** over relative path, type,
 device/inode, UID, GID, mode, link count and metadata timestamps, plus regular
-file length or opaque symlink-target length/SHA-256 as applicable. It also
-records the target root device/inode so a future rollback planner can bind a
-same-filesystem rename of that exact legacy root.
+file length where applicable. Symlink target text, target length and target
+hashes are excluded. It also records the target root device/inode so a future
+rollback planner can bind a same-filesystem rename of that exact legacy root.
 
 The legacy-target metadata bounds are deliberately separate from the tiny
 accepted V3 archive. The existing target may contain at most 32,768 entries,
@@ -89,9 +90,9 @@ legacy footprint (16,490 entries; largest regular file 40,757,984 bytes;
 aggregate regular bytes 148,357,378) with bounded headroom. Raising these
 metadata ceilings does not authorize or perform any legacy file-content read.
 
-No legacy regular-file content is read or printed. Symlink target text is read
-only as link metadata, is never followed, and is represented only by length and
-SHA-256 in the receipt.
+No legacy regular-file content is read or printed. Symlink target text is
+neither read nor printed. HOLD output uses fixed reason codes for target-tree
+entry failures and never interpolates untrusted target entry names.
 
 ## Proposed future names
 
@@ -124,21 +125,24 @@ python3 -I -B \
 ```
 
 No sudo is required or authorized by this generation. Omitting `-B` is a
-bootstrap HOLD before the normal census imports and cannot emit a successful
-write-free production receipt.
+bootstrap HOLD before the normal census imports.
 
 The command emits one canonical JSON record with a content-addressed
-`prestate_id`. A successful receipt includes both the compatibility aliases
-`read_only=true` / `filesystem_write=false` and the production-scoped
-`production_census_read_only=true` /
-`production_census_filesystem_write=false` fields used by the documented
-authority contract. On any ambiguity it exits HOLD.
+`prestate_id`. It performs no explicit filesystem write syscall, but Linux
+directory enumeration and ordinary reads can update access-time metadata on
+mounts where atime is enabled. The receipt therefore does **not** claim to be
+filesystem-write-free. It reports `read_only=true`,
+`filesystem_explicit_write=false`, `filesystem_write_free=false`,
+`atime_write_possible=true`, and the equivalent production-scoped keys.
+On any ambiguity it exits HOLD.
 
 ## Authority remains false
 
 ```text
 production_census_read_only=true
-production_census_filesystem_write=false
+production_census_explicit_filesystem_write=false
+production_census_filesystem_write_free=false
+production_census_atime_write_possible=true
 archive_extraction=false
 permission_mutation=false
 service_state_checked=false

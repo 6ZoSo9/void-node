@@ -5,7 +5,7 @@ Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS
 Status: **source/CI candidate only; protected source not installed; live privileged census not authorized**.
 
 This successor follows the current host-scoped current-UID process-reference census at
-`5bfd56c850513c7b416fe0b2f854ee9b12e764e4`.
+`7736a3a5c53da37448c357a5d98e4dad09f3f617`.
 
 Its purpose is to define the missing all-process observation boundary required
 by the existing custody replacement plan without making the mutable repository
@@ -41,10 +41,10 @@ This generation does not install that protected path.
 The source records:
 
 ```text
-parent_current_uid_head=5bfd56c850513c7b416fe0b2f854ee9b12e764e4
-parent_current_uid_source_git_blob_sha1=ded737a228a627a241a84131113db6d3521f635c
-prestate_head=836f5e704a603f67b77b2406aeec9174f640497e
-prestate_source_git_blob_sha1=4d9c6e5809a5cc64454626760f71e60ed99354bc
+parent_current_uid_head=7736a3a5c53da37448c357a5d98e4dad09f3f617
+parent_current_uid_source_git_blob_sha1=6bf476e3383b7b18966320df13b4041da9c8c11f
+prestate_head=7736a3a5c53da37448c357a5d98e4dad09f3f617
+prestate_source_git_blob_sha1=e32ebd94ad09cd80e03489079e74657aab159d7a
 archive_lock_git_blob_sha1=edb4ea2b833373ab387762e45ba7da4032c860f3
 archive_lock_sha256=ab96f16d93895b42c977fd26aef2c008115580e3ce31927275ed92986c86f8e7
 ```
@@ -124,26 +124,30 @@ A vanished/reused PID or TID, inaccessible required observation, FD-close race,
 PID-set change, task-set/generation change, or target-snapshot drift prevents a
 clean observation. Up to three immediate read-only attempts are allowed.
 
-## Host PID/mount namespace and retained procfs scope
+## Host PID/mount/user namespace and retained procfs scope
 
 A protected root-owned source is not by itself proof that `/proc` exposes the
-host process universe. A root process can run inside a private PID namespace,
-and a process sharing the host PID namespace can still run in a private mount
-namespace that resolves a decoy `/opt` tree. Even with both host namespaces, a
-chroot can retain host procfs while resolving absolute paths beneath a different
-filesystem root, so the scanner's filesystem root must also match PID 1's root.
+host process universe or that numeric UID 0 represents the reviewed host-root
+context. A process can run inside a private PID namespace, can share the host
+PID namespace while using a private mount namespace that resolves a decoy
+`/opt` tree, or can unshare a user namespace while retaining the same PID and
+mount namespaces. Even with the host namespace identities, a chroot can retain
+host procfs while resolving absolute paths beneath a different filesystem root,
+so the scanner's filesystem root must also match PID 1's root.
 
-Therefore a real `--census` additionally requires two externally supplied,
+Therefore a real `--census` additionally requires three externally supplied,
 separately reviewed namespace leases:
 
 - expected host PID namespace `dev:ino`;
-- expected host mount namespace `dev:ino`.
+- expected host mount namespace `dev:ino`;
+- expected host user namespace `dev:ino`.
 
 The source opens and retains one canonical `/proc` directory descriptor, then
 requires, through that retained view:
 
 - `self/ns/pid == 1/ns/pid == expected PID lease`;
 - `self/ns/mnt == 1/ns/mnt == expected mount lease`;
+- `self/ns/user == 1/ns/user == expected user lease`;
 - `self/root == 1/root` by kernel dev/inode identity;
 - `/proc/1/root` is opened once to a retained host-root directory descriptor;
 - the fixed `/opt/void-buy-allocation-custody-runtime-v1` path is walked
@@ -156,11 +160,12 @@ requires, through that retained view:
 - all PID/TID/stat/cwd/root/exe/fd/maps observations are descriptor-relative
   through the retained procfs view;
 - target mount IDs are read through that same retained host procfs view;
-- PID namespace, mount namespace, filesystem-root identity, proc visibility and
-  retained procfs identity are revalidated after the process scan.
+- PID namespace, mount namespace, user namespace, filesystem-root identity,
+  proc visibility and retained procfs identity are revalidated after the
+  process scan.
 
-This closes the private-PID/private-mount false-clean class **only when the
-expected lease values come from separately reviewed host evidence**. The census
+This closes the private-PID/private-mount/private-user false-clean class **only
+when the expected lease values come from separately reviewed host evidence**. The census
 does not authenticate the provenance of those lease strings itself and records:
 
 ```text
@@ -221,6 +226,7 @@ private_task_mount_namespace_rejected=true
 host_pid_namespace_external_lease_required=true
 host_pid_namespace_lease_verified=true
 host_mount_namespace_external_lease_required=true
+host_user_namespace_external_lease_required=true
 host_mount_namespace_lease_verified=true
 host_filesystem_root_matches_pid1=true
 host_filesystem_root_revalidated_after_census=true
