@@ -138,4 +138,3 @@ ok(runbookProof.includes('VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_ROUTE
 ok(priorFinal.includes('VOID_LOCAL_MULTIBOX_RUNTIME_FINAL_CHAIN_AUDIT_V1'), 'prior final chain marker missing');
 
 console.log(green);
-
