@@ -116,6 +116,59 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
     else:
         raise AssertionError("create-only archive output overwrote existing file")
 
+    partial_path = parent / "partial-write-proof.tar"
+    original_write = module.os.write
+    write_calls = [0]
+
+    def fail_after_partial_write(fd: int, data: bytes) -> int:
+        if write_calls[0] == 0:
+            write_calls[0] += 1
+            return original_write(fd, data[: min(64, len(data))])
+        raise OSError("synthetic_partial_archive_write_failure")
+
+    module.os.write = fail_after_partial_write
+    try:
+        try:
+            module.write_create_only(partial_path, raw)
+        except OSError:
+            pass
+        else:
+            raise AssertionError("partial write failure was not surfaced")
+    finally:
+        module.os.write = original_write
+    assert not partial_path.exists(), "partial write left a discoverable output path"
+
+    failed_publish = parent / "failed-validation-proof.tar"
+    original_inspect = module.inspect_archive
+
+    def fail_staging_inspection(_path: Path) -> dict:
+        raise module.ArchiveHold("synthetic_staging_validation_failure")
+
+    module.inspect_archive = fail_staging_inspection
+    try:
+        try:
+            module.package(failed_publish)
+        except module.ArchiveHold:
+            pass
+        else:
+            raise AssertionError("failed validation published final archive")
+    finally:
+        module.inspect_archive = original_inspect
+    assert not failed_publish.exists(), "failed validation left final archive"
+    assert not any(
+        entry.name.startswith("." + failed_publish.name + ".staging-")
+        for entry in parent.iterdir()
+    ), "failed validation left a staging archive"
+
+    published_path = parent / "published-proof.tar"
+    packaged = module.package(published_path)
+    assert published_path.is_file()
+    assert packaged["archive_candidate_id"] == record["archive_candidate_id"]
+    assert not any(
+        entry.name.startswith("." + published_path.name + ".staging-")
+        for entry in parent.iterdir()
+    ), "successful publication left a staging archive"
+
     real_parent = parent / "real-output-parent"
     real_parent.mkdir(mode=0o700)
     linked_parent = parent / "linked-output-parent"
@@ -197,6 +250,11 @@ for required in [
     "archive_manifest_runtime_identity_not_accepted",
     "descriptor_bound_source_reads",
     "open_bound_private_directory",
+    "publish_validated_create_only",
+    "partial_output_cleanup_on_failure=true",
+    "validated_staging_before_final_publication=true",
+    "failed_validation_final_path_absent=true",
+    "atomic_create_only_final_publication=true",
     "output_parent_not_private_or_bound",
     "archive_candidate_accepted",
     "existing_target_replaced",
@@ -225,6 +283,10 @@ print("full_runtime_record_identity_bound=true")
 print("accepted_v3_bundle_lock_bound=true")
 print("descriptor_bound_source_reads=true")
 print("descriptor_bound_create_only_output=true")
+print("partial_output_cleanup_on_failure=true")
+print("validated_staging_before_final_publication=true")
+print("failed_validation_final_path_absent=true")
+print("atomic_create_only_final_publication=true")
 print("symlink_output_parent_rejected=true")
 print("fifo_substitution_rejected_without_blocking=true")
 print("forged_runtime_record_and_payload_rejected=true")
