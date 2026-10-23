@@ -636,9 +636,6 @@ def write_create_only(path: Path, raw: bytes) -> os.stat_result:
     )
     if (
         any(type(flag) is not int for flag in required)
-        or os.link not in os.supports_dir_fd
-        or os.link not in os.supports_follow_symlinks
-        or os.stat not in os.supports_dir_fd
         or not Path("/proc/self/fd").is_dir()
     ):
         hold("output_tmpfile_publication_capability_invalid")
