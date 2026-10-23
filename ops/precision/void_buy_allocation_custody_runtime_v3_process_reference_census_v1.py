@@ -60,6 +60,7 @@ MAX_TARGET_DEPTH = 64
 MAX_PIDS = 32768
 MAX_FDS_PER_PROCESS = 65536
 MAX_STAT_BYTES = 4096
+MAX_STATUS_BYTES = 64 * 1024
 MAX_MAPS_BYTES = 8 * 1024 * 1024
 MAX_SCAN_ATTEMPTS = 3
 
@@ -678,6 +679,55 @@ def _proc_stat_identity(
     return state, start_ticks
 
 
+
+def parse_proc_uid_slots(raw: bytes) -> tuple[int, int, int, int]:
+    if len(raw) > MAX_STATUS_BYTES:
+        hold("proc_status_too_large")
+    try:
+        text = raw.decode("utf-8", "strict")
+    except UnicodeDecodeError:
+        hold("proc_status_non_utf8")
+    rows = [line for line in text.splitlines() if line.startswith("Uid:")]
+    if len(rows) != 1:
+        hold("proc_status_uid_invalid")
+    parts = rows[0].split()
+    if len(parts) != 5 or parts[0] != "Uid:":
+        hold("proc_status_uid_invalid")
+    try:
+        values = tuple(int(value, 10) for value in parts[1:])
+    except ValueError:
+        hold("proc_status_uid_invalid")
+    if len(values) != 4 or any(value < 0 for value in values):
+        hold("proc_status_uid_invalid")
+    return values  # type: ignore[return-value]
+
+
+def _proc_uid_slots(
+    pid: int,
+    proc_fd: int | None = None,
+) -> tuple[int, int, int, int] | None:
+    try:
+        if proc_fd is None:
+            raw = _read_bounded_fd_path(
+                PROC / str(pid) / "status",
+                MAX_STATUS_BYTES,
+                allow_zero_size=True,
+            )
+        else:
+            raw = _read_bounded_at(
+                proc_fd,
+                str(pid) + "/status",
+                MAX_STATUS_BYTES,
+                allow_zero_size=True,
+            )
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        if exc.errno in (errno.ENOENT, errno.ESRCH):
+            return None
+        raise
+    return parse_proc_uid_slots(raw)
+
 def _same_uid_pids(
     uid: int,
     proc_fd: int | None = None,
@@ -709,11 +759,16 @@ def _same_uid_pids(
             except FileNotFoundError:
                 vanished += 1
                 continue
-            if stat.S_ISDIR(st.st_mode) and st.st_uid == uid:
+            if not stat.S_ISDIR(st.st_mode):
+                hold("proc_pid_entry_not_directory")
+            slots = _proc_uid_slots(pid, proc_fd)
+            if slots is None:
+                vanished += 1
+                continue
+            if slots[1] == uid:
                 pids.append(pid)
     pids.sort()
     return pids, vanished
-
 
 def _matches_target(
     st: os.stat_result,
@@ -904,7 +959,12 @@ def scan_process(
             )
     except FileNotFoundError:
         return {"pid": pid, "status": "vanished"}
-    if proc_st.st_uid != uid:
+    if not stat.S_ISDIR(proc_st.st_mode):
+        return {"pid": pid, "status": "not_process_directory"}
+    uid_slots_before = _proc_uid_slots(pid, proc_fd)
+    if uid_slots_before is None:
+        return {"pid": pid, "status": "vanished"}
+    if uid_slots_before[1] != uid:
         return {"pid": pid, "status": "uid_changed"}
 
     references = {
@@ -935,10 +995,17 @@ def scan_process(
     incomplete += int(maps_incomplete)
 
     after = _proc_stat_identity(pid, proc_fd)
+    uid_slots_after = _proc_uid_slots(pid, proc_fd)
     if after is None or after != before:
         return {
             "pid": pid,
             "status": "generation_changed_or_vanished",
+            "start_ticks": start_ticks,
+        }
+    if uid_slots_after is None or uid_slots_after != uid_slots_before:
+        return {
+            "pid": pid,
+            "status": "uid_slots_changed_or_vanished",
             "start_ticks": start_ticks,
         }
 
@@ -1160,6 +1227,11 @@ def census(expected_host_pid_namespace_dev_ino: str) -> dict[str, Any]:
 def self_test() -> None:
     verify_source_inputs()
 
+    if parse_proc_uid_slots(
+        b"Name:\tsynthetic\nUid:\t1000\t1000\t1000\t1000\n"
+    ) != (1000, 1000, 1000, 1000):
+        hold("self_test_proc_uid_slots_invalid")
+
     if parse_dev_ino_lease("12:34") != (12, 34):
         hold("self_test_pid_namespace_lease_parse_invalid")
     fake_self = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
@@ -1271,6 +1343,8 @@ def self_test() -> None:
     print("archive_lock_exact=true")
     print("target_identity_metadata_only=true")
     print("current_uid_process_scope=true")
+    print("proc_status_effective_uid_classification=true")
+    print("process_uid_slots_stable_during_reference_scan=true")
     print("host_pid_namespace_external_lease_required=true")
     print("private_pid_namespace_rejected=true")
     print("host_pid_namespace_lease_mismatch_rejected=true")
