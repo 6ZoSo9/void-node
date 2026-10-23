@@ -5,7 +5,7 @@ Marker: `VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V1`.
 Status: **read-only current-UID process-reference diagnostic only**.
 
 This successor is based on the exact filesystem-prestate census generation at
-`332367d1ac93a206437c0c977082b97ed4895cd0`. It exists to satisfy the
+`836f5e704a603f67b77b2406aeec9174f640497e`. It exists to satisfy the
 existing replacement plan's requirement for a process-reference census without
 silently promoting an unprivileged observation into all-process authority.
 
@@ -14,7 +14,7 @@ silently promoting an unprivileged observation into all-process authority.
 The census binds:
 
 - prestate-census source Git blob:
-  `c2e0c53336665578e4ab26204f7d67908c66ad3f`;
+  `4d9c6e5809a5cc64454626760f71e60ed99354bc`;
 - accepted archive-lock Git blob:
   `edb4ea2b833373ab387762e45ba7da4032c860f3`;
 - accepted archive-lock SHA-256:
@@ -51,6 +51,17 @@ This generation is deliberately **unprivileged**.
 
 It refuses UID 0 execution from a user-owned diagnostic source and scans only
 processes whose procfs directory is owned by the caller's effective UID.
+
+A clean current-UID candidate also requires an externally reviewed host
+PID-namespace `dev:ino` lease. The census opens canonical `/proc` once and
+retains that directory descriptor for the complete attempt. Through that
+retained descriptor it requires `self/ns/pid` and `1/ns/pid` to match each
+other and the external lease, identifies the retained procfs mount, rejects
+restricted `hidepid` views, and performs PID enumeration plus all process
+observations descriptor-relatively. It revalidates the retained procfs
+descriptor, namespace lease, visibility contract, and terminal visible
+`/proc` identity before a clean candidate can be emitted. Temporary pathname
+overmounts therefore cannot switch the scan to a narrower procfs view.
 
 It never reads:
 
@@ -90,8 +101,10 @@ current_uid_target_reference_absent_candidate=true
 ```
 
 That requires one unchanged target snapshot across the attempt, one stable
-current-UID PID set, no incomplete process observations, and zero target
-references through `cwd/root/exe/fd/maps`.
+current-UID PID set, no incomplete process observations, zero target references
+through `cwd/root/exe/fd/maps`, a verified external host PID-namespace lease,
+unrestricted procfs visibility, and terminal revalidation of the retained
+procfs view.
 
 These **always remain false**:
 
@@ -129,7 +142,8 @@ silently permit Python bytecode-cache writes:
 ```bash
 python3 -I -B \
   ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py \
-  --census
+  --census \
+  --expected-host-pid-namespace-dev-ino '<DEV>:<INO>'
 ```
 
 Do not run this source with sudo. Root execution intentionally HOLDs.
@@ -138,6 +152,13 @@ Do not run this source with sudo. Root execution intentionally HOLDs.
 
 ```text
 read_only=true
+host_pid_namespace_external_lease_required=true
+host_pid_namespace_lease_verified=true
+host_pid_namespace_lease_revalidated_after_census=true
+complete_proc_visibility_verified=true
+proc_visibility_revalidated_after_census=true
+retained_procfs_view_used=true
+retained_procfs_view_revalidated_after_census=true
 production_filesystem_write=false
 root_execution_forbidden=true
 python_no_bytecode_mode_required=true
