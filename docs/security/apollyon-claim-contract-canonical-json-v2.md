@@ -36,8 +36,9 @@ historical V1 hashes.
 - V2 proof Git blob:
   `03de2c24110bbc804a9f7489f8ae62f69c03c59b`
 
-The branch is four ADD-only paths. V1 and all current consumers remain byte
-unchanged.
+The original V2 generation was four ADD-only paths. This successor modifies
+those same four paths to close revoked-Proxy dispatch. V1 and all current
+consumers remain byte unchanged.
 
 ## V2 serialization boundary
 
@@ -60,7 +61,7 @@ order. The proof includes the 0/2/10/4294967294/4294967295/01 boundary.
 
 The serializer rejects:
 
-- Proxies before reflective traversal;
+- ordinary and revoked Proxies before `Array.isArray` or reflective traversal;
 - own accessors without executing their getters;
 - symbol properties;
 - non-enumerable object properties;
