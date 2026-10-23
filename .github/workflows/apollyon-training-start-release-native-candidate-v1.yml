@@ -50,11 +50,11 @@ jobs:
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_native_candidate_v1.c)" = \
-            3c81dbbe694f421a0e6cbc18d8fb7d6f4c7fd983
+            098276fc92c247fa1465c11c6403c2c50a61629a
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_native_candidate_v1.py)" = \
-            0c4bf23116065da3bc30b80f4a4112c00094fc8b
+            7a90c2b30e90416411ef08fc2b26f2636d81d486
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-native-candidate-v1.md)" = \
-            eeee03884ddf0d1618dc677ebb6bf341bee8dea7
+            36a51d3caf4445d5abbbdd6e8e09100cfce11210
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-release-binding-v1.mjs)" = \
             b83b9e72a2c0e139bf677e6d045a0b31100d733a
@@ -126,6 +126,7 @@ jobs:
             "candidate_no_needed=true"
             "candidate_reproducible_bytes=true"
             "candidate_three_build_equality=true"
+            "x32_syscall_namespace_rejected=true"
             "release_fd3_exact_allowlist_bound=true"
             "release_fd_anonymous_pipe_identity_bound=true"
             "release_frame_short_extra_timeout_adversaries=true"
