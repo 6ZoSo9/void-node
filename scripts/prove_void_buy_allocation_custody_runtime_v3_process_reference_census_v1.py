@@ -15,7 +15,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "a99b752cf499c5057dc63e5ad2422af6f7fd1055"
+EXPECTED_SOURCE_BLOB = "03626d0953bcd151fdd2ec33253427a79249c6db"
 
 
 def git_blob(raw: bytes) -> str:
@@ -51,6 +51,7 @@ assert module.ARCHIVE_LOCK_SHA256 == (
 assert module.TARGET == Path("/opt/void-buy-allocation-custody-runtime-v1")
 assert module.MAX_TARGET_ENTRIES == 32768
 assert module.MAX_PIDS == 32768
+assert module.MAX_MOUNTINFO_BYTES == 4 * 1024 * 1024
 assert module.MAX_STATUS_BYTES == 64 * 1024
 assert module.MAX_FDS_PER_PROCESS == 65536
 assert module.MAX_SCAN_ATTEMPTS == 3
@@ -108,15 +109,39 @@ hidden_mountinfo = (
     b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
     b" - proc proc rw,hidepid=2\n"
 )
-assert module.verify_complete_proc_visibility(
-    visible_mountinfo, 42
-)["hidepid_restricted"] is False
+subtree_mountinfo = (
+    b"42 1 0:1 /123 /proc rw,nosuid,nodev,noexec,relatime"
+    b" - proc proc rw,hidepid=0\n"
+)
+visible = module.verify_complete_proc_visibility(visible_mountinfo, 42)
+assert visible["hidepid_restricted"] is False
+assert visible["root"] == "/"
+assert visible["mount_point"] == "/proc"
 try:
     module.verify_complete_proc_visibility(hidden_mountinfo, 42)
 except module.CensusHold as exc:
     assert "proc_visibility_restricted" in str(exc)
 else:
     raise AssertionError("restricted procfs visibility accepted")
+try:
+    module.verify_complete_proc_visibility(subtree_mountinfo, 42)
+except module.CensusHold as exc:
+    assert "proc_mount_scope_not_complete_host_view" in str(exc)
+else:
+    raise AssertionError("procfs subtree mount accepted")
+assert module.parse_proc_self_stat_pid(
+    b"123 (fixture) S 0 0 0\n",
+    123,
+) == 123
+try:
+    module.parse_proc_self_stat_pid(
+        b"124 (fixture) S 0 0 0\n",
+        123,
+    )
+except module.CensusHold as exc:
+    assert "proc_self_pid_namespace_mismatch" in str(exc)
+else:
+    raise AssertionError("proc self PID mismatch accepted")
 
 module.self_test()
 
@@ -349,12 +374,17 @@ for required in (
     "parse_dev_ino_lease",
     "verify_pid_namespace_lease_stats",
     "verify_complete_proc_visibility",
+    "parse_proc_self_stat_pid",
     "open_pinned_proc_view",
     "revalidate_pinned_proc_view",
     "_read_bounded_at",
     "host_pid_namespace_external_lease_required",
     "retained_procfs_view_used",
     "retained_procfs_view_revalidated_after_census",
+    "proc_mount_scope_not_complete_host_view",
+    "proc_root_custody_invalid",
+    "proc_self_pid_namespace_mismatch",
+    "proc_self_pid_revalidated_after_census",
     "parse_proc_uid_slots",
     "_proc_uid_slots",
     "proc_status_effective_uid_classification",
@@ -395,7 +425,12 @@ print("host_pid_namespace_external_lease_required=true")
 print("private_pid_namespace_rejected=true")
 print("host_pid_namespace_lease_mismatch_rejected=true")
 print("complete_proc_visibility_required=true")
+print("proc_mount_root_is_slash_required=true")
+print("proc_mount_point_exact_required=true")
+print("proc_root_root_owned_nonwritable_required=true")
+print("proc_self_pid_matches_runtime_required=true")
 print("hidepid_restricted_proc_holds=true")
+print("proc_subtree_mount_holds=true")
 print("retained_procfs_view_required=true")
 print("retained_procfs_view_descriptor_relative=true")
 print("retained_procfs_view_revalidated_after_census=true")
