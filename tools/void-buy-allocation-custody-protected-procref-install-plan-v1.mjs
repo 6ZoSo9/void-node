@@ -6,21 +6,44 @@ export const VOID_BUY_VOID_CUSTODY_PROTECTED_PROCREF_INSTALL_PLAN_V1 =
 
 export const REVIEWED_SOURCE = Object.freeze({
   repository: "6ZoSo9/void-node",
-  head: "3d7b8041f90b92d66d8de43cd0b28e98cbf194be",
+  head: "cfae72e86e060ec797a86797d71f7be7aa019be8",
   path:
     "ops/precision/" +
     "void_buy_allocation_custody_runtime_v3_" +
     "protected_all_process_reference_census_v1.py",
-  git_blob_sha1: "25a0913606baa3303743f36a8c79f3c7a14ea159",
-  bytes: 70661,
+  git_blob_sha1: "9738f14111fc03dffe9afb04f7bede73ceb13087",
+  bytes: 74322,
   sha256:
-    "447411e1853fdff56098e2700c60855aaa6ebc2dfb02104afc82af83c2c97efe",
+    "f3ef0593eae77825f730609b85da51af66168ba11f39848d052a91942e4cc335",
   marker:
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_" +
     "PROTECTED_ALL_PROCESS_REFERENCE_CENSUS_V1",
   schema:
     "void_buy_void_custody_runtime_v3_" +
     "protected_all_process_reference_census_v1",
+});
+
+export const ACCEPTED_SOURCE_LOCK = Object.freeze({
+  repository: "6ZoSo9/void-node",
+  pr: 3777,
+  head: "aebffe89a834eddccbd708495047f369f4dbaf29",
+  path:
+    "ops/security/" +
+    "buy-void-allocation-custody-runtime-v3-" +
+    "protected-all-process-reference-census-lock-v3.json",
+  git_blob_sha1: "e66742be948ae418cbdca75542db263050930c15",
+  lock_id:
+    "voidbuycustodyallprocreflock3_" +
+    "9738f14111fc03dffe9afb04f7bede73ceb13087",
+  candidate_source_accepted: true,
+  source_head: "cfae72e86e060ec797a86797d71f7be7aa019be8",
+  source_git_blob_sha1: "9738f14111fc03dffe9afb04f7bede73ceb13087",
+  source_bytes: 74322,
+  source_sha256:
+    "f3ef0593eae77825f730609b85da51af66168ba11f39848d052a91942e4cc335",
+  proof_git_blob_sha1: "ba1b8cc6c30c613c2d638e60f1bb61a288266227",
+  document_git_blob_sha1: "86952328f67e74fe8ab600617692733cf1d0a24e",
+  workflow_git_blob_sha1: "5c778dc18be4d11f55a417dccbc61ca57cbf2678",
 });
 
 export const INSTALL_CONTRACT = Object.freeze({
@@ -237,6 +260,7 @@ export function buildVoidBuyVoidCustodyProtectedProcRefInstallPlanV1() {
     version: 1,
     status: "HOLD_SOURCE_ONLY_NO_INSTALL_AUTHORITY",
     reviewed_source: REVIEWED_SOURCE,
+    accepted_source_lock: ACCEPTED_SOURCE_LOCK,
     install_contract: INSTALL_CONTRACT,
     required_future_apply_sequence: Object.freeze([
       "VERIFY_EXACT_REVIEWED_GIT_OBJECT_BYTES",
