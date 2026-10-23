@@ -11,6 +11,7 @@ import {
 } from "../src/http/api_attach.ts";
 
 const indexSource = readFileSync("src/index.ts", "utf8");
+const attachSource = readFileSync("src/http/api_attach.ts", "utf8");
 const routeStart = indexSource.indexOf('app.get("/blocks/range"');
 const routeEnd = indexSource.indexOf(
   "/* Bulk block import (follower) */",
@@ -249,7 +250,7 @@ assert.deepEqual(
   "beyond-head request remains an intentional empty range",
 );
 
-assert.match(indexSource, /invalid_head/);
+assert.match(attachSource, /invalid_head/);
 console.log("void_index_block_range_bounds_v1=PASS");
 console.log("canonical_parser_reused=true");
 console.log("public_aliases_preserved=true");
