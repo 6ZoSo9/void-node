@@ -31,26 +31,26 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          BASE="4f0150a53a4c938c273c634f506f5dbbc56475e7"
+          BASE="5bc477580596b0ec057554d8302b274abb2e148c"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
           mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
           expected=(
-            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-uid-process-census-v1.yml'
-            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-uid-process-census-v1.md'
-            $'A\tops/precision/void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py'
-            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py'
+            $'M\t.github/workflows/buy-void-allocation-custody-runtime-v3-uid-process-census-v1.yml'
+            $'M\tdocs/operators/buy-void-allocation-custody-runtime-v3-uid-process-census-v1.md'
+            $'M\tops/precision/void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py'
+            $'M\tscripts/prove_void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py'
           )
           mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py)" = \
-            "52420cd888474558b1498454b30004779783a51f"
+            "bfa40ef0db1a1bf31b16b4fffabd5e933f4de312"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py)" = \
-            "8b3f575e74a90da08c0cdc8f99a70e6030ddecbd"
+            "62b51e53943f884b5a710c888e2e6fcb044b7af6"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-uid-process-census-v1.md)" = \
-            "611fbef70b2071a624abd28171acbc37a7b057ed"
+            "1424ba590dcecedaf5173ac7c95bebd75263117b"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs)" = \
@@ -85,6 +85,9 @@ jobs:
             'host_pid_namespace_external_lease_required=true' \
             'private_pid_namespace_rejected=true' \
             'host_pid_namespace_lease_mismatch_rejected=true' \
+            'proc_visibility_revalidated_after_census=true' \
+            'host_pid_namespace_revalidated_after_census=true' \
+            'postscan_scope_drift_holds=true' \
             'malformed_live_status_holds=true' \
             'proc_entry_budget_enforced_before_sort=true' \
             'two_pass_uid_process_set_stability=true' \
@@ -125,6 +128,9 @@ jobs:
             'host_pid_namespace_external_lease_required=true' \
             'private_pid_namespace_rejected=true' \
             'host_pid_namespace_lease_mismatch_rejected=true' \
+            'proc_visibility_revalidated_after_census=true' \
+            'host_pid_namespace_revalidated_after_census=true' \
+            'postscan_scope_drift_holds=true' \
             'malformed_live_status_holds=true' \
             'missing_live_status_holds=true' \
             'proc_entry_budget_enforced_before_sort=true' \
