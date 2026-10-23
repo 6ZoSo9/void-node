@@ -111,14 +111,23 @@ record and protected host identity.
 ## Post-first-entry no-exec barrier
 
 The candidate installs a seccomp filter before reading the release frame. It
-fails closed unless `NoNewPrivs=1`, then rejects `execve` and `execveat`
-with EPERM while allowing the remaining process to continue.
+fails closed unless `NoNewPrivs=1`, then rejects native `execve` and
+`execveat` with EPERM while allowing the remaining process to continue.
+
+On x86-64, `AUDIT_ARCH_X86_64` also covers the x32 ABI. The candidate now
+checks the x32 syscall namespace bit (`0x40000000`) immediately after loading
+`seccomp_data.nr` and kills the process before ordinary syscall-number
+dispatch. This prevents x32-numbered `execve`/`execveat` from bypassing the
+post-first-entry no-exec barrier even on a kernel where the x32 ABI itself is
+disabled or unavailable.
 
 This prevents an exec-away → unreviewed code → exec-back ABA after the reviewed
 native first entry and before the release frame is consumed.
 
-The hosted self-test forks a child, installs the reviewed barrier, attempts to
-exec `/bin/true`, and requires EPERM.
+The hosted self-test forks one child that proves native `execve` returns
+EPERM and, on x86-64, a second child whose x32-tagged syscall must terminate
+with `SIGSYS`. The positive production harness also requires
+`x32_syscall_namespace_rejected=true`.
 
 This candidate deliberately does **not** exec training after the gate. Any
 future training engine integration must be compatible with the accepted
@@ -216,6 +225,18 @@ protected consumption publication, trainer release, training/model execution,
 key/signing/wallet access, transaction, or funds action is authorized.
 
 PROTECT THE CORE.
+
+## October 23 x32 no-exec namespace closure
+
+Current repaired source/proof identities:
+
+- trainer native C: `098276fc92c247fa1465c11c6403c2c50a61629a`;
+- focused proof: `7a90c2b30e90416411ef08fc2b26f2636d81d486`.
+
+This generation changes only the no-exec namespace guard and its source-level /
+runtime adversary. It does not widen the release protocol or any runtime
+authority. The full composite release chain must re-pin this trainer identity
+and requalify before the repair is treated as source-green.
 
 ## October 19 current-parent reconciliation
 
