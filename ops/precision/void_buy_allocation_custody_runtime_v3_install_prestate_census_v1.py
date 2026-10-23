@@ -324,19 +324,21 @@ def _entry_record(
     relative: str,
     st: os.stat_result,
     kind: str,
-    digest: str | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "path": relative,
         "kind": kind,
+        "dev": st.st_dev,
+        "ino": st.st_ino,
         "uid": st.st_uid,
         "gid": st.st_gid,
         "mode": format(stat.S_IMODE(st.st_mode), "04o"),
         "nlink": st.st_nlink,
+        "mtime_ns": st.st_mtime_ns,
+        "ctime_ns": st.st_ctime_ns,
     }
     if kind == "file":
         result["bytes"] = st.st_size
-        result["sha256"] = digest
     return result
 
 
@@ -360,12 +362,14 @@ def _hash_symlink_at(
     return len(raw), sha256(raw)
 
 
-def _hash_regular_at(
+def _observe_regular_at(
     parent_fd: int,
     name: str,
     before: os.stat_result,
     expected_mnt_id: int,
-) -> str:
+) -> os.stat_result:
+    # Legacy runtime files are intentionally content-blind here. Open only to
+    # bind type/mount/generation metadata; never read opaque file bodies.
     if before.st_size < 0 or before.st_size > MAX_FILE_BYTES:
         hold("target_file_size_out_of_bounds:" + name)
     fd = os.open(name, _leaf_flags(), dir_fd=parent_fd)
@@ -378,16 +382,6 @@ def _hash_regular_at(
             or _generation(before) != _generation(opened)
         ):
             hold("target_file_rebound:" + name)
-        h = hashlib.sha256()
-        remaining = opened.st_size
-        while remaining:
-            chunk = os.read(fd, min(1024 * 1024, remaining))
-            if not chunk:
-                hold("target_file_short_read:" + name)
-            h.update(chunk)
-            remaining -= len(chunk)
-        if os.read(fd, 1):
-            hold("target_file_grew:" + name)
         after = os.fstat(fd)
         visible = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
         if (
@@ -395,10 +389,9 @@ def _hash_regular_at(
             or _generation(after) != _generation(visible)
         ):
             hold("target_file_generation_changed:" + name)
-        return h.hexdigest()
+        return after
     finally:
         os.close(fd)
-
 
 def _scan_dir(
     fd: int,
@@ -464,11 +457,11 @@ def _scan_dir(
             finally:
                 os.close(child_fd)
         elif stat.S_ISREG(st.st_mode):
-            digest = _hash_regular_at(fd, name, st, expected_mnt_id)
-            records.append(_entry_record(relative, st, "file", digest))
+            observed = _observe_regular_at(fd, name, st, expected_mnt_id)
+            records.append(_entry_record(relative, observed, "file"))
             totals["entries"] += 1
             totals["files"] += 1
-            totals["bytes"] += st.st_size
+            totals["bytes"] += observed.st_size
             if totals["entries"] > MAX_TREE_ENTRIES:
                 hold("target_tree_entry_limit_exceeded")
             if totals["bytes"] > MAX_TOTAL_REGULAR_BYTES:
@@ -568,7 +561,7 @@ def scan_target_at(
                 "directories": totals["directories"],
                 "regular_files": totals["files"],
                 "regular_bytes": totals["bytes"],
-                "content_metadata_sha256": tree_sha,
+                "metadata_sha256": tree_sha,
                 "special_files": 0,
                 "symlinks": totals["symlinks"],
             },
@@ -664,11 +657,9 @@ def collect_prestate(
                 **rollback,
             },
             "same_filesystem_rename_candidate": (
-                target["state"] != "PRESENT_SCANNED"
-                or (
-                    target["root"]["dev"] == parent_generation.st_dev
-                    and target["root"]["mount_id"] == parent_mnt_id
-                )
+                target["state"] == "PRESENT_SCANNED"
+                and target["root"]["dev"] == parent_generation.st_dev
+                and target["root"]["mount_id"] == parent_mnt_id
             ),
             "rollback_rename_candidate": rollback_candidate,
             "create_only_install_candidate": create_only_candidate,
@@ -761,6 +752,7 @@ def self_test() -> None:
             or first["target"]["tree"]["regular_files"] != 2
             or first["target"]["tree"]["directories"] != 1
             or first["target"]["tree"]["regular_bytes"] != 11
+            or first["same_filesystem_rename_candidate"] is not True
             or first["rollback_rename_candidate"] is not True
             or first["create_only_install_candidate"] is not False
         ):
@@ -813,7 +805,8 @@ def self_test() -> None:
     print(MARKER + "_SELF_TEST_GREEN")
     print("archive_lock_exact=true")
     print("descriptor_bound_tree_scan=true")
-    print("target_tree_content_metadata_digest=true")
+    print("target_tree_metadata_digest=true")
+    print("legacy_regular_file_content_read=false")
     print("nested_mount_rejection_bound=true")
     print("mount_id_boundary_bound=true")
     print("symlink_opaque_identity_bound=true")
