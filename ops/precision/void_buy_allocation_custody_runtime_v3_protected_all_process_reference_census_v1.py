@@ -278,6 +278,17 @@ def verify_mount_namespace_lease_stats(
     return observed
 
 
+def verify_host_filesystem_root_stats(
+    self_root: os.stat_result,
+    init_root: os.stat_result,
+) -> tuple[int, int]:
+    observed = (int(self_root.st_dev), int(self_root.st_ino))
+    init_observed = (int(init_root.st_dev), int(init_root.st_ino))
+    if observed != init_observed:
+        hold("not_in_pid1_filesystem_root")
+    return observed
+
+
 def verify_complete_proc_visibility(
     raw: bytes,
     expected_mount_id: int,
@@ -354,14 +365,17 @@ def open_pinned_proc_view(
             init_pid_ns = os.stat("1/ns/pid", dir_fd=fd, follow_symlinks=True)
             self_mount_ns = os.stat("self/ns/mnt", dir_fd=fd, follow_symlinks=True)
             init_mount_ns = os.stat("1/ns/mnt", dir_fd=fd, follow_symlinks=True)
+            self_root = os.stat("self/root", dir_fd=fd, follow_symlinks=True)
+            init_root = os.stat("1/root", dir_fd=fd, follow_symlinks=True)
         except OSError as exc:
-            hold("host_namespace_unreadable:" + str(exc.errno))
+            hold("host_namespace_or_root_unreadable:" + str(exc.errno))
         observed_pid = verify_pid_namespace_lease_stats(
             self_pid_ns, init_pid_ns, expected_pid
         )
         observed_mount = verify_mount_namespace_lease_stats(
             self_mount_ns, init_mount_ns, expected_mount
         )
+        observed_root = verify_host_filesystem_root_stats(self_root, init_root)
         visibility = verify_complete_proc_visibility(
             _read_proc_at(fd, "self/mountinfo", MAX_MOUNTINFO_BYTES),
             mount_id,
@@ -377,6 +391,9 @@ def open_pinned_proc_view(
             "host_mount_namespace_dev": str(observed_mount[0]),
             "host_mount_namespace_ino": str(observed_mount[1]),
             "pid1_mount_namespace_matches_self": True,
+            "pid1_filesystem_root_matches_self": True,
+            "host_filesystem_root_dev": str(observed_root[0]),
+            "host_filesystem_root_ino": str(observed_root[1]),
             "proc_root_dev": opened.st_dev,
             "proc_root_ino": opened.st_ino,
             "proc_mount_id": mount_id,
@@ -414,8 +431,10 @@ def revalidate_pinned_proc_view(
         init_pid_ns = os.stat("1/ns/pid", dir_fd=fd, follow_symlinks=True)
         self_mount_ns = os.stat("self/ns/mnt", dir_fd=fd, follow_symlinks=True)
         init_mount_ns = os.stat("1/ns/mnt", dir_fd=fd, follow_symlinks=True)
+        self_root = os.stat("self/root", dir_fd=fd, follow_symlinks=True)
+        init_root = os.stat("1/root", dir_fd=fd, follow_symlinks=True)
     except OSError as exc:
-        hold("host_namespace_unreadable:" + str(exc.errno))
+        hold("host_namespace_or_root_unreadable:" + str(exc.errno))
     observed_pid = verify_pid_namespace_lease_stats(
         self_pid_ns, init_pid_ns, expected_pid
     )
@@ -432,6 +451,12 @@ def revalidate_pinned_proc_view(
         or str(observed_mount[1]) != initial["host_mount_namespace_ino"]
     ):
         hold("host_mount_namespace_scope_changed")
+    observed_root = verify_host_filesystem_root_stats(self_root, init_root)
+    if (
+        str(observed_root[0]) != initial["host_filesystem_root_dev"]
+        or str(observed_root[1]) != initial["host_filesystem_root_ino"]
+    ):
+        hold("host_filesystem_root_scope_changed")
     visibility = verify_complete_proc_visibility(
         _read_proc_at(fd, "self/mountinfo", MAX_MOUNTINFO_BYTES),
         initial["proc_mount_id"],
@@ -444,6 +469,7 @@ def revalidate_pinned_proc_view(
     return {
         "host_pid_namespace_lease_revalidated_after_census": True,
         "host_mount_namespace_lease_revalidated_after_census": True,
+        "host_filesystem_root_revalidated_after_census": True,
         "proc_visibility_revalidated_after_census": True,
         "retained_procfs_view_revalidated_after_census": True,
         "visible_proc_root_matches_retained_at_terminal": True,
@@ -1092,18 +1118,45 @@ def scan_process(
         if after != before:
             return {"pid": pid, "status": "generation_changed_or_vanished"}
         return {"pid": pid, "status": "kernel_thread_skipped"}
-    if before["state"] in ("Z", "X"):
-        after = _proc_stat(pid, proc_fd)
-        if after != before:
-            return {"pid": pid, "status": "generation_changed_or_vanished"}
-        return {"pid": pid, "status": "not_live"}
-
     tasks_before = _task_inventory(pid, proc_fd)
     if tasks_before is None:
         return {
             "pid": pid,
             "status": "task_inventory_changed_or_unreadable",
             "start_ticks": before["start_ticks"],
+        }
+
+    if before["state"] in ("Z", "X"):
+        live_tasks = [
+            tid for tid, (state, _start_ticks) in tasks_before.items()
+            if state not in ("Z", "X")
+        ]
+        if live_tasks:
+            return {
+                "pid": pid,
+                "status": "zombie_leader_with_live_tasks",
+                "start_ticks": before["start_ticks"],
+                "task_count": len(tasks_before),
+                "live_task_count": len(live_tasks),
+                "task_inventory_stable": False,
+            }
+        tasks_after = _task_inventory(pid, proc_fd)
+        after = _proc_stat(pid, proc_fd)
+        if after != before or tasks_after is None or tasks_after != tasks_before:
+            return {
+                "pid": pid,
+                "status": "generation_changed_or_vanished",
+                "start_ticks": before["start_ticks"],
+                "task_count": len(tasks_before),
+            }
+        return {
+            "pid": pid,
+            "status": "not_live",
+            "start_ticks": before["start_ticks"],
+            "task_count": len(tasks_before),
+            "live_task_count": 0,
+            "task_inventory_stable": True,
+            "task_generation_digest": _task_inventory_digest(tasks_before),
         }
 
     refs = {"cwd": 0, "root": 0, "exe": 0, "fd": 0, "maps": 0}
@@ -1274,6 +1327,7 @@ def all_process_census(
             "host_namespace_lease_provenance_authenticated_by_census": False,
             "separately_reviewed_host_namespace_lease_required": True,
             "target_resolved_in_host_mount_namespace": True,
+            "host_filesystem_root_matches_pid1": True,
             "attempt_count": len(attempts),
             "attempts": attempts,
             "selected_attempt": selected["attempt"],
@@ -1324,6 +1378,7 @@ def census(
         "host_mount_namespace_external_lease_required": True,
         "host_mount_namespace_lease_verified": True,
         "target_resolved_in_host_mount_namespace": True,
+        "host_filesystem_root_matches_pid1": True,
         "complete_proc_visibility_verified": True,
         "retained_procfs_view_used": True,
         "retained_procfs_view_revalidated_after_census": True,
