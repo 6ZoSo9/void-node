@@ -158,7 +158,10 @@ def open_fixture_root(
             previous = current
             current = child
             close_once(previous, "fixture_prior_parent_close_uncertain")
-        return current, os.fstat(current)
+        # Return the exact metadata generation that passed final-root custody
+        # checks. A fresh unchecked fstat here could bless policy drift that
+        # happened immediately after the mode/ACL checks.
+        return current, opened
     except BaseException:
         close_once(current, "fixture_traversal_close_uncertain")
         raise
@@ -204,10 +207,41 @@ def observe_fixture_only(
         if not (
             same_inode(opened, final_fd)
             and same_inode(final_fd, final_visible)
-            and same_inode(root_initial, final_root)
-            and same_inode(final_root, final_root_visible)
         ):
             hold("consumption_directory_final_generation_changed")
+        if not (
+            same_inode(root_initial, final_root)
+            and same_inode(final_root, final_root_visible)
+        ):
+            hold("fixture_root_final_generation_changed")
+
+        # Mode/owner/link and ACL policy are authority-bearing even when the
+        # descriptor/inode remains the same. Revalidate them immediately before
+        # accepting the fixture receipt, then prove those checks themselves did
+        # not race a metadata/xattr generation change.
+        require_private_directory(final_root, uid, gid, "fixture_root")
+        require_no_extended_acl(root_fd, "fixture_root")
+        require_private_directory(final_fd, uid, gid, "consumption_directory")
+        require_no_extended_acl(child_fd, "consumption_directory")
+
+        terminal_root = os.fstat(root_fd)
+        terminal_root_visible = os.stat(fixed_path, follow_symlinks=False)
+        terminal_fd = os.fstat(child_fd)
+        terminal_visible = os.stat(
+            CONSUMPTION_LEAF, dir_fd=root_fd, follow_symlinks=False
+        )
+        if not (
+            same_inode(final_root, terminal_root)
+            and same_inode(terminal_root, terminal_root_visible)
+        ):
+            hold("fixture_root_final_generation_changed")
+        if not (
+            same_inode(final_fd, terminal_fd)
+            and same_inode(terminal_fd, terminal_visible)
+        ):
+            hold("consumption_directory_final_generation_changed")
+        final_root = terminal_root
+        final_fd = terminal_fd
 
         # No descriptor escapes. This is fixture custody evidence only,
         # never a protected Xiphos store observation or writer admission.
