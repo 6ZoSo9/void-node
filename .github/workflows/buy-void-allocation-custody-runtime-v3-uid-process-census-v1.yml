@@ -46,11 +46,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py)" = \
-            "52420cd888474558b1498454b30004779783a51f"
+            "1643090f9d96a298809998c5648b6ffdc92bf48b"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py)" = \
-            "8b3f575e74a90da08c0cdc8f99a70e6030ddecbd"
+            "34251a3e3103f7e6572ef4e2a80d4623c6bf8011"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-uid-process-census-v1.md)" = \
-            "611fbef70b2071a624abd28171acbc37a7b057ed"
+            "95f882424015dd0ebe9dea0f0895db14a786473f"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs)" = \
@@ -81,6 +81,9 @@ jobs:
             'four_uid_slots_classified=true' \
             'thread_uid_slots_classified=true' \
             'proc_visibility_verified_before_empty_candidate=true' \
+            'proc_visibility_revalidated_after_two_pass_census=true' \
+            'host_pid_namespace_revalidated_after_two_pass_census=true' \
+            'python_no_bytecode_mode_required=true' \
             'hidepid_restricted_proc_holds=true' \
             'host_pid_namespace_external_lease_required=true' \
             'private_pid_namespace_rejected=true' \
@@ -121,6 +124,11 @@ jobs:
             'four_uid_slots_classified=true' \
             'thread_uid_slots_classified=true' \
             'proc_visibility_verified_before_empty_candidate=true' \
+            'proc_visibility_revalidated_after_two_pass_census=true' \
+            'host_pid_namespace_revalidated_after_two_pass_census=true' \
+            'terminal_hidepid_remount_rejected=true' \
+            'python_no_bytecode_mode_required=true' \
+            'without_dash_b_bootstrap_hold=true' \
             'hidepid_restricted_proc_holds=true' \
             'host_pid_namespace_external_lease_required=true' \
             'private_pid_namespace_rejected=true' \
