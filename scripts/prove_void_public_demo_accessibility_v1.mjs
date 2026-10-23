@@ -20,6 +20,15 @@ function requireResultPayloadOutsideLiveAncestors(html) {
   const resultIndex = html.indexOf(resultMarkup);
   assert.notEqual(resultIndex, -1, "full result payload element must exist");
 
+  const prefix = html.slice(0, resultIndex);
+  const liveAttributeCount =
+    (prefix.match(/\s(?:role|aria-live)\s*=/giu) ?? []).length;
+  assert.equal(
+    liveAttributeCount,
+    6,
+    "full result payload must not be nested inside a live region",
+  );
+
   assert.equal(
     countExact(html, "<body>"),
     1,
@@ -30,6 +39,14 @@ function requireResultPayloadOutsideLiveAncestors(html) {
     1,
     "result source contract requires the exact wrap ancestor",
   );
+
+  for (const tag of allowedLiveRegionTags) {
+    assert.equal(
+      countExact(prefix, tag),
+      1,
+      "only the three reviewed bounded status regions may precede resultBox",
+    );
+  }
 
   const resultSection = [
     '    <section class="card mt">',
@@ -43,22 +60,6 @@ function requireResultPayloadOutsideLiveAncestors(html) {
     1,
     "full result payload must remain in the exact reviewed result section",
   );
-
-  const prefix = html.slice(0, resultIndex);
-  const liveAttributeCount =
-    (prefix.match(/\s(?:role|aria-live)\s*=/giu) ?? []).length;
-  assert.equal(
-    liveAttributeCount,
-    6,
-    "full result payload must not be nested inside a live region",
-  );
-  for (const tag of allowedLiveRegionTags) {
-    assert.equal(
-      countExact(prefix, tag),
-      1,
-      "only the three reviewed bounded status regions may precede resultBox",
-    );
-  }
 
   assert.doesNotMatch(
     prefix,
