@@ -1,0 +1,112 @@
+name: Apollyon protected-store Xiphos machine identity binding V1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/apollyon-protected-store-machine-identity-binding-v1.json"
+      - "scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py"
+      - "docs/security/apollyon-protected-store-machine-identity-binding-v1.md"
+      - ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml"
+      - "ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json"
+      - "scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py"
+      - "docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md"
+      - ".github/workflows/apollyon-protected-store-first-host-evidence-plan-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact parent and four-file source-only scope
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          PARENT=4bb11c7469b47b25810390b762709bd93a7184e3
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s
+' \
+            '.github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml' \
+            'docs/security/apollyon-protected-store-machine-identity-binding-v1.md' \
+            'ops/security/apollyon-protected-store-machine-identity-binding-v1.json' \
+            'scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py' \
+            | LC_ALL=C sort > "$expected"
+          git diff --no-renames --name-only "$PARENT" HEAD -- | LC_ALL=C sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 45ab6a6cbfea05d61617de294d18ed7dec07fae9
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-machine-identity-binding-v1.md)" = 24cc4b6ce92931d9be9d39a46afb5a1c76e267fb
+
+          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json)" = 110c8a6bb4f8ec89514cfd9ef4cdc3218fa2a4ca
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py)" = 533b8357caea9c77c5c73aba95233712824b65d9
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md)" = 4b055837dd4e150fb2573947ff11f0b2f455622e
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-protected-store-first-host-evidence-plan-v1.yml)" = f533256a7b2b2a75b1f9aa8298ac43692b5af9d7
+
+          git diff --check "$PARENT" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile proof without bytecode writes
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          name = "scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py"
+          compile(Path(name).read_text("utf-8"), name, "exec", dont_inherit=True)
+          print("machine_identity_binding_python_syntax_green=true")
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove exact Xiphos identity binding and negative authority
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/apollyon-xiphos-machine-id-binding.txt"
+          python3 -I -B scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py --self-test | tee "$out"
+
+          for marker in \
+            'VOID_APOLLYON_PROTECTED_STORE_MACHINE_IDENTITY_BINDING_V1_PROOF_GREEN' \
+            'binding_id=voidapollyonhostidbind1_84b546de51ba3f22cd1f5775eb0230d5683e53254d3d3426b9a97fc2d3037f1d' \
+            'parent_pr=3749' \
+            'parent_head=4bb11c7469b47b25810390b762709bd93a7184e3' \
+            'parent_blob_count=4' \
+            'binding_contract_count=21' \
+            'negative_authority_count=15' \
+            'rejected_adversaries=56' \
+            'target_host=Xiphos' \
+            'machine_identity_kind=etc_machine_id_sha256' \
+            'expected_machine_id_sha256=543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057' \
+            'raw_machine_id_recorded=false' \
+            'raw_machine_id_printed=false' \
+            'machine_identity_bound=true' \
+            'host_pass_performed=false' \
+            'protected_store_origin_proven=false' \
+            'writer_invocation_authorized=false' \
+            'training_execution_authorized=false' \
+            'credential_access=false' \
+            'transaction=false' \
+            'funds_movement=false' \
+            'next_gate=SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          python3 -I -B scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py --run > "$RUNNER_TEMP/run.txt"
+          grep -Fx 'VOID_APOLLYON_PROTECTED_STORE_MACHINE_IDENTITY_BINDING_V1_PROOF_GREEN' "$RUNNER_TEMP/run.txt"
+          grep -Fx 'machine_identity_bound=true' "$RUNNER_TEMP/run.txt"
+          grep -Fx 'host_pass_performed=false' "$RUNNER_TEMP/run.txt"
+          grep -Fx 'training_execution_authorized=false' "$RUNNER_TEMP/run.txt"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/run.txt"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
