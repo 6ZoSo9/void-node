@@ -47,9 +47,12 @@ The plan records only:
 These remain unbound:
 
 ```text
+remote_endpoint=null
 remote_user=null
 host_key_sha256=null
+known_hosts_path=null
 known_hosts_sha256=null
+client_identity_file_path=null
 client_public_key_sha256=null
 transport_identity_bound=false
 host_key_fingerprint_independently_authenticated=false
@@ -98,16 +101,39 @@ authenticated transport identities and enforce the existing repository pattern:
 - 4-second connect timeout;
 - 30-second operation timeout.
 
-The dedicated known-hosts file, host-key fingerprint, fixed remote account and
-client public-key identity must all be source-bound before execution authority
-can become true.
+The dedicated known-hosts file, host-key fingerprint, exact numeric remote
+endpoint, fixed remote account, exact client identity-file path and client
+public-key identity must all be source-bound before execution authority can
+become true.
+
+The future binding must be at least as strict as the repository's reviewed
+custody SSH adapter pattern:
+
+- destination uses one exact source-bound numeric endpoint; the string
+  `xiphos` is only the host-key alias, not a DNS trust decision;
+- the client invokes exactly one reviewed `-i <identity-file>` path and binds
+  its parent custody and mode 0600; implicit/default identity-file selection is
+  not accepted;
+- the dedicated known-hosts path is source-bound, its parent is root-owned and
+  non-writable, and the file is root-owned/read-only;
+- that file contains exactly one canonical `xiphos ssh-ed25519 <key>` entry
+  whose decoded key fingerprint equals the independently authenticated host
+  key;
+- `PreferredAuthentications=publickey` is explicit, client certificates are
+  forbidden, and `VerifyHostKeyDNS=no` is explicit;
+- the local SSH environment is minimal and `HOME` is fixed to the reviewed
+  identity-file parent so ambient user configuration cannot add identities or
+  behavior.
 
 ## Required challenge-bound measurement
 
 The future attestation uses a **32-byte client-generated CSPRNG challenge**.
 
 The remote command must be exact reviewed bytes; neither command nor remote
-path may be caller-selected. It may read only the fixed
+path may be caller-selected. The remote measurement runtime/interpreter and
+absolute execution path must themselves be reviewed/bound, and the command
+must not depend on caller-controlled `PATH`, shell startup state or an
+ambient interpreter/module search path. It may read only the fixed
 `/etc/machine-id` identity required by this attestation and must:
 
 1. require exact lowercase 32-hex machine-ID text after allowed outer
@@ -117,7 +143,8 @@ path may be caller-selected. It may read only the fixed
 4. return only its SHA-256;
 5. bind the client challenge by digest;
 6. emit one canonical JSON frame plus EOF;
-7. stay within 256 request bytes and 4096 response bytes.
+7. stay within 256 request bytes and 4096 response bytes;
+8. return zero exit status with no signal and an empty SSH stderr channel.
 
 The client must reject stale/replayed challenge material and require the
 returned machine-ID SHA-256 to match the already observed digest. That match is
@@ -158,17 +185,17 @@ The proof:
 - requires all transport identities to remain null/unbound;
 - requires all authority fields false;
 - validates content-addressed plan ID
-  `voidapollyonxiphosattestplan1_ed85e5fb63cc2a3785609bb4a1105faf452750c66c06c3fb6f4286d639ea6f37`;
-- executes **77 semantic adversaries**; and
+  `voidapollyonxiphosattestplan1_7de3728e503515db7f15a3ac4824ed3012af342f89a860baab776c42f1cedffc`;
+- executes **100 semantic adversaries**; and
 - performs no network or host access.
 
 Plan blob: `77acc1248b9c13a570f3840ff85846dcba00d2f7`.
 
-Proof blob: `0b448043c123c3a4833cef3b075e896b463f8d47`.
+Proof blob: `e3cdd5754d82c2fc1d3a704829b7997b62e49b62`.
 
 ## Next gate
 
-`INDEPENDENTLY_AUTHENTICATE_AND_SOURCE_BIND_XIPHOS_ED25519_HOST_KEY_KNOWN_HOSTS_AND_CLIENT_KEY_THEN_SEPARATELY_AUTHORIZE_ATTESTATION_EXECUTION`
+`INDEPENDENTLY_AUTHENTICATE_AND_SOURCE_BIND_XIPHOS_ED25519_HOST_KEY_KNOWN_HOSTS_CLIENT_IDENTITY_AND_ENDPOINT_THEN_SEPARATELY_AUTHORIZE_ATTESTATION_EXECUTION`
 
 Only after that binding is reviewed may an attestation execution be considered,
 and execution itself remains a separate explicit operator-authorization gate.
