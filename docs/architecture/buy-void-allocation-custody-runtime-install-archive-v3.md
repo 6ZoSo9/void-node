@@ -131,11 +131,14 @@ The output parent is traversed and retained through descriptor-relative
 `O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK` opens. The same retained descriptor is used
 for the write-failure cleanup path, so renaming or replacing the caller-visible
 parent during the write cannot strand a partial artifact in the original
-directory. The caller-visible parent generation is revalidated before success;
-a mismatch HOLDS and removes the created inode through the retained descriptor.
-Synthetic tests force both a partial write and an output-parent pathname rebind
-and require no discoverable archive in either the replacement or moved original
-directory. An existing final path is never overwritten.
+directory. On successful publication, the archive file is fsynced first, the
+retained parent directory is then fsynced to make the new directory entry
+durable, and the retained/caller-visible parent generation is revalidated again
+before returning success. Any mismatch HOLDS and removes the created inode
+through the retained descriptor. Synthetic tests require both regular-file and
+directory fsync on success, force a partial write and an output-parent pathname
+rebind, and require no discoverable archive in either the replacement or moved
+original directory. An existing final path is never overwritten.
 
 No systemd action, target replacement, permission mutation, request/customer
 history read, custody reserve/recover, key/wallet access, RPC, transaction or
