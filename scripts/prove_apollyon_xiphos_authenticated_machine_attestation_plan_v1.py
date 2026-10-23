@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json"
 MARKER = "VOID_APOLLYON_XIPHOS_AUTHENTICATED_MACHINE_ATTESTATION_PLAN_V1_PROOF"
 PARENT_HEAD = "d7c3145dd202a4a7c3914732c8a8920c33a904ef"
-PLAN_ID = "voidapollyonxiphosattestplan1_94bd8442fd1904563e9273bc4de6e38417f6a2146978af4a8660fd0f29eb819d"
+PLAN_ID = "voidapollyonxiphosattestplan1_b7d9c1600cfe03fd41d4a36f801f82d49d6da72f3ea378c291a12af8bd581d60"
 OBSERVED_DIGEST = "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057"
 
 PINS = {
@@ -61,6 +61,11 @@ TRANSPORT_REQUIREMENTS = {
     "exact_client_identity_file_source_bound_required": True,
     "client_identity_parent_custody_required": True,
     "client_identity_file_mode_0600_required": True,
+    "client_identity_private_key_ed25519_required": True,
+    "client_identity_public_derivation_method_source_bound_required": True,
+    "client_identity_derived_public_key_matches_bound_digest_required": True,
+    "client_identity_file_generation_stable_through_ssh_required": True,
+    "client_identity_file_owner_mode_nlink_stable_through_ssh_required": True,
     "dedicated_user_known_hosts_required": True,
     "dedicated_known_hosts_exact_path_source_bound_required": True,
     "known_hosts_single_canonical_entry_required": True,
@@ -142,6 +147,7 @@ ATTESTATION_REQUIREMENTS = {
     "host_key_digest_bound_into_receipt_required": True,
     "known_hosts_digest_bound_into_receipt_required": True,
     "client_public_key_digest_bound_into_receipt_required": True,
+    "client_identity_derived_public_key_digest_bound_into_receipt_required": True,
     "challenge_digest_bound_into_receipt_required": True,
 }
 
@@ -425,7 +431,7 @@ def main() -> None:
     plan = validate(parse_json(read_regular(PLAN, 256 * 1024)))
     verify_parent_blobs()
     rejected = adversaries(plan)
-    need(rejected == 127, "semantic_adversary_count_invalid")
+    need(rejected == 133, "semantic_adversary_count_invalid")
     print(MARKER + "_GREEN")
     print("plan_id=" + PLAN_ID)
     print("source_only=true")
@@ -434,6 +440,11 @@ def main() -> None:
     print("host_key_fingerprint_independently_authenticated=false")
     print("exact_numeric_remote_endpoint_source_bound_required=true")
     print("exact_client_identity_file_source_bound_required=true")
+    print("client_identity_private_key_ed25519_required=true")
+    print("client_identity_public_derivation_method_source_bound_required=true")
+    print("client_identity_derived_public_key_matches_bound_digest_required=true")
+    print("client_identity_file_generation_stable_through_ssh_required=true")
+    print("client_identity_file_owner_mode_nlink_stable_through_ssh_required=true")
     print("known_hosts_single_canonical_entry_required=true")
     print("known_hosts_key_matches_independently_authenticated_host_key_required=true")
     print("host_key_independent_authentication_artifact_source_bound_required=true")
@@ -469,6 +480,7 @@ def main() -> None:
     print("strict_host_key_checking_required=true")
     print("raw_machine_id_response_forbidden=true")
     print("raw_machine_id_never_transmitted_on_any_channel_required=true")
+    print("client_identity_derived_public_key_digest_bound_into_receipt_required=true")
     print("canonical_single_request_frame_required=true")
     print("request_eof_required=true")
     print("request_closed_schema_and_canonical_json_required=true")
