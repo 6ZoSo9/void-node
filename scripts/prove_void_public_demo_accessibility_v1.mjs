@@ -37,7 +37,8 @@ const recognizedRoles = new Set([
   "doc-endnotes", "doc-epigraph", "doc-epilogue", "doc-errata",
   "doc-example", "doc-footnote", "doc-foreword", "doc-glossary",
   "doc-glossref", "doc-index", "doc-introduction", "doc-noteref",
-  "doc-notice", "doc-pagebreak", "doc-pagelist", "doc-part", "doc-preface",
+  "doc-notice", "doc-pagebreak", "doc-pagefooter", "doc-pageheader",
+  "doc-pagelist", "doc-part", "doc-preface",
   "doc-prologue", "doc-pullquote", "doc-qna", "doc-subtitle", "doc-tip",
   "doc-toc",
 
@@ -48,7 +49,7 @@ const recognizedRoles = new Set([
 function htmlAttributeValue(tag, name) {
   assert.ok(name === "role" || name === "aria-live");
   const pattern = new RegExp(
-    "\\b" + name +
+    "(?:^|[\\t\\n\\f\\r ])" + name +
       "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s\"'<>]+))",
     "iu",
   );
@@ -197,6 +198,34 @@ requireDemoAccessibility(
   source.replace(
     '<section class="card mt">\n      <h2>Latest Result</h2>',
     '<section class="card mt" role="graphics-document status">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" role="doc-pageheader status">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" role="doc-pagefooter status">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" data-role="status">\n      <h2>Latest Result</h2>',
+  ),
+);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" data-aria-live="polite">\n      <h2>Latest Result</h2>',
   ),
 );
 
