@@ -186,6 +186,8 @@ It still reports:
 all_process_reference_absence_proven=false
 fd_table_stability_proven=false
 mapping_set_stability_proven=false
+mount_namespace_reference_scan_performed=false
+mount_namespace_reference_absence_proven=false
 task_inventory_generation_stability_required=true
 per_thread_files_fs_reference_scan_required=true
 host_pid_namespace_external_lease_required=true
@@ -208,6 +210,13 @@ live_at_use_reverification_required=true
 python_runtime_closure_verified=false
 replacement_apply_authorized=false
 ```
+
+A further reference dimension is deliberately not claimed here: a private mount
+namespace can retain a bind mount rooted at the legacy target generation without
+a matching fd/cwd/root/exe/map at the sampling instant. This generation does not
+scan those mount objects and therefore reports
+`mount_namespace_reference_scan_performed=false` and
+`mount_namespace_reference_absence_proven=false`.
 
 The reason is fundamental: enumerating procfs does not freeze another live
 process's FD table or mappings. A separately reviewed replacement executor must
@@ -260,6 +269,8 @@ all_process_target_reference_absent_observed=false
 all_process_reference_absence_proven=false
 fd_table_stability_proven=false
 mapping_set_stability_proven=false
+mount_namespace_reference_scan_performed=false
+mount_namespace_reference_absence_proven=false
 task_inventory_generation_stability_required=true
 per_thread_files_fs_reference_scan_required=true
 zombie_leader_live_worker_rejected=true
