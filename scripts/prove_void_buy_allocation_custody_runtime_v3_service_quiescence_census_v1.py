@@ -4,6 +4,8 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 from pathlib import Path
+import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = (
@@ -11,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "b47c9c0d97d29754d2f259d275e4cad2aa1c51c7"
+EXPECTED_SOURCE_BLOB = "90358ef1df3ecfa3daeee39452ffd025e9a8d86e"
 
 def git_blob(raw: bytes) -> str:
     prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
@@ -99,6 +101,20 @@ loaded_result = module.classify(loaded, absent_runtime, absent_socket)
 assert loaded_result["service_inactive_observed"] is True
 assert loaded_result["service_quiescence_candidate"] is True
 assert loaded_result["service_quiescence_proven"] is False
+assert loaded_result["load_state_safe_observed"] is True
+
+for unsafe_load_state in ("error", "bad-setting", "future-unknown"):
+    unsafe = dict(loaded)
+    unsafe["LoadState"] = unsafe_load_state
+    try:
+        module.classify(unsafe, absent_runtime, absent_socket)
+    except module.CensusHold as exc:
+        assert (
+            "systemctl_load_state_unsafe:" + unsafe_load_state
+            in str(exc)
+        ), (unsafe_load_state, str(exc))
+    else:
+        raise AssertionError("unsafe_load_state_accepted:" + unsafe_load_state)
 
 enabled = dict(loaded)
 enabled["UnitFileState"] = "enabled"
@@ -153,6 +169,28 @@ socket_result = module.classify(quiet, absent_runtime, socket_present)
 assert socket_result["service_quiescence_candidate"] is False
 
 module.self_test()
+
+# The production write-free claim requires -B before normal module imports.
+# Run the exact entrypoint with isolation but intentionally omit -B; bootstrap
+# must HOLD before the ordinary imports/census path.
+without_b = subprocess.run(
+    [sys.executable, "-I", str(TARGET), "--self-test"],
+    cwd="/",
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+    check=False,
+    timeout=10,
+    env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+)
+assert without_b.returncode == 2, without_b
+assert (
+    "reason=python_isolated_unoptimized_nobytecode_mode_required"
+    in without_b.stdout
+), without_b.stdout
+assert "production_filesystem_write=false" in without_b.stdout
+assert "self_test_temporary_filesystem_write=false" in without_b.stdout
 
 source = TARGET.read_text(encoding="utf-8")
 assert 'print("read_only=true")' not in source
@@ -231,6 +269,9 @@ print("systemctl_show_only=true")
 print("systemctl_mutating_verbs_absent=true")
 print("exact_source_blob_asserted=true")
 print("inactive_service_candidate_classified=true")
+print("unsafe_systemd_load_states_rejected=true")
+print("python_no_bytecode_mode_required=true")
+print("without_dash_b_bootstrap_hold=true")
 print("enabled_unit_rejected=true")
 print("pending_daemon_reload_rejected=true")
 print("lingering_runtime_directory_rejected=true")
