@@ -58,6 +58,7 @@ MAX_PIDS = 32768
 MAX_FDS_PER_PROCESS = 65536
 MAX_STAT_BYTES = 4096
 MAX_MAPS_BYTES = 8 * 1024 * 1024
+MAX_MOUNTINFO_BYTES = 4 * 1024 * 1024
 MAX_SCAN_ATTEMPTS = 3
 
 
@@ -712,13 +713,149 @@ def _assert_unprivileged_execution() -> int:
     return uid
 
 
+def parse_dev_ino_lease(value: str) -> tuple[int, int]:
+    if not isinstance(value, str) or ":" not in value:
+        hold("host_pid_namespace_lease_invalid")
+    dev_text, ino_text = value.split(":", 1)
+    if (
+        not dev_text.isascii()
+        or not ino_text.isascii()
+        or not dev_text.isdigit()
+        or not ino_text.isdigit()
+    ):
+        hold("host_pid_namespace_lease_invalid")
+    dev = int(dev_text, 10)
+    ino = int(ino_text, 10)
+    if dev <= 0 or ino <= 0:
+        hold("host_pid_namespace_lease_invalid")
+    return dev, ino
+
+
+def verify_namespace_lease(
+    self_ns: os.stat_result,
+    init_ns: os.stat_result,
+    expected: tuple[int, int],
+) -> tuple[int, int]:
+    observed = (self_ns.st_dev, self_ns.st_ino)
+    init_observed = (init_ns.st_dev, init_ns.st_ino)
+    if observed != init_observed:
+        hold("procfs_pid_namespace_not_pid1")
+    if observed != expected:
+        hold("host_pid_namespace_lease_mismatch")
+    return observed
+
+
+def parse_proc_mountinfo_host_view(raw: bytes) -> dict[str, Any]:
+    try:
+        text = raw.decode("ascii", "strict")
+    except UnicodeDecodeError as exc:
+        raise CensusHold(
+            "custody_runtime_v3_process_reference_proc_mountinfo_encoding_invalid"
+        ) from exc
+    matches: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        parts = line.split()
+        if len(parts) < 10 or parts[4] != "/proc":
+            continue
+        try:
+            sep = parts.index("-")
+        except ValueError:
+            hold("proc_mountinfo_malformed")
+        if sep < 6 or len(parts) <= sep + 3:
+            hold("proc_mountinfo_malformed")
+        matches.append({
+            "root": parts[3],
+            "mount_point": parts[4],
+            "mount_options": parts[5].split(","),
+            "fs_type": parts[sep + 1],
+            "super_options": parts[sep + 3].split(","),
+        })
+    if len(matches) != 1:
+        hold("proc_mountinfo_procfs_cardinality_invalid")
+    row = matches[0]
+    if (
+        row["root"] != "/"
+        or row["mount_point"] != "/proc"
+        or row["fs_type"] != "proc"
+    ):
+        hold("proc_mountinfo_procfs_identity_invalid")
+    options = row["mount_options"] + row["super_options"]
+    if any(
+        option == "hidepid" or option.startswith("hidepid=")
+        for option in options
+    ):
+        hold("proc_mountinfo_hidepid_forbidden")
+    return row
+
+
+def verify_host_procfs_view(expected_lease_text: str) -> dict[str, Any]:
+    if PROC != Path("/proc") or Path(os.path.realpath(PROC)) != PROC:
+        hold("proc_root_not_canonical")
+    try:
+        proc_st = os.lstat(PROC)
+    except OSError as exc:
+        raise CensusHold(
+            "custody_runtime_v3_process_reference_proc_root_unreadable"
+        ) from exc
+    if (
+        not stat.S_ISDIR(proc_st.st_mode)
+        or stat.S_ISLNK(proc_st.st_mode)
+        or proc_st.st_uid != 0
+    ):
+        hold("proc_root_identity_invalid")
+
+    expected = parse_dev_ino_lease(expected_lease_text)
+    try:
+        self_ns = os.stat(PROC / "self/ns/pid")
+        init_ns = os.stat(PROC / "1/ns/pid")
+    except OSError as exc:
+        raise CensusHold(
+            "custody_runtime_v3_process_reference_host_pid_namespace_unreadable"
+        ) from exc
+    observed = verify_namespace_lease(self_ns, init_ns, expected)
+
+    raw_self_stat = _read_bounded_fd_path(
+        PROC / "self/stat",
+        MAX_STAT_BYTES,
+        allow_zero_size=True,
+    )
+    first_space = raw_self_stat.find(b" ")
+    if first_space < 1:
+        hold("proc_self_stat_shape_invalid")
+    pid_text = raw_self_stat[:first_space]
+    if not pid_text.isascii() or not pid_text.isdigit():
+        hold("proc_self_stat_pid_invalid")
+    if int(pid_text, 10) != os.getpid():
+        hold("proc_self_pid_namespace_mismatch")
+
+    mountinfo = _read_bounded_fd_path(
+        PROC / "self/mountinfo",
+        MAX_MOUNTINFO_BYTES,
+        allow_zero_size=True,
+    )
+    mount = parse_proc_mountinfo_host_view(mountinfo)
+    return {
+        "host_pid_namespace_external_lease_required": True,
+        "host_pid_namespace_external_lease_matched": True,
+        "host_pid_namespace_dev": str(observed[0]),
+        "host_pid_namespace_ino": str(observed[1]),
+        "pid1_namespace_matches_self": True,
+        "procfs_root": mount["root"],
+        "procfs_mount_point": mount["mount_point"],
+        "procfs_hidepid_absent": True,
+        "proc_self_pid_matches_runtime": True,
+    }
+
+
 def current_uid_census(
+    host_pid_namespace_lease: str,
     target_path: Path = TARGET,
 ) -> dict[str, Any]:
     uid = _assert_unprivileged_execution()
 
     attempts: list[dict[str, Any]] = []
     for attempt in range(1, MAX_SCAN_ATTEMPTS + 1):
+        host_view_before = verify_host_procfs_view(host_pid_namespace_lease)
         target_before = target_identity_set(target_path)
         start_pids, vanished = _same_uid_pids(uid)
         rows = [
@@ -727,6 +864,9 @@ def current_uid_census(
         ]
         end_pids, vanished_end = _same_uid_pids(uid)
         target_after = target_identity_set(target_path)
+        host_view_after = verify_host_procfs_view(host_pid_namespace_lease)
+        if host_view_before != host_view_after:
+            hold("host_procfs_view_changed_during_attempt")
         target_snapshot_stable = (
             target_before["snapshot_id"] == target_after["snapshot_id"]
         )
@@ -747,6 +887,11 @@ def current_uid_census(
             "target_entry_count": target_before["entry_count"],
             "target_identity_count_before": target_before["identity_count"],
             "target_identity_count_after": target_after["identity_count"],
+            "host_pid_namespace_dev": host_view_before["host_pid_namespace_dev"],
+            "host_pid_namespace_ino": host_view_before["host_pid_namespace_ino"],
+            "host_pid_namespace_external_lease_matched": True,
+            "pid1_namespace_matches_self": True,
+            "procfs_hidepid_absent": True,
             **result,
         })
         if result["referenced_process_count"] > 0:
@@ -776,6 +921,11 @@ def current_uid_census(
         "all_process_reference_absence_proven": False,
         "privileged_all_process_scan": False,
         "custody_principal_process_scan_performed": False,
+        "host_pid_namespace_external_lease_required": True,
+        "host_pid_namespace_external_lease_matched": True,
+        "host_procfs_visibility_required": True,
+        "pid1_namespace_matches_self": True,
+        "procfs_hidepid_absent": True,
         "target_snapshot_stable_required": True,
         "fd_table_stability_proven": False,
         "mapping_set_stability_proven": False,
@@ -783,10 +933,10 @@ def current_uid_census(
     }
 
 
-def census() -> dict[str, Any]:
+def census(host_pid_namespace_lease: str) -> dict[str, Any]:
     _assert_unprivileged_execution()
     lock = verify_source_inputs()
-    process = current_uid_census(TARGET)
+    process = current_uid_census(host_pid_namespace_lease, TARGET)
     target_public = {
         "path": str(TARGET),
         "root_dev": process["selected_target_root_dev"],
@@ -815,6 +965,12 @@ def census() -> dict[str, Any]:
         "read_only": True,
         "production_filesystem_write": False,
         "root_execution_forbidden": True,
+        "host_pid_namespace_external_lease_required": True,
+        "host_pid_namespace_external_lease_matched":
+            process["host_pid_namespace_external_lease_matched"],
+        "host_procfs_visibility_required": True,
+        "pid1_namespace_matches_self": process["pid1_namespace_matches_self"],
+        "procfs_hidepid_absent": process["procfs_hidepid_absent"],
         "target_snapshot_stable_required": True,
         "fd_table_stability_proven": False,
         "mapping_set_stability_proven": False,
@@ -921,6 +1077,10 @@ def self_test() -> None:
     print("receipt_target_bound_to_selected_attempt=true")
     print("legacy_tree_entry_limit=32768")
     print("python_no_bytecode_mode_required=true")
+    print("host_pid_namespace_external_lease_required=true")
+    print("host_pid_namespace_mismatch_fail_closed=true")
+    print("pid1_namespace_match_required=true")
+    print("canonical_procfs_no_hidepid_required=true")
     print("root_execution_forbidden=true")
     print("current_uid_target_reference_absent_candidate_tested=true")
     print("all_process_reference_absence_proven=false")
@@ -943,12 +1103,21 @@ def main(argv: list[str]) -> int:
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--self-test", action="store_true")
     group.add_argument("--census", action="store_true")
+    parser.add_argument("--host-pid-namespace-lease")
     args = parser.parse_args(argv)
     if args.self_test:
+        if args.host_pid_namespace_lease is not None:
+            hold("host_pid_namespace_lease_not_allowed_in_self_test")
         self_test()
         return 0
     if args.census:
-        print(json.dumps(census(), sort_keys=True, separators=(",", ":")))
+        if args.host_pid_namespace_lease is None:
+            hold("host_pid_namespace_lease_required")
+        print(json.dumps(
+            census(args.host_pid_namespace_lease),
+            sort_keys=True,
+            separators=(",", ":"),
+        ))
         return 0
     return 2
 
@@ -963,6 +1132,8 @@ if __name__ == "__main__":
         print("read_only=true")
         print("production_filesystem_write=false")
         print("root_execution_forbidden=true")
+        print("host_pid_namespace_external_lease_required=true")
+        print("host_pid_namespace_external_lease_matched=false")
         print("all_process_reference_absence_proven=false")
         print("target_snapshot_stable_required=true")
         print("fd_table_stability_proven=false")
