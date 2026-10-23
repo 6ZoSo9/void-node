@@ -11,7 +11,7 @@ const voidElements = new Set([
 ]);
 
 const liveRoles = new Set([
-  "status", "alert", "log", "marquee", "timer", "progressbar",
+  "status", "alert", "log", "marquee", "timer",
 ]);
 
 const recognizedRoles = new Set([
@@ -46,15 +46,144 @@ const recognizedRoles = new Set([
   "graphics-document", "graphics-object", "graphics-symbol",
 ]);
 
+const namedCharacterReferences = new Map([
+  ["NewLine", "\n"],
+  ["Tab", "\t"],
+  ["amp", "&"],
+  ["apos", "'"],
+  ["gt", ">"],
+  ["lt", "<"],
+  ["quot", '"'],
+]);
+
+function decodeHtmlCharacterReferences(value) {
+  return value.replace(
+    /&#([0-9]+);?|&#[xX]([0-9a-fA-F]+);?|&([A-Za-z][A-Za-z0-9]+);/gu,
+    (reference, decimal, hexadecimal, named) => {
+      if (named !== undefined) {
+        return namedCharacterReferences.get(named) ?? reference;
+      }
+      const codePoint = Number.parseInt(
+        decimal ?? hexadecimal,
+        decimal === undefined ? 16 : 10,
+      );
+      if (
+        codePoint === 0 ||
+        codePoint > 0x10ffff ||
+        (codePoint >= 0xd800 && codePoint <= 0xdfff)
+      ) {
+        return "\ufffd";
+      }
+      return String.fromCodePoint(codePoint);
+    },
+  );
+}
+
+function isAsciiWhitespace(character) {
+  return character === " " || character === "\t" || character === "\n" ||
+    character === "\f" || character === "\r";
+}
+
+function parseStartTagAttributes(tag) {
+  const attributes = new Map();
+  let index = 1;
+  while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+    tag[index] !== "/" && tag[index] !== ">") {
+    index += 1;
+  }
+
+  while (index < tag.length) {
+    while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+    if (tag[index] === ">" || tag[index] === "/" || index >= tag.length) break;
+
+    const nameStart = index;
+    while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+      tag[index] !== "=" && tag[index] !== "/" && tag[index] !== ">") {
+      index += 1;
+    }
+    const name = tag.slice(nameStart, index).toLowerCase();
+    while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+
+    let value = "";
+    if (tag[index] === "=") {
+      index += 1;
+      while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+      const quote = tag[index] === '"' || tag[index] === "'" ? tag[index] : null;
+      if (quote !== null) {
+        index += 1;
+        const valueStart = index;
+        while (index < tag.length && tag[index] !== quote) index += 1;
+        value = tag.slice(valueStart, index);
+        if (tag[index] === quote) index += 1;
+      } else {
+        const valueStart = index;
+        while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+          tag[index] !== ">") {
+          index += 1;
+        }
+        value = tag.slice(valueStart, index);
+      }
+    }
+
+    if (name && !attributes.has(name)) {
+      attributes.set(name, decodeHtmlCharacterReferences(value));
+    }
+  }
+  return attributes;
+}
+
 function htmlAttributeValue(tag, name) {
   assert.ok(name === "role" || name === "aria-live");
-  const pattern = new RegExp(
-    "(?:^|[\\t\\n\\f\\r ])" + name +
-      "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s\"'<>]+))",
-    "iu",
-  );
-  const match = tag.match(pattern);
-  return match ? (match[1] ?? match[2] ?? match[3] ?? "") : null;
+  return parseStartTagAttributes(tag).get(name) ?? null;
+}
+
+function htmlTagsBefore(html, limit) {
+  const tags = [];
+  let index = 0;
+  while (index < limit) {
+    const start = html.indexOf("<", index);
+    if (start === -1 || start >= limit) break;
+    if (html.startsWith("<!--", start)) {
+      const commentEnd = html.indexOf("-->", start + 4);
+      index = commentEnd === -1 ? limit : commentEnd + 3;
+      continue;
+    }
+
+    let cursor = start + 1;
+    const closing = html[cursor] === "/";
+    if (closing) cursor += 1;
+    const nameStart = cursor;
+    while (cursor < html.length && /[a-z0-9:-]/iu.test(html[cursor])) cursor += 1;
+    if (cursor === nameStart) {
+      index = start + 1;
+      continue;
+    }
+    const name = html.slice(nameStart, cursor).toLowerCase();
+
+    let quote = null;
+    while (cursor < html.length) {
+      const character = html[cursor];
+      if (quote !== null) {
+        if (character === quote) quote = null;
+      } else if (character === '"' || character === "'") {
+        quote = character;
+      } else if (character === ">") {
+        break;
+      }
+      cursor += 1;
+    }
+    if (cursor >= html.length || cursor >= limit) break;
+
+    const raw = html.slice(start, cursor + 1);
+    tags.push({
+      closing,
+      name,
+      raw,
+      selfClosing: /\/\s*>$/u.test(raw),
+    });
+    index = cursor + 1;
+  }
+  return tags;
 }
 
 function tagCreatesLiveRegion(tag) {
@@ -82,22 +211,18 @@ function requireResultPayloadOutsideLiveAncestors(html) {
   assert.notEqual(resultIndex, -1, "full result payload element must exist");
 
   const stack = [];
-  const tagPattern = /<\/?([a-z][a-z0-9:-]*)(?:\s[^<>]*?)?>/giu;
-  for (const match of html.matchAll(tagPattern)) {
-    if (match.index >= resultIndex) break;
-    const tag = match[0];
-    const name = match[1].toLowerCase();
-    if (tag.startsWith("</")) {
+  for (const tag of htmlTagsBefore(html, resultIndex)) {
+    if (tag.closing) {
       for (let index = stack.length - 1; index >= 0; index -= 1) {
-        if (stack[index].name === name) {
+        if (stack[index].name === tag.name) {
           stack.splice(index, 1);
           break;
         }
       }
       continue;
     }
-    if (tag.endsWith("/>") || voidElements.has(name)) continue;
-    stack.push({ name, tag });
+    if (tag.selfClosing || voidElements.has(tag.name)) continue;
+    stack.push({ name: tag.name, tag: tag.raw });
   }
 
   for (const ancestor of stack) {
@@ -179,6 +304,13 @@ function requireDemoAccessibility(html) {
 }
 
 requireDemoAccessibility(source);
+
+requireDemoAccessibility(
+  source.replace(
+    '<section class="card mt">\n      <h2>Latest Result</h2>',
+    '<section class="card mt" role="progressbar status">\n      <h2>Latest Result</h2>',
+  ),
+);
 
 requireDemoAccessibility(
   source.replace(
@@ -277,6 +409,22 @@ const negativeMutations = [
     html: source.replace(
       '<div class="wrap">',
       '<div class="wrap" aria-live=polite>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_encoded_live_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" aria-live="pol&#105;te">\n      <h2>Latest Result</h2>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
+    name: "result_payload_quoted_gt_live_ancestor",
+    html: source.replace(
+      '<section class="card mt">\n      <h2>Latest Result</h2>',
+      '<section class="card mt" title="1 > 0" role="status">\n      <h2>Latest Result</h2>',
     ),
     error: /must not be nested inside a live region/u,
   },
@@ -393,5 +541,8 @@ console.log("result_payload_live=false");
 console.log("result_payload_live_ancestor=false");
 console.log("result_status_bounded=true");
 console.log("result_submission_timeout_status_bounded=true");
+console.log("ordered_progressbar_fallback_nonlive=true");
+console.log("encoded_aria_live_ancestor_rejected=true");
+console.log("quoted_gt_live_ancestor_rejected=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=19");
+console.log("negative_mutations=21");
