@@ -121,7 +121,7 @@ const crossCandidateDomainRotation = classifyReachability([
     obs({
       observer: OBSERVER_A,
       domain: "isp-b",
-      candidateAddress: "2.2.2.2:4700",
+      address: "2.2.2.2:4700",
       at: NOW - 30_000,
     }),
   ],
