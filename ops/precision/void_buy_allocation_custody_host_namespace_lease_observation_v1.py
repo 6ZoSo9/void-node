@@ -38,7 +38,7 @@ PROCESS_CENSUS_REL = (
     "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-PROCESS_CENSUS_BLOB = "ded737a228a627a241a84131113db6d3521f635c"
+PROCESS_CENSUS_BLOB = "6bf476e3383b7b18966320df13b4041da9c8c11f"
 
 PROC = Path("/proc")
 MAX_SOURCE_BYTES = 4 * 1024 * 1024
