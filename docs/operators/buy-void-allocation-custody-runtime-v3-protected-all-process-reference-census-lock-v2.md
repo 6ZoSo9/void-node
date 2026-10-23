@@ -13,31 +13,31 @@ state. V2 does not modify or rehabilitate that historical lock.
 Parent Draft #3753 exact head:
 
 ```text
-3d7b8041f90b92d66d8de43cd0b28e98cbf194be
+cfae72e86e060ec797a86797d71f7be7aa019be8
 ```
 
 Exact candidate source:
 
 ```text
 path=ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py
-git_blob_sha1=25a0913606baa3303743f36a8c79f3c7a14ea159
-bytes=70661
+git_blob_sha1=9738f14111fc03dffe9afb04f7bede73ceb13087
+bytes=74322
 ascii_only=true
 ```
 
 Exact companion source evidence:
 
 - proof blob:
-  `3f9e30ddd89f36b37f6d7f9754f95f7d190d4da3`;
+  `127340dbc839718ae40e216b9edf0ba9fcaf4435`;
 - operator document blob:
-  `6424b96d89a4109a42ed73b3dc8c88b78e9589d4`;
+  `dacabdee63158c37f39d22489dc1cbf87752705d`;
 - focused workflow blob:
-  `74dadcfb40b2eab81260dd58b9783085f3cba8fe`.
+  `661a110e2fe8694ebdf948ff6033890da03cb2a3`.
 
 Hosted exact-head evidence:
 
-- focused run: `40015277813`;
-- proof job: `120625660577`;
+- focused run: `40018911504`;
+- proof job: `120638054198`;
 - focused result: **SUCCESS**;
 - exact-head Codex rereview: **no findings**.
 
@@ -55,14 +55,17 @@ source controls:
 - zombie TGID leader with surviving workers rejected as incomplete;
 - retained canonical procfs observation;
 - retained/revalidated PID-1 host filesystem root for target traversal;
-- external host PID-namespace and mount-namespace lease requirements;
+- external host PID-namespace, mount-namespace **and user-namespace** lease requirements;
+- retained procfs requires `self/ns/user == 1/ns/user == expected user lease`;
+- private user-namespace divergence and explicit user-namespace lease mismatch are rejected;
+- PID, mount and user namespace identities are terminally revalidated after the census;
 - every live TID must remain in the verified host mount namespace before and
   after its reference observation;
 - a pre-existing private task mount namespace prevents a clean candidate;
 - a mid-observation task mount-namespace switch prevents a clean candidate.
 
-These repairs close the known leader-only files/fs and private-task namespace
-blind spots in the source candidate.
+These repairs close the known leader-only files/fs, private-task mount-namespace,
+host-root, and host-user-namespace blind spots in the source candidate.
 
 ## Deliberate remaining limits
 
@@ -73,6 +76,10 @@ The accepted source explicitly keeps:
 
 ```text
 host_namespace_lease_provenance_authenticated_by_census=false
+host_user_namespace_external_lease_required=true
+host_user_namespace_terminal_revalidation_required=true
+private_user_namespace_rejected=true
+host_user_namespace_lease_mismatch_rejected=true
 mount_namespace_reference_scan_performed=false
 mount_namespace_reference_absence_proven=false
 all_process_target_reference_absent_observed=false
