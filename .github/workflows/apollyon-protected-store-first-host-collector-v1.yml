@@ -52,9 +52,9 @@ jobs:
             | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/xiphos/apollyon_protected_store_first_host_collector_v1.py)" = 36f77c85a2716989726af77679160de2b9e48f76
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = cb64889f227c3a8e810c51156ae572fdfd806d08
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = 10b3c6a741eeee360d1b826dd6c915b22f1df8f2
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_protected_store_first_host_collector_v1.py)" = 160ad246b36eb2ee6680acc411686ff43a25bef9
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_collector_v1.py)" = c0e05dacfb557956f6d2fa79522ccf18cb1f6d1f
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-collector-v1.md)" = a9a751c9c76653f3d3f4c82a4bd32ce3047a176d
 
           test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26
           test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 45ab6a6cbfea05d61617de294d18ed7dec07fae9
@@ -91,7 +91,9 @@ jobs:
           python3 -I -B ops/xiphos/apollyon_protected_store_first_host_collector_v1.py --self-test | tee "$out"
           grep -Fx 'VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_COLLECTOR_V1_SELF_TEST_GREEN' "$out"
           grep -Fx 'host_read_performed=false' "$out"
-          grep -Fx 'machine_identity_bound=true' "$out"
+          grep -Fx 'machine_identity_bound=false' "$out"
+          grep -Fx 'authenticated_xiphos_machine_identity_provenance_bound=false' "$out"
+          grep -Fx 'host_pass_authorized=false' "$out"
           grep -Fx 'protected_record_contents_read=false' "$out"
           grep -Fx 'protected_record_names_listed=false' "$out"
           grep -Fx 'process_environment_read=false' "$out"
@@ -125,9 +127,10 @@ jobs:
             'raw_mount_source_not_emitted=true' \
             'adversarial_mount_material_not_emitted=true' \
             'systemctl_show_only_contract=true' \
-            'inert_full_pass_orchestration_executed=true' \
-            'whole_pass_drift_adversaries_rejected=true' \
-            'absence_does_not_promote_installed_metadata=true' \
+            'machine_identity_bound=false' \
+            'authenticated_xiphos_machine_identity_provenance_bound=false' \
+            'host_pass_authorized=false' \
+            'host_pass_blocked_before_host_observation=true' \
             'host_pass_performed=false' \
             'filesystem_mutation=false' \
             'service_mutation=false' \
@@ -147,6 +150,8 @@ jobs:
           value=json.loads(pathlib.Path(sys.argv[1]).read_text("utf-8"))
           assert value["mode"]=="plan"
           assert value["authority"]["host_pass_performed"] is False
+          assert value["authority"]["machine_identity_bound"] is False
+          assert value["next_action"] == "PRODUCE_SEPARATE_AUTHENTICATED_XIPHOS_MACHINE_ID_ATTESTATION_THEN_REBIND_COLLECTOR_HOST_AUTHORITY"
           for key in (
               "protected_store_origin_proven",
               "writer_invocation_authorized",
