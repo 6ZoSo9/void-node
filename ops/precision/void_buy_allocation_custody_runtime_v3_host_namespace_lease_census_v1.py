@@ -489,6 +489,8 @@ def collect() -> dict[str, Any]:
         "process_environment_read": False,
         "process_arguments_read": False,
         "namespace_lease_is_install_authority": False,
+        "namespace_lease_external_review_completed": False,
+        "automatic_process_census_feed_authorized": False,
         "replacement_apply_authorized": False,
         "runtime_integration": False,
         "payment_acceptance": False,
@@ -574,6 +576,8 @@ def self_test() -> None:
     print("production_filesystem_write=false")
     print("self_test_temporary_filesystem_write=true")
     print("namespace_lease_is_install_authority=false")
+    print("namespace_lease_external_review_completed=false")
+    print("automatic_process_census_feed_authorized=false")
     print("replacement_apply_authorized=false")
     print("runtime_integration=false")
     print("payment_acceptance=false")
@@ -606,6 +610,8 @@ if __name__ == "__main__":
         print("read_only=true")
         print("production_filesystem_write=false")
         print("namespace_lease_is_install_authority=false")
+        print("namespace_lease_external_review_completed=false")
+        print("automatic_process_census_feed_authorized=false")
         print("replacement_apply_authorized=false")
         print("service_mutation=false")
         print("runtime_integration=false")
