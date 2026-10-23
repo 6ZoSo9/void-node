@@ -27,6 +27,9 @@ export const VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_AUTHORITY =
     legacy_payment_only_path_forbidden: true,
     allocation_roots_canonical: true,
     event_and_request_immutable_snapshot: true,
+    payment_instruction_amount_bound_to_original_and_verifier: true,
+    original_first_request_history_qualified: false,
+    locked_writer_preappend_history_gate_required: true,
     source_only_unmounted: true,
     source_finality_authentication_verified: false,
     cross_uid_service_authenticated: false,
@@ -76,6 +79,17 @@ function canonicalPositiveUnitText(value: unknown): bigint | null {
   }
   const units = BigInt(value);
   return units > 0n && units <= MAX_PRESALE_VOID_MICRO ? units : null;
+}
+function canonicalPaymentInstructionAmountMicro(
+  value: unknown,
+): bigint | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const descriptor = Object.getOwnPropertyDescriptor(value, "amount");
+  if (!descriptor || !Object.hasOwn(descriptor, "value") ||
+      descriptor.enumerable !== true) {
+    return null;
+  }
+  return canonicalPositiveQuoteMicro(descriptor.value);
 }
 function hold(reason: string): never {
   throw new Error("buy_void_verified_payment_v2_allocation_stage_" + reason);
@@ -128,6 +142,8 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
   const verifiedUsdcMicro = canonicalPositiveUnitText(verifier?.amount_units);
   const verifiedRequestMicro =
     canonicalPositiveUnitText(verifier?.requested_units);
+  const instructionUsdcMicro =
+    canonicalPaymentInstructionAmountMicro(original.payment_instructions);
   const canonicalRateNumerator = BigInt(ECON.rate_void_units_numerator);
   const canonicalRateDenominator = BigInt(ECON.rate_void_units_denominator);
   const expectedQuoteMicro = originalUsdcMicro !== null &&
@@ -160,6 +176,9 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
     originalUsdcMicro === null ||
     verifiedUsdcMicro === null ||
     verifiedRequestMicro === null ||
+    instructionUsdcMicro === null ||
+    instructionUsdcMicro !== originalUsdcMicro ||
+    instructionUsdcMicro !== verifiedUsdcMicro ||
     verifiedUsdcMicro !== originalUsdcMicro ||
     verifiedRequestMicro !== originalUsdcMicro ||
     expectedQuoteMicro === null ||
@@ -201,6 +220,9 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
     read_sale_state: plan.read_sale_state,
     event_snapshot_sha256: sha(eventJson),
     request_snapshot_sha256: sha(requestJson),
+    payment_instruction_amount_bound: true as const,
+    original_first_request_history_qualified: false as const,
+    locked_writer_preappend_history_gate_required: true as const,
     source_finality_authentication_verified: false as const,
     cross_uid_service_authenticated: false as const,
     payment_capacity_lock_verified: false as const,
