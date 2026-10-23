@@ -621,11 +621,20 @@ if __name__ == "__main__":
     try:
         main()
     except Hold as exc:
-        print(MARKER, file=sys.stderr)
-        print("status=HOLD", file=sys.stderr)
-        print("reason=" + str(exc)[:240], file=sys.stderr)
-        print("filesystem_mutation=false", file=sys.stderr)
-        print("service_mutation=false", file=sys.stderr)
-        print("training_execution=false", file=sys.stderr)
-        print("funds_movement=false", file=sys.stderr)
-        raise SystemExit(2)
+        reason = str(exc)[:240]
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError, UnicodeError) as exc:
+        # Fixed-path metadata failures are evidence ambiguity, never a traceback
+        # or implicit authority. Do not echo exception text that may include
+        # environment-specific data.
+        reason = "metadata_observation_failed:" + type(exc).__name__
+    else:
+        raise SystemExit(0)
+
+    print(MARKER, file=sys.stderr)
+    print("status=HOLD", file=sys.stderr)
+    print("reason=" + reason, file=sys.stderr)
+    print("filesystem_mutation=false", file=sys.stderr)
+    print("service_mutation=false", file=sys.stderr)
+    print("training_execution=false", file=sys.stderr)
+    print("funds_movement=false", file=sys.stderr)
+    raise SystemExit(2)
