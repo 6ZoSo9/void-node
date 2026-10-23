@@ -62,15 +62,19 @@ descriptors. Every regular file is opened
 with `O_NOFOLLOW|O_NONBLOCK`, hashed through its retained descriptor, and
 revalidated against its visible generation.
 
-The tree must contain only ordinary directories and regular files. Symlinks,
-FIFOs, sockets, devices and other special files HOLD.
+The tree may contain ordinary directories, regular files and symlinks.
+Symlinks are treated as opaque legacy entries: the census never follows them,
+records only their metadata plus the byte length and SHA-256 of the link text,
+and never prints the link target. FIFOs, sockets, devices and other special
+files HOLD.
 
 The census emits a bounded content/metadata digest over relative path, type,
-UID, GID, mode, link count, file length and SHA-256. It also records the target
-root device/inode so a future rollback planner can bind a same-filesystem rename
-of that exact legacy root.
+UID, GID, mode and link count, plus file length/SHA-256 or opaque symlink-target
+length/SHA-256 as applicable. It also records the target root device/inode so a
+future rollback planner can bind a same-filesystem rename of that exact legacy
+root.
 
-No file content is printed.
+No regular-file content or symlink target text is printed.
 
 ## Proposed future names
 
