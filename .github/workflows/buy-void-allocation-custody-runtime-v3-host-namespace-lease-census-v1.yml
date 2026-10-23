@@ -28,9 +28,10 @@ jobs:
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_REF: ren/custody-runtime-v3-install-prestate-census-v1-20261023
         run: |
           set -euo pipefail
-          BASE="836f5e704a603f67b77b2406aeec9174f640497e"
+          BASE="$(git rev-parse "refs/remotes/origin/$BASE_REF")"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
