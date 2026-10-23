@@ -70,9 +70,9 @@ jobs:
           test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md)" = 4b055837dd4e150fb2573947ff11f0b2f455622e
 
           test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-machine-identity-binding-v1.json)" = 0fb44bcfd90423d5bfbe6f7a9e6143de54bc9b26
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 45ab6a6cbfea05d61617de294d18ed7dec07fae9
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-machine-identity-binding-v1.md)" = 24cc4b6ce92931d9be9d39a46afb5a1c76e267fb
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml)" = c8737fe68f15894bd15af0e775fc79cb2b50d9bb
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py)" = 7e2d7cc06bcc2bbfee2b3462f68270716369844e
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-machine-identity-binding-v1.md)" = dc17975ed304686762153e64b36cbc72b199fe1a
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml)" = 1bbde32e6087c33f34444b8ad69f56a7c67ec629
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 4c78459826c25cab43870b0b322b566575d18667
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 62ff7e94e57a6333cdcfc78f6f63d8ef67288a20
