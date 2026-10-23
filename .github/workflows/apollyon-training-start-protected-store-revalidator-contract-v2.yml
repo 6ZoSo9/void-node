@@ -1,0 +1,178 @@
+name: Apollyon training-start protected-store revalidator contract V2
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs"
+      - "scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs"
+      - "docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md"
+      - ".github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml"
+      - "tools/apollyon-training-start-store-revalidation-request-v1.mjs"
+      - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
+      - "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "tools/apollyon-training-start-consumption-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: protected-store revalidator V2 / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source generation
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          PARENT=550020518c2e4d7392b42d79cb83a3aee99f8c1e
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$PARENT" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml' \
+            'docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md' \
+            'scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs' \
+            'tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs' \
+            | LC_ALL=C sort > "$expected"
+          git diff --no-renames --name-only "$PARENT" "$EXPECTED_HEAD" -- \
+            | LC_ALL=C sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 4c78459826c25cab43870b0b322b566575d18667
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 62ff7e94e57a6333cdcfc78f6f63d8ef67288a20
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 16eb15388c6cc5d12097cbf69f1d04c9bc6c10d3
+
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 079576db7f880872f2d4dea8e7759bd536161516
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 76f5a6bcbc9854a1133cd1324eb862cb50102c0e
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py)" = ed6eb47c2f83b35b489d0e9034a4b87c2d10b9dd
+          test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-contract-v2.mjs)" = 6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = 25629371f6da164e12fecfc08c5f26815418e3a8
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-contract-v1.mjs)" = f557d92e89f3502ee6ac1243411cd43191ec1f37
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs)" = 87019ae1245a2054407dd47835b0b7a891d4d9a2
+          test "$(git rev-parse HEAD:tools/apollyon-live-source-session-terminal-receipt-v2.mjs)" = e27f0ebb968f4611bfc069670325c3f5e6df1c65
+          test "$(git rev-parse HEAD:tools/apollyon-live-custody-service-source-session-binding-v2.mjs)" = 981935515e08634be96446e58922c16be56d33ad
+
+          git diff --check "$PARENT" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove V2 contract and emit deterministic receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs
+          node --check scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs
+
+          log="$RUNNER_TEMP/revalidator-v2-proof.txt"
+          receipt="$RUNNER_TEMP/revalidator-v2-node-${{ matrix.node }}.json"
+          node scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs \
+            --emit "$receipt" | tee "$log"
+
+          for marker in \
+            'VOID_APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_CONTRACT_V2_PROOF_GREEN' \
+            'exact_parent_revalidation_request_blob_bound=true' \
+            'exact_parent_protected_writer_blob_bound=true' \
+            'exact_fixture_custody_source_blob_bound=true' \
+            'direct_dependency_blob_count=11' \
+            'all_direct_source_and_proof_dependency_blobs_bound=true' \
+            'flat_primitive_frame_hash_json_independent=true' \
+            'post_import_json_tojson_poisoning_does_not_change_candidate_bytes=true' \
+            'captured_reflection_primordials_bound=true' \
+            'captured_frame_qualifier_primordials_bound=true' \
+            'captured_regexp_exec_primordial_bound=true' \
+            'captured_buffer_length_intrinsic_bound=true' \
+            'captured_typed_array_set_primordial_bound=true' \
+            'private_frame_return_without_buffer_copy=true' \
+            'current_canonicalizer_v2_generation_bound=true' \
+            'superseded_canonicalizer_v2_generation_rejected=true' \
+            'revoked_proxy_candidate_rejected=true' \
+            'reviewed_canonicalizer_v2_future_host_required=true' \
+            'installed_source_runtime_process_identity_requirements_bound=true' \
+            'mount_and_role_provenance_requirements_bound=true' \
+            'postpublication_and_stopped_trainer_gates_bound=true' \
+            'first_host_pass_read_only_boundary_bound=true' \
+            'full_3557_required_true_fields=27' \
+            'full_3557_required_false_fields=15' \
+            'full_3557_requirement_tamper_rejected=true' \
+            'full_3557_future_host_matrix_bound=true' \
+            'automatic_retry_forbidden=true' \
+            'transaction_lease_fencing_performed=false' \
+            'terminal_receipt_reread_performed=false' \
+            'custody_record_reread_performed=false' \
+            'parent_v1_request_host_realm_proven=false' \
+            'candidate_material_derivation_host_realm_proven=false' \
+            'public_candidate_not_bearer_authority=true' \
+            'parent_request_cross_binding_required=true' \
+            'readdressed_public_candidate_rejected_against_parent=true' \
+            'protected_store_origin_proven=false' \
+            'writer_directory_capability_origin_proven=false' \
+            'protected_writer_invocation_authorized=false' \
+            'live_host_observation_performed=false' \
+            'filesystem_read=false' \
+            'filesystem_write=false' \
+            'service_action=false' \
+            'training_execution_authorized=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$log"
+          done
+          grep -Eq '^revalidator_candidate_id=apollyon_training_start_protected_store_revalidator_v2:[0-9a-f]{64}$' "$log"
+          grep -Eq '^candidate_frame_bytes=[1-9][0-9]*$' "$log"
+          grep -Eq '^candidate_frame_sha256=[0-9a-f]{64}$' "$log"
+          test -s "$receipt"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: apollyon-protected-store-revalidator-v2-${{ matrix.node }}
+          path: ${{ runner.temp }}/revalidator-v2-node-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: protected-store revalidator V2 / compare Node 22-24-26
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: apollyon-protected-store-revalidator-v2-*
+          merge-multiple: true
+          path: receipts
+
+      - name: Require exact cross-node receipt bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "receipts/revalidator-v2-node-$v.json"
+          done
+          cmp receipts/revalidator-v2-node-22.json receipts/revalidator-v2-node-24.json
+          cmp receipts/revalidator-v2-node-22.json receipts/revalidator-v2-node-26.json
+          echo VOID_APOLLYON_TRAINING_START_PROTECTED_STORE_REVALIDATOR_CONTRACT_V2_THREE_NODE_GREEN
