@@ -212,4 +212,3 @@ postscan_scope_drift_holds=true
 All existing non-authority boundaries remain unchanged.
 
 PROTECT THE CORE.
-
