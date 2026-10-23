@@ -531,6 +531,7 @@ def self_test() -> None:
     print("complete_proc_visibility_required=true")
     print("hidepid_restricted_proc_holds=true")
     print("descriptor_relative_bounded_reader_tested=true")
+    print("proc_self_intermediate_symlink_supported=true")
     print("proc_fdinfo_zero_size_reader_tested=true")
     print("proc_mount_id_reader_tested=true")
     print("operator_observation_only=true")
