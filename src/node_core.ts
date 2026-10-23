@@ -1808,8 +1808,12 @@ export class Node {
       group.push(observation);
       groups.set(key, group);
     }
+    const classificationNowMs = Date.now();
     const classifications = [...groups.values()].map((group) =>
-      classifyVoidP2PReachabilityRuntimeV1(group),
+      classifyVoidP2PReachabilityRuntimeV1(group, {
+        nowMs: classificationNowMs,
+        domainConsistencyObservations: observations,
+      }),
     );
     return {
       observer_failure_domain: this.reachabilityFailureDomain,
