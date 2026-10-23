@@ -46,11 +46,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py)" = \
-            "2c2fd068acc14f9d0a8c4c27e1ecddb3e3ab5385"
+            "387e334c7be77bc2dfcf23384fcf1cd7f4ebfbc9"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py)" = \
-            "4327295279b0bfb5c949e9481f5903517bb515fe"
+            "7043ed74a1d86d3f978caee04af636d9564442d7"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-uid-process-census-v1.md)" = \
-            "5ae977337028965cda9d5b2759d426b934827142"
+            "1a6ef5779953fefe74c42a06f7ad9bb197dc9252"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs)" = \
@@ -79,19 +79,24 @@ jobs:
             'archive_lock_exact=true' \
             'socket_runtime_policy_exact=true' \
             'four_uid_slots_classified=true' \
+            'thread_uid_slots_classified=true' \
+            'proc_visibility_verified_before_empty_candidate=true' \
+            'hidepid_restricted_proc_holds=true' \
             'malformed_live_status_holds=true' \
             'proc_entry_budget_enforced_before_sort=true' \
             'two_pass_uid_process_set_stability=true' \
             'dedicated_uid_process_quiescence_proven=false' \
             'global_runtime_reference_quiescence_proven=false' \
             'proc_status_uid_only=true' \
+            'proc_thread_status_uid_only=true' \
             'process_cmdline_read=false' \
             'process_environment_read=false' \
             'process_executable_read=false' \
             'process_fd_read=false' \
             'process_signal=false' \
             'service_mutation=false' \
-            'filesystem_write=false' \
+            'production_census_filesystem_write=false' \
+            'self_test_private_fixture_writes=true' \
             'payment_acceptance=false' \
             'public_presale_activation=false' \
             'funds_movement=false'; do
@@ -111,6 +116,9 @@ jobs:
             'archive_lock_exact=true' \
             'socket_runtime_policy_exact=true' \
             'four_uid_slots_classified=true' \
+            'thread_uid_slots_classified=true' \
+            'proc_visibility_verified_before_empty_candidate=true' \
+            'hidepid_restricted_proc_holds=true' \
             'malformed_live_status_holds=true' \
             'missing_live_status_holds=true' \
             'proc_entry_budget_enforced_before_sort=true' \
@@ -124,7 +132,8 @@ jobs:
             'process_fd_read=false' \
             'process_signal=false' \
             'service_mutation=false' \
-            'filesystem_write=false' \
+            'production_census_filesystem_write=false' \
+            'source_proof_private_fixture_writes=true' \
             'request_history_read=false' \
             'custody_data_read=false' \
             'credential_access=false' \
