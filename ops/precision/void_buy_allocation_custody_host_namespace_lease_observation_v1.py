@@ -113,14 +113,19 @@ def _leaf_flags() -> int:
     return os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
 
 
-def _read_bounded_path(path: Path, maximum: int) -> bytes:
+def _read_bounded_path(
+    path: Path,
+    maximum: int,
+    *,
+    allow_zero_size: bool = False,
+) -> bytes:
     if maximum < 1 or maximum > 16 * 1024 * 1024:
         hold("read_limit_invalid")
     before = os.stat(path, follow_symlinks=False)
     if (
         not stat.S_ISREG(before.st_mode)
         or stat.S_ISLNK(before.st_mode)
-        or before.st_size < 1
+        or (not allow_zero_size and before.st_size < 1)
         or before.st_size > maximum
     ):
         hold("source_file_shape_invalid:" + path.name)
@@ -233,7 +238,11 @@ def _read_bounded_at(
 
 def _fd_mount_id(fd: int) -> int:
     path = Path(f"/proc/self/fdinfo/{fd}")
-    raw = _read_bounded_path(path, 64 * 1024)
+    raw = _read_bounded_path(
+        path,
+        64 * 1024,
+        allow_zero_size=True,
+    )
     try:
         text = raw.decode("ascii")
     except UnicodeDecodeError:
@@ -518,6 +527,8 @@ def self_test() -> None:
         )
         if not probe:
             hold("self_test_descriptor_relative_read_empty")
+        if _fd_mount_id(proc_fd) <= 0:
+            hold("self_test_mount_id_invalid")
     finally:
         os.close(proc_fd)
 
@@ -532,6 +543,8 @@ def self_test() -> None:
     print("complete_proc_visibility_required=true")
     print("hidepid_restricted_proc_holds=true")
     print("descriptor_relative_bounded_reader_tested=true")
+    print("proc_fdinfo_zero_size_reader_tested=true")
+    print("proc_mount_id_reader_tested=true")
     print("operator_observation_only=true")
     print("operator_must_independently_know_host_context=true")
     print("independent_host_context_attested=false")
