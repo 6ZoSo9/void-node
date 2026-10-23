@@ -68,7 +68,7 @@ function attachBlockRangeErrorV1(fromRaw, toRaw, head) {
         : recoveryFrom;
     var recoveryTo = validHead
         ? head < 0
-            ? head
+            ? 0
             : recoveryFrom > head
                 ? recoveryFrom
                 : Math.min(head, recoveryCeiling)
