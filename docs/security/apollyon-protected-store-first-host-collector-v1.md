@@ -132,9 +132,9 @@ source. It verifies:
 
 No Xiphos host pass is performed by CI.
 
-Source blob: `161f0054ecfe65051c81d4f5447625540e33547b`.
+Source blob: `48f46f9b98626a4881d267ed7ed6d88faad063c4`.
 
-Proof blob: `f3a73e49d5c64a6bacdb15736c55504c411bf442`.
+Proof blob: `01cb5251a713f7da4ac0229cba2751500be39e16`.
 
 ## Next gate
 
