@@ -5,15 +5,15 @@ Status: **SOURCE-ONLY HOLD**
 Base source generation:
 
 - repository: `6ZoSo9/void-node`
-- head: `e83b1df4bc3b52d08d5e38e076fa6c80085f7e01`
-- tree: `016ed94a40ad7b25565f9233e3ad29375f7f37b3`
-- plan ID: `voidbuyopauth1_c5f0e1ac8d0dff89df7458877f2cb814f5166cf1edd138595835c5ada603471f`
-- plan Git blob: `4e6bc4228bf21b4f461683d1caf36858493ccfb6`
-- proof Git blob: `97ab6262c5cc7333087c50deb5a96c8135d05a60`
+- head: `a3e0fdc4a9ee3c39c84f5783064c2e38f9481f97`
+- tree: `4eeb6d9d382d9520b60ae9b698b1135da85b05df`
+- plan ID: `voidbuyopauth1_35d73623a820ffb06acd4bf49769237ad13cf2db0ad7f40f2613229d92f2c2d1`
+- plan Git blob: `8258f7ff9ddd489c483c0e6daf675c9a2a58523e`
+- proof Git blob: `729302c8bbbaa5eeb647d3894c5abcec5ea239de`
 
 ## Current-main rederivation — October 22, 2026
 
-This V1 plan has been rederived on current `main@e83b1df4bc3b52d08d5e38e076fa6c80085f7e01`.
+This V1 plan has been rederived on current `main@a3e0fdc4a9ee3c39c84f5783064c2e38f9481f97`.
 All **7/7** bound source Git identities match the complete current-main tree.
 Only provenance changed: base head/tree, content-addressed plan ID, and the
 corresponding plan/proof/document/workflow identities. The route remains
