@@ -44,8 +44,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
           case "$EVENT_NAME" in
-            pull_request|workflow_dispatch)
+            pull_request)
               base="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
               ;;
             push)
               base="$PUSH_BEFORE"
