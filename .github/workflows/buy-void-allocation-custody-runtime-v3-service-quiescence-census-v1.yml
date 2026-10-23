@@ -47,11 +47,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py)" = \
-            "b47c9c0d97d29754d2f259d275e4cad2aa1c51c7"
+            "90358ef1df3ecfa3daeee39452ffd025e9a8d86e"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_service_quiescence_census_v1.py)" = \
-            "8839617316e96159e8cf01e8f027ab034bf7e2f2"
+            "616a2a8e1baebf8eae8499231c99d22040fc187b"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-service-quiescence-census-v1.md)" = \
-            "5de510f7e4c96b87a15f97c34bee978cb6f7c98d"
+            "1ba84371a3b8ea4d4b7a674b34e7b1df111fa013"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-service-bootstrap-plan-v1.mjs)" = \
@@ -86,6 +86,8 @@ jobs:
             'canonical_socket_path_bound=true' \
             'systemctl_show_only=true' \
             'inactive_service_candidate_classified=true' \
+            'unsafe_systemd_load_states_rejected=true' \
+            'python_no_bytecode_mode_required=true' \
             'enabled_unit_rejected=true' \
             'pending_daemon_reload_rejected=true' \
             'lingering_runtime_directory_rejected=true' \
@@ -126,6 +128,9 @@ jobs:
             'systemctl_mutating_verbs_absent=true' \
             'exact_source_blob_asserted=true' \
             'inactive_service_candidate_classified=true' \
+            'unsafe_systemd_load_states_rejected=true' \
+            'python_no_bytecode_mode_required=true' \
+            'without_dash_b_bootstrap_hold=true' \
             'enabled_unit_rejected=true' \
             'pending_daemon_reload_rejected=true' \
             'lingering_runtime_directory_rejected=true' \
