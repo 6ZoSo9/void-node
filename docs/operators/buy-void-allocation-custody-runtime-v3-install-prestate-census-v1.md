@@ -54,11 +54,12 @@ Those remain separate later qualification gates.
 If the target is absent, the census records an **unprivileged create-only
 candidate shape**. It does not create the target.
 
-If the target exists, it must be a direct directory on the same filesystem as
-`/opt`. Every descendant must remain on that same device; nested/bind mount
-crossings HOLD rather than being absorbed into rollback identity. The census
-walks the tree through retained `O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK`
-descriptors. Every regular file is opened
+If the target exists, it must be a direct directory on the same filesystem and
+the same Linux mount ID as `/opt`. Every opened descendant directory/file must
+retain that mount ID as read from `/proc/self/fdinfo/<fd>`; this rejects
+same-device bind mounts as well as cross-device mounts instead of absorbing
+either into rollback identity. The census walks the tree through retained
+`O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK` descriptors. Every regular file is opened
 with `O_NOFOLLOW|O_NONBLOCK`, hashed through its retained descriptor, and
 revalidated against its visible generation.
 
