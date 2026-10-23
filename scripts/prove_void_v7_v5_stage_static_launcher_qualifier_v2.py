@@ -12,7 +12,7 @@ import tempfile
 MARKER="VOID_V7_V5_STAGE_STATIC_LAUNCHER_QUALIFIER_V2_PROOF"
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 LAUNCHER_REL="ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c"
-LAUNCHER_BLOB="cfbd071144e80e23fbd566a6eb5aad51c0e29060"
+LAUNCHER_BLOB="fa44ee6e817a204d40a6e3f5921ce0c51b803b3e"
 QUALIFIER_REL="ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py"
 QUALIFIER_BLOB="a5295192146a154004e8053ad9d411b564bdf40b"
 PLAN_REL="ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json"
@@ -56,6 +56,14 @@ for token in (
     '#define VOID_V7_V5_STAGE_V2_ACCEPTANCE_ID "UNACCEPTED"',
     '#define VOID_V7_V5_STAGE_V2_ACCEPTED_MANIFEST_SHA256 ""',
     '#define VOID_V7_V5_STAGE_V2_ACCEPTED_MANIFEST_BYTES 0U',
+    '#define VOID_V7_V5_STAGE_V2_ACCEPTED_RECEIPT_SHA256 ""',
+    '#define VOID_V7_V5_STAGE_V2_ACCEPTED_RECEIPT_BYTES 0U',
+    'hexn(ACCEPTED_RECEIPT_SHA256,64)&&ACCEPTED_RECEIPT_BYTES>0U',
+    'accepted_root_commitment_matches(',
+    'accepted_receipt_identity_mismatch',
+    'verify_complete_receipt_inventory(&receipt);',
+    'receipt_inventory_extra_entry',
+    'wrong_content_right_declared_manifest_accepted',
     'if(!production_manifest_lock_bound())hold("production_payload_manifest_lock_not_bound");',
     'source-stage-plan',
     'source-stage-apply',
@@ -177,6 +185,9 @@ with tempfile.TemporaryDirectory(prefix="void-v5-stage-launcher-proof-") as td:
         "caller_source_generation_authority=false",
         "caller_receipt_bytes_authority=false",
         "production_payload_manifest_lock_embedded=false",
+        "accepted_receipt_exact_identity_required=true",
+        "complete_receipt_inventory_required=true",
+        "wrong_content_right_declared_manifest_rejected=true",
         "production_payload_manifest_accepted=false",
         "root_execution_authorized=false",
         "source_stage_apply_authorized=false",
@@ -242,6 +253,9 @@ print("launcher_self_test_green=true")
 print("selected_installer_procfd_execution_bound=true")
 print("path_substitution_cannot_change_executed_fd_bytes=true")
 print("production_manifest_lock_unbound=true")
+print("accepted_receipt_exact_identity_required=true")
+print("complete_receipt_inventory_required=true")
+print("wrong_content_right_declared_manifest_rejected=true")
 print("normal_launcher_operation_fail_closed=true")
 print("four_fixed_operations_only=true")
 print("caller_path_authority=false")

@@ -51,10 +51,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c)" = "cfbd071144e80e23fbd566a6eb5aad51c0e29060"
+          test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c)" = "fa44ee6e817a204d40a6e3f5921ce0c51b803b3e"
           test "$(git rev-parse HEAD:ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py)" = "a5295192146a154004e8053ad9d411b564bdf40b"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py)" = "5dc67e5676558b52385f9b55e2a943870131b9db"
-          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md)" = "ad6c484249053e47a2f3fd1342ef77cd645933a7"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_static_launcher_qualifier_v2.py)" = "e8ff3c6010dd493e06ec6a7b7f8bbfa16925bdb2"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-v5-stage-static-launcher-qualifier-v2.md)" = "43f17465b6ef00a2645b40c81df09b6c7c82ca44"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json)" = "5669b393a87c2bfd584375e5cff2ef3f3ffdf5d9"
 
       - name: Python syntax
@@ -71,6 +71,9 @@ jobs:
           "$RUNNER_TEMP/v5-stage-launcher-static" --self-test | tee "$RUNNER_TEMP/static-self-test.log"
           grep -Fx 'VOID_V7_V5_SOURCE_RECEIPT_STAGE_ROOT_LAUNCHER_V2_SELF_TEST_GREEN' "$RUNNER_TEMP/static-self-test.log"
           grep -Fx 'production_payload_manifest_lock_embedded=false' "$RUNNER_TEMP/static-self-test.log"
+          grep -Fx 'accepted_receipt_exact_identity_required=true' "$RUNNER_TEMP/static-self-test.log"
+          grep -Fx 'complete_receipt_inventory_required=true' "$RUNNER_TEMP/static-self-test.log"
+          grep -Fx 'wrong_content_right_declared_manifest_rejected=true' "$RUNNER_TEMP/static-self-test.log"
           grep -Fx 'python_selected_installer_descriptor_inheritance_required=true' "$RUNNER_TEMP/static-self-test.log"
           grep -Fx 'root_execution_authorized=false' "$RUNNER_TEMP/static-self-test.log"
           grep -Fx 'source_stage_apply_authorized=false' "$RUNNER_TEMP/static-self-test.log"
@@ -88,6 +91,9 @@ jobs:
           grep -Fx 'selected_installer_procfd_execution_bound=true' "$out"
           grep -Fx 'path_substitution_cannot_change_executed_fd_bytes=true' "$out"
           grep -Fx 'production_manifest_lock_unbound=true' "$out"
+          grep -Fx 'accepted_receipt_exact_identity_required=true' "$out"
+          grep -Fx 'complete_receipt_inventory_required=true' "$out"
+          grep -Fx 'wrong_content_right_declared_manifest_rejected=true' "$out"
           grep -Fx 'normal_launcher_operation_fail_closed=true' "$out"
           grep -Fx 'four_fixed_operations_only=true' "$out"
           grep -Fx 'caller_path_authority=false' "$out"

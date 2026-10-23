@@ -32,9 +32,17 @@
 #ifndef VOID_V7_V5_STAGE_V2_ACCEPTED_MANIFEST_BYTES
 #define VOID_V7_V5_STAGE_V2_ACCEPTED_MANIFEST_BYTES 0U
 #endif
+#ifndef VOID_V7_V5_STAGE_V2_ACCEPTED_RECEIPT_SHA256
+#define VOID_V7_V5_STAGE_V2_ACCEPTED_RECEIPT_SHA256 ""
+#endif
+#ifndef VOID_V7_V5_STAGE_V2_ACCEPTED_RECEIPT_BYTES
+#define VOID_V7_V5_STAGE_V2_ACCEPTED_RECEIPT_BYTES 0U
+#endif
 #define ACCEPTANCE_ID VOID_V7_V5_STAGE_V2_ACCEPTANCE_ID
 #define ACCEPTED_MANIFEST_SHA256 VOID_V7_V5_STAGE_V2_ACCEPTED_MANIFEST_SHA256
 #define ACCEPTED_MANIFEST_BYTES VOID_V7_V5_STAGE_V2_ACCEPTED_MANIFEST_BYTES
+#define ACCEPTED_RECEIPT_SHA256 VOID_V7_V5_STAGE_V2_ACCEPTED_RECEIPT_SHA256
+#define ACCEPTED_RECEIPT_BYTES VOID_V7_V5_STAGE_V2_ACCEPTED_RECEIPT_BYTES
 #define FIXED_ROOT "/opt/void-v7-v5-source-receipt-stage-closed-tree-v2"
 #define SELF_REL "bin/void_v7_v5_source_receipt_stage_root_launcher_v2"
 #define POLICY_REL "policy-v2.conf"
@@ -201,7 +209,21 @@ static bool acceptance_id_bound(void){
     return !strncmp(ACCEPTANCE_ID,prefix,n)&&hexn(ACCEPTANCE_ID+n,64);
 }
 static bool production_manifest_lock_bound(void){
-    return acceptance_id_bound()&&hexn(ACCEPTED_MANIFEST_SHA256,64)&&ACCEPTED_MANIFEST_BYTES>0U;
+    return acceptance_id_bound()&&
+        hexn(ACCEPTED_MANIFEST_SHA256,64)&&ACCEPTED_MANIFEST_BYTES>0U&&
+        hexn(ACCEPTED_RECEIPT_SHA256,64)&&ACCEPTED_RECEIPT_BYTES>0U;
+}
+static bool accepted_root_commitment_matches(
+    const char *declared_manifest_sha,size_t declared_manifest_bytes,
+    const char *observed_receipt_sha,size_t observed_receipt_bytes,
+    const char *accepted_manifest_sha,size_t accepted_manifest_bytes,
+    const char *accepted_receipt_sha,size_t accepted_receipt_bytes
+){
+    return declared_manifest_sha&&observed_receipt_sha&&accepted_manifest_sha&&accepted_receipt_sha&&
+        !strcmp(declared_manifest_sha,accepted_manifest_sha)&&
+        declared_manifest_bytes==accepted_manifest_bytes&&
+        !strcmp(observed_receipt_sha,accepted_receipt_sha)&&
+        observed_receipt_bytes==accepted_receipt_bytes;
 }
 
 static struct file_id fid(struct stat st){ return (struct file_id){st.st_dev,st.st_ino,st.st_mode,st.st_nlink,st.st_size,st.st_uid,st.st_gid,st.st_mtim,st.st_ctim}; }
@@ -440,9 +462,14 @@ static void free_receipt(receipt_v1 *r){
     for(size_t i=0;i<r->count;i++)free(r->entries[i].path);
     free(r->entries);r->entries=NULL;r->count=0;
 }
-static const receipt_entry_v1 *receipt_find(const receipt_v1 *r,const char *path){
+static const receipt_entry_v1 *receipt_lookup(const receipt_v1 *r,const char *path){
     for(size_t i=0;i<r->count;i++)if(!strcmp(r->entries[i].path,path))return &r->entries[i];
-    hold("receipt_bound_entry_missing");return NULL;
+    return NULL;
+}
+static const receipt_entry_v1 *receipt_find(const receipt_v1 *r,const char *path){
+    const receipt_entry_v1 *e=receipt_lookup(r,path);
+    if(!e)hold("receipt_bound_entry_missing");
+    return e;
 }
 static void bind_receipt_root(const receipt_v1 *r){
     struct stat st;if(lstat(FIXED_ROOT,&st))hold("closed_tree_root_missing");
@@ -475,6 +502,54 @@ static void bind_receipt_directories(const receipt_v1 *r){
     bind_receipt_dir(r,"source/.git/refs/heads",FIXED_SOURCE_GIT_HEADS);
     bind_receipt_dir(r,"source/ops",FIXED_SOURCE_OPS);
     bind_receipt_dir(r,"source/ops/precision",FIXED_SOURCE_PRECISION);
+}
+static void fixed_receipt_path(char out[PATH_MAX],const char *rel){
+    int n=snprintf(out,PATH_MAX,"%s/%s",FIXED_ROOT,rel);
+    if(n<=0||n>=PATH_MAX)hold("receipt_inventory_path_too_long");
+}
+static void verify_receipt_directory_inventory(const receipt_v1 *r,const receipt_entry_v1 *e){
+    char path[PATH_MAX];fixed_receipt_path(path,e->path);
+    struct stat before;if(lstat(path,&before))hold("receipt_inventory_directory_missing");
+    if(e->kind!='D'||!S_ISDIR(before.st_mode)||S_ISLNK(before.st_mode)||
+       before.st_uid!=0||before.st_gid!=0||(before.st_mode&07777)!=e->mode||
+       (uintmax_t)before.st_dev!=e->dev||(uintmax_t)before.st_ino!=e->ino||
+       (uintmax_t)before.st_nlink!=e->nlink)
+        hold("receipt_inventory_directory_metadata_mismatch");
+    int fd=open(path,O_RDONLY|O_DIRECTORY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
+    if(fd<0)hold("receipt_inventory_directory_open_failed");
+    struct stat opened;if(fstat(fd,&opened)||!same_id(fid(before),fid(opened))){
+        close(fd);hold("receipt_inventory_directory_rebound");
+    }
+    DIR *dir=fdopendir(fd);if(!dir){close(fd);hold("receipt_inventory_directory_fdopendir_failed");}
+    errno=0;
+    for(;;){
+        struct dirent *entry=readdir(dir);if(!entry)break;
+        if(!strcmp(entry->d_name,".")||!strcmp(entry->d_name,".."))continue;
+        char rel[PATH_MAX];int n=snprintf(rel,sizeof(rel),"%s/%s",e->path,entry->d_name);
+        if(n<=0||(size_t)n>=sizeof(rel)){closedir(dir);hold("receipt_inventory_child_path_too_long");}
+        if(!receipt_lookup(r,rel)){closedir(dir);hold("receipt_inventory_extra_entry");}
+    }
+    if(errno){closedir(dir);hold("receipt_inventory_directory_read_failed");}
+    if(closedir(dir))hold("receipt_inventory_directory_close_failed");
+    struct stat visible;if(lstat(path,&visible)||!same_id(fid(visible),fid(opened)))
+        hold("receipt_inventory_directory_generation_changed");
+}
+static void verify_complete_receipt_inventory(const receipt_v1 *r){
+    for(size_t i=0;i<r->count;i++){
+        const receipt_entry_v1 *e=&r->entries[i];
+        if(e->kind=='D'){verify_receipt_directory_inventory(r,e);continue;}
+        if(e->size>(uint64_t)SIZE_MAX)hold("receipt_inventory_file_size_overflow");
+        char path[PATH_MAX];fixed_receipt_path(path,e->path);
+        struct file_id id;
+        int fd=open_regular_mode(path,(size_t)e->size,e->mode,e->mode==0555,&id);
+        if((uint64_t)id.size!=e->size||(uintmax_t)id.dev!=e->dev||
+           (uintmax_t)id.ino!=e->ino||(uintmax_t)id.nlink!=e->nlink){
+            close(fd);hold("receipt_inventory_file_identity_mismatch");
+        }
+        bind_receipt_file(r,e->path,fd,id);
+        revalidate_file(path,fd,id);
+        if(close(fd))hold("receipt_inventory_file_close_failed");
+    }
 }
 static void require_closed_tree_root_entries(void){
     const char *expected[]={"bin",POLICY_REL,RECEIPT_REL,"runtime","source"};bool seen[5]={0};DIR *dir=opendir(FIXED_ROOT);if(!dir)hold("closed_tree_root_open_failed");errno=0;
@@ -605,6 +680,20 @@ static int selftest(void){
     if(receipt_parser_selftest())return 1;
     if(installer_fd_selftest())return 1;
     {
+        char manifest[65],accepted_receipt[65],wrong_receipt[65];
+        memset(manifest,'a',64);manifest[64]=0;
+        memset(accepted_receipt,'b',64);accepted_receipt[64]=0;
+        memset(wrong_receipt,'c',64);wrong_receipt[64]=0;
+        if(!accepted_root_commitment_matches(
+            manifest,7U,accepted_receipt,11U,
+            manifest,7U,accepted_receipt,11U))
+            return selftest_fail("accepted_root_commitment_positive_failed");
+        if(accepted_root_commitment_matches(
+            manifest,7U,wrong_receipt,11U,
+            manifest,7U,accepted_receipt,11U))
+            return selftest_fail("wrong_content_right_declared_manifest_accepted");
+    }
+    {
         char *valid[]={"launcher","source-stage-plan"};
         request_v1 req={0};const char *reason=NULL;
         if(!parse_request_inner(2,valid,&req,&reason)||req.operation!=OP_SOURCE_PLAN)
@@ -680,6 +769,9 @@ static int selftest(void){
     puts("python_isolated_no_site_no_bytecode_required=true");
     puts("minimal_environment_required=true");
     puts("production_payload_manifest_lock_embedded=false");
+    puts("accepted_receipt_exact_identity_required=true");
+    puts("complete_receipt_inventory_required=true");
+    puts("wrong_content_right_declared_manifest_rejected=true");
     puts("production_payload_manifest_accepted=false");
     puts("launcher_install_authorized=false");
     puts("root_execution_authorized=false");
@@ -726,11 +818,19 @@ int main(int argc,char **argv){
     receipt_v1 receipt=parse_receipt(receipt_raw,(size_t)receipt_id.size);free(receipt_raw);
     char receipt_hash[65];hash_exact_fd(receipt_fd,(size_t)receipt_id.size,receipt_hash);
     revalidate_file(FIXED_RECEIPT,receipt_fd,receipt_id);
-    if(strcmp(receipt.manifest_sha256,ACCEPTED_MANIFEST_SHA256)||
-       receipt.manifest_bytes!=ACCEPTED_MANIFEST_BYTES)
+    if(!accepted_root_commitment_matches(
+        receipt.manifest_sha256,receipt.manifest_bytes,
+        receipt_hash,(size_t)receipt_id.size,
+        ACCEPTED_MANIFEST_SHA256,ACCEPTED_MANIFEST_BYTES,
+        ACCEPTED_RECEIPT_SHA256,ACCEPTED_RECEIPT_BYTES)){
+        if(strcmp(receipt_hash,ACCEPTED_RECEIPT_SHA256)||
+           (size_t)receipt_id.size!=ACCEPTED_RECEIPT_BYTES)
+            hold("accepted_receipt_identity_mismatch");
         hold("accepted_manifest_identity_mismatch");
+    }
 
     bind_receipt_root(&receipt);bind_receipt_directories(&receipt);
+    verify_complete_receipt_inventory(&receipt);
     int git_head_fd=open_regular_mode(FIXED_SOURCE_GIT_HEAD,4096U,0444,false,&git_head_id);
     bind_receipt_file(&receipt,"source/.git/HEAD",git_head_fd,git_head_id);
     int git_config_fd=open_regular_mode(FIXED_SOURCE_GIT_CONFIG,MAX_POLICY_BYTES,0444,false,&git_config_id);
@@ -801,6 +901,7 @@ int main(int argc,char **argv){
     bind_receipt_file(&receipt,RECEIPT_INSTALLER_REL,receipt_installer_fd,receipt_installer_id);
     revalidate_file(FIXED_PYTHON,python_fd,python_id);bind_receipt_file(&receipt,PYTHON_REL,python_fd,python_id);
     revalidate_file(FIXED_STDLIB_ZIP,stdlib_fd,stdlib_id);bind_receipt_file(&receipt,STDLIB_REL,stdlib_fd,stdlib_id);
+    verify_complete_receipt_inventory(&receipt);
 
     bool source=(req.operation==OP_SOURCE_PLAN||req.operation==OP_SOURCE_APPLY);
     bool apply=(req.operation==OP_SOURCE_APPLY||req.operation==OP_RECEIPT_APPLY);

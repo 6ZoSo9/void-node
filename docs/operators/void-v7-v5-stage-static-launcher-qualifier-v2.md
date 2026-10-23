@@ -1,5 +1,61 @@
 # V7 V5 static staging launcher + pair qualifier V2
 
+## Future accepted-mode root-of-trust repair — October 23, 2026
+
+The launcher remains production-disabled by default, but the future accepted-mode
+contract is hardened before any manifest can be compiled into it.
+
+A future accepted build must now bind **both**:
+
+- the separately accepted external manifest SHA-256 and byte length; and
+- a separately accepted exact `install-receipt-v2.conf` SHA-256 and byte
+  length.
+
+The exact receipt commitment is the independent root of trust for the
+manifest-derived inventory. Merely declaring the accepted
+`manifest_sha256`/`manifest_bytes` inside a self-consistent receipt is no
+longer sufficient.
+
+Before any installer can execute, the launcher:
+
+- hashes the retained root-owned receipt descriptor and requires the exact
+  independently accepted receipt SHA-256/length;
+- separately requires the receipt's manifest identity to match the accepted
+  manifest SHA-256/length;
+- verifies every receipt-bound file/directory against the closed tree;
+- enumerates every receipt-bound directory and rejects uncommitted extra
+  entries;
+- repeats the complete receipt inventory verification immediately before
+  selecting the retained installer descriptor;
+- retains all existing per-file, policy, static-Python, stdlib, source
+  generation, and installer checks.
+
+The launcher self-test includes a synthetic negative where the declared
+manifest identity is correct but the observed receipt content hash is wrong;
+that case must be rejected.
+
+Current repaired launcher source blob:
+`fa44ee6e817a204d40a6e3f5921ce0c51b803b3e`.
+
+The default compile-time values remain:
+
+```text
+VOID_V7_V5_STAGE_V2_ACCEPTANCE_ID=UNACCEPTED
+VOID_V7_V5_STAGE_V2_ACCEPTED_MANIFEST_SHA256=""
+VOID_V7_V5_STAGE_V2_ACCEPTED_MANIFEST_BYTES=0
+VOID_V7_V5_STAGE_V2_ACCEPTED_RECEIPT_SHA256=""
+VOID_V7_V5_STAGE_V2_ACCEPTED_RECEIPT_BYTES=0
+```
+
+Therefore ordinary staging operations still fail closed at
+`production_payload_manifest_lock_not_bound`. This repair does **not** accept
+a manifest or receipt, qualify static Python/stdlib identities, install a
+closed tree/launcher, execute as root, apply either stage, exchange fixed
+paths, mutate services, or grant payment/presale/funds authority.
+
+---
+
+
 ## Purpose
 
 Implement the production-disabled trusted admission surfaces defined by Draft
