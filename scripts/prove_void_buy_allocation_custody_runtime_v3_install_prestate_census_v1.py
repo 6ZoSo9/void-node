@@ -14,7 +14,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "feb6508133a1feda9bda793646a5c949f1fdc7f0"
+EXPECTED_SOURCE_BLOB = "caaf668b25879b5bbcddbf865e574a7b5162143e"
 
 def git_blob(raw: bytes) -> str:
     prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
@@ -57,6 +57,9 @@ assert module.ARCHIVE_SHA256 == (
 )
 assert module.INSTALL_PARENT == Path("/opt")
 assert module.TARGET == Path("/opt/void-buy-allocation-custody-runtime-v1")
+assert module.MAX_TREE_ENTRIES == 32768
+assert module.MAX_FILE_BYTES == 64 * 1024 * 1024
+assert module.MAX_TOTAL_REGULAR_BYTES == 512 * 1024 * 1024
 
 lock = module.verify_archive_lock()
 assert lock["archive_candidate_accepted"] is True
@@ -151,10 +154,38 @@ with tempfile.TemporaryDirectory(
         raise AssertionError("FIFO target entry was accepted")
     fifo.unlink()
 
+    # Exercise pre-sort enumeration enforcement without creating tens of
+    # thousands of CI fixtures. Production constants are asserted above.
     overflow = target / "overflow"
     overflow.mkdir(mode=0o700)
-    for index in range(module.MAX_TREE_ENTRIES + 1):
-        (overflow / f"entry-{index:05d}").touch()
+    saved_tree_limit = module.MAX_TREE_ENTRIES
+    module.MAX_TREE_ENTRIES = 8
+    try:
+        for index in range(9):
+            (overflow / f"entry-{index:05d}").touch()
+        try:
+            module.collect_prestate(
+                parent,
+                module.TARGET_NAME,
+                module.PROPOSED_STAGE_NAME,
+                module.PROPOSED_ROLLBACK_NAME,
+                require_root_owned_parent=False,
+            )
+        except module.CensusHold as exc:
+            assert "target_tree_entry_limit_exceeded" in str(exc)
+        else:
+            raise AssertionError("oversized directory enumerated past entry budget")
+    finally:
+        module.MAX_TREE_ENTRIES = saved_tree_limit
+        for child in overflow.iterdir():
+            child.unlink()
+        overflow.rmdir()
+
+    # MAX_FILE_BYTES is metadata-only: prove the bound with a sparse file
+    # without reading or allocating its declared body.
+    oversized_file = target / "oversized-metadata-only.bin"
+    with oversized_file.open("wb") as stream:
+        stream.truncate(module.MAX_FILE_BYTES + 1)
     try:
         module.collect_prestate(
             parent,
@@ -164,12 +195,10 @@ with tempfile.TemporaryDirectory(
             require_root_owned_parent=False,
         )
     except module.CensusHold as exc:
-        assert "target_tree_entry_limit_exceeded" in str(exc)
+        assert "target_file_size_out_of_bounds" in str(exc)
     else:
-        raise AssertionError("oversized directory enumerated past entry budget")
-    for child in overflow.iterdir():
-        child.unlink()
-    overflow.rmdir()
+        raise AssertionError("oversized regular-file metadata limit not enforced")
+    oversized_file.unlink()
 
     rollback = parent / module.PROPOSED_ROLLBACK_NAME
     rollback.mkdir(mode=0o700)
@@ -260,8 +289,12 @@ print("collision_fail_closed=true")
 print("entry_budget_enforced_before_sort=true")
 print("exact_source_blob_asserted=true")
 print("host_census_not_executed_in_ci=true")
-print("read_only=true")
-print("filesystem_write=false")
+print("production_census_read_only=true")
+print("production_census_filesystem_write=false")
+print("test_fixture_filesystem_write=true")
+print("legacy_tree_entry_limit=32768")
+print("legacy_file_metadata_size_limit=67108864")
+print("legacy_total_regular_bytes_limit=536870912")
 print("archive_extraction=false")
 print("service_state_checked=false")
 print("service_mutation=false")
