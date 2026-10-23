@@ -11,6 +11,16 @@ on:
       - "scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs"
       - "docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md"
       - ".github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml"
+      - "tools/apollyon-training-start-store-revalidation-request-v1.mjs"
+      - "tools/apollyon-training-start-consumption-protected-writer-v1.mjs"
+      - "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py"
+      - "tools/apollyon-training-start-consumption-contract-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 
 permissions:
   contents: read
@@ -32,7 +42,7 @@ jobs:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          PARENT=3706aecf2e258c9c7021137da05428187bbe6654
+          PARENT=981c2d7783173bcd0ff996966570a1deb3aa8426
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
 
@@ -47,14 +57,14 @@ jobs:
           git diff --no-renames --name-only "$PARENT" HEAD -- | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json)" = 6ff56be54c33b60e66c1441f0fe1939fb48f8586
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py)" = 120d399c140a0e1f8a65f581f4240f5b058012e0
-          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md)" = 671ded6ae9549e7cba911e7869e272e49553fff0
+          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json)" = 110c8a6bb4f8ec89514cfd9ef4cdc3218fa2a4ca
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py)" = 533b8357caea9c77c5c73aba95233712824b65d9
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md)" = 4b055837dd4e150fb2573947ff11f0b2f455622e
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 4c78459826c25cab43870b0b322b566575d18667
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 2e919af52e44c6dcfec41dc47567a73f658874c3
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 9f5a94967abd85d81d6f693bf6ff51d086623de9
-          test "$(git rev-parse HEAD:.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml)" = 2774c5f9c3d037cfbd32c15d4af05cb640199ae1
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 62ff7e94e57a6333cdcfc78f6f63d8ef67288a20
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 16eb15388c6cc5d12097cbf69f1d04c9bc6c10d3
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml)" = 12ae0543cc714e3b9e5fe6e6fdf9d6b67b0fac9f
 
           git diff --check "$PARENT" HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -78,9 +88,9 @@ jobs:
 
           for marker in \
             'VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_EVIDENCE_PLAN_V1_PROOF_GREEN' \
-            'plan_id=voidapollyonfirsthostplan1_be2b83c33630bce1e9bc635cbdd90981f55df38ab0e929706acd4cd7798015ca' \
+            'plan_id=voidapollyonfirsthostplan1_c75bf9aaa019f82e2d73c80cb0c8bb3a1072bc462870a6d36b67a40fc59746be' \
             'parent_pr=3743' \
-            'parent_head=3706aecf2e258c9c7021137da05428187bbe6654' \
+            'parent_head=981c2d7783173bcd0ff996966570a1deb3aa8426' \
             'parent_blob_count=4' \
             'first_pass_requirement_count=39' \
             'negative_authority_count=16' \
