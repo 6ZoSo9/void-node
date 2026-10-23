@@ -1176,6 +1176,10 @@ const expectedTriggerPaths=[
   "docs/security/apollyon-training-start-consumption-directory-custody-candidate-v1.md",
   "ops/xiphos/apollyon_training_start_consumption_directory_custody_candidate_v1.py",
   "scripts/prove_apollyon_training_start_consumption_directory_custody_candidate_v1.py",
+  "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs",
+  "scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs",
+  "docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md",
+  ".github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml",
 
 ];
 function eventTriggerPaths(yaml,eventName,nextEventName){
