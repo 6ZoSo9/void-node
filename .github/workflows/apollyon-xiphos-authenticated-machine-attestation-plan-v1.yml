@@ -1,0 +1,139 @@
+name: Apollyon authenticated Xiphos machine attestation plan V1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json"
+      - "scripts/prove_apollyon_xiphos_authenticated_machine_attestation_plan_v1.py"
+      - "docs/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.md"
+      - ".github/workflows/apollyon-xiphos-authenticated-machine-attestation-plan-v1.yml"
+      - "ops/security/apollyon-xiphos-machine-id-provenance-hold-v2.json"
+      - "scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v2.py"
+      - "docs/security/apollyon-xiphos-machine-id-provenance-hold-v2.md"
+      - ".github/workflows/apollyon-xiphos-machine-id-provenance-hold-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact parent and four-file plan scope
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          PARENT=d7c3145dd202a4a7c3914732c8a8920c33a904ef
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$PARENT" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/apollyon-xiphos-authenticated-machine-attestation-plan-v1.yml' \
+            'docs/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.md' \
+            'ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json' \
+            'scripts/prove_apollyon_xiphos_authenticated_machine_attestation_plan_v1.py' \
+            | LC_ALL=C sort > "$expected"
+          git diff --no-renames --name-only "$PARENT" "$EXPECTED_HEAD" -- \
+            | LC_ALL=C sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json)" = 519399adc85c70a3e7257ad023b7f954b333385a
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_authenticated_machine_attestation_plan_v1.py)" = fdbb54c90919afb151c554f91340c1c8a112cf2d
+          test "$(git rev-parse HEAD:docs/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.md)" = 6cf1d2a27d0ed85e697621de7f31a7e8cb3bb626
+
+          test "$(git rev-parse HEAD:ops/security/apollyon-xiphos-machine-id-provenance-hold-v2.json)" = bd75e2606cb13beb3ba1c6f80f596e2729709c37
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_xiphos_machine_id_provenance_hold_v2.py)" = 5a105aa167488e864b93c4490ddb58e99e70b784
+          test "$(git rev-parse HEAD:docs/security/apollyon-xiphos-machine-id-provenance-hold-v2.md)" = f98a2a2dc14f16b760185ed1dcdc55c048e5ae74
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-xiphos-machine-id-provenance-hold-v2.yml)" = 81d875cddd7771aab75e1b7e99cb19b897d498a9
+
+          git diff --check "$PARENT" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile proof without bytecode writes
+        run: |
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          name = "scripts/prove_apollyon_xiphos_authenticated_machine_attestation_plan_v1.py"
+          compile(Path(name).read_text("utf-8"), name, "exec", dont_inherit=True)
+          print("proof_python_syntax_green=true")
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove source-only attestation plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/apollyon-xiphos-attestation-plan-v1.log"
+          python3 -I -B scripts/prove_apollyon_xiphos_authenticated_machine_attestation_plan_v1.py --self-test | tee "$out"
+          grep -Fx 'VOID_APOLLYON_XIPHOS_AUTHENTICATED_MACHINE_ATTESTATION_PLAN_V1_PROOF_GREEN' "$out"
+          grep -Fx 'plan_id=voidapollyonxiphosattestplan1_b7d9c1600cfe03fd41d4a36f801f82d49d6da72f3ea378c291a12af8bd581d60' "$out"
+          grep -Fx 'transport_identity_bound=false' "$out"
+          grep -Fx 'host_key_fingerprint_independently_authenticated=false' "$out"
+          grep -Fx 'exact_numeric_remote_endpoint_source_bound_required=true' "$out"
+          grep -Fx 'exact_client_identity_file_source_bound_required=true' "$out"
+          grep -Fx 'client_identity_private_key_ed25519_required=true' "$out"
+          grep -Fx 'client_identity_public_derivation_method_source_bound_required=true' "$out"
+          grep -Fx 'client_identity_derived_public_key_matches_bound_digest_required=true' "$out"
+          grep -Fx 'client_identity_file_generation_stable_through_ssh_required=true' "$out"
+          grep -Fx 'client_identity_file_owner_mode_nlink_stable_through_ssh_required=true' "$out"
+          grep -Fx 'known_hosts_single_canonical_entry_required=true' "$out"
+          grep -Fx 'known_hosts_key_matches_independently_authenticated_host_key_required=true' "$out"
+          grep -Fx 'host_key_independent_authentication_artifact_source_bound_required=true' "$out"
+          grep -Fx 'host_key_authentication_artifact_independent_of_attestation_transport_required=true' "$out"
+          grep -Fx 'host_key_sha256_raw_ssh_public_key_blob_required=true' "$out"
+          grep -Fx 'client_public_key_sha256_raw_ssh_public_key_blob_required=true' "$out"
+          grep -Fx 'known_hosts_sha256_exact_file_bytes_required=true' "$out"
+          grep -Fx 'remote_authorized_key_restrict_required=true' "$out"
+          grep -Fx 'remote_authorized_key_exact_client_public_key_required=true' "$out"
+          grep -Fx 'remote_authorized_key_exact_forced_command_required=true' "$out"
+          grep -Fx 'remote_authorized_key_environment_options_forbidden=true' "$out"
+          grep -Fx 'remote_authorized_keys_file_custody_required=true' "$out"
+          grep -Fx 'remote_forced_command_rejects_nonempty_original_command_required=true' "$out"
+          grep -Fx 'remote_sshd_permit_user_environment_no_required=true' "$out"
+          grep -Fx 'remote_sshd_permit_user_rc_no_required=true' "$out"
+          grep -Fx 'remote_sshd_accept_env_empty_required=true' "$out"
+          grep -Fx 'remote_account_shell_exact_root_owned_reviewed_required=true' "$out"
+          grep -Fx 'remote_account_shell_startup_free_fixed_launcher_required=true' "$out"
+          grep -Fx 'remote_account_home_root_owned_nonwritable_required=true' "$out"
+          grep -Fx 'remote_shell_startup_dependency_chain_absent_or_source_bound_required=true' "$out"
+          grep -Fx 'remote_shell_startup_environment_influence_forbidden_required=true' "$out"
+          grep -Fx 'remote_system_sshrc_absent_or_exact_reviewed_required=true' "$out"
+          grep -Fx 'remote_forced_command_handler_root_owned_nonwritable_required=true' "$out"
+          grep -Fx 'remote_measurement_runtime_provenance_required=true' "$out"
+          grep -Fx 'attestation_execution_authorized=false' "$out"
+          grep -Fx 'authenticated_transport_attestation_present=false' "$out"
+          grep -Fx 'authenticated_xiphos_machine_identity_proven=false' "$out"
+          grep -Fx 'collector_machine_identity_prerequisite_satisfied_for_host_execution=false' "$out"
+          grep -Fx 'host_pass_authorized=false' "$out"
+          grep -Fx 'challenge_bytes=32' "$out"
+          grep -Fx 'max_request_bytes=256' "$out"
+          grep -Fx 'max_response_bytes=4096' "$out"
+          grep -Fx 'strict_host_key_checking_required=true' "$out"
+          grep -Fx 'raw_machine_id_response_forbidden=true' "$out"
+          grep -Fx 'raw_machine_id_never_transmitted_on_any_channel_required=true' "$out"
+          grep -Fx 'client_identity_derived_public_key_digest_bound_into_receipt_required=true' "$out"
+          grep -Fx 'canonical_single_request_frame_required=true' "$out"
+          grep -Fx 'request_eof_required=true' "$out"
+          grep -Fx 'request_closed_schema_and_canonical_json_required=true' "$out"
+          grep -Fx 'request_duplicate_keys_and_nonfinite_forbidden=true' "$out"
+          grep -Fx 'response_closed_schema_duplicate_keys_and_nonfinite_forbidden=true' "$out"
+          grep -Fx 'parent_blob_validation=true' "$out"
+          grep -Fx 'semantic_adversaries=133' "$out"
+          grep -Fx 'training_execution_authorized=false' "$out"
+          grep -Fx 'funds_movement_authorized=false' "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Final diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check d7c3145dd202a4a7c3914732c8a8920c33a904ef HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
