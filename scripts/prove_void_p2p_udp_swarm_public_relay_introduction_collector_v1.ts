@@ -1037,6 +1037,87 @@ assert.equal(
 assert.equal(stoppedRejectedCompositionCalls, 1);
 assert.equal(stoppedRejectedActivationCalls, 0);
 
+let releaseConcurrentStartFetch!: () => void;
+let reportConcurrentStartFetchStarted!: () => void;
+const concurrentStartFetchGate = new Promise<void>((resolve) => {
+  releaseConcurrentStartFetch = resolve;
+});
+const concurrentStartFetchStarted = new Promise<void>((resolve) => {
+  reportConcurrentStartFetchStarted = resolve;
+});
+const originalSetInterval = globalThis.setInterval;
+const originalClearInterval = globalThis.clearInterval;
+const scheduledIntervals: Array<() => void> = [];
+let clearedIntervals = 0;
+const intervalHandle = {
+  unref() {
+    return intervalHandle;
+  },
+} as unknown as NodeJS.Timeout;
+let concurrentStartCollector:
+  | VoidUdpSwarmPublicRelayIntroductionCollectorV1
+  | undefined;
+try {
+  globalThis.setInterval = ((callback: () => void) => {
+    scheduledIntervals.push(callback);
+    return intervalHandle;
+  }) as unknown as typeof setInterval;
+  globalThis.clearInterval = ((handle?: NodeJS.Timeout) => {
+    assert.equal(handle, intervalHandle);
+    clearedIntervals += 1;
+  }) as unknown as typeof clearInterval;
+
+  let concurrentStartActivations = 0;
+  concurrentStartCollector =
+    new VoidUdpSwarmPublicRelayIntroductionCollectorV1({
+      node: directCollectorNode(local.nodeId, peers),
+      observerAuthorization,
+      releaseRoot,
+      intervalMs: 10_000,
+      nowMs: () => NOW,
+      async fetchIntroduction() {
+        reportConcurrentStartFetchStarted();
+        await concurrentStartFetchGate;
+        return envelope();
+      },
+      async fetchRecordBytes() {
+        return "{}";
+      },
+      async fetchManifestBytes() {
+        return "{}";
+      },
+      async composeAuthorizedDiscovery() {
+        return composition(local.nodeId);
+      },
+      activateVerifiedComposition() {
+        concurrentStartActivations += 1;
+        return { route_count: 2 };
+      },
+    });
+
+  const firstStart = concurrentStartCollector.start();
+  await concurrentStartFetchStarted;
+  const secondStart = concurrentStartCollector.start();
+  releaseConcurrentStartFetch();
+  const [firstOutcome, secondOutcome] = await Promise.all([
+    firstStart,
+    secondStart,
+  ]);
+  assert.equal(firstOutcome.reason, "activated");
+  assert.equal(secondOutcome.reason, "activated");
+  assert.equal(scheduledIntervals.length, 1);
+  assert.equal(concurrentStartActivations, 1);
+  const concurrentStartStatus = concurrentStartCollector.status() as any;
+  assert.equal(concurrentStartStatus.counters.runs, 1);
+  assert.equal(concurrentStartStatus.counters.activations, 1);
+  concurrentStartCollector.stop();
+  assert.equal(clearedIntervals, 1);
+} finally {
+  concurrentStartCollector?.stop();
+  globalThis.setInterval = originalSetInterval;
+  globalThis.clearInterval = originalClearInterval;
+}
+
 await mount.stop();
 assert.equal(collector.status().stopped, true);
 
@@ -1058,5 +1139,6 @@ console.log("service_restart=none");
 console.log("zero_progress_transport_stream_rejected=true");
 console.log("settled_transport_read_failure_releases_reader=true");
 console.log("signal_ignoring_transport_read_deadline_owned=true");
+console.log("concurrent_start_single_scheduler=true");
 console.log("nonsettling_transport_cancel_does_not_extend_deadline=true");
 console.log(MARKER);
