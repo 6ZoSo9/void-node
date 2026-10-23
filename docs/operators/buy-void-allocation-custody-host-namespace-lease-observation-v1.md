@@ -45,7 +45,10 @@ It does not read process command lines, environments, customer/request data,
 custody ledgers, credentials, wallets, signers, sockets, or network data.
 
 The retained `/proc` directory descriptor must remain the same visible
-generation for the full observation.
+generation for the full observation. Descriptor-relative reads intentionally
+allow the kernel-managed `self` symlink as an **intermediate** procfs
+component (for example `self/mountinfo`); `O_NOFOLLOW` still applies to the
+final file component, and before/open/after generation equality is required.
 
 ## Candidate checks
 
