@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json"
 MARKER = "VOID_APOLLYON_XIPHOS_AUTHENTICATED_MACHINE_ATTESTATION_PLAN_V1_PROOF"
 PARENT_HEAD = "d7c3145dd202a4a7c3914732c8a8920c33a904ef"
-PLAN_ID = "voidapollyonxiphosattestplan1_b0449a1b41766da2fad19a248f5eec3c9c9287b87eede149f6ea2eab09f6bc15"
+PLAN_ID = "voidapollyonxiphosattestplan1_94bd8442fd1904563e9273bc4de6e38417f6a2146978af4a8660fd0f29eb819d"
 OBSERVED_DIGEST = "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057"
 
 PINS = {
@@ -81,6 +81,10 @@ TRANSPORT_REQUIREMENTS = {
     "remote_sshd_permit_user_rc_no_required": True,
     "remote_sshd_accept_env_empty_required": True,
     "remote_account_shell_exact_root_owned_reviewed_required": True,
+    "remote_account_shell_startup_free_fixed_launcher_required": True,
+    "remote_account_home_root_owned_nonwritable_required": True,
+    "remote_shell_startup_dependency_chain_absent_or_source_bound_required": True,
+    "remote_shell_startup_environment_influence_forbidden_required": True,
     "remote_system_sshrc_absent_or_exact_reviewed_required": True,
     "remote_forced_command_handler_root_owned_nonwritable_required": True,
     "known_hosts_parent_root_owned_nonwritable_required": True,
@@ -421,7 +425,7 @@ def main() -> None:
     plan = validate(parse_json(read_regular(PLAN, 256 * 1024)))
     verify_parent_blobs()
     rejected = adversaries(plan)
-    need(rejected == 123, "semantic_adversary_count_invalid")
+    need(rejected == 127, "semantic_adversary_count_invalid")
     print(MARKER + "_GREEN")
     print("plan_id=" + PLAN_ID)
     print("source_only=true")
@@ -447,6 +451,10 @@ def main() -> None:
     print("remote_sshd_permit_user_rc_no_required=true")
     print("remote_sshd_accept_env_empty_required=true")
     print("remote_account_shell_exact_root_owned_reviewed_required=true")
+    print("remote_account_shell_startup_free_fixed_launcher_required=true")
+    print("remote_account_home_root_owned_nonwritable_required=true")
+    print("remote_shell_startup_dependency_chain_absent_or_source_bound_required=true")
+    print("remote_shell_startup_environment_influence_forbidden_required=true")
     print("remote_system_sshrc_absent_or_exact_reviewed_required=true")
     print("remote_forced_command_handler_root_owned_nonwritable_required=true")
     print("remote_measurement_runtime_provenance_required=true")
