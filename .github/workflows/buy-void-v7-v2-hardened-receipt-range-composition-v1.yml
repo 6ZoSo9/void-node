@@ -46,8 +46,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v2_hardened_receipt_range_composition_v1.mjs)" = "d315de2997ca3b035f111f81071c5b346f88dbe6"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-v2-hardened-receipt-range-composition-v1.md)" = "1dedd635506df6123fa8f8608d2c6a0e6aec5b56"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v2_hardened_receipt_range_composition_v1.mjs)" = "3e2e5aac39a1a1ba4c09d48c67a84591c77e24a9"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-v2-hardened-receipt-range-composition-v1.md)" = "6accb30c858bb285d7d74baad84ee0a07b2f8bf5"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "5301c32f53c2a82435152e38b36486507a73f906"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "e530390e505d447ca0ad9e2a098ec6a819ae3e6c"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"

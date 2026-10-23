@@ -45,14 +45,11 @@ jobs:
               'docs/architecture/buy-void-v7-v2-hardened-receipt-range-composition-v1.md' \
               'docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md' \
               'docs/operators/buy-void-v7-protected-substrate-install-v4.md' \
-              'docs/operators/void-v7-source-release-full-history-reseal-v1.md' \
               'ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts' \
               'ops/precision/void_buy_void_v7_protected_substrate_install_v4.py' \
-              'ops/precision/void_v7_source_release_full_history_reseal_v1.py' \
               'scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts' \
               'scripts/prove_buy_void_v7_protected_substrate_install_v4.py' \
               'scripts/prove_buy_void_v7_v2_hardened_receipt_range_composition_v1.mjs' \
-              'scripts/prove_void_v7_source_release_full_history_reseal_v1.py' \
               | sort > "$expected"
             git diff --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
             diff -u "$expected" "$actual"

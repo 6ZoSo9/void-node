@@ -22,8 +22,8 @@ const SELF="scripts/prove_buy_void_v7_v2_hardened_receipt_range_composition_v1.m
 const DOC="docs/architecture/buy-void-v7-v2-hardened-receipt-range-composition-v1.md";
 const WORKFLOW=".github/workflows/buy-void-v7-v2-hardened-receipt-range-composition-v1.yml";
 const OVERLAY=Object.freeze([
-  {path:".github/workflows/buy-void-v7-protected-substrate-install-v4.yml",blob:"ce7173db87a24e6b2b4914c88059b8243a17507b",mode:"100644"},
-  {path:".github/workflows/void-v7-source-release-full-history-reseal-v1.yml",blob:"dd3596c8113c27c6b3b71ca31456c7e8f721b8ae",mode:"100644"},
+  {path:".github/workflows/buy-void-v7-protected-substrate-install-v4.yml",blob:"d63e97ee216a89e75992250ad73aace2f50eb5cb",mode:"100644"},
+  {path:".github/workflows/void-v7-source-release-full-history-reseal-v1.yml",blob:"5d252fb3354e417d35534bd649409999ddf530de",mode:"100644"},
   {path:"docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md",blob:"46590d410e5c301519d5669eb7e6d4d047b8c9b9",mode:"100644"},
   {path:"docs/operators/buy-void-v7-protected-substrate-install-v4.md",blob:"b30e7423ac7299fc6f2f793c0b7142616b5ebc60",mode:"100644"},
   {path:"docs/operators/void-v7-source-release-full-history-reseal-v1.md",blob:"1e53d9fc404e2711358dbad796ab913f1dc481da",mode:"100644"},
@@ -34,7 +34,15 @@ const OVERLAY=Object.freeze([
   {path:"scripts/prove_buy_void_v7_protected_substrate_install_v4.py",blob:"3dbc556b01d3f3577c8579553e6ac639be161020",mode:"100644"},
   {path:"scripts/prove_void_v7_source_release_full_history_reseal_v1.py",blob:"b59b4ad0d2c31988908a281ad18f40ecbb3961ac",mode:"100644"}
 ]);
-const EXPECTED_DELTA=Object.freeze([...OVERLAY.map(x=>x.path),SELF,DOC,WORKFLOW].sort());
+const INHERITED_IDENTICAL_OVERLAY=Object.freeze([
+  "docs/operators/void-v7-source-release-full-history-reseal-v1.md",
+  "ops/precision/void_v7_source_release_full_history_reseal_v1.py",
+  "scripts/prove_void_v7_source_release_full_history_reseal_v1.py",
+]);
+const EXPECTED_DELTA=Object.freeze([
+  ...OVERLAY.filter(x=>!INHERITED_IDENTICAL_OVERLAY.includes(x.path)).map(x=>x.path),
+  SELF,DOC,WORKFLOW,
+].sort());
 const REPAIR_PATHS=Object.freeze([
   ".github/workflows/buy-void-v7-protected-substrate-install-v4.yml",
   ".github/workflows/void-v7-source-release-full-history-reseal-v1.yml",
@@ -156,6 +164,16 @@ function verifyComposition(){
     repairParent=commit;
   }
   assert.equal(repairParent,git(["rev-parse","HEAD"]),"repair_head_not_terminal");
+  for(const relative of INHERITED_IDENTICAL_OVERLAY){
+    const row=OVERLAY.find(x=>x.path===relative);
+    assert.ok(row,"inherited_overlay_row_missing:"+relative);
+    const entry=git(["ls-tree",V3_PARENT,"--",relative]);
+    const m=entry.match(/^(100644|100755) blob ([0-9a-f]{40})\t(.+)$/u);
+    assert.ok(m,"inherited_overlay_tree_entry_invalid:"+relative);
+    assert.equal(m[1],row.mode,"inherited_overlay_mode_drift:"+relative);
+    assert.equal(m[2],row.blob,"inherited_overlay_blob_drift:"+relative);
+    assert.equal(m[3],relative,"inherited_overlay_path_drift:"+relative);
+  }
   const changed=git(["diff","--name-only",V3_PARENT,"HEAD","--"]).split("\n").filter(Boolean).sort();
   assert.deepEqual(changed,EXPECTED_DELTA,"composition_scope_drift");
   for(const row of OVERLAY){

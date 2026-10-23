@@ -27,12 +27,12 @@ Therefore this composition does **not** repin historical V3 evidence. It deliber
 
 ## Composition proof
 
-Proof blob: `d315de2997ca3b035f111f81071c5b346f88dbe6`.
+Proof blob: `3e2e5aac39a1a1ba4c09d48c67a84591c77e24a9`.
 
 The proof:
 
 - requires the immutable composition predecessor to retain the exact ordered V3/receipt parents, then binds a capped single-parent repair chain to HEAD with an exact five-path repair allowlist;
-- requires the diff from #3660 to be exactly the 11 reviewed #3386/current-main overlay paths plus this proof/doc/workflow;
+- content-pins all 11 reviewed #3386/current-main overlay paths, while the PR delta contains exactly eight overlay paths plus this proof/doc/workflow; three reseal overlay paths are already inherited byte-for-byte from #3660;
 - content/mode-pins every overlay path;
 - content-binds unchanged V3 candidate and lock blobs;
 - reads protected files through bounded `O_NOFOLLOW|O_NONBLOCK` descriptors with generation revalidation;
@@ -42,7 +42,7 @@ The proof:
 
 The workflow additionally invokes the production deployment-receipt planner against accepted V3 lock and requires a machine-readable HOLD on the hardened deployment-receipt source row, with no `PLAN_GREEN`.
 
-The two historical source-proof workflows carried by the current-main overlay retain their original exact-four-file guards for ordinary PRs. On this exact composition branch/base only, each instead requires the exact 14-path composition scope before continuing to execute its real V4 or full-history source proof. The composition proof content-pins both workflow blobs, so this does not create a branch-name-only scope bypass.
+The two historical source-proof workflows carried by the current-main overlay retain their original exact-four-file guards for ordinary PRs. On this exact composition branch/base only, each instead requires the exact current 11-path composition delta before continuing to execute its real V4 or full-history source proof. The composition proof content-pins both workflow blobs, so this does not create a branch-name-only scope bypass.
 
 ## Authority
 
