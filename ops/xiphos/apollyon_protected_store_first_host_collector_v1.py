@@ -629,8 +629,14 @@ def run_host_pass() -> dict[str, Any]:
         "mount_metadata": mounts,
         "service_state": service,
         "service_process_identity": process,
-        "installed_source_generation_metadata_observed": True,
-        "installed_package_runtime_metadata_observed": True,
+        "installed_source_generation_metadata_observed": (
+            paths["service_source_root"]["present"]
+            and paths["publisher_source_root"]["present"]
+        ),
+        "installed_package_runtime_metadata_observed": (
+            paths["service_unit"]["present"]
+            and paths["service_source_root"]["present"]
+        ),
         "installed_service_process_identity_observed": process is not None,
         "protected_record_contents_read": False,
         "protected_record_names_listed": False,
