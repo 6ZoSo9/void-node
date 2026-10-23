@@ -15,7 +15,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "65916e49b7297e3b592049a3878683141d364152"
+EXPECTED_SOURCE_BLOB = "d342fba5c40df51c545c75960a5a93b7124b6dbf"
 
 
 def git_blob(raw: bytes) -> str:
@@ -40,7 +40,7 @@ assert module.SCHEMA == (
     "void_buy_void_custody_runtime_v3_process_reference_census_v1"
 )
 assert module.PRESTATE_SOURCE_BLOB == (
-    "c2e0c53336665578e4ab26204f7d67908c66ad3f"
+    "4d9c6e5809a5cc64454626760f71e60ed99354bc"
 )
 assert module.ARCHIVE_LOCK_BLOB == (
     "edb4ea2b833373ab387762e45ba7da4032c860f3"
@@ -52,6 +52,7 @@ assert module.TARGET == Path("/opt/void-buy-allocation-custody-runtime-v1")
 assert module.MAX_TARGET_ENTRIES == 32768
 assert module.MAX_PIDS == 32768
 assert module.MAX_FDS_PER_PROCESS == 65536
+assert module.MAX_MOUNTINFO_BYTES == 4 * 1024 * 1024
 assert module.MAX_SCAN_ATTEMPTS == 3
 
 lock = module.verify_source_inputs()
@@ -63,6 +64,88 @@ assert lock["public_presale_activation"] is False
 assert lock["funds_movement"] is False
 
 module.self_test()
+
+assert module.parse_dev_ino_lease("12:34") == (12, 34)
+for bad_lease in ("", "12", "a:34", "12:b", "0:34", "12:0", "12:34:56"):
+    try:
+        module.parse_dev_ino_lease(bad_lease)
+    except module.CensusHold as exc:
+        assert "host_pid_namespace_lease_invalid" in str(exc)
+    else:
+        raise AssertionError("invalid host PID namespace lease was accepted")
+
+fake_self = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
+fake_init = type("FakeStat", (), {"st_dev": 12, "st_ino": 34})()
+assert module.verify_pid_namespace_lease_stats(
+    fake_self,
+    fake_init,
+    (12, 34),
+) == (12, 34)
+try:
+    module.verify_pid_namespace_lease_stats(
+        fake_self,
+        type("FakeStat", (), {"st_dev": 12, "st_ino": 35})(),
+        (12, 34),
+    )
+except module.CensusHold as exc:
+    assert "not_in_pid1_namespace" in str(exc)
+else:
+    raise AssertionError("private PID namespace mismatch was accepted")
+try:
+    module.verify_pid_namespace_lease_stats(
+        fake_self,
+        fake_init,
+        (12, 35),
+    )
+except module.CensusHold as exc:
+    assert "host_pid_namespace_lease_mismatch" in str(exc)
+else:
+    raise AssertionError("wrong external host PID namespace lease was accepted")
+
+visible_mountinfo = (
+    b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
+    b" - proc proc rw,hidepid=0\n"
+)
+visible = module.verify_complete_proc_visibility(visible_mountinfo, 42)
+assert visible["root"] == "/"
+assert visible["mount_point"] == "/proc"
+assert visible["hidepid_restricted"] is False
+
+hidden_mountinfo = (
+    b"42 1 0:1 / /proc rw,nosuid,nodev,noexec,relatime"
+    b" - proc proc rw,hidepid=2\n"
+)
+try:
+    module.verify_complete_proc_visibility(hidden_mountinfo, 42)
+except module.CensusHold as exc:
+    assert "proc_visibility_restricted" in str(exc)
+else:
+    raise AssertionError("hidepid procfs was accepted")
+
+subtree_mountinfo = (
+    b"42 1 0:1 /123 /proc rw,nosuid,nodev,noexec,relatime"
+    b" - proc proc rw,hidepid=0\n"
+)
+try:
+    module.verify_complete_proc_visibility(subtree_mountinfo, 42)
+except module.CensusHold as exc:
+    assert "proc_mount_scope_not_complete_host_view" in str(exc)
+else:
+    raise AssertionError("procfs subtree view was accepted")
+
+assert module.parse_proc_self_stat_pid(
+    b"123 (fixture) S 0 0 0\n",
+    123,
+) == 123
+try:
+    module.parse_proc_self_stat_pid(
+        b"124 (fixture) S 0 0 0\n",
+        123,
+    )
+except module.CensusHold as exc:
+    assert "proc_self_pid_namespace_mismatch" in str(exc)
+else:
+    raise AssertionError("proc self PID mismatch was accepted")
 
 without_b = subprocess.run(
     [sys.executable, "-I", str(TARGET), "--self-test"],
@@ -244,6 +327,20 @@ for required in (
     "MAX_MAPS_BYTES",
     "MAX_FDS_PER_PROCESS",
     "current_uid_target_reference_absent_candidate",
+    "parse_dev_ino_lease",
+    "verify_pid_namespace_lease_stats",
+    "verify_complete_proc_visibility",
+    "parse_proc_self_stat_pid",
+    "open_pinned_proc_view",
+    "revalidate_pinned_proc_view",
+    "expected_host_pid_namespace_dev_ino",
+    "host_pid_namespace_external_lease_required",
+    "host_pid_namespace_lease_verified",
+    "retained_procfs_view_used",
+    "retained_procfs_view_revalidated_after_census",
+    "proc_mount_scope_not_complete_host_view",
+    "proc_root_custody_invalid",
+    "proc_self_pid_namespace_mismatch",
     "target_snapshot_stable",
     "target_rescan_each_attempt",
     "target_snapshot_stable_required",
@@ -284,6 +381,19 @@ print("receipt_target_bound_to_selected_attempt=true")
 print("legacy_tree_entry_limit=32768")
 print("python_no_bytecode_mode_required=true")
 print("without_dash_b_bootstrap_hold=true")
+print("host_pid_namespace_external_lease_required=true")
+print("host_pid_namespace_lease_parser_tested=true")
+print("private_pid_namespace_rejected=true")
+print("wrong_host_pid_namespace_lease_rejected=true")
+print("complete_proc_visibility_required=true")
+print("proc_mount_root_is_slash_required=true")
+print("proc_mount_point_exact_required=true")
+print("proc_root_root_owned_nonwritable_required=true")
+print("proc_self_pid_matches_runtime_required=true")
+print("hidepid_restricted_proc_holds=true")
+print("proc_subtree_mount_holds=true")
+print("retained_procfs_view_required=true")
+print("retained_procfs_view_revalidated_after_census=true")
 print("proc_cmdline_read=false")
 print("proc_environ_read=false")
 print("proc_fd_target_text_read=false")
