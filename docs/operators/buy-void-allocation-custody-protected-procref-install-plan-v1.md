@@ -15,11 +15,11 @@ The plan accepts only the exact #3753 protected all-process census generation:
 
 ```text
 repository=6ZoSo9/void-node
-head=0fcd557319fbec6ffec78cb94a8fdeda41f67366
+head=3d7b8041f90b92d66d8de43cd0b28e98cbf194be
 path=ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py
-git_blob_sha1=25c0e32ae85da4569fb9521a0812e10ab0fcede3
-bytes=56180
-sha256=d87dc3c539d32aff9722b802ec4b172441e98095a5bcc5cd5edac868572b4e0a
+git_blob_sha1=25a0913606baa3303743f36a8c79f3c7a14ea159
+bytes=70661
+sha256=447411e1853fdff56098e2700c60855aaa6ebc2dfb02104afc82af83c2c97efe
 ```
 
 A future installer must materialize the exact Git-object bytes. Copying from a
@@ -61,6 +61,16 @@ stage revalidation before publication required=true
 
 install_parent uid/gid=0/0
 install_parent group/world writable=false
+install_parent directory=true
+install_parent symlink=false
+install_parent direct child of filesystem root required=true
+install_parent symlink-free ancestry required=true
+install_parent retained descriptor required=true
+install_parent descriptor identity bound=true
+install_parent Linux mount ID bound=true
+install_parent descriptor anchors stage creation and publication=true
+install_parent revalidation before publication required=true
+install_parent revalidation after parent fsync required=true
 
 protected_root uid/gid=0/0
 protected_root mode=0755
@@ -83,10 +93,13 @@ an exact root-owned mode-0755 direct child of /opt with nlink=2, no symlink
 identity, the same mount as the retained install-parent descriptor, and exactly
 one reviewed source entry. Mode 0755 is intentionally identical to the final
 protected-root mode, so atomic directory publication does not require a
-post-publication chmod. A future installer must create the stage
-descriptor-relative to the retained parent, retain both parent and stage
-descriptors through publication, and reject any ancestry/type/owner/mode/link/
-mount or entry-set drift.
+post-publication chmod. A future installer must first retain a direct, non-symlink /opt descriptor
+whose root:root metadata, kernel identity and Linux mount ID are bound. That
+same retained descriptor must anchor both stage creation and
+renameat2(RENAME_NOREPLACE) publication. The installer must retain both parent
+and stage descriptors through publication, revalidate the parent identity and
+mount immediately before publication and again after parent fsync, and reject
+any ancestry/type/owner/mode/link/mount or entry-set drift.
 
 The initial target-absence check is not publication authority: a competing creator may win
 after that check. The final publication must therefore use kernel-atomic
@@ -98,19 +111,18 @@ exists. An ordinary replace-capable rename is forbidden.
 A separately reviewed installer must perform this order:
 
 1. verify the exact reviewed Git-object bytes;
-2. verify `/opt` root custody and mount identity;
+2. open and retain `/opt` as a direct non-symlink root:root directory, bind its descriptor identity and Linux mount ID, and require symlink-free direct ancestry;
 3. require both protected target and stage names absent;
 4. create the stage directory descriptor-relative to the retained /opt
    descriptor and require exact root:root, mode 0755, nlink 2, direct-directory,
    non-symlink, same-mount and symlink-free-direct-ancestry identity;
-5. retain and revalidate both the install-parent and stage descriptors;
+5. retain and revalidate both the install-parent and stage descriptors, with the same install-parent descriptor anchoring stage creation and publication;
 6. materialize the exact reviewed source bytes as the stage's only entry;
 7. fsync the staged source and stage directory;
-8. reverify stage-directory identity, the exact single-entry set, and staged
-   source bytes/metadata/ancestry before publication;
-9. publish with `renameat2(RENAME_NOREPLACE)`; the earlier absence check alone
+8. reverify stage-directory identity, the exact single-entry set, staged source bytes/metadata/ancestry, and the retained install-parent identity/mount before publication;
+9. publish with `renameat2(RENAME_NOREPLACE)` through the retained install-parent descriptor; the earlier absence check alone
    is not authority and an existing destination must make publication fail;
-10. fsync the install parent;
+10. fsync the retained install parent, then revalidate its exact descriptor identity and Linux mount ID;
 11. reverify the installed root's exact single-entry set plus source bytes,
     metadata, and ancestry;
 12. emit a content-addressed install receipt;
@@ -166,6 +178,14 @@ atomic_noreplace_publication_required=true
 renameat2_rename_noreplace_required=true
 absence_precheck_is_not_publication_authority=true
 root_owned_same_filesystem_staging_required=true
+install_parent_exact_metadata_required=true
+install_parent_direct_ancestry_required=true
+install_parent_descriptor_retention_required=true
+install_parent_descriptor_identity_binding_required=true
+install_parent_mount_id_binding_required=true
+install_parent_anchors_stage_creation_and_publication_required=true
+install_parent_prepublication_revalidation_required=true
+install_parent_postfsync_revalidation_required=true
 stage_directory_exact_metadata_required=true
 stage_descriptor_relative_creation_required=true
 stage_parent_descriptor_retention_required=true
