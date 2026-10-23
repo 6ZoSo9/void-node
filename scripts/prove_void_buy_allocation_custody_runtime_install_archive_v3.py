@@ -161,6 +161,37 @@ with tempfile.TemporaryDirectory(prefix="void-custody-v3-archive-proof-") as tmp
     assert published_path.is_file()
     assert packaged["archive_candidate_id"] == record["archive_candidate_id"]
 
+    moving_parent = parent / "moving-output-parent-proof"
+    moved_parent = parent / "moved-output-parent-proof"
+    moving_parent.mkdir(mode=0o700)
+    rebound_output = moving_parent / "rebound.tar"
+    original_write_rebind = module.os.write
+    rebound = [False]
+
+    def rebind_parent_during_write(fd: int, data: bytes) -> int:
+        written = original_write_rebind(fd, data)
+        if not rebound[0]:
+            moving_parent.rename(moved_parent)
+            moving_parent.mkdir(mode=0o700)
+            rebound[0] = True
+        return written
+
+    module.os.write = rebind_parent_during_write
+    try:
+        try:
+            module.write_create_only(rebound_output, raw)
+        except module.ArchiveHold:
+            pass
+        else:
+            raise AssertionError("output parent rebind was accepted")
+    finally:
+        module.os.write = original_write_rebind
+    assert rebound[0], "output parent rebind adversary was not exercised"
+    assert not rebound_output.exists()
+    assert not (moved_parent / "rebound.tar").exists(), (
+        "retained parent cleanup left a partial archive after pathname rebind"
+    )
+
     real_parent = parent / "real-output-parent"
     real_parent.mkdir(mode=0o700)
     linked_parent = parent / "linked-output-parent"
@@ -247,6 +278,7 @@ for required in [
     "archive_bytes_validated_before_final_publication=true",
     "failed_validation_final_path_absent=true",
     "single_create_only_final_publication_after_validation=true",
+    "retained_parent_cleanup_survives_path_rebind=true",
     "output_parent_not_private_or_bound",
     "archive_candidate_accepted",
     "existing_target_replaced",
@@ -279,6 +311,7 @@ print("partial_output_cleanup_on_failure=true")
 print("archive_bytes_validated_before_final_publication=true")
 print("failed_validation_final_path_absent=true")
 print("single_create_only_final_publication_after_validation=true")
+print("retained_parent_cleanup_survives_path_rebind=true")
 print("symlink_output_parent_rejected=true")
 print("fifo_substitution_rejected_without_blocking=true")
 print("forged_runtime_record_and_payload_rejected=true")
