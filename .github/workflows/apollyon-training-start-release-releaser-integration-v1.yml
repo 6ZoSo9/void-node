@@ -92,20 +92,20 @@ jobs:
           fi
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_releaser_integration_v1.c)" = \
-            29d04d61277f1d616a46063c771ca506b4c25d20
+            afd2d6b78c89fda568fe25d885368c0f36a86fe7
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_releaser_integration_v1.py)" = \
-            e695588fa4c3b0c159a280fe52611d515f6f3b29
+            7204ea46408b622c985fd0e5358a8416e522b34e
           test "$(git rev-parse HEAD:docs/security/apollyon-training-start-release-releaser-integration-v1.md)" = \
             d8ef148093c8d531c1b4c84f2565e6259af6ccd1
 
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_release_pipe_pair_generation_v1.c)" = \
             93390eefd1e72e70af7206e9982c8eaa5e042149
           test "$(git rev-parse HEAD:scripts/prove_apollyon_release_pipe_pair_generation_v1.py)" = \
-            5c7a1310486bde1463b169563e394af69e022209
+            f44da29285cc75dba3cfd76a687f2bc4197fdc3e
           test "$(git rev-parse HEAD:ops/xiphos/apollyon_training_start_release_native_candidate_v1.c)" = \
-            3c81dbbe694f421a0e6cbc18d8fb7d6f4c7fd983
+            098276fc92c247fa1465c11c6403c2c50a61629a
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_native_candidate_v1.py)" = \
-            0c4bf23116065da3bc30b80f4a4112c00094fc8b
+            7a90c2b30e90416411ef08fc2b26f2636d81d486
           test "$(git rev-parse HEAD:tools/apollyon-training-start-release-binding-v1.mjs)" = \
             b83b9e72a2c0e139bf677e6d045a0b31100d733a
           test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_release_binding_v1.mjs)" = \
@@ -163,6 +163,7 @@ jobs:
             'scm_rights_receive_denied=true' \
             'ptrace_mutation_denied_detach_allowed=true' \
             'process_vm_writev_denied=true' \
+            'x32_safe_trainer_generation_bound=true' \
             'extra_releaser_thread_rejected=true' \
             'child_retained_writer_rejected=true' \
             'wrong_trainer_pipe_rejected=true' \
