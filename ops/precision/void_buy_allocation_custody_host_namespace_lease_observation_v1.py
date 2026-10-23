@@ -25,6 +25,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import stat
 from typing import Any
 
@@ -42,6 +43,10 @@ PROCESS_CENSUS_BLOB = "ded737a228a627a241a84131113db6d3521f635c"
 PROC = Path("/proc")
 MAX_SOURCE_BYTES = 4 * 1024 * 1024
 MAX_PROC_BYTES = 4 * 1024 * 1024
+MAX_BOOT_ID_BYTES = 128
+UUID_RE = re.compile(
+    r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+)
 
 
 class CensusHold(RuntimeError):
@@ -329,6 +334,22 @@ def _verify_proc_mountinfo(raw: bytes, expected_mount_id: int) -> dict[str, Any]
     }
 
 
+def _boot_id_sha256(proc_fd: int) -> str:
+    raw = _read_bounded_at(
+        proc_fd,
+        "sys/kernel/random/boot_id",
+        MAX_BOOT_ID_BYTES,
+        allow_zero_size=True,
+    )
+    try:
+        value = raw.decode("ascii", "strict").strip().lower()
+    except UnicodeDecodeError:
+        hold("boot_id_invalid")
+    if not UUID_RE.fullmatch(value):
+        hold("boot_id_invalid")
+    return sha256(value.encode("ascii"))
+
+
 def verify_process_census_source() -> dict[str, Any]:
     raw = _read_bounded_path(ROOT / PROCESS_CENSUS_REL, MAX_SOURCE_BYTES)
     observed = git_blob(raw)
@@ -375,6 +396,7 @@ def observe_host_namespace_candidates() -> dict[str, Any]:
             allow_zero_size=True,
         )
         visibility = _verify_proc_mountinfo(mountinfo, mount_id)
+        boot_id_sha256 = _boot_id_sha256(proc_fd)
 
         self_pid = _namespace_identity_at(proc_fd, "self/ns/pid")
         init_pid = _namespace_identity_at(proc_fd, "1/ns/pid")
@@ -406,6 +428,7 @@ def observe_host_namespace_candidates() -> dict[str, Any]:
             terminal_mountinfo,
             mount_id,
         )
+        terminal_boot_id_sha256 = _boot_id_sha256(proc_fd)
         terminal_opened = os.fstat(proc_fd)
         terminal_visible = os.stat(PROC, follow_symlinks=False)
 
@@ -415,6 +438,7 @@ def observe_host_namespace_candidates() -> dict[str, Any]:
             or terminal_mnt != self_mnt
             or terminal_init_mnt != init_mnt
             or terminal_visibility != visibility
+            or terminal_boot_id_sha256 != boot_id_sha256
             or _identity(terminal_opened) != _identity(opened)
             or _identity(terminal_visible) != _identity(opened)
         ):
@@ -434,6 +458,8 @@ def observe_host_namespace_candidates() -> dict[str, Any]:
             "proc_root_ino": opened.st_ino,
             "proc_mount_id": mount_id,
             "proc_visibility": visibility,
+            "boot_id_sha256": boot_id_sha256,
+            "same_boot_binding_observed": True,
             "retained_procfs_view": True,
             "retained_procfs_view_revalidated": True,
             "operator_observation_only": True,
@@ -517,6 +543,8 @@ def self_test() -> None:
             hold("self_test_descriptor_relative_read_empty")
         if _fd_mount_id(proc_fd) <= 0:
             hold("self_test_mount_id_invalid")
+        if len(_boot_id_sha256(proc_fd)) != 64:
+            hold("self_test_boot_id_invalid")
     finally:
         os.close(proc_fd)
 
@@ -534,6 +562,7 @@ def self_test() -> None:
     print("proc_self_intermediate_symlink_supported=true")
     print("proc_fdinfo_zero_size_reader_tested=true")
     print("proc_mount_id_reader_tested=true")
+    print("boot_id_same_boot_binding=true")
     print("operator_observation_only=true")
     print("operator_must_independently_know_host_context=true")
     print("independent_host_context_attested=false")
