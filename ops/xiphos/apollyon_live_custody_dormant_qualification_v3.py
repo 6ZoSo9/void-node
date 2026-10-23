@@ -1616,16 +1616,39 @@ def self_test()->None:
     assert live_source.index("wait_socket(True)")<live_source.index(
         'raw=service.get("MainPID","")'
     )
+    subject_source=own[
+        own.index("def validated_custody_live_subject("):own.index("def live_observation(")
+    ]
+    for binding in (
+        "status=proc_status(pid)",
+        "if argv!=expected_live_argv(ids):",
+        "thread_inventory=custody_thread_inventory(pid,ids)",
+        "no_training_uid_processes(ids",
+        "stable_uid_thread_process_map(ids",
+        '"cmdline_raw":cmd',
+        '"security_status":',
+        '"thread_inventory":thread_inventory',
+        '"custody_processes":custody_processes',
+    ):
+        assert binding in subject_source,binding
     assert live_source.index("exact_custody_node_executable(pid)")<live_source.index(
-        "status=proc_status(pid)"
+        "initial_subject=validated_custody_live_subject(pid,ids)"
     )
-    assert "custody_mainpid_generation_changed" in live_source
-    assert "custody_mainpid_changed" in live_source
-    assert live_source.count("exact_custody_node_executable(pid)")==2
-    assert live_source.rfind("exact_custody_node_executable(pid)")>live_source.index(
+    assert live_source.count("validated_custody_live_subject(pid,ids)")==2
+    assert live_source.index("final_subject=validated_custody_live_subject(pid,ids)")>live_source.index(
         'if latest.get("MainPID")!=raw:'
     )
+    assert live_source.index("if final_subject!=initial_subject:")>live_source.index(
+        "final_subject=validated_custody_live_subject(pid,ids)"
+    )
+    assert live_source.count("exact_custody_node_executable(pid)")==3
+    assert live_source.rfind("exact_custody_node_executable(pid)")>live_source.index(
+        'if final_service.get("MainPID")!=raw:'
+    )
     assert "custody_mainpid_generation_changed_after_executable_recheck" in live_source
+    assert "custody_mainpid_generation_changed_after_snapshot" in live_source
+    assert "custody_mainpid_changed_after_snapshot" in live_source
+    assert "custody_mainpid_generation_changed_final" in live_source
     with tempfile.TemporaryDirectory(prefix="apollyon-v3-exe-") as td:
         root=Path(td)
         expected=root/"node"
@@ -1668,6 +1691,82 @@ def self_test()->None:
             lambda:exact_custody_node_executable(4242,expected,proc_root),
             "custody_node_executable_disappeared",
         )
+
+    # Inert same-Node re-exec regression. Hold PID, start ticks, and executable
+    # identity constant while the second validated subject changes argv.
+    # This invokes live_observation itself, not only a comparator helper.
+    class SyntheticSocket:
+        def settimeout(self,seconds):pass
+        def connect_ex(self,path):return 0
+        def close(self):pass
+
+    synthetic_ids={
+        "custody_uid":4242,"custody_gid":4243,
+        "ipc_gid":4244,"training_uid":4343,
+    }
+    expected_argv=tuple(expected_live_argv(synthetic_ids))
+    initial_subject={
+        "security_status":{
+            "Uid":"4242 4242 4242 4242",
+            "Gid":"4243 4243 4243 4243",
+            "Groups":"4243 4244",
+            "CapInh":"0000000000000000",
+            "CapPrm":"0000000000000000",
+            "CapEff":"0000000000000000",
+            "CapAmb":"0000000000000000",
+            "NoNewPrivs":"1",
+        },
+        "cmdline_raw":b"reviewed-node\\0reviewed-argv\\0",
+        "argv":expected_argv,
+        "thread_inventory":[{"tid":4242,"no_new_privileges":True}],
+        "validated_tids":(4242,),
+        "custody_processes":{4242:(4242,)},
+    }
+    reexecuted_subject={
+        **initial_subject,
+        "cmdline_raw":b"reviewed-node\\0reexecuted-argv\\0",
+        "argv":expected_argv[:-1]+("unexpected-reexec-argument",),
+    }
+    socket_meta=os.stat_result(
+        (stat.S_IFSOCK|0o660,17,23,2,4242,4244,0,0,0,0)
+    )
+    def fake_unit_state(unit,state,timeout_s=8.0):
+        assert state=="active"
+        return {
+            "LoadState":"loaded","ActiveState":"active",
+            "MainPID":"4242" if unit==SERVICE_UNIT else "",
+        }
+    for subject_sequence,should_hold in (
+        ([initial_subject,reexecuted_subject],True),
+        ([initial_subject,initial_subject],False),
+    ):
+        with (
+            mock.patch.object(sys.modules[__name__],"wait_unit",side_effect=fake_unit_state),
+            mock.patch.object(sys.modules[__name__],"wait_socket",return_value=None),
+            mock.patch.object(
+                sys.modules[__name__],"validated_custody_live_subject",
+                side_effect=subject_sequence,
+            ) as sample,
+            mock.patch.object(sys.modules[__name__],"proc_start_ticks",return_value="77"),
+            mock.patch.object(
+                sys.modules[__name__],"exact_custody_node_executable",
+                return_value=None,
+            ) as exe,
+            mock.patch.object(os,"lstat",return_value=socket_meta),
+            mock.patch.object(socket,"socket",return_value=SyntheticSocket()),
+        ):
+            if should_hold:
+                expect_hold(
+                    lambda:live_observation(synthetic_ids),
+                    "custody_mainpid_live_snapshot_changed",
+                )
+                assert exe.call_count==2
+            else:
+                accepted=live_observation(synthetic_ids)
+                assert accepted["exact_runtime_argv_bound"] is True
+                assert accepted["custody_thread_ids"]==[4242]
+                assert exe.call_count==3
+            assert sample.call_count==2
 
     for reviewed_version in REVIEWED_SYSTEMD_PACKAGE_VERSIONS:
         evidence=validate_systemd_generation(
@@ -2040,6 +2139,8 @@ def self_test()->None:
     print("mainpid_generation_rechecked=true")
     print("final_executable_identity_reattested=true")
     print("checker_inode_mismatch_adversary_executed=true")
+    print("full_live_subject_snapshot_rechecked=true")
+    print("same_node_reexec_adversary_executed=true")
     print("training_execution=false")
     print("durable_attempt_claim=false")
     print("funds_movement=false")
