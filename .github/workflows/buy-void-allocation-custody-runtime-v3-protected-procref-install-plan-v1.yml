@@ -1,0 +1,143 @@
+name: VOID Buy custody V3 protected procref install plan v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-procref-install-plan-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-procref-install-plan-v1.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v1.json"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact install-plan successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="e709726c6a7d2af1e61956fa2e60f6fb0904c653"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-protected-procref-install-plan-v1.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-protected-procref-install-plan-v1.md'
+            $'A\tops/precision/void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py)" = \
+            "ddbc7d99e5c08fbd51332541316b1d24c3fbcc6c"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py)" = \
+            "8e55342ca15f3b81cf976d6fdb7ca35d2b0419a4"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-procref-install-plan-v1.md)" = \
+            "c04b3a2f16955ff5182e69f8a9c9786ccc81fb22"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v1.json)" = \
+            "3eacfe0dec5144ba8c1e4c743bf3e8025f58f88a"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
+            "0567991abb05c121722d47485ab9e7410b8b8126"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile Python sources
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py
+
+      - name: Self-test source plan only
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/custody-procref-install-plan-selftest.txt"
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py \
+            --self-test | tee "$out"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_PROCREF_INSTALL_PLAN_V1_SELF_TEST_GREEN' "$out"
+          for marker in \
+            'accepted_lock_exact=true' \
+            'candidate_source_git_blob_exact=true' \
+            'candidate_source_sha256_exact=true' \
+            'candidate_source_bytes_exact=true' \
+            'create_only_prestate_classification_tested=true' \
+            'apply_implemented=false' \
+            'apply_available=false' \
+            'read_only=true' \
+            'filesystem_write=false' \
+            'protected_install_authorized=false' \
+            'protected_install_performed=false' \
+            'live_privileged_census_authorized=false' \
+            'live_privileged_census_executed=false' \
+            'legacy_runtime_target_mutation=false' \
+            'replacement_apply_authorized=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove source boundary
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/custody-procref-install-plan-proof.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py \
+            | tee "$proof"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_PROCREF_INSTALL_PLAN_V1_PROOF_GREEN' "$proof"
+          for marker in \
+            'exact_source_blob_asserted=true' \
+            'accepted_lock_exact=true' \
+            'candidate_source_git_blob_exact=true' \
+            'candidate_source_sha256_exact=true' \
+            'candidate_source_bytes_exact=true' \
+            'create_only_prestate_positive_tested=true' \
+            'existing_install_root_rejected=true' \
+            'existing_stage_root_rejected=true' \
+            'production_mutation_primitives_absent=true' \
+            'apply_cli_absent=true' \
+            'apply_implemented=false' \
+            'apply_available=false' \
+            'read_only=true' \
+            'filesystem_write=false' \
+            'protected_install_authorized=false' \
+            'protected_install_performed=false' \
+            'live_privileged_census_authorized=false' \
+            'live_privileged_census_executed=false' \
+            'legacy_runtime_target_mutation=false' \
+            'replacement_apply_authorized=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
