@@ -51,7 +51,8 @@
     "fd_table_stability_proven": false,
     "mapping_set_stability_proven": false,
     "process_reference_snapshot_race_free": false,
-    "live_at_use_reverification_required": true
+    "live_at_use_reverification_required": true,
+    "separately_reviewed_host_namespace_lease_required": true
   },
   "protected_execution_contract": {
     "install_root": "/opt/void-buy-allocation-custody-procref-v1",
