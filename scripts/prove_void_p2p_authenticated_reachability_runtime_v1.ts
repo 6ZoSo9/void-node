@@ -191,6 +191,43 @@ assert.equal(runtimeOutboundDomainRotation.counts.outbound_successes, 1);
 assert.equal(runtimeOutboundDomainRotation.counts.independent_success_observers, 1);
 assert.equal(runtimeOutboundDomainRotation.counts.independent_success_domains, 1);
 
+const runtimeObservationAOtherCandidateDifferentDomain =
+  createVoidP2PReachabilityObservationV1({
+    subjectNodeId: subjectKeys.nodeId,
+    observerNodeId: observerA.nodeId,
+    observerFailureDomain: "failure-domain-b",
+    observedAt: new Date(now + 4).toISOString(),
+    kind: "authenticated_dialback",
+    candidateAddress: "2.2.2.2:4700",
+    outcome: "success",
+    authenticatedSubjectId: subjectKeys.nodeId,
+    latencyMs: 16,
+  });
+const runtimeCrossCandidateDomainRotation =
+  classifyVoidP2PReachabilityRuntimeV1(
+    [runtimeObservationA, runtimeObservationB],
+    {
+      nowMs: now + 5,
+      domainConsistencyObservations: [
+        runtimeObservationA,
+        runtimeObservationB,
+        runtimeObservationAOtherCandidateDifferentDomain,
+      ],
+    },
+  );
+assert.equal(
+  runtimeCrossCandidateDomainRotation.classification,
+  "direct_observed_unconfirmed",
+);
+assert.equal(
+  runtimeCrossCandidateDomainRotation.counts.independent_success_observers,
+  1,
+);
+assert.equal(
+  runtimeCrossCandidateDomainRotation.counts.independent_success_domains,
+  1,
+);
+
 const sourceContract: any = await import(
   "./lib/void_p2p_reachability_classification_contract_v1.mjs"
 );
@@ -224,6 +261,39 @@ const sourceDirect = sourceContract.classifyReachability(
 );
 assert.equal(sourceDirect.classification, runtimeDirect.classification);
 assert.deepEqual(sourceDirect.counts, runtimeDirect.counts);
+
+const sourceObservationAOtherCandidateDifferentDomain =
+  sourceContract.createReachabilityObservation({
+    subjectNodeId: subjectKeys.nodeId,
+    observerNodeId: observerA.nodeId,
+    observerFailureDomain: "failure-domain-b",
+    observedAt: new Date(now + 4).toISOString(),
+    kind: "authenticated_dialback",
+    candidateAddress: "2.2.2.2:4700",
+    outcome: "success",
+    authenticatedSubjectId: subjectKeys.nodeId,
+    latencyMs: 16,
+  });
+const sourceCrossCandidateDomainRotation =
+  sourceContract.classifyReachability(
+    [sourceObservationA, sourceObservationB],
+    {
+      nowMs: now + 5,
+      domainConsistencyObservations: [
+        sourceObservationA,
+        sourceObservationB,
+        sourceObservationAOtherCandidateDifferentDomain,
+      ],
+    },
+  );
+assert.equal(
+  sourceCrossCandidateDomainRotation.classification,
+  "direct_observed_unconfirmed",
+);
+assert.deepEqual(
+  sourceCrossCandidateDomainRotation.counts,
+  runtimeCrossCandidateDomainRotation.counts,
+);
 
 assert.throws(
   () =>
@@ -333,6 +403,78 @@ try {
   assert(loopbackClassification);
   assert.equal(loopbackClassification.classification, "non_public_address");
 
+  // Global observer-domain consistency must be computed before candidate
+  // grouping. Observer A rotates its label only on candidate 2; candidate 1
+  // must therefore remain unconfirmed despite two raw successful dialbacks.
+  const globalObserverA = keypair();
+  const globalObserverB = keypair();
+  const globalNow = Date.now();
+  const globalCandidateOne = "1.1.1.1:4700";
+  const globalCandidateTwo = "2.2.2.2:4700";
+  const globalObservations = [
+    createVoidP2PReachabilityObservationV1({
+      subjectNodeId: subject.id,
+      observerNodeId: globalObserverA.nodeId,
+      observerFailureDomain: "global-domain-a",
+      observedAt: new Date(globalNow).toISOString(),
+      kind: "authenticated_dialback",
+      candidateAddress: globalCandidateOne,
+      outcome: "success",
+      authenticatedSubjectId: subject.id,
+      latencyMs: 21,
+    }),
+    createVoidP2PReachabilityObservationV1({
+      subjectNodeId: subject.id,
+      observerNodeId: globalObserverB.nodeId,
+      observerFailureDomain: "global-domain-b",
+      observedAt: new Date(globalNow + 1).toISOString(),
+      kind: "authenticated_dialback",
+      candidateAddress: globalCandidateOne,
+      outcome: "success",
+      authenticatedSubjectId: subject.id,
+      latencyMs: 22,
+    }),
+    createVoidP2PReachabilityObservationV1({
+      subjectNodeId: subject.id,
+      observerNodeId: globalObserverA.nodeId,
+      observerFailureDomain: "global-domain-b",
+      observedAt: new Date(globalNow + 2).toISOString(),
+      kind: "authenticated_dialback",
+      candidateAddress: globalCandidateTwo,
+      outcome: "success",
+      authenticatedSubjectId: subject.id,
+      latencyMs: 23,
+    }),
+  ];
+  for (const observation of globalObservations) {
+    assert.equal(
+      (subject as any).recordReachabilityObservation(
+        observation,
+        "local_dialback",
+      ),
+      true,
+    );
+  }
+  const globalSnapshot = subject.reachabilitySnapshot();
+  const globalCandidateOneClassification =
+    globalSnapshot.classifications.find(
+      (entry) => entry.candidate_address === globalCandidateOne,
+    );
+  assert(globalCandidateOneClassification);
+  assert.equal(
+    globalCandidateOneClassification.classification,
+    "direct_observed_unconfirmed",
+  );
+  assert.equal(globalCandidateOneClassification.counts.dialback_successes, 2);
+  assert.equal(
+    globalCandidateOneClassification.counts.independent_success_observers,
+    1,
+  );
+  assert.equal(
+    globalCandidateOneClassification.counts.independent_success_domains,
+    1,
+  );
+
   failureObserver = await startNode({
     root,
     name: "failure-observer",
@@ -436,6 +578,8 @@ try {
   console.log("conflicting_observer_failure_domains_direct_confirmed=false");
   console.log("failed_dialback_domain_rotation_withholds_independence=true");
   console.log("outbound_domain_rotation_withholds_independence=true");
+  console.log("cross_candidate_domain_rotation_withholds_independence=true");
+  console.log("runtime_snapshot_global_domain_consistency_bound=true");
   console.log("nat_type_inferred=false");
   console.log("relay_requirement_inferred=false");
   console.log("runtime_network_probe_exercised=true");
