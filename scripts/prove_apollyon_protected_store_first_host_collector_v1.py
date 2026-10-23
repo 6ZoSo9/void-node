@@ -42,7 +42,7 @@ PINS = {
     ".github/workflows/apollyon-xiphos-machine-id-provenance-hold-v1.yml":
         "e526570137e1d50d41c1876feb79b07c665017a1",
     SOURCE_REL:
-        "36f77c85a2716989726af77679160de2b9e48f76",
+        "160ad246b36eb2ee6680acc411686ff43a25bef9",
 }
 SELF = "scripts/prove_apollyon_protected_store_first_host_collector_v1.py"
 DOC = "docs/security/apollyon-protected-store-first-host-collector-v1.md"
@@ -360,8 +360,15 @@ with tempfile.TemporaryDirectory(prefix="apollyon-first-host-drift-proof-") as t
         mod.os.fstat = real_fstat
     need(seen[0] >= 2, "terminal_drift_not_exercised")
 
+need(
+    mod.AUTHENTICATED_XIPHOS_MACHINE_ID_PROVENANCE_BOUND is False,
+    "authenticated_machine_identity_provenance_promoted",
+)
+need(mod.HOST_PASS_AUTHORIZED is False, "host_pass_authority_promoted")
+
 plan = mod.plan_receipt()
 need(plan["authority"]["host_pass_performed"] is False, "plan_host_pass_promoted")
+need(plan["authority"]["machine_identity_bound"] is False, "plan_machine_identity_promoted")
 for key in (
     "protected_store_origin_proven",
     "writer_invocation_authorized",
@@ -373,10 +380,10 @@ for key in (
 ):
     need(plan["authority"][key] is False, "plan_authority_promoted:" + key)
 
-# Exercise the complete host-pass orchestration with inert providers only.
+# The current source generation MUST refuse --run before *any* host
+# observation. Patch every provider to make a pre-gate read observable.
 _saved = {
     "gethostname": mod.socket.gethostname,
-    "normalize_machine_id": mod.normalize_machine_id,
     "read_exact_regular": mod._read_exact_regular,
     "ancestor": mod._ancestor_observation,
     "paths": mod._fixed_path_observation,
@@ -384,104 +391,39 @@ _saved = {
     "systemctl": mod._systemctl_show,
     "process": mod._process_observation,
 }
-_service_base = {
-    "LoadState": "loaded",
-    "ActiveState": "inactive",
-    "SubState": "dead",
-    "UnitFileState": "disabled",
-    "MainPID": "0",
-    "Result": "success",
-    "FragmentPath": "/etc/systemd/system/void-apollyon-attempt-claim-v2.service",
-    "ControlGroup": "",
-}
+host_observation_calls = []
 
-def _install_inert(
-    *,
-    service_values=None,
-    process_values=None,
-    path_values=None,
-    mount_values=None,
-):
-    mod.socket.gethostname = lambda: "Xiphos"
-    mod.normalize_machine_id = lambda raw: mod.EXPECTED_MACHINE_ID_SHA256
-    mod._read_exact_regular = lambda *a, **k: b"not-exposed"
-    mod._ancestor_observation = lambda: {"ancestors": "stable"}
+def unexpected_host_observation(name):
+    def fail_if_called(*args, **kwargs):
+        host_observation_calls.append(name)
+        raise AssertionError("host_observation_before_provenance_gate:" + name)
+    return fail_if_called
 
-    absent_paths = {
-        "claim_state_root": {"present": False},
-        "consumption_directory": {"present": False},
-        "claim_socket_parent": {"present": False},
-        "service_unit": {"present": False},
-        "service_source_root": {"present": False},
-        "publisher_source_root": {"present": False},
-    }
-    paths = list(path_values or [absent_paths.copy(), absent_paths.copy()])
-    mounts = list(mount_values or [{"mounts": "stable"}, {"mounts": "stable"}])
-    services = list(service_values or [_service_base.copy(), _service_base.copy()])
-    processes = list(process_values or [None, None])
-
-    def pop_or_last(values):
-        if len(values) > 1:
-            return values.pop(0)
-        return values[0]
-
-    mod._fixed_path_observation = lambda: pop_or_last(paths)
-    mod._mount_observation = lambda: pop_or_last(mounts)
-    mod._systemctl_show = lambda: pop_or_last(services)
-    mod._process_observation = lambda pid: pop_or_last(processes)
-
+mod.socket.gethostname = unexpected_host_observation("hostname")
+mod._read_exact_regular = unexpected_host_observation("fixed_file")
+mod._ancestor_observation = unexpected_host_observation("ancestors")
+mod._fixed_path_observation = unexpected_host_observation("fixed_paths")
+mod._mount_observation = unexpected_host_observation("mountinfo")
+mod._systemctl_show = unexpected_host_observation("systemctl")
+mod._process_observation = unexpected_host_observation("process")
 try:
-    _install_inert()
-    simulated = mod.run_host_pass()
-    need(simulated["machine_identity_match"] is True, "simulated_machine_bind_failed")
-    need(simulated["authority"]["host_pass_performed"] is True, "simulated_pass_missing")
-    need(
-        simulated["installed_source_generation_metadata_observed"] is False
-        and simulated["installed_package_runtime_metadata_observed"] is False
-        and simulated["installed_service_process_identity_observed"] is False,
-        "absence_promoted_installed_metadata",
+    expect_hold(
+        mod.run_host_pass,
+        "authenticated_xiphos_machine_identity_provenance_required",
     )
-    for key in (
-        "protected_store_origin_proven",
-        "writer_invocation_authorized",
-        "training_execution_authorized",
-        "credential_access",
-        "signing",
-        "transaction",
-        "funds_movement",
-    ):
-        need(simulated["authority"][key] is False, "simulated_authority_promoted:" + key)
-
-    changed_service = _service_base.copy()
-    changed_service["SubState"] = "running"
-    _install_inert(service_values=[_service_base.copy(), changed_service])
-    expect_hold(mod.run_host_pass, "service_state_changed_during_pass")
-
-    live_service = _service_base.copy()
-    live_service["MainPID"] = "123"
-    _install_inert(
-        service_values=[live_service.copy(), live_service.copy()],
-        process_values=[
-            {"pid": 123, "start_ticks": "100"},
-            {"pid": 123, "start_ticks": "101"},
-        ],
-    )
-    expect_hold(mod.run_host_pass, "service_process_subject_changed_during_pass")
-
-    _install_inert(path_values=[{"paths": "one"}, {"paths": "two"}])
-    expect_hold(mod.run_host_pass, "fixed_path_metadata_changed_during_pass")
-
-    _install_inert(mount_values=[{"mounts": "one"}, {"mounts": "two"}])
-    expect_hold(mod.run_host_pass, "mount_metadata_changed_during_pass")
 finally:
     mod.socket.gethostname = _saved["gethostname"]
-    mod.normalize_machine_id = _saved["normalize_machine_id"]
     mod._read_exact_regular = _saved["read_exact_regular"]
     mod._ancestor_observation = _saved["ancestor"]
     mod._fixed_path_observation = _saved["paths"]
     mod._mount_observation = _saved["mounts"]
     mod._systemctl_show = _saved["systemctl"]
     mod._process_observation = _saved["process"]
+
+need(
+    host_observation_calls == [],
+    "host_observation_reached_before_provenance_gate",
+)
 
 print("VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_COLLECTOR_V1_PROOF_GREEN")
 print("source_blob=" + PINS[SOURCE_REL])
@@ -502,9 +444,10 @@ print("mount_super_options_drift_bound=true")
 print("raw_mount_source_not_emitted=true")
 print("adversarial_mount_material_not_emitted=true")
 print("systemctl_show_only_contract=true")
-print("inert_full_pass_orchestration_executed=true")
-print("whole_pass_drift_adversaries_rejected=true")
-print("absence_does_not_promote_installed_metadata=true")
+print("machine_identity_bound=false")
+print("authenticated_xiphos_machine_identity_provenance_bound=false")
+print("host_pass_authorized=false")
+print("host_pass_blocked_before_host_observation=true")
 print("host_pass_performed=false")
 print("filesystem_mutation=false")
 print("service_mutation=false")
