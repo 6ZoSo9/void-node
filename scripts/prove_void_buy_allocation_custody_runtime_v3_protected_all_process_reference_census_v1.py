@@ -329,12 +329,11 @@ for required in (
     assert required in source, required
 
 census_block = pre_self_test.split("def census(", 1)[1]
-assert census_block.index("_protected_source_admission()") < census_block.index(
-    "all_process_census("
-)
-assert census_block.index("_protected_source_admission()") < census_block.index(
-    "expected_host_pid_namespace_dev_ino"
-)
+protected_index = census_block.index("_protected_source_admission()")
+python_index = census_block.index("_python_runtime_observation()")
+process_index = census_block.index("all_process_census(")
+assert protected_index < python_index < process_index
+assert "expected_host_pid_namespace_dev_ino" in census_block
 assert "expected_host_mount_namespace_dev_ino" in census_block
 
 print(
@@ -347,6 +346,7 @@ print("protected_source_fixed_path_required=true")
 print("root_owned_nonwritable_ancestry_required=true")
 print("root_execution_required=true")
 print("mutable_checkout_privileged_execution_rejected=true")
+print("protected_admission_precedes_privileged_scan=true")
 print("target_identity_metadata_only=true")
 print("all_numeric_pids_scope=true")
 print("kernel_thread_explicit_skip=true")
