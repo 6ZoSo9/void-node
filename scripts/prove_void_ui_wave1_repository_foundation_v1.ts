@@ -27,6 +27,7 @@ const moduleText = read(modulePath);
 const indexText = read(indexPath);
 const html = read(path.join(shellDir, "index.html"));
 const appJs = read(path.join(shellDir, "assets", "js", "app.js"));
+const networkLiveJs = read(path.join(shellDir, "assets", "js", "network-live.js"));
 const viewsJs = read(path.join(shellDir, "assets", "js", "views.js"));
 const componentsCss = read(
   path.join(shellDir, "assets", "css", "components.css")
@@ -494,6 +495,47 @@ if (
   )
 ) {
   fail("intentional toast live region marker is missing");
+}
+
+const routeContainerTag =
+  html.match(/<div\b[^>]*\bid=["']view-root["'][^>]*>/i)?.[0] ?? "";
+if (!routeContainerTag) {
+  fail("route content container is missing");
+}
+if (
+  /\baria-live\s*=|\brole\s*=\s*["'](?:status|log|alert)["']/i.test(
+    routeContainerTag
+  )
+) {
+  fail("route content container must not be a live region");
+}
+
+for (const marker of [
+  "const homeStatus = root.querySelector('[data-home-summary]');",
+  "homeStatus.setAttribute('role', 'status');",
+  "homeStatus.setAttribute('aria-live', 'polite');",
+  "homeStatus.setAttribute('aria-atomic', 'true');",
+]) {
+  if (!appJs.includes(marker)) {
+    fail(`Home async status live-region contract missing: ${marker}`);
+  }
+}
+
+if (
+  !networkLiveJs.includes(
+    '<p data-network-live-summary role="status" aria-live="polite" aria-atomic="true">'
+  )
+) {
+  fail("Network async status summary must remain a bounded polite atomic live region");
+}
+
+for (const marker of [
+  '<p data-wallet-message role="status" aria-live="polite" aria-atomic="true">',
+  '<p data-earn-message role="status" aria-live="polite" aria-atomic="true">',
+]) {
+  if (!viewsJs.includes(marker)) {
+    fail(`Wallet/Earn async status live-region contract missing: ${marker}`);
+  }
 }
 
 const inertOpenIndex = appJs.indexOf("setModalBackgroundInert(true);");
