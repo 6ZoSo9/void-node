@@ -5,9 +5,9 @@ export const VOID_BUY_VOID_CUSTODY_RUNTIME_V3_REPLACEMENT_READINESS_PLAN_V1 =
   "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_REPLACEMENT_READINESS_PLAN_V1";
 
 export const PRESTATE_SOURCE = Object.freeze({
-  head: "836f5e704a603f67b77b2406aeec9174f640497e",
+  head: "7736a3a5c53da37448c357a5d98e4dad09f3f617",
   path: "ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py",
-  git_blob_sha1: "4d9c6e5809a5cc64454626760f71e60ed99354bc",
+  git_blob_sha1: "e32ebd94ad09cd80e03489079e74657aab159d7a",
   schema: "void_buy_void_custody_runtime_v3_install_prestate_census_v1",
   marker: "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_INSTALL_PRESTATE_CENSUS_V1",
 });
@@ -21,9 +21,9 @@ export const QUIESCENCE_SOURCE = Object.freeze({
 });
 
 export const PROCESS_REFERENCE_SOURCE = Object.freeze({
-  head: "2f58b776c4ba5b4c1b309d122122bd3355e2abc9",
+  head: "7736a3a5c53da37448c357a5d98e4dad09f3f617",
   path: "ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py",
-  git_blob_sha1: "a5fa6ff22cc21df555e8a70c32500f07251dc4a8",
+  git_blob_sha1: "6bf476e3383b7b18966320df13b4041da9c8c11f",
   schema: "void_buy_void_custody_runtime_v3_process_reference_census_v1",
   marker: "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROCESS_REFERENCE_CENSUS_V1",
 });
@@ -115,6 +115,12 @@ function bool(value, expected, code) {
   if (value !== expected) throw new Error(code);
 }
 
+function requireExactBooleanContract(value, prefix, contract) {
+  for (const [key, expected] of Object.entries(contract)) {
+    bool(value[key], expected, prefix + "_contract_invalid:" + key);
+  }
+}
+
 function string(value, expected, code) {
   if (value !== expected) throw new Error(code);
 }
@@ -137,6 +143,7 @@ function receiptId(value, prefix, code) {
 
 function requireCommonNoAuthority(value, prefix) {
   for (const key of [
+    "install_target_selected",
     "existing_target_replaced",
     "runtime_integration",
     "payment_acceptance",
@@ -173,13 +180,27 @@ function validatePrestate(raw) {
   if (value.version !== 1) throw new Error("prestate_version_invalid");
   receiptId(value.prestate_id, "voidbuycustodyprestate1_", "prestate_id_invalid");
   validateArchiveLock(value.archive_lock, "prestate");
-  bool(value.production_census_read_only, true, "prestate_read_only_invalid");
-  bool(
-    value.production_census_filesystem_write,
-    false,
-    "prestate_filesystem_write_invalid",
-  );
-  bool(value.service_mutation, false, "prestate_service_mutation_invalid");
+  requireExactBooleanContract(value, "prestate", {
+    read_only: true,
+    filesystem_explicit_write: false,
+    filesystem_write_free: false,
+    atime_write_possible: true,
+    production_census_read_only: true,
+    production_census_explicit_filesystem_write: false,
+    production_census_filesystem_write_free: false,
+    production_census_atime_write_possible: true,
+    archive_extraction: false,
+    permission_mutation: false,
+    service_state_checked: false,
+    service_mutation: false,
+    live_process_binding_checked: false,
+    process_environment_read: false,
+    process_arguments_read: false,
+    request_history_read: false,
+    custody_data_read: false,
+    credential_access: false,
+    wallet_or_signer_access: false,
+  });
   requireCommonNoAuthority(value, "prestate");
 
   const prestate = object(value.prestate, "prestate_body_invalid");
@@ -243,9 +264,24 @@ function validateQuiescence(raw) {
     "quiescence_id_invalid",
   );
   validateArchiveLock(value.archive_lock, "quiescence");
-  bool(value.read_only, true, "quiescence_read_only_invalid");
-  bool(value.filesystem_write, false, "quiescence_filesystem_write_invalid");
-  bool(value.systemd_mutation, false, "quiescence_systemd_mutation_invalid");
+  requireExactBooleanContract(value, "quiescence", {
+    read_only: true,
+    filesystem_write: false,
+    systemd_show_only: true,
+    systemd_mutation: false,
+    daemon_reload: false,
+    service_start: false,
+    service_stop: false,
+    service_restart: false,
+    socket_connect: false,
+    socket_unlink: false,
+    process_environment_read: false,
+    process_arguments_read: false,
+    request_history_read: false,
+    custody_data_read: false,
+    credential_access: false,
+    wallet_or_signer_access: false,
+  });
   requireCommonNoAuthority(value, "quiescence");
 
   const observed = object(
@@ -290,12 +326,25 @@ function validateProcess(raw) {
   if (value.version !== 1) throw new Error("process_version_invalid");
   receiptId(value.census_id, "voidbuycustodyprocref1_", "process_id_invalid");
   validateArchiveLock(value.archive_lock, "process");
-  bool(value.read_only, true, "process_read_only_invalid");
-  bool(
-    value.production_filesystem_write,
-    false,
-    "process_filesystem_write_invalid",
-  );
+  requireExactBooleanContract(value, "process", {
+    read_only: true,
+    pid1_namespace_direct_read: false,
+    pid1_mount_namespace_direct_read: false,
+    host_namespace_lease_provenance_authenticated_by_census: false,
+    proc_visibility_revalidated_after_census: true,
+    retained_procfs_view_used: true,
+    production_filesystem_write: false,
+    root_execution_forbidden: true,
+    process_environment_read: false,
+    process_arguments_read: false,
+    proc_cmdline_read: false,
+    proc_environ_read: false,
+    proc_fd_target_text_read: false,
+    proc_maps_path_text_retained: false,
+    service_mutation: false,
+    systemd_mutation: false,
+  });
+  requireCommonNoAuthority(value, "process");
   bool(
     value.host_pid_namespace_external_lease_required,
     true,
@@ -366,7 +415,6 @@ function validateProcess(raw) {
     false,
     "process_replacement_authority_invalid",
   );
-  requireCommonNoAuthority(value, "process");
 
   const target = object(value.target, "process_target_invalid");
   natural(target.root_dev, "process_target_dev_invalid");
