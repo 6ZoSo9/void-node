@@ -13,18 +13,18 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json"
 MARKER = "VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_EVIDENCE_PLAN_V1_PROOF"
-PLAN_ID = "voidapollyonfirsthostplan1_be2b83c33630bce1e9bc635cbdd90981f55df38ab0e929706acd4cd7798015ca"
-PARENT_HEAD = "3706aecf2e258c9c7021137da05428187bbe6654"
+PLAN_ID = "voidapollyonfirsthostplan1_c75bf9aaa019f82e2d73c80cb0c8bb3a1072bc462870a6d36b67a40fc59746be"
+PARENT_HEAD = "981c2d7783173bcd0ff996966570a1deb3aa8426"
 
 PINS = {
     "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs":
         "4c78459826c25cab43870b0b322b566575d18667",
     "scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs":
-        "2e919af52e44c6dcfec41dc47567a73f658874c3",
+        "62ff7e94e57a6333cdcfc78f6f63d8ef67288a20",
     "docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md":
-        "9f5a94967abd85d81d6f693bf6ff51d086623de9",
+        "16eb15388c6cc5d12097cbf69f1d04c9bc6c10d3",
     ".github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml":
-        "2774c5f9c3d037cfbd32c15d4af05cb640199ae1",
+        "12ae0543cc714e3b9e5fe6e6fdf9d6b67b0fac9f",
 }
 REQUIREMENTS = [
     "separate_operator_authorization_required",
@@ -235,11 +235,11 @@ def validate(value: object) -> dict:
         "hosted_candidate",
     )
     need(
-        hosted["workflow_run"] == 39963410577
-        and hosted["node22_artifact_id"] == 12506463546
-        and hosted["node24_artifact_id"] == 12506363765
-        and hosted["node26_artifact_id"] == 12507375197
-        and hosted["cross_node_compare_job_id"] == 120455735301
+        hosted["workflow_run"] == 39973909609
+        and hosted["node22_artifact_id"] == 12511636373
+        and hosted["node24_artifact_id"] == 12512036192
+        and hosted["node26_artifact_id"] == 12511236866
+        and hosted["cross_node_compare_job_id"] == 120490993474
         and hosted["candidate_id"]
         == "apollyon_training_start_protected_store_revalidator_v2:20fb5bedf6db2b606fb9adb025f95786417d58458d6bc06444b8f03c756f3444"
         and hosted["candidate_frame_bytes"] == 9570
