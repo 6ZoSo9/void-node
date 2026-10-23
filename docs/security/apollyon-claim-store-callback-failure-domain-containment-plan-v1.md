@@ -28,8 +28,18 @@ boundary is therefore preserved.
 The future runtime candidate must instead place the claim-store operation and all admitted
 callbacks in a one-request isolated OS process launched under an exact reviewed source
 generation. The supervisor must use strict unhandled-rejection behavior, a closed
-descriptor/environment boundary, and treat any signal/non-zero exit as HOLD. A success
-receipt is not authoritative while merely buffered: the supervisor may acknowledge success
+descriptor/environment boundary, and treat any signal/non-zero exit as HOLD.
+
+Strict unhandled-rejection mode is not sufficient if callback code can install
+`process.on/addListener/once/prependListener/prependOnceListener("uncaughtException", ...)`
+or `process.setUncaughtExceptionCaptureCallback(...)`: those exception surfaces can
+consume the raised rejection and allow a later checkpoint with exit code zero. Before
+admitted callback code runs, the worker must therefore seal or reject the
+`uncaughtException` listener-registration surfaces and the capture-callback setter.
+Any attempted mutation of those surfaces is itself HOLD; callback code cannot install,
+replace, remove, or temporarily use an exception hook and then qualify for success.
+
+A success receipt is not authoritative while merely buffered: the supervisor may acknowledge success
 only after the child has passed a post-callback event-loop checkpoint and exited cleanly.
 
 If the child fails after store mutation may have occurred, the supervisor must report an
@@ -179,7 +189,7 @@ training or funds movement.
 
 Content-addressed plan ID (successor to historical `voidapollyonclaimcallbackcontain1_0e0794baead1aa6571c8f0820a32d5951e24dfefb164445c0591c1d94bc5166c`):
 
-`voidapollyonclaimcallbackcontain1_9dd940ac663df8b532be0d25455eb522e9762563e2f04414ac933072aadc3a3f` (previous exact-ceiling generation: `voidapollyonclaimcallbackcontain1_d5ede06832f2480774f989e95eadd2759ab7081a2adbab4bcc9dc575afbc965f`; previous supervisor-death generation: `voidapollyonclaimcallbackcontain1_17848cb11147fb0284268258e784826daf75630687abec922c4dd5d972b7be68`)
+`voidapollyonclaimcallbackcontain1_9f64ebd8cd027083db530c333418e24bbbad64aefe852a21478f155358662369` (previous exact-ceiling generation: `voidapollyonclaimcallbackcontain1_d5ede06832f2480774f989e95eadd2759ab7081a2adbab4bcc9dc575afbc965f`; previous supervisor-death generation: `voidapollyonclaimcallbackcontain1_17848cb11147fb0284268258e784826daf75630687abec922c4dd5d972b7be68`)
 
 ## October 20 — semantic negative-proof and source-role binding
 
@@ -198,7 +208,7 @@ cannot be substituted for `core`, `transaction_lease`, `native_bridge`
 or the two proofs. Two new negative cases swap core/lease roles and
 duplicate the bridge record under the core role; both must fail at
 `bound_source_role_invalid:core`, **not** at the final content hash.
-The earlier semantic-proof generation increased the source-only adversary count from 44 to **48**; the supervisor-death generation raised it to **50**. The exact-ceiling generation added two enforcement requirements plus 18 per-resource adversaries for **70** total. Durable pre-launch/terminal-clear fencing added two more for **72**. The current terminal authorization-winner and durable-claim reread generation adds two semantic requirements for **74** total, with explicit
+The earlier semantic-proof generation increased the source-only adversary count from 44 to **48**; the supervisor-death generation raised it to **50**. The exact-ceiling generation added two enforcement requirements plus 18 per-resource adversaries for **70** total. Durable pre-launch/terminal-clear fencing added two more for **72** and terminal authorization-winner/durable-claim rereads raised it to **74**. The current uncaught-exception hook sealing generation adds three semantic requirements for **77** total, with explicit
 proof output `negative_cases_failed_at_semantic_gate=true` and
 `bound_source_role_identities_enforced=true`.
 
@@ -210,7 +220,9 @@ credentials, signing, transaction or funds.
 ## Required future runtime properties
 
 The plan requires a separate OS-process failure domain, one request per isolated process,
-`--unhandled-rejections=strict`, no custom rejection suppression, exact callback-source
+`--unhandled-rejections=strict`, no custom `unhandledRejection` suppression,
+pre-callback sealing of `uncaughtException` listeners and capture callbacks with any
+mutation attempt mapped to HOLD, exact callback-source
 custody, inherited-FD allowlisting, minimal environment, a post-callback event-loop
 checkpoint, clean-exit gating before success acknowledgement, abnormal-exit HOLD,
 **bounded canonical IPC receipt framing and independent stdout/stderr/log capture budgets**,
