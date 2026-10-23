@@ -1,0 +1,110 @@
+name: Apollyon protected-store first-host evidence plan V1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json"
+      - "scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py"
+      - "docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md"
+      - ".github/workflows/apollyon-protected-store-first-host-evidence-plan-v1.yml"
+      - "tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs"
+      - "scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs"
+      - "docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md"
+      - ".github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact parent and four-file source-only scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          PARENT=3706aecf2e258c9c7021137da05428187bbe6654
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/apollyon-protected-store-first-host-evidence-plan-v1.yml' \
+            'docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md' \
+            'ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json' \
+            'scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py' \
+            | LC_ALL=C sort > "$expected"
+          git diff --no-renames --name-only "$PARENT" HEAD -- | LC_ALL=C sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/apollyon-protected-store-first-host-evidence-plan-v1.json)" = 567fbcd1f68e897128c73cedad8665b443d61701
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py)" = b0b5929f7654d09e110c55a4b19325dba22a359d
+          test "$(git rev-parse HEAD:docs/security/apollyon-protected-store-first-host-evidence-plan-v1.md)" = 3d9bf8059f91a61164bf380e92c5d6960cb02dc2
+
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = 4c78459826c25cab43870b0b322b566575d18667
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 2e919af52e44c6dcfec41dc47567a73f658874c3
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 9f5a94967abd85d81d6f693bf6ff51d086623de9
+          test "$(git rev-parse HEAD:.github/workflows/apollyon-training-start-protected-store-revalidator-contract-v2.yml)" = 2774c5f9c3d037cfbd32c15d4af05cb640199ae1
+
+          git diff --check "$PARENT" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile source proof without bytecode writes
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          name = "scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py"
+          compile(Path(name).read_text("utf-8"), name, "exec", dont_inherit=True)
+          print("plan_python_syntax_green=true")
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove source-only first-host boundary
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/apollyon-first-host-plan.txt"
+          python3 -I -B scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py --self-test | tee "$out"
+
+          for marker in \
+            'VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_EVIDENCE_PLAN_V1_PROOF_GREEN' \
+            'plan_id=voidapollyonfirsthostplan1_658cd84a07a7162ce3c9e650feffdf388d9ab08a17bf41ce461f81e96ed9960f' \
+            'parent_pr=3743' \
+            'parent_head=3706aecf2e258c9c7021137da05428187bbe6654' \
+            'parent_blob_count=4' \
+            'first_pass_requirement_count=38' \
+            'negative_authority_count=15' \
+            'rejected_adversaries=59' \
+            'hosted_candidate_identity_bound=true' \
+            'cross_node_candidate_evidence_bound=true' \
+            'read_only_metadata_safe_first_pass_required=true' \
+            'protected_record_contents_read_forbidden=true' \
+            'process_environment_read_forbidden=true' \
+            'raw_process_args_read_forbidden=true' \
+            'host_read_performed=false' \
+            'filesystem_mutation=false' \
+            'service_mutation=false' \
+            'writer_capability_created=false' \
+            'claim_publication=false' \
+            'training_execution=false' \
+            'credential_access=false' \
+            'transaction=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          python3 -I -B scripts/prove_apollyon_protected_store_first_host_evidence_plan_v1.py --run > "$RUNNER_TEMP/run.txt"
+          grep -Fx 'VOID_APOLLYON_PROTECTED_STORE_FIRST_HOST_EVIDENCE_PLAN_V1_PROOF_GREEN' "$RUNNER_TEMP/run.txt"
+          grep -Fx 'host_read_performed=false' "$RUNNER_TEMP/run.txt"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
