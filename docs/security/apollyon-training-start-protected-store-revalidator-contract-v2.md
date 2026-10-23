@@ -44,9 +44,12 @@ The candidate ID is:
 
 The executable proof poisons `JSON.stringify`, installs an inherited
 `Object.prototype.toJSON` getter, and replaces the live reflection helpers
-after module import. Qualifying and encoding an already-built V2 candidate must
-still produce identical bytes without executing the inherited getter. Revoked
-Proxy candidates and accessor-bearing inputs fail closed.
+after module import. It additionally poisons the live Proxy detector, RegExp
+test method, hash update/digest methods, Buffer allocation/encoding helpers,
+`Reflect.apply`, and the Array iterator/index-setter surface. Qualifying and
+encoding an already-built V2 candidate must still produce identical bytes
+without executing the inherited getter or Array index setter. Revoked Proxy
+candidates and accessor-bearing inputs fail closed.
 
 This closes the V2 candidate's own content-address realm seam. It does **not**
 promote the legacy V1 request-construction realm into host authority.
@@ -175,9 +178,9 @@ candidate_weight_mutation_performed=false
 Current V2 source generation before this document:
 
 - contract source blob:
-  `ef578b704e8cb186b98fd4f89f410f70dc0306b0`;
+  `de63f8801abfe483b5ce63c56581ed52d2c2aadd`;
 - proof blob:
-  `12b8869ef3147803a9028b36d142e1276b74f1ac`.
+  `a8c95d09fcbed4809788a30024a95e6d84016ad8`.
 
 Next gate:
 `apollyon_training_start_protected_store_revalidator_implementation_v2`,
