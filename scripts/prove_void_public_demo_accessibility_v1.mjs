@@ -1,9 +1,25 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 
 const target = "public/demo/index.html";
-const source = fs.readFileSync(target, "utf8");
+const sourceBytes = fs.readFileSync(target);
+const source = sourceBytes.toString("utf8");
+const REVIEWED_HTML_GIT_BLOB = "6f31d5951febd95f5b618f54e9d4fd64d74bed83";
+
+function gitBlobSha1(bytes) {
+  return crypto.createHash("sha1")
+    .update(Buffer.from("blob " + bytes.length + "\0", "utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+
+assert.equal(
+  gitBlobSha1(sourceBytes),
+  REVIEWED_HTML_GIT_BLOB,
+  "public demo HTML bytes must match the reviewed bounded-announcement generation",
+);
 
 const allowedLiveRegionTags = Object.freeze([
   '<span class="pill" role="status" aria-live="polite" aria-atomic="true"><span class="sr-only">Node health: </span><span id="healthDot" class="dot"></span><span id="healthLabel">unknown</span></span>',
@@ -65,16 +81,6 @@ function requireResultPayloadOutsideLiveAncestors(html) {
     prefix,
     /<\s*output\b/iu,
     "implicit status output must not precede resultBox",
-  );
-  assert.doesNotMatch(
-    html,
-    /\b(?:setAttribute|setAttributeNS|toggleAttribute)\s*\(\s*["'](?:role|aria-live)["']/iu,
-    "dynamic live-region mutation is outside the reviewed demo contract",
-  );
-  assert.doesNotMatch(
-    html,
-    /\.(?:role|ariaLive)\s*=/u,
-    "dynamic role/live properties are outside the reviewed demo contract",
   );
 }
 
@@ -148,6 +154,23 @@ function requireDemoAccessibility(html) {
 }
 
 requireDemoAccessibility(source);
+
+for (const dynamicMutation of [
+  source.replace(
+    "</script>",
+    'const liveAttribute = "role";\n$("resultBox").parentElement.setAttribute(liveAttribute, "status");\n</script>',
+  ),
+  source.replace(
+    "</script>",
+    'const liveAttribute = "aria-live";\n$("resultBox").parentElement.setAttribute(liveAttribute, "polite");\n</script>',
+  ),
+]) {
+  assert.notEqual(
+    gitBlobSha1(Buffer.from(dynamicMutation, "utf8")),
+    REVIEWED_HTML_GIT_BLOB,
+    "computed live-region mutation must invalidate the reviewed HTML blob",
+  );
+}
 
 const negativeMutations = [
   {
@@ -409,6 +432,8 @@ console.log("result_payload_live=false");
 console.log("result_payload_live_ancestor=false");
 console.log("result_status_bounded=true");
 console.log("result_submission_timeout_status_bounded=true");
+console.log("full_demo_html_git_blob_bound=true");
+console.log("computed_live_mutation_invalidates_bound_html_blob=true");
 console.log("ancestor_live_attribute_whitelist_fail_closed=true");
 console.log("encoded_aria_live_ancestor_rejected=true");
 console.log("quoted_gt_live_ancestor_rejected=true");
