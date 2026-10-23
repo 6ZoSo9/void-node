@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json"
 MARKER = "VOID_APOLLYON_CLAIM_STORE_CALLBACK_FAILURE_DOMAIN_CONTAINMENT_PLAN_V1_PROOF"
 PARENT = "187a4da4992b7d81330b9474e535b8af631de0d4"
-PLAN_ID = "voidapollyonclaimcallbackcontain1_9dd940ac663df8b532be0d25455eb522e9762563e2f04414ac933072aadc3a3f"
+PLAN_ID = "voidapollyonclaimcallbackcontain1_9f64ebd8cd027083db530c333418e24bbbad64aefe852a21478f155358662369"
 
 PINS = {
     "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs":
@@ -74,6 +74,9 @@ REQUIREMENTS = [
     "one_request_per_isolated_process_required",
     "node_unhandled_rejections_strict_required",
     "custom_unhandled_rejection_suppression_forbidden",
+    "callback_worker_uncaught_exception_listener_registration_forbidden",
+    "callback_worker_uncaught_exception_capture_callback_forbidden",
+    "callback_worker_exception_surface_mutation_attempt_maps_to_hold_required",
     "callback_source_custody_and_exact_identity_required",
     "inherited_descriptor_allowlist_required",
     "minimal_environment_required",
@@ -592,6 +595,8 @@ def main() -> None:
     print("resource_ceiling_count=" + str(len(RESOURCE_CEILINGS)))
     print("exact_resource_ceilings_enforced=true")
     print("storage_io_limits_bound=true")
+    print("uncaught_exception_hook_surfaces_forbidden=true")
+    print("exception_surface_mutation_maps_to_hold=true")
     print("rejected_adversaries=" + str(rejected))
     print("unsafe_supervisor_death_fence_reuse_hazard_observed=true")
     print("negative_cases_failed_at_semantic_gate=true")
