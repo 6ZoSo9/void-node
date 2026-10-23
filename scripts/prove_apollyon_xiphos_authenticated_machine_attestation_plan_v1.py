@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json"
 MARKER = "VOID_APOLLYON_XIPHOS_AUTHENTICATED_MACHINE_ATTESTATION_PLAN_V1_PROOF"
 PARENT_HEAD = "d7c3145dd202a4a7c3914732c8a8920c33a904ef"
-PLAN_ID = "voidapollyonxiphosattestplan1_7de3728e503515db7f15a3ac4824ed3012af342f89a860baab776c42f1cedffc"
+PLAN_ID = "voidapollyonxiphosattestplan1_bb22aae1db88ec8dbfaaf4a40d952e8b67d25754b0a060ecf6a439c263081fab"
 OBSERVED_DIGEST = "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057"
 
 PINS = {
@@ -66,6 +66,11 @@ TRANSPORT_REQUIREMENTS = {
     "known_hosts_single_canonical_entry_required": True,
     "known_hosts_entry_exact_alias_ed25519_and_key_required": True,
     "known_hosts_key_matches_independently_authenticated_host_key_required": True,
+    "host_key_independent_authentication_artifact_source_bound_required": True,
+    "host_key_authentication_artifact_independent_of_attestation_transport_required": True,
+    "host_key_sha256_raw_ssh_public_key_blob_required": True,
+    "client_public_key_sha256_raw_ssh_public_key_blob_required": True,
+    "known_hosts_sha256_exact_file_bytes_required": True,
     "known_hosts_parent_root_owned_nonwritable_required": True,
     "known_hosts_file_root_owned_readonly_required": True,
     "global_known_hosts_disabled_required": True,
@@ -101,6 +106,7 @@ ATTESTATION_REQUIREMENTS = {
     "machine_id_path_fixed": "/etc/machine-id",
     "machine_id_exact_lowercase_hex32_required": True,
     "raw_machine_id_response_forbidden": True,
+    "raw_machine_id_never_transmitted_on_any_channel_required": True,
     "machine_id_sha256_response_required": True,
     "machine_id_digest_must_match_observed_digest": True,
     "descriptor_generation_stability_required": True,
@@ -398,7 +404,7 @@ def main() -> None:
     plan = validate(parse_json(read_regular(PLAN, 256 * 1024)))
     verify_parent_blobs()
     rejected = adversaries(plan)
-    need(rejected == 100, "semantic_adversary_count_invalid")
+    need(rejected == 106, "semantic_adversary_count_invalid")
     print(MARKER + "_GREEN")
     print("plan_id=" + PLAN_ID)
     print("source_only=true")
@@ -409,6 +415,11 @@ def main() -> None:
     print("exact_client_identity_file_source_bound_required=true")
     print("known_hosts_single_canonical_entry_required=true")
     print("known_hosts_key_matches_independently_authenticated_host_key_required=true")
+    print("host_key_independent_authentication_artifact_source_bound_required=true")
+    print("host_key_authentication_artifact_independent_of_attestation_transport_required=true")
+    print("host_key_sha256_raw_ssh_public_key_blob_required=true")
+    print("client_public_key_sha256_raw_ssh_public_key_blob_required=true")
+    print("known_hosts_sha256_exact_file_bytes_required=true")
     print("remote_measurement_runtime_provenance_required=true")
     print("attestation_execution_authorized=false")
     print("authenticated_transport_attestation_present=false")
@@ -420,6 +431,7 @@ def main() -> None:
     print("max_response_bytes=4096")
     print("strict_host_key_checking_required=true")
     print("raw_machine_id_response_forbidden=true")
+    print("raw_machine_id_never_transmitted_on_any_channel_required=true")
     print("parent_blob_validation=true")
     print("semantic_adversaries=" + str(rejected))
     print("training_execution_authorized=false")
