@@ -7,8 +7,6 @@ on:
       - 'scripts/prove_void_v7_static_privilege_bridge_v1.py'
       - 'docs/operators/void-v7-static-privilege-bridge-v1.md'
       - '.github/workflows/void-v7-static-privilege-bridge-v1.yml'
-  workflow_dispatch:
-
 permissions:
   contents: read
 
@@ -41,21 +39,20 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git hash-object --no-filters ops/precision/void_v7_static_privilege_bridge_v1.c)" = "91a37d6291dd4370c251ac7895595a3ccf5c5d91"
           test "$(git hash-object --no-filters scripts/prove_void_v7_static_privilege_bridge_v1.py)" = "3271fcfad470e96eb28d8b3a7e4e2a3d94a764b1"
-          test "$(git hash-object --no-filters docs/operators/void-v7-static-privilege-bridge-v1.md)" = "2ac2c38d1e161e2bca534fc418b07ed1fdc3cd7f"
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            git diff --check "$PR_BASE" "$EXPECTED_HEAD" --
-            cat > /tmp/voidpriv-expected.txt <<'SCOPE'
-          A	.github/workflows/void-v7-static-privilege-bridge-v1.yml
-          A	docs/operators/void-v7-static-privilege-bridge-v1.md
-          A	ops/precision/void_v7_static_privilege_bridge_v1.c
-          A	scripts/prove_void_v7_static_privilege_bridge_v1.py
+          test "$(git hash-object --no-filters docs/operators/void-v7-static-privilege-bridge-v1.md)" = "475ed26a4fb1f1213e06e887583263e2c36295b9"
+          test "$(git merge-base "$PR_BASE" "$EXPECTED_HEAD")" = "$PR_BASE"
+          git diff --check "$PR_BASE" "$EXPECTED_HEAD" --
+          cat > /tmp/voidpriv-allowed.txt <<'SCOPE'
+          .github/workflows/void-v7-static-privilege-bridge-v1.yml
+          docs/operators/void-v7-static-privilege-bridge-v1.md
+          ops/precision/void_v7_static_privilege_bridge_v1.c
+          scripts/prove_void_v7_static_privilege_bridge_v1.py
           SCOPE
-            git diff --name-status "${{ github.event.pull_request.base.sha }}" HEAD -- | sort > /tmp/voidpriv-actual.txt
-            sort /tmp/voidpriv-expected.txt > /tmp/voidpriv-expected.sorted.txt
-            diff -u /tmp/voidpriv-expected.sorted.txt /tmp/voidpriv-actual.txt
-          else
-            git diff --check "$EXPECTED_HEAD^" "$EXPECTED_HEAD" --
-          fi
+          git diff --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | sort -u > /tmp/voidpriv-actual.txt
+          test -s /tmp/voidpriv-actual.txt
+          sort -u /tmp/voidpriv-allowed.txt > /tmp/voidpriv-allowed.sorted.txt
+          comm -23 /tmp/voidpriv-actual.txt /tmp/voidpriv-allowed.sorted.txt > /tmp/voidpriv-unexpected.txt
+          test ! -s /tmp/voidpriv-unexpected.txt
 
       - name: Source-bound nonroot built-in privilege proof
         shell: bash
