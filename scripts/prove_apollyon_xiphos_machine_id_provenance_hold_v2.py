@@ -13,9 +13,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-xiphos-machine-id-provenance-hold-v2.json"
 MARKER = "VOID_APOLLYON_XIPHOS_MACHINE_ID_PROVENANCE_HOLD_V2_PROOF"
-PARENT_HEAD = "4f534e00370882b1fbcf03568ddf355275562f57"
+PARENT_HEAD = "92eea4f9b13e8b40df8a859d6ebea77e3e25c6a0"
 OBSERVED_DIGEST = "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057"
-PLAN_ID = "voidapollyonxiphosprovenancehold2_1ee4af4279e852299e19e0aecd63c2cc636e5bb1c32fce7e204d996ca4214cb7"
+PLAN_ID = "voidapollyonxiphosprovenancehold2_df2f6157c36752460ca187c7f77da175bc9e0237e2c35baeacaae571f43fc890"
 
 MACHINE_BINDING_PATHS = (
     ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml",
@@ -46,13 +46,13 @@ PINS = {
     "scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py":
         "45ab6a6cbfea05d61617de294d18ed7dec07fae9",
     ".github/workflows/apollyon-protected-store-first-host-collector-v1.yml":
-        "dde72db084eed198c42a4183463eab593fa209ba",
+        "4ddf75e7a3da7186e9865fe58e08ddfc0e03f469",
     "docs/security/apollyon-protected-store-first-host-collector-v1.md":
-        "286a5b0528bdf1cd8cd6a1a3628222f6a3b5dbb9",
+        "a9a751c9c76653f3d3f4c82a4bd32ce3047a176d",
     "ops/xiphos/apollyon_protected_store_first_host_collector_v1.py":
-        "36f77c85a2716989726af77679160de2b9e48f76",
+        "160ad246b36eb2ee6680acc411686ff43a25bef9",
     "scripts/prove_apollyon_protected_store_first_host_collector_v1.py":
-        "67a73d6da5018944bc79e5ed07460f7e6512e57e",
+        "c0e05dacfb557956f6d2fa79522ccf18cb1f6d1f",
     ".github/workflows/apollyon-xiphos-machine-id-provenance-hold-v1.yml":
         "e526570137e1d50d41c1876feb79b07c665017a1",
     "docs/security/apollyon-xiphos-machine-id-provenance-hold-v1.md":
