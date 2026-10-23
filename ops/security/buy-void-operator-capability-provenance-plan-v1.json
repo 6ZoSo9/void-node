@@ -13,8 +13,8 @@
     "source_plan_only": true,
     "transaction_broadcast": false
   },
-  "base_head": "40e61e4695cd4fd9e95bbd44e95152b5c2e2f432",
-  "base_tree": "c6d9b9cedd33acd2a114c7577ef11aa3274c3cb3",
+  "base_head": "61b0f81b2112aab32e3dc16084fe2d43178ec4da",
+  "base_tree": "3e4a3d78c5225b64be24efd70498e540e505fee2",
   "current_observations": {
     "credential_file_group_world_permissions_forbidden": true,
     "credential_file_max_bytes": 256,
@@ -50,7 +50,7 @@
     "credential_generation_bound_to_operator_principal_authentication_plan",
     "service_hardening_no_new_privileges_and_empty_capability_sets_separate_gate"
   ],
-  "plan_id": "voidbvcred1_157079efc5c79fa8471b14bfbbf9e2fb32e51e01db08946d1f829dbf69ffbcfc",
+  "plan_id": "voidbvcred1_7050f6cc60f4daffc168fc4df973ab39ca4b115d1eee864c61eba4eac1f74349",
   "repository": "6ZoSo9/void-node",
   "schema": "void_buy_void_operator_capability_provenance_plan_v1",
   "source_bindings": {
