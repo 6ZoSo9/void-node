@@ -320,14 +320,32 @@ const HASH_UPDATE=HASH_PROTOTYPE.update;
 const HASH_DIGEST=HASH_PROTOTYPE.digest;
 const BUFFER_CTOR=Buffer;
 const BUFFER_FROM=Buffer.from;
-const BUFFER_CONCAT=Buffer.concat;
 const BUFFER_ALLOC=Buffer.alloc;
 const WRITE_U32=Buffer.prototype.writeUInt32BE;
 const TYPED_ARRAY_PROTOTYPE=GET_PROTOTYPE_OF(Uint8Array.prototype);
 const TYPED_ARRAY_LENGTH=
   GET_OWN_PROPERTY_DESCRIPTOR(TYPED_ARRAY_PROTOTYPE,"length").get;
+const TYPED_ARRAY_SET=Uint8Array.prototype.set;
 function bufferLength(value){
   return APPLY(TYPED_ARRAY_LENGTH,value,[]);
+}
+function concatBuffers(parts){
+  let total=0;
+  for(let index=0;index<parts.length;index+=1){
+    const size=bufferLength(parts[index]);
+    total+=size;
+    if(!IS_SAFE_INTEGER(total)||total>0xffffffff){
+      fail("apollyon_training_start_protected_store_revalidator_v2_frame_length_invalid");
+    }
+  }
+  const out=APPLY(BUFFER_ALLOC,BUFFER_CTOR,[total]);
+  let offset=0;
+  for(let index=0;index<parts.length;index+=1){
+    const part=parts[index];
+    APPLY(TYPED_ARRAY_SET,out,[part,offset]);
+    offset+=bufferLength(part);
+  }
+  return out;
 }
 function bytes(text,encoding="utf8"){
   return APPLY(BUFFER_FROM,BUFFER_CTOR,[text,encoding]);
@@ -343,14 +361,14 @@ function u32(value){
 function primitivePayload(value){
   if(typeof value==="string"){
     const raw=bytes(value);
-    return APPLY(BUFFER_CONCAT,BUFFER_CTOR,[[bytes("s","ascii"),u32(bufferLength(raw)),raw]]);
+    return concatBuffers([bytes("s","ascii"),u32(bufferLength(raw)),raw]);
   }
   if(typeof value==="boolean"){
     return bytes(value?"b1":"b0","ascii");
   }
   if(typeof value==="number"&&IS_SAFE_INTEGER(value)){
     const raw=bytes(PRIMITIVE_STRING(value),"ascii");
-    return APPLY(BUFFER_CONCAT,BUFFER_CTOR,[[bytes("i","ascii"),u32(bufferLength(raw)),raw]]);
+    return concatBuffers([bytes("i","ascii"),u32(bufferLength(raw)),raw]);
   }
   fail("apollyon_training_start_protected_store_revalidator_v2_frame_value_invalid");
 }
@@ -375,7 +393,7 @@ function frameRecord(value,withId){
     put(offset+3,payload);
     offset+=4;
   }
-  return APPLY(BUFFER_CONCAT,BUFFER_CTOR,[chunks]);
+  return concatBuffers(chunks);
 }
 function sameFlat(left,right,keys){
   for(let index=0;index<keys.length;index+=1){
