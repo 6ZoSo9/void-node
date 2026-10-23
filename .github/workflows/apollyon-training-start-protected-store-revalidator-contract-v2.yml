@@ -56,9 +56,9 @@ jobs:
             | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = bb5281d9836d9879cc086eba75585b276d2768fe
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 41c3e1a1c4a8fb1a7750b02f18c6ade4f2e38733
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 28d14b4acd6521f4faa25274ad9d1a7bffeb7da3
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = ef578b704e8cb186b98fd4f89f410f70dc0306b0
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 12b8869ef3147803a9028b36d142e1276b74f1ac
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 1e3439d155d6a32d7dc8a660c576fa2f45f91f28
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 079576db7f880872f2d4dea8e7759bd536161516
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 76f5a6bcbc9854a1133cd1324eb862cb50102c0e
@@ -88,7 +88,7 @@ jobs:
             'exact_parent_revalidation_request_blob_bound=true' \
             'exact_parent_protected_writer_blob_bound=true' \
             'exact_fixture_custody_source_blob_bound=true' \
-            'flat_primitive_content_address_json_independent=true' \
+            'flat_primitive_frame_hash_json_independent=true' \
             'post_import_json_tojson_poisoning_does_not_change_candidate_bytes=true' \
             'captured_reflection_primordials_bound=true' \
             'revoked_proxy_candidate_rejected=true' \
@@ -99,6 +99,7 @@ jobs:
             'terminal_receipt_reread_performed=false' \
             'custody_record_reread_performed=false' \
             'parent_v1_request_host_realm_proven=false' \
+            'candidate_material_derivation_host_realm_proven=false' \
             'public_candidate_not_bearer_authority=true' \
             'parent_request_cross_binding_required=true' \
             'readdressed_public_candidate_rejected_against_parent=true' \
