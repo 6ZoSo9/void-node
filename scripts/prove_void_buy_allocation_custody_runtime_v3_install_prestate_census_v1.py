@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "ccaa7ffc6b82c7cca3d6bea1268dc72ea25d28ca"
+EXPECTED_SOURCE_BLOB = "f5e2c3cfd76c9af43d0758a4e7c8a0b6521c5628"
 
 spec = importlib.util.spec_from_file_location(
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1",
@@ -111,6 +111,7 @@ with tempfile.TemporaryDirectory(
         present["target"]["tree"]["content_metadata_sha256"]
     ) == 64
     assert present["same_filesystem_rename_candidate"] is True
+    assert present["parent"]["mount_id"] == present["target"]["root"]["mount_id"]
     assert present["rollback_rename_candidate"] is True
     assert present["create_only_install_candidate"] is False
 
@@ -160,12 +161,15 @@ source = TARGET.read_text(encoding="utf-8")
 pre_self_test = source.split("def self_test()", 1)[0]
 
 for required in (
+    "_fd_mount_id",
     "open_bound_directory",
     "read_bound_regular",
     "scan_target_at",
     "_hash_symlink_at",
     "content_metadata_sha256",
     "target_tree_cross_device_entry_forbidden",
+    "target_tree_cross_mount_directory_forbidden",
+    "target_tree_cross_mount_file_forbidden",
     "rollback_rename_candidate",
     "create_only_install_candidate",
     "request_history_read",
@@ -209,6 +213,7 @@ print("archive_lock_exact=true")
 print("descriptor_bound_tree_scan=true")
 print("target_tree_content_metadata_digest=true")
 print("nested_mount_rejection_bound=true")
+print("mount_id_boundary_bound=true")
 print("symlink_opaque_identity_bound=true")
 print("absent_target_create_only_candidate_proven=true")
 print("present_target_rollback_candidate_proven=true")
