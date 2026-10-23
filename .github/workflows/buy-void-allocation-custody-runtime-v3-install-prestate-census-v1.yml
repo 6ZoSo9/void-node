@@ -45,9 +45,9 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "5da3edbcc9f2799faad44f722893c501669a80fd"
+            "ccaa7ffc6b82c7cca3d6bea1268dc72ea25d28ca"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "f637a7f8bde0679bcf16cf1f69256ad1380d9861"
+            "570b78f4e377645cb5f7557d27e3fb01d509acfa"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-install-prestate-census-v1.md)" = \
             "5fd3522f00dba37d6e249b3b14a8514bf4f1f3fe"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
