@@ -33,7 +33,7 @@ PINS = {
     ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml":
         "c8737fe68f15894bd15af0e775fc79cb2b50d9bb",
     SOURCE_REL:
-        "161f0054ecfe65051c81d4f5447625540e33547b",
+        "48f46f9b98626a4881d267ed7ed6d88faad063c4",
 }
 SELF = "scripts/prove_apollyon_protected_store_first_host_collector_v1.py"
 DOC = "docs/security/apollyon-protected-store-first-host-collector-v1.md"
