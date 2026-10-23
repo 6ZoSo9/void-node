@@ -87,6 +87,7 @@ with tempfile.TemporaryDirectory(
     assert absent["target"]["state"] == "ABSENT"
     assert absent["create_only_install_candidate"] is True
     assert absent["rollback_rename_candidate"] is False
+    assert absent["same_filesystem_rename_candidate"] is False
 
     target = parent / module.TARGET_NAME
     target.mkdir(mode=0o700)
@@ -108,7 +109,7 @@ with tempfile.TemporaryDirectory(
     assert present["target"]["tree"]["directories"] == 1
     assert present["target"]["tree"]["regular_bytes"] == 8
     assert len(
-        present["target"]["tree"]["content_metadata_sha256"]
+        present["target"]["tree"]["metadata_sha256"]
     ) == 64
     assert present["same_filesystem_rename_candidate"] is True
     assert present["parent"]["mount_id"] == present["target"]["root"]["mount_id"]
@@ -166,7 +167,8 @@ for required in (
     "read_bound_regular",
     "scan_target_at",
     "_hash_symlink_at",
-    "content_metadata_sha256",
+    "_observe_regular_at",
+    "metadata_sha256",
     "target_tree_cross_device_entry_forbidden",
     "target_tree_cross_mount_directory_forbidden",
     "target_tree_cross_mount_file_forbidden",
@@ -208,10 +210,18 @@ assert "O_NOFOLLOW" in pre_self_test
 assert "O_NONBLOCK" in pre_self_test
 assert "follow_symlinks=False" in pre_self_test
 
+regular_observer = pre_self_test.split("def _observe_regular_at(", 1)[1].split(
+    "def _scan_dir(", 1
+)[0]
+assert "os.read(" not in regular_observer
+assert "hashlib.sha256" not in regular_observer
+assert "Legacy runtime files are intentionally content-blind" in regular_observer
+
 print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_INSTALL_PRESTATE_CENSUS_V1_PROOF_GREEN")
 print("archive_lock_exact=true")
 print("descriptor_bound_tree_scan=true")
-print("target_tree_content_metadata_digest=true")
+print("target_tree_metadata_digest=true")
+print("legacy_regular_file_content_read=false")
 print("nested_mount_rejection_bound=true")
 print("mount_id_boundary_bound=true")
 print("symlink_opaque_identity_bound=true")
