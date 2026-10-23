@@ -1,0 +1,356 @@
+name: Apollyon durable attempt claim store service implementation v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml"
+      - "docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs"
+      - "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c"
+      - "scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c"
+      - "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml"
+      - "docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs"
+      - "scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c"
+      - "scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h"
+      - "tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs"
+      - "tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-contract-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs"
+      - "tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs"
+      - "tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
+      - "tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
+      - "tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
+      - "ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c"
+      - "scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind exact implementation generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          parent=62c2bbfd7ca1a871159d036b2cd1391f2d728df5
+          hardening_parent=f2621046cb8660bbab007c3c1895ef521797ba56
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          git merge-base --is-ancestor "$parent" "$HEAD_SHA"
+
+          case "$EVENT_NAME" in
+            pull_request)
+              { test "$PR_BASE" = "$parent" || test "$PR_BASE" = "$hardening_parent"; }
+              base="$PR_BASE"
+              expected="$RUNNER_TEMP/expected.txt"
+              actual="$RUNNER_TEMP/actual.txt"
+              printf '%s\n' \
+                '.github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml' \
+                'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' \
+                'tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs' \
+                'ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c' \
+                'scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs' \
+                'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' \
+                'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
+                'tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs' \
+                | LC_ALL=C sort > "$expected"
+              if [ "$PR_BASE" = "$hardening_parent" ]; then
+                printf '%s\n' \
+                  '.github/workflows/apollyon-durable-attempt-claim-store-service-source-implementation-v2.yml' \
+                  'docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md' \
+                  'scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs' \
+                  'scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs' \
+                  'tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs' \
+                  | LC_ALL=C sort > "$expected"
+              fi
+              git diff --no-renames --name-only "$base" "$HEAD_SHA" -- | LC_ALL=C sort > "$actual"
+              diff -u "$expected" "$actual"
+              ;;
+            push)
+              base="$PUSH_BEFORE"
+              test -n "$base"
+              test "$base" != 0000000000000000000000000000000000000000
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs)" = \
+            2d72a28e9daaeabcab58975a6f362c438c720592
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs)" = \
+            445480e625e01e44be8722709d56d5a6541099e2
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs)" = \
+            bed4c6fe3896ff48dfbc873d078fac943528fa5f
+          test "$(git rev-parse HEAD:docs/security/apollyon-durable-attempt-claim-store-service-source-implementation-v2.md)" = \
+            bef31f683fb7e2ef5757be12cd7f91ad466f7513
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_store_native_bridge_v2.c)" = \
+            96df365a812c645e6210ea5728c8f38851019d50
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs)" = \
+            69694ab1c8ffd8021817a449255eca956f91a7e8
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs)" = \
+            848a061a0b246e138ec8ed775ed8a87f159476f6
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.c)" = \
+            ecc262686cdc388d08775c735c68430e737e40d5
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_process_identity_v2.h)" = \
+            5355ffd2856e0f0c57f6e52fd1b347441b94e4d7
+
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-authorization-slot-v1.mjs)" = \
+            25629371f6da164e12fecfc08c5f26815418e3a8
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-request-envelope-v2.mjs)" = \
+            339916ce4a6216af9a73476ad5b78e2d7a300f73
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-contract-v2.mjs)" = \
+            6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-store-service-source-candidate-v2.mjs)" = \
+            87019ae1245a2054407dd47835b0b7a891d4d9a2
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-native-peer-guard-integration-v2.mjs)" = \
+            5532d18603ab9b4f400082c6fac265c58672ed85
+          test "$(git rev-parse HEAD:tools/apollyon-durable-attempt-claim-revalidation-handoff-v2.mjs)" = \
+            3feed7f71fb6941f8feccf393f151fa9e973d7a4
+          test "$(git rev-parse HEAD:tools/apollyon-live-source-session-terminal-receipt-v2.mjs)" = \
+            e27f0ebb968f4611bfc069670325c3f5e6df1c65
+          test "$(git rev-parse HEAD:tools/apollyon-live-custody-service-source-session-binding-v2.mjs)" = \
+            981935515e08634be96446e58922c16be56d33ad
+          test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = \
+            f97fafb0148527ae3a954e2752faef8c7fc9e88e
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_durable_attempt_claim_native_peer_guard_v2.c)" = \
+            defd863de841a1f1460e10985d1990ba1a382f70
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_durable_attempt_claim_native_peer_guard_v2.mjs)" = \
+            45421969be31286f295c0daba6c36a4e4698010e
+
+          git diff --check "$base" "$HEAD_SHA"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove durable claim store core
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs
+          node --check tools/apollyon-durable-attempt-claim-store-transaction-lease-v2.mjs
+          node --check scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs
+
+          out="$RUNNER_TEMP/apollyon-claim-store-service-implementation-v2.log"
+          node scripts/prove_apollyon_durable_attempt_claim_store_service_source_implementation_v2.mjs \
+            | tee "$out"
+
+          for marker in \
+            'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_SERVICE_SOURCE_IMPLEMENTATION_V2_PROOF_GREEN' \
+            'exact_source_and_parent_blobs_pinned=true' \
+            'pr_push_trigger_closure_exact=true' \
+            'pr_push_trigger_parity=true' \
+            'fixed_physical_namespace_defined=true' \
+            'non_root_claim_identity_required=true' \
+            'root_claim_uid_gid_rejected=true' \
+            'publisher_exact_request_bytes_preserved=true' \
+            'publisher_request_reconstruction_forbidden=true' \
+            'retained_root_identity_bound=true' \
+            'active_and_immutable_generation_cross_bound=true' \
+            'slot_before_claim_durable_order_proven=true' \
+            'private_pending_readwrite_same_descriptor_verification=true' \
+            'private_pending_fsync_link_directory_fsync_proven=true' \
+            'exact_final_reread_proven=true' \
+            'exact_replay_idempotent=true' \
+            'different_claim_same_authorization_rejected=true' \
+            'crash_after_slot_exact_recovery_proven=true' \
+            'post_link_cleanup_failure_recovery_proven=true' \
+            'prelink_stale_pending_recovery_proven=true' \
+            'legacy_promise_wrapper_rejected_without_invocation=true' \
+            'transaction_lease_acquired_before_core_mutation=true' \
+            'invalid_transaction_leases_rejected_before_core_mutation=true' \
+            'transaction_lease_accessors_and_proxies_not_invoked=true' \
+            'transaction_body_private=true' \
+            'transaction_reentry_acquire_revalidate_release_rejected=true' \
+            'transaction_callbacks_and_release_snapshotted=true' \
+            'transaction_release_failure_indeterminate_and_poisoned=true' \
+            'transaction_directories_closed_before_release=true' \
+            'partial_directory_open_cleanup_proven=true' \
+            'all_descriptor_cleanup_roles_report_failures=true' \
+            'primary_failure_preserved_with_all_cleanup_diagnostics=true' \
+            'descriptor_close_failures_are_not_retried=true' \
+            'publisher_forward_private_bytes_survive_all_mutation=true' \
+            'publisher_input_copy_override_not_invoked=true' \
+            'publisher_caller_buffer_intrinsic_slots_no_getters=true' \
+            'publisher_and_core_intrinsic_request_bounds_enforced=true' \
+            'publisher_shared_backing_rejected_before_transaction=true' \
+            'publisher_later_copy_override_not_invoked=true' \
+            'request_size_rejected_before_private_copy=true' \
+            'operation_keyset_rejected_before_descriptor_capture=true' \
+            'generation_nested_graph_rejected_before_clone=true' \
+            'authorization_slot_nested_graph_rejected_before_clone=true' \
+            'forbidden_native_promises_rejected_without_observation=true' \
+            'trusted_revalidator_callback_source_required=true' \
+            'trusted_revalidator_callback_source_proven=false' \
+            'unhandled_rejected_promise_containment_required=true' \
+            'unhandled_rejected_promise_containment_proven=false' \
+            'unhandled_rejected_promise_requires_host_containment=true' \
+            'promise_constructor_getters_not_invoked=true' \
+            'revalidator_thrown_values_not_stringified=true' \
+            'generation_drift_before_mutation_rejected=true' \
+            'orphan_claim_without_slot_rejected=true' \
+            'async_revalidator_rejected_before_mutation=true' \
+            'declared_async_generator_providers_rejected_before_root_io=true' \
+            'revalidation_receipt_accessors_then_getters_and_proxy_traps_never_invoked=true' \
+            'bounded_generation_strings_rejected_before_transaction_lease=true' \
+            'async_transaction_acquisition_rejected_before_core_mutation=true' \
+            'held_directory_replacement_rejected_at_all_revalidation_stages=true' \
+            'final_slot_and_claim_checked_after_success_revalidator=true' \
+            'record_initial_metadata_drift_rejected=true' \
+            'record_same_bytes_inode_and_timestamp_drift_rejected=true' \
+            'record_eof_growth_rejected=true' \
+            'bigint_inode_precision_preserved=true' \
+            'readonly_authorization_winner_observation_proven=true' \
+            'observation_request_bytes_privately_copied=true' \
+            'observation_all_descriptors_held_through_final_reread=true' \
+            'observation_missing_partial_and_malformed_state_rejected_without_repair=true' \
+            'observation_fifo_and_socket_refused_without_blocking=true' \
+            'observation_caller_selected_paths_and_slot_records_forbidden=true' \
+            'observation_request_and_persisted_winner_cross_bound=true' \
+            'observation_directory_and_root_transient_drift_rejected=true' \
+            'caller_root_descriptor_reuse_cannot_redirect_active_operation=true' \
+            'mixed_publish_observe_reentry_rejected=true' \
+            'observation_cleanup_errors_preserve_readonly_classification=true' \
+            'unsupported_reader_backend_rejected=true' \
+            'publication_fsynced_inode_bound_before_and_after_link=true' \
+            'publication_handoff_inode_replacement_rejected=true' \
+            'existing_recovery_fsyncs_actual_final_inode_and_directory=true' \
+            'eexist_recovery_fsyncs_actual_final_inode_and_directory=true' \
+            'session_binding_coercion_forbidden_before_store_access=true' \
+            'linux_lease_factory_exact_data_configuration_proven=true' \
+            'linux_lease_overkeyed_config_rejected_before_descriptor_capture=true' \
+            'linux_lease_factory_preserves_core_api_without_raw_lock_export=true' \
+            'linux_lease_fixed_bounded_helper_and_clean_environment_proven=true' \
+            'linux_lease_helper_exits_while_private_description_retains_lock=true' \
+            'linux_lease_same_process_mixed_core_contention_proven=true' \
+            'linux_lease_cross_process_publish_and_observe_contention_proven=true' \
+            'linux_lease_different_store_roots_remain_independent=true' \
+            'linux_lease_held_through_core_descriptor_cleanup=true' \
+            'linux_lease_busy_leaves_store_unchanged_and_poisons_contender=true' \
+            'linux_lease_release_allows_fresh_publish_and_observe=true' \
+            'linux_lease_observation_preserves_readonly_filesystem_boundary=true' \
+            'linux_lease_helper_failures_fail_closed_and_release_private_fd=true' \
+            'linux_lease_acquisition_cleanup_failure_preserves_primary_cause=true' \
+            'linux_lease_release_close_error_is_not_retried_and_poisons_core=true' \
+            'linux_lease_borrowed_fd_reuse_around_helper_rejected=true' \
+            'linux_lease_helper_boundary_transient_root_drift_rejected=true' \
+            'linux_lease_active_borrowed_fd_reuse_cannot_redirect_or_release_lock=true' \
+            'linux_lease_abrupt_owner_exit_releases_kernel_lock=true' \
+            'caller_supplied_revalidator_is_host_proof=false' \
+            'caller_supplied_exclusive_transaction_is_host_proof=false' \
+            'native_peer_runtime_integration_present=false' \
+            'af_unix_listener_implementation_present=false' \
+            'production_claim_store_mutation_performed=false' \
+            'production_durable_attempt_claim_performed=false' \
+            'attempt_claim_authorized=false' \
+            'training_execution_authorized=false' \
+            'xiphos_execution_performed=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+  native_bridge:
+    name: Native bridge on Node ${{ matrix.node }}
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Use supported Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove native pipe, retained peers and one-use paired session
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-durable-attempt-claim-store-native-bridge-v2.mjs
+          node --check scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs
+          node_headers="$(node -p 'require("node:path").resolve(require("node:path").dirname(process.execPath), "../include/node")')"
+          test -f "$node_headers/node_api.h"
+          out="$RUNNER_TEMP/apollyon-claim-store-native-bridge-v2.log"
+          node scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs \
+            --node-headers "$node_headers" | tee "$out"
+          for marker in \
+            'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_NATIVE_BRIDGE_V2_PROOF_GREEN' \
+            'native_bridge_overkeyed_config_and_groups_rejected_before_descriptor_capture=true' \
+            'native_session_fragmented_actual_request_challenge_and_canonical_response_proven=true' \
+            'native_session_async_local_receipt_rejected_without_observation_and_session_closed=true' \
+            'native_session_hostile_promise_constructor_getter_not_invoked=true' \
+            'native_session_required_inline_urgent_byte_handling_and_urgent_input_rejection_proven=true' \
+            'native_session_request_and_challenge_ancillary_descriptors_rejected_without_leak=true' \
+            'native_session_challenge_exchange_performed=true' \
+            'native_session_partial_response_failure_preserves_durable_winner_and_delivery_uncertainty=true' \
+            'native_session_postsend_close_failure_does_not_claim_response_suppression=true' \
+            'native_session_privileged_roles_installed_origin_and_cross_uid_host_proof=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove root-created pipe survives the publisher credential drop
+        run: |
+          set -euo pipefail
+          node_binary="$(node -p 'process.execPath')"
+          node_headers="$(node -p 'require("node:path").resolve(require("node:path").dirname(process.execPath), "../include/node")')"
+          out="$RUNNER_TEMP/apollyon-claim-store-root-owned-pipe-v2.log"
+          sudo -n "$node_binary" scripts/prove_apollyon_durable_attempt_claim_store_native_bridge_v2.mjs \
+            --node-headers "$node_headers" --root-owned-pipe-only | tee "$out"
+          grep -Fx 'VOID_APOLLYON_DURABLE_ATTEMPT_CLAIM_STORE_ROOT_OWNED_PIPE_V2_PROOF_GREEN' "$out"
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
