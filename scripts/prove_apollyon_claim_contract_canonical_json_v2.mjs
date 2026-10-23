@@ -242,6 +242,44 @@ expectCode(
 );
 assert.equal(proxyTrapHits,0);
 
+const revokedProxy=Proxy.revocable([],{});
+revokedProxy.revoke();
+expectCode(
+  ()=>canonicalApollyonClaimContractJsonV2(revokedProxy.proxy),
+  /apollyon_claim_canonical_v2_proxy_forbidden/u,
+  "revoked_proxy_rejected",
+);
+
+let callableProxyTrapHits=0;
+const callableProxy=new Proxy(function callableTarget(){},{
+  apply(){
+    callableProxyTrapHits+=1;
+    return null;
+  },
+  get(){
+    callableProxyTrapHits+=1;
+    return undefined;
+  },
+  ownKeys(){
+    callableProxyTrapHits+=1;
+    return [];
+  },
+});
+expectCode(
+  ()=>canonicalApollyonClaimContractJsonV2(callableProxy),
+  /apollyon_claim_canonical_v2_proxy_forbidden/u,
+  "callable_proxy_rejected",
+);
+assert.equal(callableProxyTrapHits,0);
+
+const revokedCallableProxy=Proxy.revocable(function revokedCallableTarget(){},{});
+revokedCallableProxy.revoke();
+expectCode(
+  ()=>canonicalApollyonClaimContractJsonV2(revokedCallableProxy.proxy),
+  /apollyon_claim_canonical_v2_proxy_forbidden/u,
+  "revoked_callable_proxy_rejected",
+);
+
 const protoKeyObject={a:1};
 Object.defineProperty(protoKeyObject,"__proto__",{
   value:{poisoned:true},
@@ -367,6 +405,10 @@ console.log("post_import_json_stringify_poison_resisted=true");
 console.log("captured_own_primitive_survived_poison=true");
 console.log("captured_proxy_detector_survived_poison=true");
 console.log("proxy_detector_poison_traps_executed=0");
+console.log("revoked_proxy_rejected=true");
+console.log("callable_proxy_rejected_before_type_dispatch=true");
+console.log("revoked_callable_proxy_rejected=true");
+console.log("callable_proxy_traps_executed=0");
 console.log("array_prototype_index_setter_hits=0");
 console.log("proto_key_rejected=true");
 console.log("proxy_traps_executed=0");
