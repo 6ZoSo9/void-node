@@ -352,16 +352,18 @@ export function classifyReachability(rawObservations, {
   const outboundSuccesses = fresh.filter((entry) => entry.kind === "authenticated_outbound_seen" && entry.outcome === "success");
   const dialbackSuccesses = fresh.filter((entry) => entry.kind === "authenticated_dialback" && entry.outcome === "success");
   const dialbackFailures = fresh.filter((entry) => entry.kind === "authenticated_dialback" && entry.outcome === "failure");
-  // Count an observer toward independence only when every fresh success from
-  // that authenticated identity agrees on one declared failure domain.
-  const domainsBySuccessObserver = new Map();
-  for (const entry of dialbackSuccesses) {
-    const domains = domainsBySuccessObserver.get(entry.observer_node_id) ?? new Set();
+  // Count an observer toward independence only when every fresh authenticated
+  // observation from that identity agrees on one declared failure domain.
+  // Failures and outbound observations reveal label rotation but do not add
+  // dialback-success credit.
+  const domainsByFreshObserver = new Map();
+  for (const entry of fresh) {
+    const domains = domainsByFreshObserver.get(entry.observer_node_id) ?? new Set();
     domains.add(entry.observer_failure_domain);
-    domainsBySuccessObserver.set(entry.observer_node_id, domains);
+    domainsByFreshObserver.set(entry.observer_node_id, domains);
   }
   const independentDialbackSuccesses = dialbackSuccesses.filter(
-    (entry) => domainsBySuccessObserver.get(entry.observer_node_id)?.size === 1,
+    (entry) => domainsByFreshObserver.get(entry.observer_node_id)?.size === 1,
   );
   const successDomains = new Set(independentDialbackSuccesses.map((entry) => entry.observer_failure_domain));
   const successObservers = new Set(independentDialbackSuccesses.map((entry) => entry.observer_node_id));
