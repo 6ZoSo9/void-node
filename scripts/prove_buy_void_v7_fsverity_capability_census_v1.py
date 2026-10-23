@@ -11,7 +11,7 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 TARGET = ROOT / "ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py"
-TARGET_BLOB = "e9e687f16a85afb0eab73df27578c00a58d7b091"
+TARGET_BLOB = "60a86dc3f8cbb73511de51f5e82209f78babb9f1"
 MARKER = "VOID_BUY_VOID_V7_FSVERITY_CAPABILITY_CENSUS_V1_PROOF"
 
 
@@ -63,6 +63,9 @@ for required in (
     'def _parse_major_minor(',
     'mount_source_device_number_mismatch',
     'ext4_opened_device_number_mismatch',
+    'def _classify_ext4_dax_policy(',
+    'ext4_dax_inode_policy_unproven',
+    'dax_admission_requires_explicit_never=true',
     'def _read_ext4_superblock(',
     'os.pread(fd, EXT4_SUPERBLOCK_BYTES, EXT4_SUPERBLOCK_OFFSET)',
     'os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK',
@@ -172,6 +175,21 @@ escaped = module._parse_mountinfo(
 )
 assert escaped[1]["mount_point"] == "/opt space"
 
+default_dax = module._classify_ext4_dax_policy((), ())
+assert default_dax["policy"] == "inode"
+assert default_dax["policy_source"] == "default"
+assert default_dax["disabled_proven"] is False
+never_dax = module._classify_ext4_dax_policy(("dax=never",), ())
+assert never_dax["policy"] == "never"
+assert never_dax["disabled_proven"] is True
+assert module._classify_ext4_dax_policy(("dax",), ())["policy"] == "always"
+assert module._classify_ext4_dax_policy(("dax=always",), ())["policy"] == "always"
+assert module._classify_ext4_dax_policy(("dax=inode",), ())["disabled_proven"] is False
+assert module._classify_ext4_dax_policy(
+    ("dax=never",), ("dax=always",)
+)["policy"] == "ambiguous"
+assert module._classify_ext4_dax_policy(("dax=future",), ())["policy"] == "unknown"
+
 good = module._parse_ext4_superblock_bytes(
     module._synthetic_ext4_superblock(verity=True, extents=True)
 )
@@ -263,6 +281,7 @@ for required in (
     "ext4_verity_ro_compat_bit_bound=true",
     "ext4_extents_incompat_bit_bound=true",
     "kernel_config_fsverity_parser_bound=true",
+    "ext4_dax_policy_fail_closed=true",
     "kernel_config_gzip_output_bounded=true",
     "kernel_config_malformed_deflate_hold=true",
     "external_subprocess=false",
@@ -309,6 +328,7 @@ for required in (
     "external_subprocess=false",
     "ioctl_invocation=false",
     "ext4_superblock_read_only_feature_probe=true",
+    "dax_admission_requires_explicit_never=true",
     "fsverity_enablement=false",
     "protected_host_install=false",
     "protected_v4_apply=false",
@@ -334,6 +354,8 @@ print("malformed_deflate_normalized_to_hold=true")
 print("ext4_superblock_magic_bound=true")
 print("ext4_verity_ro_compat_bit_bound=true")
 print("ext4_extents_incompat_bit_bound=true")
+print("ext4_dax_policy_fail_closed=true")
+print("dax_never_required_for_green=true")
 print("no_external_subprocess=true")
 print("no_ioctl_invocation=true")
 print("no_fsverity_enablement=true")
