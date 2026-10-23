@@ -27,6 +27,7 @@ export const VOID_APOLLYON_CLAIM_CONTRACT_CANONICAL_JSON_AUTHORITY_V2 =
   });
 
 const APPLY=Reflect.apply;
+const IS_PROXY=types.isProxy;
 const OWN_KEYS=Reflect.ownKeys;
 const GET_PROTOTYPE_OF=Object.getPrototypeOf;
 const GET_OWN_PROPERTY_NAMES=Object.getOwnPropertyNames;
@@ -116,7 +117,7 @@ function exactDataDescriptor(value,key,code){
 }
 
 function assertNoProxy(value,code){
-  if(types.isProxy(value))fail(code);
+  if(IS_PROXY(value))fail(code);
 }
 
 function withStack(stack,value,fn){
