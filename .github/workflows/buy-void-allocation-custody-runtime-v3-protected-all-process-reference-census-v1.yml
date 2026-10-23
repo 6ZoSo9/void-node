@@ -42,6 +42,10 @@ jobs:
             $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md'
             $'A\tops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py'
             $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py'
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.md'
+            $'A\tops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.json'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v3.py'
           )
           mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
@@ -58,6 +62,18 @@ jobs:
             "4d9c6e5809a5cc64454626760f71e60ed99354bc"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
+
+          # Historical V3 acceptance lock was merged after this source was
+          # restacked. Admit only those exact immutable evidence files; they
+          # do not alter the protected source semantics or grant authority.
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.yml)" = \
+            "5c778dc18be4d11f55a417dccbc61ca57cbf2678"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.md)" = \
+            "86952328f67e74fe8ab600617692733cf1d0a24e"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v3.json)" = \
+            "e66742be948ae418cbdca75542db263050930c15"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v3.py)" = \
+            "ba1b8cc6c30c613c2d638e60f1bb61a288266227"
 
           git diff --check "$BASE" HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
