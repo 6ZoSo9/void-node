@@ -23,12 +23,12 @@ The helper binds the exact qualified process-reference census source:
 - path:
   `ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py`
 - Git blob:
-  `ded737a228a627a241a84131113db6d3521f635c`
+  `6bf476e3383b7b18966320df13b4041da9c8c11f`
 
 No process-reference or replacement authority is imported from that source.
 
 This observation generation is explicitly rebound to current process-reference
-head `acace7d9051126b07f71ecf1a50fdeaf64a0c24f`. It is intentionally
+head `fca2267601158ca64dca803309b3b30fce691dc4`. It is intentionally
 independent from the designated-host candidate collector in Draft #3762; a
 later operator review may compare both host receipts, but neither collector may
 self-promote its values into lease authority.
