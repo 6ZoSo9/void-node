@@ -12,7 +12,7 @@ V5 uses the *same* `RUNTIME_UID=1000` and `RUNTIME_GID=1000` in 13 exact source 
 2. **Stage reader:** root-owned temporary private-stage directories and files receive POSIX named-user read/search ACLs for *that same* UID 1000.
 3. **Privileged child:** one dispatch function runs `collect_plan`, `verify_stage_private`, and `verify_stage` under the same dropped UID/GID 1000.
 
-Actual Precision read-only evidence: `/opt` and fixed source root are root:root; the V5 staging directories and expected full-history candidate are absent. Existing `void-buy-custody` (994/981) and `void-buy-runtime` (995/982) are reserved for other Buy VOID custody/IPC duties. Login UID 1000 has broad supplementary groups and an unconfined shell; Yama `ptrace_scope=1` permits ancestor-to-dumpable-child attach. Reusing 995 is not an independently approved boundary.
+Prior operator-reported Precision observations, **not authenticated by this source-only PR**, were used only as planning inputs: `/opt` and the fixed source root were reported root:root; the V5 staging directories and expected full-history candidate were reported absent; `void-buy-custody` (994/981) and `void-buy-runtime` (995/982) were reported reserved for other Buy VOID custody/IPC duties; login UID 1000 was reported with broad supplementary groups and an unconfined shell; and Yama `ptrace_scope=1` was reported. These observations require a fresh, separately reviewed host attestation before any account selection, ACL change, or implementation. Reusing UID 995 is not independently approved.
 
 ## Proposed successor behavior — not implemented
 
