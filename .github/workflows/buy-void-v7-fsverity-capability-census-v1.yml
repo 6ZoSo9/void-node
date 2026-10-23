@@ -33,7 +33,7 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          SOURCE_BASE: e68e46bd64fc0dbc550f14a23bf6aa66a90fdf90
+          SOURCE_BASE: 74d042ec8b06bccc69ffa20328c0d0d3ef591b38
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
