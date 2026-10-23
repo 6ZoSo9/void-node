@@ -33,7 +33,7 @@ PINS = {
     ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml":
         "c8737fe68f15894bd15af0e775fc79cb2b50d9bb",
     SOURCE_REL:
-        "8bf39498a5429f45e2859a846e01157790136a04",
+        "89c559aa5ce736bc0af26def965a881dc6a43223",
 }
 SELF = "scripts/prove_apollyon_protected_store_first_host_collector_v1.py"
 DOC = "docs/security/apollyon-protected-store-first-host-collector-v1.md"
@@ -112,6 +112,8 @@ for required in (
     '"training_execution": False',
     '"funds_movement": False',
     'hold("process_generation_changed")',
+    'hold("process_status_changed")',
+    'hold("process_executable_generation_changed")',
 ):
     need(required in source_text, "required_source_boundary_missing:" + required)
 
