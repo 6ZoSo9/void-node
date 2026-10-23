@@ -1,0 +1,106 @@
+name: VOID Buy custody V3 protected all-process reference census lock v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.json"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v2.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.yml"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact repaired-source acceptance successor
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="3d7b8041f90b92d66d8de43cd0b28e98cbf194be"
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(
+            git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort
+          )
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.md'
+            $'A\tops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.json'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v2.py'
+          )
+          mapfile -t expected_sorted < <(
+            printf '%s\n' "${expected[@]}" | LC_ALL=C sort
+          )
+          diff -u             <(printf '%s\n' "${expected_sorted[@]}")             <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.json)" =             "ebf23705c6e40865bafea6087cc8f83dffb8ff46"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v2.py)" =             "14255afac3f4ef7238220966b65da2a0661124fe"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v2.md)" =             "1ac5571a9a1c3c98315a9f131fc53fd4f5de3e2b"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" =             "25a0913606baa3303743f36a8c79f3c7a14ea159"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" =             "3f9e30ddd89f36b37f6d7f9754f95f7d190d4da3"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" =             "6424b96d89a4109a42ed73b3dc8c88b78e9589d4"
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.yml)" =             "74dadcfb40b2eab81260dd58b9783085f3cba8fe"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile V2 proof without bytecode writes
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          name = (
+              "scripts/"
+              "prove_void_buy_allocation_custody_runtime_v3_"
+              "protected_all_process_reference_census_lock_v2.py"
+          )
+          compile(
+              Path(name).read_text("utf-8"),
+              name,
+              "exec",
+              dont_inherit=True,
+          )
+          print("lock_v2_python_syntax_green=true")
+          PY
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove exact repaired source acceptance lock
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/custody-protected-allprocref-lock-v2-proof.txt"
+          python3 -I -B             scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_lock_v2.py             | tee "$out"
+
+          grep -Fx             'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS_LOCK_V2_PROOF_GREEN'             "$out"
+
+          for marker in             'candidate_source_git_blob_exact=true'             'candidate_source_bytes_exact=true'             'candidate_source_ascii_only=true'             'source_companion_blobs_exact=true'             'hosted_focused_run_bound=true'             'exact_head_code_review_no_findings_bound=true'             'candidate_source_accepted=true'             'source_sha256_freshly_derived=false'             'source_sha256_diagnostic_only=true'             'bounded_generation_stable_task_inventory_required=true'             'per_thread_files_fs_reference_scan_required=true'             'per_thread_host_mount_namespace_required=true'             'private_task_mount_namespace_rejected=true'             'task_mount_namespace_generation_stability_required=true'             'host_namespace_lease_provenance_authenticated_by_census=false'             'mount_namespace_reference_scan_performed=false'             'mount_namespace_reference_absence_proven=false'             'all_process_target_reference_absent_observed=false'             'all_process_reference_absence_proven=false'             'fd_table_stability_proven=false'             'mapping_set_stability_proven=false'             'process_reference_snapshot_race_free=false'             'live_at_use_reverification_required=true'             'protected_install_authorized=false'             'protected_source_installed=false'             'live_privileged_census_authorized=false'             'live_privileged_census_executed=false'             'replacement_apply_authorized=false'             'runtime_integration=false'             'payment_acceptance=false'             'public_presale_activation=false'             'production_gate_ready=false'             'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          grep -E '^candidate_source_sha256=[0-9a-f]{64}$' "$out"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          git diff --check "3d7b8041f90b92d66d8de43cd0b28e98cbf194be" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
