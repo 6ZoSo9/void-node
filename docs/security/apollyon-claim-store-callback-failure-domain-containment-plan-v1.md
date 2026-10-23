@@ -135,6 +135,13 @@ generation.
 | read IOPS | 1,024/s |
 | write IOPS | 512/s |
 
+The boolean contract separately requires both
+`supervisor_preexec_kernel_file_storage_io_quotas_required=true` and
+`supervisor_exact_resource_ceiling_contract_enforced_pre_callback_required=true`.
+The numeric table is therefore not advisory metadata: every future worker
+generation must enforce those exact or stricter limits before callback code can
+run, and descendants must be unable to raise or escape them.
+
 These ceilings are intentionally conservative and align with the already-bound
 source generation: publish requests are capped at 65,536 bytes, store records
 at 256 KiB, and the transaction-lease helper already uses a 5-second timeout
@@ -185,7 +192,7 @@ cannot be substituted for `core`, `transaction_lease`, `native_bridge`
 or the two proofs. Two new negative cases swap core/lease roles and
 duplicate the bridge record under the core role; both must fail at
 `bound_source_role_invalid:core`, **not** at the final content hash.
-The earlier semantic-proof generation increased the source-only adversary count from 44 to **48**; the supervisor-death generation raised it to **50**. The current exact-ceiling generation adds 18 per-resource adversaries for **68** total, with explicit
+The earlier semantic-proof generation increased the source-only adversary count from 44 to **48**; the supervisor-death generation raised it to **50**. The current exact-ceiling generation adds two explicit enforcement requirements plus 18 per-resource adversaries for **70** total, with explicit
 proof output `negative_cases_failed_at_semantic_gate=true` and
 `bound_source_role_identities_enforced=true`.
 
