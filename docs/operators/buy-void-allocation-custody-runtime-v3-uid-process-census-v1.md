@@ -40,8 +40,15 @@ No account, group or membership is modified.
 
 ## Process observation
 
-The census walks numeric entries under `/proc` and reads only each live
-process's bounded `status` pseudo-file. From that file it accepts exactly one:
+Before an empty result can become a candidate, the census reads bounded
+`/proc/self/mountinfo` and requires the visible `/proc` mount to be procfs
+without a restrictive `hidepid` option. Ambiguous proc mounts or
+`hidepid=1/2/4`-style visibility restrictions HOLD rather than allowing a
+false empty census.
+
+The census walks numeric entries under `/proc`, then bounded numeric thread
+entries under each live `/proc/<pid>/task`. It reads only each task's bounded
+`status` pseudo-file. From that file it accepts exactly one:
 
 ```text
 Uid: <real> <effective> <saved-set> <filesystem>
@@ -50,8 +57,10 @@ Uid: <real> <effective> <saved-set> <filesystem>
 line.
 
 A process belongs to the custody census if the dedicated custody UID appears in
-**any** of those four slots. This prevents an effective-UID transition from
-hiding a custody-owned process.
+**any** of those four slots on **any thread**. This prevents an effective-UID,
+saved-UID, filesystem-UID, or thread-local direct-syscall credential transition
+from hiding a custody-owned task. The thread inventory is re-enumerated after
+the status reads and must remain unchanged.
 
 The census does **not** read:
 
@@ -71,7 +80,8 @@ still exists, the census HOLDs rather than assuming it is unrelated.
 ## Bounded enumeration
 
 Numeric `/proc` names are collected lazily. More than 131,072 numeric
-process entries HOLD **before sorting**.
+process entries HOLD **before sorting**. Across the scan, more than 262,144
+numeric task entries also HOLD before a zero-result candidate is possible.
 
 The custody UID process set is collected twice. Any change between the two
 passes HOLDs.
@@ -118,13 +128,15 @@ No sudo is required or authorized.
 ```text
 read_only=true
 proc_status_uid_only=true
+proc_thread_status_uid_only=true
+complete_proc_visibility_verified=true
 process_cmdline_read=false
 process_environment_read=false
 process_executable_read=false
 process_fd_read=false
 process_signal=false
 service_mutation=false
-filesystem_write=false
+production_census_filesystem_write=false
 request_history_read=false
 custody_data_read=false
 credential_access=false
@@ -137,7 +149,10 @@ public_presale_activation=false
 funds_movement=false
 ```
 
-This source does not stop a process, stop/start/restart a service, inspect
-customer/payment/custody data, install anything, or move funds.
+The production `--census` path does not stop a process, stop/start/restart a
+service, inspect customer/payment/custody data, install anything, or move
+funds. The `--self-test` and independent source proof intentionally create
+private temporary synthetic proc/status fixtures; those test-only writes are
+not host-census authority and are reported separately as fixture writes.
 
 **PROTECT THE CORE.**
