@@ -5,7 +5,7 @@
   "repository": "6ZoSo9/void-node",
   "parent_lineage": {
     "collector_repair_pr": 3767,
-    "collector_repair_head": "430e6d8630100cad897a292c8694d80ec98557a6",
+    "collector_repair_head": "4f534e00370882b1fbcf03568ddf355275562f57",
     "historical_v1_hold_pr": 3763,
     "historical_v1_hold_head": "129e294cc35f930a22b15efd313ed541bcbd8306",
     "historical_v1_hold_merge_commit": "819031d8e9f1dfe4863a0df06fd2420a00c1cad8",
@@ -17,10 +17,10 @@
       "scripts/prove_apollyon_protected_store_machine_identity_binding_v1.py": "45ab6a6cbfea05d61617de294d18ed7dec07fae9"
     },
     "repaired_collector_blobs": {
-      ".github/workflows/apollyon-protected-store-first-host-collector-v1.yml": "7477b5eb2d67e9a937fdae22ed16992780710fc4",
-      "docs/security/apollyon-protected-store-first-host-collector-v1.md": "02af98e4dce3eae9e76b132344e4b7c0c8f5d45c",
+      ".github/workflows/apollyon-protected-store-first-host-collector-v1.yml": "dde72db084eed198c42a4183463eab593fa209ba",
+      "docs/security/apollyon-protected-store-first-host-collector-v1.md": "286a5b0528bdf1cd8cd6a1a3628222f6a3b5dbb9",
       "ops/xiphos/apollyon_protected_store_first_host_collector_v1.py": "36f77c85a2716989726af77679160de2b9e48f76",
-      "scripts/prove_apollyon_protected_store_first_host_collector_v1.py": "40d34dfa2a8bc36c7f11824fbbf93a623839035d"
+      "scripts/prove_apollyon_protected_store_first_host_collector_v1.py": "67a73d6da5018944bc79e5ed07460f7e6512e57e"
     },
     "historical_v1_hold_blobs": {
       ".github/workflows/apollyon-xiphos-machine-id-provenance-hold-v1.yml": "e526570137e1d50d41c1876feb79b07c665017a1",
@@ -56,5 +56,5 @@
     "funds_movement_authorized": false
   },
   "next_gate": "PRODUCE_SEPARATE_AUTHENTICATED_XIPHOS_MACHINE_ID_ATTESTATION_THEN_REBIND_COLLECTOR_HOST_AUTHORITY",
-  "plan_id": "voidapollyonxiphosprovenancehold2_7adcb02eddae02b6dc9443fe010c8826196984fec303df46123dd6ede8f9a6eb"
+  "plan_id": "voidapollyonxiphosprovenancehold2_1ee4af4279e852299e19e0aecd63c2cc636e5bb1c32fce7e204d996ca4214cb7"
 }
