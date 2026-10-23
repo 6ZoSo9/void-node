@@ -278,13 +278,13 @@ jobs:
           git clone --no-local "$RUNNER_TEMP/v3-reachable.bundle" "$RUNNER_TEMP/v3-reachable"
           git -C "$RUNNER_TEMP/v3-reachable" checkout --detach "$EXPECTED_HEAD"
           test "$(git -C "$RUNNER_TEMP/v3-reachable" rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git -C "$RUNNER_TEMP/v3-reachable" cat-file -e '8b0823d55ebebadca172497ef754413591c5f54b^{commit}'
+          git -C "$RUNNER_TEMP/v3-reachable" cat-file -e '8e0f3c42208a0630b07cd0a64c0bf0b2a2819099^{commit}'
           if git -C "$RUNNER_TEMP/v3-reachable" cat-file -e 'af9646827b25e8103004f96525623ba248b41d2a^{commit}' 2>/dev/null; then
             echo 'unreachable_historical_dispatch_object_present=true' >&2
             exit 1
           fi
-          test "$(git -C "$RUNNER_TEMP/v3-reachable" rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
-          test "$(git -C "$RUNNER_TEMP/v3-reachable" rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs)" = "8ea7786299422f7fc3fbfd7474b5e92d869e92c2"
+          test "$(git -C "$RUNNER_TEMP/v3-reachable" rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "5301c32f53c2a82435152e38b36486507a73f906"
+          test "$(git -C "$RUNNER_TEMP/v3-reachable" rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs)" = "96ae15c0a76d4cc463ea64688fa2c5fd119b09fc"
           test "$(git -C "$RUNNER_TEMP/v3-reachable" rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v3.md)" = "e0d529ca2b465aa28e61be187a7a9b8dc96e6a5f"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -304,8 +304,8 @@ jobs:
           out="$RUNNER_TEMP/portable-v3-${{ matrix.node }}.json"
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs --derive > "$out"
           cmp "$out" ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json
-          test "$(sha256sum "$out" | awk '{print $1}')" = "df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6"
-          test "$(git hash-object "$out")" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
+          test "$(sha256sum "$out" | awk '{print $1}')" = "eb2be386ecf374bc75d6c10e4d5cfa3ea5fa309acbef5612f74991c6ba311aab"
+          test "$(git hash-object "$out")" = "5301c32f53c2a82435152e38b36486507a73f906"
           node --input-type=module - "$out" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
@@ -313,8 +313,8 @@ jobs:
           assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V3");
           assert.equal(c.version,3);
           assert.equal(c.current_enforcement_tracked_source_inventory_count,49);
-          assert.equal(c.current_enforcement_tracked_source_inventory_sha256,"c0a56b378215feafacc089e9f59a9f966d57f11e5582e4a13afcd6351d2447bb");
-          assert.equal(c.candidate_enforcement_set_sha256,"95a11602e5f2639d33b378293b92863ea7f9f37020ad18dec49d3d4ac6289fd4");
+          assert.equal(c.current_enforcement_tracked_source_inventory_sha256,"65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589");
+          assert.equal(c.candidate_enforcement_set_sha256,"2bfc8455c09e8cbbaa56ac580ccc5f193b54f95c3e4bec1e2274a068303236ec");
           assert.equal(c.candidate_enforcement_identity_accepted,false);
           assert.equal(c.deployed_artifact_generation_verified,false);
           assert.equal(c.runtime_mount_authority,false);
@@ -346,5 +346,5 @@ jobs:
           for node in 22 24 26; do test -s "candidate-v3/portable-v3-$node.json"; done
           cmp candidate-v3/portable-v3-22.json candidate-v3/portable-v3-24.json
           cmp candidate-v3/portable-v3-22.json candidate-v3/portable-v3-26.json
-          test "$(sha256sum candidate-v3/portable-v3-22.json | awk '{print $1}')" = "df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6"
+          test "$(sha256sum candidate-v3/portable-v3-22.json | awk '{print $1}')" = "eb2be386ecf374bc75d6c10e4d5cfa3ea5fa309acbef5612f74991c6ba311aab"
           echo VOID_BUY_VOID_PROTECTED_V7_V2_CANDIDATE_V3_PORTABLE_CROSS_NODE_GREEN
