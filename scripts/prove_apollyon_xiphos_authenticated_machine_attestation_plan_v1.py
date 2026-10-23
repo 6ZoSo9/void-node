@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-xiphos-authenticated-machine-attestation-plan-v1.json"
 MARKER = "VOID_APOLLYON_XIPHOS_AUTHENTICATED_MACHINE_ATTESTATION_PLAN_V1_PROOF"
 PARENT_HEAD = "d7c3145dd202a4a7c3914732c8a8920c33a904ef"
-PLAN_ID = "voidapollyonxiphosattestplan1_e3f13c2059ead38ee0c8ec05101d575976439a2f3381a035f8a6b35ddbaee5ff"
+PLAN_ID = "voidapollyonxiphosattestplan1_b0449a1b41766da2fad19a248f5eec3c9c9287b87eede149f6ea2eab09f6bc15"
 OBSERVED_DIGEST = "543902c4c208d749dbe2baa239e9cd010ac50eb8cde4db8eb8cd26f6e806f057"
 
 PINS = {
@@ -123,6 +123,11 @@ ATTESTATION_REQUIREMENTS = {
     "machine_id_digest_must_match_observed_digest": True,
     "descriptor_generation_stability_required": True,
     "canonical_single_json_frame_required": True,
+    "canonical_single_request_frame_required": True,
+    "request_eof_required": True,
+    "request_closed_schema_and_canonical_json_required": True,
+    "request_duplicate_keys_and_nonfinite_forbidden": True,
+    "response_closed_schema_duplicate_keys_and_nonfinite_forbidden": True,
     "response_eof_required": True,
     "ssh_stderr_empty_required": True,
     "ssh_zero_exit_no_signal_required": True,
@@ -416,7 +421,7 @@ def main() -> None:
     plan = validate(parse_json(read_regular(PLAN, 256 * 1024)))
     verify_parent_blobs()
     rejected = adversaries(plan)
-    need(rejected == 118, "semantic_adversary_count_invalid")
+    need(rejected == 123, "semantic_adversary_count_invalid")
     print(MARKER + "_GREEN")
     print("plan_id=" + PLAN_ID)
     print("source_only=true")
@@ -456,6 +461,11 @@ def main() -> None:
     print("strict_host_key_checking_required=true")
     print("raw_machine_id_response_forbidden=true")
     print("raw_machine_id_never_transmitted_on_any_channel_required=true")
+    print("canonical_single_request_frame_required=true")
+    print("request_eof_required=true")
+    print("request_closed_schema_and_canonical_json_required=true")
+    print("request_duplicate_keys_and_nonfinite_forbidden=true")
+    print("response_closed_schema_duplicate_keys_and_nonfinite_forbidden=true")
     print("parent_blob_validation=true")
     print("semantic_adversaries=" + str(rejected))
     print("training_execution_authorized=false")
