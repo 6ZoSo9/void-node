@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PLAN = ROOT / "ops/security/apollyon-claim-store-callback-failure-domain-containment-plan-v1.json"
 MARKER = "VOID_APOLLYON_CLAIM_STORE_CALLBACK_FAILURE_DOMAIN_CONTAINMENT_PLAN_V1_PROOF"
 PARENT = "187a4da4992b7d81330b9474e535b8af631de0d4"
-PLAN_ID = "voidapollyonclaimcallbackcontain1_d5ede06832f2480774f989e95eadd2759ab7081a2adbab4bcc9dc575afbc965f"
+PLAN_ID = "voidapollyonclaimcallbackcontain1_7c0ed39e634dabcfa229b8e0cbca786b79eac85cfd587167c165fe7fe7df8c19"
 
 PINS = {
     "tools/apollyon-durable-attempt-claim-store-service-source-implementation-v2.mjs":
@@ -91,6 +91,8 @@ REQUIREMENTS = [
     "supervisor_held_fencing_lease_through_child_exit_and_terminal_checks_required",
     "supervisor_death_prior_worker_quiescence_before_fence_reuse_required",
     "supervisor_restart_durable_fencing_epoch_and_unknown_recovery_required",
+    "supervisor_durable_inflight_unknown_fence_committed_before_worker_launch_required",
+    "supervisor_fence_clear_only_after_quiescence_and_terminal_revalidation_required",
     "unknown_mutation_after_abnormal_exit_maps_to_indeterminate_required",
     "terminal_store_generation_revalidation_required",
     "terminal_peer_identity_revalidation_required",
