@@ -82,5 +82,5 @@ jobs:
           status=$?
           set -e
           test "$status" -ne 0
-          grep -Eq "v3_parent_relative_scope_changed|v2_added_economic_source_not_exact:src/economic/buy_void_verified_payment_v2_allocation_stage.ts"             "$RUNNER_TEMP/parent.stderr"
+          grep -Eq "v3_parent_relative_scope_changed|v2_added_economic_source_not_exact:src/economic/buy_void_verified_payment_v2_allocation_stage.ts|v2_successor_head_blob_drift:scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts"             "$RUNNER_TEMP/parent.stderr"
           echo "VOID_BUY_VOID_V3_STAGE_INSTRUCTION_AMOUNT_PARENT_REFUSAL_GREEN"
