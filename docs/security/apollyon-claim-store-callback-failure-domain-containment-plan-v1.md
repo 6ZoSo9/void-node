@@ -239,11 +239,19 @@ requirement remains unchanged.
 
 Ordinary ownership or hard-link changes also alter ctime on Linux, so this is
 defense-in-depth rather than evidence of a practical bypass. Disposable
-temporary-file adversaries simulate UID, GID and hard-link-count drift only in
-the descriptor observation while leaving timestamps unchanged; each must fail
-closed as `source_generation_changed`. The proof uses no `chown`, protected
-pathname, elevated privilege or production-file mutation and restores
-`os.fstat` after every adversary.
+temporary-file adversaries independently exercise **three** checkpoints for
+each of UID, GID and hard-link count while leaving timestamps unchanged:
+
+1. the first opened-descriptor observation must HOLD as
+   `source_generation_changed`;
+2. a change only in the second/terminal descriptor `fstat` must HOLD as
+   `source_terminal_generation_changed`; and
+3. a change only in the terminal visible-path `lstat` must also HOLD as
+   `source_terminal_generation_changed`.
+
+The proof uses no `chown`, protected pathname, elevated privilege or
+production-file mutation and restores both `os.fstat` and `Path.lstat`
+after every adversary.
 
 These checks do not authenticate directory ancestry, ACLs, mount namespace,
 executable identity, installed callback-process origin or the runtime
