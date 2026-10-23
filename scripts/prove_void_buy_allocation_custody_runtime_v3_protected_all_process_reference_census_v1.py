@@ -14,7 +14,7 @@ TARGET = (
     "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "0567991abb05c121722d47485ab9e7410b8b8126"
+EXPECTED_SOURCE_BLOB = "a418c82155bde78ad50f2a28821ac0ac50b2c54e"
 
 
 def git_blob(raw: bytes) -> str:
@@ -36,13 +36,13 @@ assert module.MARKER == (
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_REFERENCE_CENSUS_V1"
 )
 assert module.PARENT_CURRENT_UID_HEAD == (
-    "a42153631b0523fcefca12b9ed40a9a743c2fadd"
+    "61ecbea8b098f45bcd00eca1546438ad71c30230"
 )
 assert module.PARENT_CURRENT_UID_SOURCE_BLOB == (
-    "86c493d7acbe539fe898024474ed3c8815760603"
+    "d3c648df3f43ab642d60b8eacedb05c851e4fd2c"
 )
 assert module.PRESTATE_SOURCE_BLOB == (
-    "feb6508133a1feda9bda793646a5c949f1fdc7f0"
+    "c2e0c53336665578e4ab26204f7d67908c66ad3f"
 )
 assert module.ARCHIVE_LOCK_BLOB == (
     "edb4ea2b833373ab387762e45ba7da4032c860f3"
@@ -58,9 +58,11 @@ assert module.PROTECTED_SOURCE == Path(
 assert module.TARGET == Path(
     "/opt/void-buy-allocation-custody-runtime-v1"
 )
-assert module.MAX_TARGET_ENTRIES == 4096
+assert module.MAX_TARGET_ENTRIES == 32768
 assert module.MAX_PIDS == 32768
 assert module.MAX_FDS_PER_PROCESS == 65536
+assert module.MAX_TASKS_PER_PROCESS == 65536
+assert module.MAX_TOTAL_TASKS == 262144
 assert module.MAX_SCAN_ATTEMPTS == 3
 
 module.self_test()
@@ -70,6 +72,10 @@ clean_rows = [
         "pid": 10,
         "status": "scanned",
         "start_ticks": "100",
+        "task_count": 1,
+        "live_task_count": 1,
+        "task_inventory_stable": True,
+        "task_generation_digest": "0" * 64,
         "reference_count": 0,
         "references": {"cwd": 0, "root": 0, "exe": 0, "fd": 0, "maps": 0},
         "incomplete_observations": 0,
@@ -147,6 +153,69 @@ with tempfile.TemporaryDirectory(
     assert snap1["metadata_sha256"] == snap2["metadata_sha256"]
     assert snap1["identity_count"] == 3
 
+# Synthetic procfs fixture: only a non-leader TID retains the target FD.
+# The protected all-process scan must detect it even though the TGID leader
+# has a clean fd/fs view.
+with tempfile.TemporaryDirectory(
+    prefix="void-custody-protected-threadref-proof-"
+) as tmp:
+    base = Path(tmp)
+    target = base / "target"
+    target.mkdir(mode=0o700)
+    target_file = target / "held"
+    target_file.write_bytes(b"held")
+    target_snap = module.target_snapshot(target)
+
+    proc = base / "proc"
+    pid_dir = proc / "100"
+    task_root = pid_dir / "task"
+    task_100 = task_root / "100"
+    task_101 = task_root / "101"
+    for task in (task_100, task_101):
+        (task / "fd").mkdir(parents=True, mode=0o700)
+
+    other_dir = base / "elsewhere"
+    other_dir.mkdir(mode=0o700)
+    other_file = other_dir / "exe"
+    other_file.write_bytes(b"x")
+
+    def stat_line(pid: int, start_ticks: int, state: str = "S") -> str:
+        fields = [state] + ["0"] * 19
+        fields[6] = "0"
+        fields[19] = str(start_ticks)
+        return f"{pid} (fixture) " + " ".join(fields) + "\n"
+
+    (pid_dir / "stat").write_text(stat_line(100, 1000), encoding="ascii")
+    (task_100 / "stat").write_text(stat_line(100, 1000), encoding="ascii")
+    (task_101 / "stat").write_text(stat_line(101, 1001), encoding="ascii")
+    (pid_dir / "maps").write_text("", encoding="utf-8")
+    (pid_dir / "exe").symlink_to(other_file)
+    for task in (task_100, task_101):
+        (task / "cwd").symlink_to(other_dir)
+        (task / "root").symlink_to(other_dir)
+    (task_101 / "fd" / "3").symlink_to(target_file)
+
+    original_proc = module.PROC
+    module.PROC = proc
+    try:
+        row = module.scan_process(100, target_snap["identities"])
+        assert row["status"] == "scanned", row
+        assert row["task_count"] == 2
+        assert row["task_inventory_stable"] is True
+        assert row["reference_count"] == 1, row
+        assert row["references"]["fd"] == 1, row
+        assert row["references"]["cwd"] == 0
+        assert row["references"]["root"] == 0
+
+        first_inventory = module._task_inventory(100)
+        assert first_inventory is not None and set(first_inventory) == {100, 101}
+        (task_101 / "stat").write_text(stat_line(101, 2001), encoding="ascii")
+        second_inventory = module._task_inventory(100)
+        assert second_inventory is not None
+        assert second_inventory != first_inventory
+    finally:
+        module.PROC = original_proc
+
 source = TARGET.read_text(encoding="utf-8")
 pre_self_test = source.split("def self_test()", 1)[0]
 
@@ -176,6 +245,10 @@ for required in (
     "PF_KTHREAD",
     "kernel_thread_skipped",
     "target_pre_post_identity_recheck",
+    "task_inventory_generation_stability_required",
+    "per_thread_files_fs_reference_scan_required",
+    "MAX_TASKS_PER_PROCESS",
+    "MAX_TOTAL_TASKS",
     "all_process_target_reference_absent_observed",
     "all_process_reference_absence_proven",
     "fd_table_stability_proven",
@@ -206,6 +279,11 @@ print("target_identity_metadata_only=true")
 print("all_numeric_pids_scope=true")
 print("kernel_thread_explicit_skip=true")
 print("pid_generation_recheck=true")
+print("task_inventory_generation_stability_required=true")
+print("per_thread_files_fs_reference_scan_required=true")
+print("bounded_task_inventory_required=true")
+print("nonleader_thread_fd_reference_detected=true")
+print("task_generation_churn_detected=true")
 print("target_pre_post_identity_recheck=true")
 print("proc_cmdline_read=false")
 print("proc_environ_read=false")
