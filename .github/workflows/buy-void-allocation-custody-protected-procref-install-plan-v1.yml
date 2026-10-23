@@ -45,11 +45,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-protected-procref-install-plan-v1.mjs)" = \
-            "2a80e0107db0e7aa1ab80f5fdfbb318a61ff0aba"
+            "e761f3636277dc578669b09788743d22cfa459ba"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_protected-procref-install-plan-v1.mjs)" = \
-            "115d098ec7d1b47aabf736bd3440b5fa640abd28"
+            "a7e067d23e1cce8f5f739b522f1806cfa64c2dbc"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-protected-procref-install-plan-v1.md)" = \
-            "9d7ae7d096342fcf33bf7a61fd2174a68158bd11"
+            "b85d447ce085a462ff1259041f2371456844deac"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
             "25c0e32ae85da4569fb9521a0812e10ab0fcede3"
 
@@ -85,6 +85,17 @@ jobs:
             'atomic_renameat2_noreplace_publication_required=true' \
             'absence_precheck_not_publication_authority=true' \
             'same_filesystem_root_staging_required=true' \
+            'stage_directory_exact_metadata_bound=true' \
+            'stage_root_root_mode_0700_bound=true' \
+            'stage_nlink_2_bound=true' \
+            'stage_descriptor_relative_creation_required=true' \
+            'stage_parent_descriptor_retention_required=true' \
+            'stage_same_mount_revalidation_required=true' \
+            'stage_direct_ancestry_required=true' \
+            'stage_symlink_free_ancestry_required=true' \
+            'stage_revalidation_before_publication_required=true' \
+            'stage_contract_missing_field_rejected=true' \
+            'stage_contract_mutation_adversaries_rejected=true' \
             'fsync_and_postinstall_reverification_required=true' \
             'content_addressed_install_receipt_required=true' \
             'install_receipt_external_review_required=true' \
@@ -122,6 +133,17 @@ jobs:
           if(p.install_contract.publication_syscall!=="renameat2") throw new Error("publication_syscall");
           if(p.install_contract.publication_flag!=="RENAME_NOREPLACE") throw new Error("publication_flag");
           if(p.install_contract.ordinary_rename_publication_forbidden!==true) throw new Error("ordinary_rename");
+          if(p.install_contract.stage_parent!=="/opt") throw new Error("stage_parent");
+          if(p.install_contract.stage_uid!==0 || p.install_contract.stage_gid!==0) throw new Error("stage_owner");
+          if(p.install_contract.stage_mode!=="0700") throw new Error("stage_mode");
+          if(p.install_contract.stage_nlink!==2) throw new Error("stage_nlink");
+          if(p.install_contract.stage_directory!==true || p.install_contract.stage_symlink!==false) throw new Error("stage_type");
+          if(p.install_contract.stage_same_mount_as_install_parent!==true) throw new Error("stage_mount");
+          if(p.install_contract.stage_descriptor_relative_creation_required!==true) throw new Error("stage_creation");
+          if(p.install_contract.stage_parent_descriptor_retained_through_publication_required!==true) throw new Error("stage_parent_retention");
+          if(p.install_contract.stage_direct_child_of_install_parent_required!==true) throw new Error("stage_ancestry");
+          if(p.install_contract.stage_symlink_free_ancestry_required!==true) throw new Error("stage_symlink_ancestry");
+          if(p.install_contract.stage_revalidation_before_publication_required!==true) throw new Error("stage_revalidation");
           for(const k of [
             "protected_source_install_authorized",
             "protected_source_installed",
