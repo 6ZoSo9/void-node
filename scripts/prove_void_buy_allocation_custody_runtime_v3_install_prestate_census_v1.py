@@ -16,7 +16,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "c2e0c53336665578e4ab26204f7d67908c66ad3f"
+EXPECTED_SOURCE_BLOB = "f965215dd502a3d6321cfe090bbc4ffaa52a7648"
 
 def git_blob(raw: bytes) -> str:
     prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
@@ -216,6 +216,23 @@ with tempfile.TemporaryDirectory(
 
 module.self_test()
 
+saved_tree_limit = module.MAX_TREE_ENTRIES
+module.MAX_TREE_ENTRIES = 8
+try:
+    budget = {"entries": 3, "reserved_names": 4}
+    module._reserve_tree_name(budget)
+    assert budget == {"entries": 3, "reserved_names": 5}
+    try:
+        module._reserve_tree_name(budget)
+    except module.CensusHold as exc:
+        assert "target_tree_entry_limit_exceeded" in str(exc)
+    else:
+        raise AssertionError("global retained-name budget was exceeded")
+    module._consume_tree_name(budget)
+    assert budget == {"entries": 3, "reserved_names": 4}
+finally:
+    module.MAX_TREE_ENTRIES = saved_tree_limit
+
 without_b = subprocess.run(
     [sys.executable, "-I", str(TARGET), "--self-test"],
     cwd="/",
@@ -237,6 +254,19 @@ assert "self_test_temporary_filesystem_write=false" in without_b.stdout
 
 source = TARGET.read_text(encoding="utf-8")
 pre_self_test = source.split("def self_test()", 1)[0]
+assert '"production_census_read_only": True' in pre_self_test
+assert '"production_census_filesystem_write": False' in pre_self_test
+assert '"read_only": True' not in pre_self_test
+assert '"filesystem_write": False' not in pre_self_test
+scan_block = pre_self_test.split("def _scan_dir(", 1)[1].split(
+    "def scan_target_at(", 1
+)[0]
+assert scan_block.index("_reserve_tree_name(totals)") < scan_block.index(
+    "names.append(entry.name)"
+)
+assert scan_block.index("_consume_tree_name(totals)") < scan_block.index(
+    'if name in (".", "..")'
+)
 
 for required in (
     "_fd_mount_id",
@@ -244,6 +274,9 @@ for required in (
     "read_bound_regular",
     "scan_target_at",
     "os.scandir(fd)",
+    "_reserve_tree_name",
+    "_consume_tree_name",
+    "reserved_names",
     "_hash_symlink_at",
     "_observe_regular_at",
     "metadata_sha256",
@@ -308,6 +341,8 @@ print("present_target_rollback_candidate_proven=true")
 print("special_file_rejection=true")
 print("collision_fail_closed=true")
 print("entry_budget_enforced_before_sort=true")
+print("global_retained_name_budget_bound=true")
+print("production_receipt_scoped_write_keys=true")
 print("exact_source_blob_asserted=true")
 print("host_census_not_executed_in_ci=true")
 print("production_census_read_only=true")
