@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_host_namespace_lease_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "e533763f03d0fd985ca9ef83ece24415d6f06dcc"
+EXPECTED_SOURCE_BLOB = "132c34244c795e886f5e2bc729e5e05697f06486"
 
 
 def git_blob(raw: bytes) -> str:
@@ -143,6 +143,8 @@ for required in (
     "_boot_id_sha256",
     "retained_procfs_view_revalidated",
     "namespace_lease_is_install_authority",
+    "namespace_lease_external_review_completed",
+    "automatic_process_census_feed_authorized",
     "replacement_apply_authorized",
     "payment_acceptance",
     "public_presale_activation",
@@ -169,6 +171,8 @@ print("host_collection_not_executed_in_ci=true")
 print("production_filesystem_write=false")
 print("test_fixture_filesystem_write=true")
 print("namespace_lease_is_install_authority=false")
+print("namespace_lease_external_review_completed=false")
+print("automatic_process_census_feed_authorized=false")
 print("replacement_apply_authorized=false")
 print("runtime_integration=false")
 print("payment_acceptance=false")
