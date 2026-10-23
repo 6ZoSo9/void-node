@@ -95,7 +95,10 @@ a SHA-256 of the **complete selected kernel `/proc/self/mountinfo` row**,
 exact-mountpoint status, and the count of mount rows sharing the same
 root/device. The digest therefore binds the selected row's mount options,
 optional propagation fields, filesystem type, mount source, and super-options
-without emitting the raw row or unrelated mount paths. A remount or source/
+without emitting the raw row or unrelated mount paths. The disposable proof
+uses distinct sentinel material in each adversarial mount-options, mount-source,
+and super-options row and inspects the **returned adversarial receipt itself**;
+none of that raw material may appear outside the digest. A remount or source/
 super-option change between the first and second pass changes the digest and
 HOLDs.
 
@@ -117,15 +120,14 @@ This prevents both PID recycling and same-process `execve`/credential changes
 from splicing different runtime subjects into one receipt. It does not read raw
 argv, environment, open file names, sockets, memory, or credentials.
 
-The collector also repeats the complete pass-level observations after the
-service/process sample: machine identity, trusted ancestors, every fixed path,
-mount metadata, and the closed systemd property set must compare exactly with
-their first samples. After the second systemd sample it re-observes the service
-process subject and requires exact equality with the first process observation,
-so even a fast restart that reuses the same numeric PID cannot be silently
-combined. Any cross-pass drift is HOLD. This is not an atomic kernel snapshot,
-but it prevents a successful receipt from silently combining different
-before/after host generations.
+The retained collector implementation contains before/after pass-level
+generation checks for machine identity, trusted ancestors, fixed paths, mount
+metadata, systemd state, and service-process subject. **Those live observations
+are not executable in this source generation:** the public `--run` path first
+requires authenticated Xiphos machine-identity provenance and host-pass
+authority, both hard-bound false here, and HOLDs before hostname or filesystem
+observation. A later reviewed authenticated-attestation successor must
+explicitly rebind that gate before the retained observation logic can be used.
 
 ## Authority semantics
 
@@ -177,16 +179,16 @@ provenance-HOLD generation, and this collector source. It verifies:
 - symlink rejection;
 - synthetic ACL rejection;
 - terminal descriptor-generation drift rejection;
-- a fully inert `run_host_pass()` simulation with monkeypatched metadata
-  providers, including service/process/path/mount cross-pass drift adversaries;
-- negative authority in plan mode; and
+- the public `run_host_pass()` provenance gate, with every host-observation
+  provider patched to fail if reached; the gate must HOLD first with zero calls;
+- negative machine-identity and host-pass authority in plan mode; and
 - exact four-file parent-relative scope.
 
 No Xiphos host pass is performed by CI.
 
-Source blob: `36f77c85a2716989726af77679160de2b9e48f76`.
+Source blob: `160ad246b36eb2ee6680acc411686ff43a25bef9`.
 
-Proof blob: `67a73d6da5018944bc79e5ed07460f7e6512e57e`.
+Proof blob: `c0e05dacfb557956f6d2fa79522ccf18cb1f6d1f`.
 
 ## Next gate
 
