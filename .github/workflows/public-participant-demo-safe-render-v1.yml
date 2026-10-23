@@ -40,7 +40,7 @@ jobs:
             "public/demo/participant/index.html"
             "scripts/prove_public_participant_demo_safe_render_v1.mjs"
           )
-          git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" -- "${paths[@]}" > "$RUNNER_TEMP/actual.txt"
+          git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" -- > "$RUNNER_TEMP/actual.txt"
           test -s "$RUNNER_TEMP/actual.txt"
 
           while IFS=$'\t' read -r status path extra; do
