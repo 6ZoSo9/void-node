@@ -86,5 +86,25 @@
     "funds_movement_authorized": false
   },
   "next_gate": "DISTINCT_REVIEW_FAILURE_DOMAIN_PLAN_THEN_BUILD_ISOLATED_RUNTIME_CANDIDATE_V1",
-  "plan_id": "voidapollyonclaimcallbackcontain1_17848cb11147fb0284268258e784826daf75630687abec922c4dd5d972b7be68"
+  "plan_id": "voidapollyonclaimcallbackcontain1_1b222a07a3ea1c3c4ed078dad78b60b51d0c144207ba8c970ea8cbb007dd082e",
+  "worker_resource_ceiling_contract": {
+    "worker_deadline_ms": 5000,
+    "worker_tree_reap_timeout_ms": 5000,
+    "canonical_receipt_frame_bytes_max": 65536,
+    "stdout_capture_bytes_max": 8192,
+    "stderr_capture_bytes_max": 8192,
+    "diagnostic_capture_bytes_max": 8192,
+    "memory_max_bytes": 268435456,
+    "memory_swap_max_bytes": 0,
+    "pids_max": 32,
+    "cpu_quota_us": 100000,
+    "cpu_period_us": 100000,
+    "rlimit_nofile": 64,
+    "rlimit_fsize_bytes": 1048576,
+    "private_filesystem_bytes_max": 16777216,
+    "io_read_bytes_per_second_max": 16777216,
+    "io_write_bytes_per_second_max": 8388608,
+    "io_read_iops_max": 1024,
+    "io_write_iops_max": 512
+  }
 }
