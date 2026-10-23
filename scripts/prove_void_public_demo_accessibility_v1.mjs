@@ -147,7 +147,9 @@ function requireDemoAccessibility(html) {
   );
 }
 
-requireDemoAccessibility(source);\n\nconst negativeMutations = [
+requireDemoAccessibility(source);
+
+const negativeMutations = [
   {
     name: "broken_label_target",
     html: source.replace('for="jobMsg"', 'for="missing-job-message"'),
