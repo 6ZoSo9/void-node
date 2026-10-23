@@ -15,7 +15,8 @@ if (
         print("reason=python_isolated_unoptimized_mode_required")
         print("process_signal=false")
         print("service_mutation=false")
-        print("filesystem_write=false")
+        print("production_census_filesystem_write=false")
+    print("self_test_private_fixture_writes=true")
         print("funds_movement=false")
         raise SystemExit(2)
     raise RuntimeError("python_isolated_unoptimized_mode_required")
@@ -50,8 +51,11 @@ SOCKET_POLICY_BLOB = "9d4b97a822b50c525722f0decae9205a9aebeb4a"
 SERVICE_USER = "void-buy-custody"
 SERVICE_GROUP = "void-buy-custody"
 PROC_ROOT = Path("/proc")
+PROC_MOUNTINFO = Path("/proc/self/mountinfo")
 MAX_PROC_ENTRIES = 131072
+MAX_TASK_ENTRIES = 262144
 MAX_STATUS_BYTES = 64 * 1024
+MAX_MOUNTINFO_BYTES = 4 * 1024 * 1024
 MAX_REPO_FILE = 2 * 1024 * 1024
 
 
@@ -209,6 +213,68 @@ def parse_proc_status_uids(raw: bytes) -> tuple[int, int, int, int]:
     return values  # type: ignore[return-value]
 
 
+def read_proc_mountinfo(
+    path: Path = PROC_MOUNTINFO,
+    *,
+    maximum: int = MAX_MOUNTINFO_BYTES,
+) -> bytes:
+    if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum < 1:
+        hold("proc_mountinfo_limit_invalid")
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+    fd = -1
+    try:
+        fd = os.open(path, flags)
+        raw = bytearray()
+        while len(raw) <= maximum:
+            chunk = os.read(fd, min(65536, maximum + 1 - len(raw)))
+            if not chunk:
+                break
+            raw.extend(chunk)
+        if len(raw) > maximum:
+            hold("proc_mountinfo_too_large")
+        return bytes(raw)
+    finally:
+        if fd >= 0:
+            os.close(fd)
+
+
+def verify_complete_proc_visibility(raw: bytes) -> dict[str, Any]:
+    try:
+        text = raw.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        hold("proc_mountinfo_encoding_invalid:" + type(exc).__name__)
+    matches: list[tuple[tuple[str, ...], tuple[str, ...]]] = []
+    for line in text.splitlines():
+        parts = line.split()
+        try:
+            separator = parts.index("-")
+        except ValueError:
+            hold("proc_mountinfo_row_invalid")
+        if separator < 6 or separator + 3 >= len(parts):
+            hold("proc_mountinfo_row_invalid")
+        if parts[4] != "/proc" or parts[separator + 1] != "proc":
+            continue
+        mount_options = tuple(sorted(set(parts[5].split(","))))
+        super_options = tuple(sorted(set(parts[separator + 3].split(","))))
+        matches.append((mount_options, super_options))
+    if len(matches) != 1:
+        hold("proc_mount_selection_invalid")
+    mount_options, super_options = matches[0]
+    all_options = set(mount_options) | set(super_options)
+    hidden = sorted(
+        option for option in all_options
+        if option.startswith("hidepid=") and option != "hidepid=0"
+    )
+    if hidden:
+        hold("proc_visibility_restricted:" + ",".join(hidden))
+    return {
+        "mount_options": list(mount_options),
+        "super_options": list(super_options),
+        "hidepid_restricted": False,
+        "complete_process_visibility_required": True,
+    }
+
+
 def read_proc_status_uid_slots(
     process_root: Path,
     *,
@@ -233,32 +299,61 @@ def read_proc_status_uid_slots(
             os.close(fd)
 
 
-def proc_numeric_names(
-    proc_root: Path,
+def numeric_directory_names(
+    root: Path,
     *,
-    maximum: int = MAX_PROC_ENTRIES,
+    maximum: int,
+    limit_reason: str,
+    unavailable_reason: str,
 ) -> list[str]:
-    if (
-        not isinstance(maximum, int)
-        or isinstance(maximum, bool)
-        or maximum < 1
-        or maximum > MAX_PROC_ENTRIES
-    ):
-        hold("process_entry_limit_invalid")
+    if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum < 1:
+        hold(limit_reason + "_invalid")
     names: list[str] = []
     try:
-        with os.scandir(proc_root) as entries:
+        with os.scandir(root) as entries:
             for entry in entries:
                 name = entry.name
                 if not name.isdecimal():
                     continue
                 names.append(name)
                 if len(names) > maximum:
-                    hold("process_entry_limit_exceeded")
+                    hold(limit_reason + "_exceeded")
+    except CensusHold:
+        raise
     except OSError as exc:
-        hold("process_census_unavailable:" + str(exc.errno))
+        hold(unavailable_reason + ":" + str(exc.errno))
     names.sort(key=lambda value: int(value, 10))
     return names
+
+
+def proc_numeric_names(
+    proc_root: Path,
+    *,
+    maximum: int = MAX_PROC_ENTRIES,
+) -> list[str]:
+    if maximum > MAX_PROC_ENTRIES:
+        hold("process_entry_limit_invalid")
+    return numeric_directory_names(
+        proc_root,
+        maximum=maximum,
+        limit_reason="process_entry_limit",
+        unavailable_reason="process_census_unavailable",
+    )
+
+
+def task_numeric_names(
+    process_root: Path,
+    *,
+    maximum: int,
+) -> list[str]:
+    if maximum > MAX_TASK_ENTRIES:
+        hold("process_task_entry_limit_invalid")
+    return numeric_directory_names(
+        process_root / "task",
+        maximum=maximum,
+        limit_reason="process_task_entry_limit",
+        unavailable_reason="process_thread_census_unavailable",
+    )
 
 
 def census_uid_processes(
@@ -266,23 +361,62 @@ def census_uid_processes(
     proc_root: Path = PROC_ROOT,
     *,
     maximum_entries: int = MAX_PROC_ENTRIES,
+    maximum_task_entries: int = MAX_TASK_ENTRIES,
 ) -> tuple[int, ...]:
     if not isinstance(uid, int) or isinstance(uid, bool) or uid < 0:
         hold("service_uid_invalid")
+    if (
+        not isinstance(maximum_task_entries, int)
+        or isinstance(maximum_task_entries, bool)
+        or maximum_task_entries < 1
+        or maximum_task_entries > MAX_TASK_ENTRIES
+    ):
+        hold("process_task_entry_limit_invalid")
     observed: list[int] = []
+    remaining_tasks = maximum_task_entries
     for name in proc_numeric_names(proc_root, maximum=maximum_entries):
         process_root = proc_root / name
+        if remaining_tasks < 1:
+            hold("process_task_entry_limit_exceeded")
         try:
-            slots = read_proc_status_uid_slots(process_root)
-        except FileNotFoundError:
-            if process_root.exists():
-                hold("process_status_missing:" + name)
-            continue
-        except OSError as exc:
+            before_tasks = task_numeric_names(
+                process_root,
+                maximum=remaining_tasks,
+            )
+        except CensusHold as exc:
             if not process_root.exists():
                 continue
-            hold("process_status_unreadable:" + name + ":" + str(exc.errno))
-        if uid in slots:
+            raise exc
+        if process_root.exists() and name not in before_tasks:
+            hold("process_thread_leader_missing:" + name)
+        remaining_tasks -= len(before_tasks)
+        matched = False
+        for tid in before_tasks:
+            thread_root = process_root / "task" / tid
+            try:
+                slots = read_proc_status_uid_slots(thread_root)
+            except FileNotFoundError:
+                if thread_root.exists():
+                    hold("process_thread_status_missing:" + name + ":" + tid)
+                continue
+            except OSError as exc:
+                if not thread_root.exists():
+                    continue
+                hold(
+                    "process_thread_status_unreadable:"
+                    + name + ":" + tid + ":" + str(exc.errno)
+                )
+            if uid in slots:
+                matched = True
+        if not process_root.exists():
+            continue
+        after_tasks = task_numeric_names(
+            process_root,
+            maximum=max(1, len(before_tasks) + 1),
+        )
+        if before_tasks != after_tasks:
+            hold("process_thread_set_changed:" + name)
+        if matched:
             observed.append(int(name, 10))
     return tuple(observed)
 
@@ -311,6 +445,8 @@ def stable_uid_process_census(
 def census() -> dict[str, Any]:
     lock = verify_source_inputs()
     identity = resolve_service_identity()
+
+    proc_visibility = verify_complete_proc_visibility(read_proc_mountinfo())
 
     if identity["state"] == "present":
         processes = stable_uid_process_census(identity["uid"])
@@ -342,6 +478,7 @@ def census() -> dict[str, Any]:
         "service_identity": identity,
         "process_observation": {
             "proc_root": str(PROC_ROOT),
+            "proc_visibility": proc_visibility,
             "uid_slots_examined": [
                 "real",
                 "effective",
@@ -358,6 +495,8 @@ def census() -> dict[str, Any]:
         },
         "read_only": True,
         "proc_status_uid_only": True,
+        "proc_thread_status_uid_only": True,
+        "complete_proc_visibility_verified": True,
         "process_cmdline_read": False,
         "process_environment_read": False,
         "process_executable_read": False,
@@ -382,15 +521,24 @@ def census() -> dict[str, Any]:
     }
 
 
-def _write_status(path: Path, uids: tuple[int, int, int, int]) -> None:
-    path.mkdir()
-    (path / "status").write_text(
+def _status_text(uids: tuple[int, int, int, int]) -> str:
+    return (
         "Name:\ttest\n"
         + "Uid:\t"
         + "\t".join(str(value) for value in uids)
-        + "\n",
-        encoding="utf-8",
+        + "\n"
     )
+
+
+def _write_status(path: Path, uids: tuple[int, int, int, int]) -> None:
+    path.mkdir()
+    text = _status_text(uids)
+    (path / "status").write_text(text, encoding="utf-8")
+    task = path / "task"
+    task.mkdir()
+    leader = task / path.name
+    leader.mkdir()
+    (leader / "status").write_text(text, encoding="utf-8")
 
 
 def self_test() -> None:
@@ -410,9 +558,18 @@ def self_test() -> None:
         _write_status(proc / "103", (1000, 994, 1000, 1000))
         _write_status(proc / "104", (1000, 1000, 994, 1000))
         _write_status(proc / "105", (1000, 1000, 1000, 994))
+        _write_status(proc / "107", (1000, 1000, 1000, 1000))
+        thread = proc / "107" / "task" / "108"
+        thread.mkdir()
+        (thread / "status").write_text(
+            _status_text((1000, 994, 1000, 1000)),
+            encoding="utf-8",
+        )
         (proc / "self").mkdir()
-        observed = census_uid_processes(994, proc, maximum_entries=16)
-        if observed != (102, 103, 104, 105):
+        observed = census_uid_processes(
+            994, proc, maximum_entries=16, maximum_task_entries=32
+        )
+        if observed != (102, 103, 104, 105, 107):
             hold("self_test_all_uid_slots_not_classified")
         stable = stable_uid_process_census(994, proc, maximum_entries=16)
         if stable != observed:
@@ -420,7 +577,7 @@ def self_test() -> None:
 
         malformed = proc / "106"
         malformed.mkdir()
-        (malformed / "status").write_text(
+        (malformed / "task" / "106" / "status").write_text(
             "Name:\ttest\nUid:\t994\t994\t994\n",
             encoding="utf-8",
         )
@@ -447,16 +604,40 @@ def self_test() -> None:
         else:
             hold("self_test_proc_entry_budget_not_enforced")
 
+        visible_mountinfo = (
+            b"29 23 0:26 / /proc rw,nosuid,nodev,noexec,relatime"
+            b" - proc proc rw\n"
+        )
+        hidden_mountinfo = (
+            b"29 23 0:26 / /proc rw,nosuid,nodev,noexec,relatime"
+            b" - proc proc rw,hidepid=2\n"
+        )
+        if verify_complete_proc_visibility(visible_mountinfo)[
+            "hidepid_restricted"
+        ] is not False:
+            hold("self_test_proc_visibility_invalid")
+        try:
+            verify_complete_proc_visibility(hidden_mountinfo)
+        except CensusHold as exc:
+            if "proc_visibility_restricted:hidepid=2" not in str(exc):
+                raise
+        else:
+            hold("self_test_hidden_proc_visibility_accepted")
+
     print(MARKER + "_SELF_TEST_GREEN")
     print("archive_lock_exact=true")
     print("socket_runtime_policy_exact=true")
     print("four_uid_slots_classified=true")
+    print("thread_uid_slots_classified=true")
+    print("proc_visibility_verified_before_empty_candidate=true")
+    print("hidepid_restricted_proc_holds=true")
     print("malformed_live_status_holds=true")
     print("proc_entry_budget_enforced_before_sort=true")
     print("two_pass_uid_process_set_stability=true")
     print("dedicated_uid_process_quiescence_proven=false")
     print("global_runtime_reference_quiescence_proven=false")
     print("proc_status_uid_only=true")
+    print("proc_thread_status_uid_only=true")
     print("process_cmdline_read=false")
     print("process_environment_read=false")
     print("process_executable_read=false")
@@ -500,13 +681,18 @@ if __name__ == "__main__":
         print("reason=" + str(exc))
         print("read_only=true")
         print("proc_status_uid_only=true")
+        print("proc_thread_status_uid_only=true")
         print("process_cmdline_read=false")
         print("process_environment_read=false")
         print("process_executable_read=false")
         print("process_fd_read=false")
         print("process_signal=false")
         print("service_mutation=false")
-        print("filesystem_write=false")
+        print("production_census_filesystem_write=false")
+        print(
+            "self_test_private_fixture_writes="
+            + ("true" if "--self-test" in _bootstrap_sys.argv[1:] else "false")
+        )
         print("payment_acceptance=false")
         print("public_presale_activation=false")
         print("funds_movement=false")
