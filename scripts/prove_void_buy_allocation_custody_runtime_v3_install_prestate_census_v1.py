@@ -16,7 +16,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "c2e0c53336665578e4ab26204f7d67908c66ad3f"
+EXPECTED_SOURCE_BLOB = "4d9c6e5809a5cc64454626760f71e60ed99354bc"
 
 def git_blob(raw: bytes) -> str:
     prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
@@ -82,6 +82,23 @@ for key in (
     "funds_movement",
 ):
     assert lock[key] is False, key
+
+# Successful production JSON must carry the same production-scoped authority
+# keys documented and emitted by HOLD/self-test paths. Exercise this without
+# touching /opt by replacing the two host-observation helpers in memory only.
+_original_verify_archive_lock = module.verify_archive_lock
+_original_collect_prestate = module.collect_prestate
+try:
+    module.verify_archive_lock = lambda: {"archive_candidate_accepted": True}
+    module.collect_prestate = lambda *args, **kwargs: {"synthetic": True}
+    receipt = module.census()
+    assert receipt["read_only"] is True
+    assert receipt["filesystem_write"] is False
+    assert receipt["production_census_read_only"] is True
+    assert receipt["production_census_filesystem_write"] is False
+finally:
+    module.verify_archive_lock = _original_verify_archive_lock
+    module.collect_prestate = _original_collect_prestate
 
 with tempfile.TemporaryDirectory(
     prefix="void-custody-v3-prestate-proof-"
@@ -288,6 +305,14 @@ assert "O_NOFOLLOW" in pre_self_test
 assert "O_NONBLOCK" in pre_self_test
 assert "follow_symlinks=False" in pre_self_test
 
+scan_source = pre_self_test.split("def _scan_dir(", 1)[1].split(
+    "def scan_target_at(", 1
+)[0]
+assert "with os.scandir(fd) as iterator:" in scan_source
+assert "names: list[str]" not in scan_source
+assert "names.sort()" not in scan_source
+assert scan_source.index('totals["entries"] += 1') < scan_source.index("_scan_dir(")
+
 regular_observer = pre_self_test.split("def _observe_regular_at(", 1)[1].split(
     "def _scan_dir(", 1
 )[0]
@@ -308,9 +333,11 @@ print("present_target_rollback_candidate_proven=true")
 print("special_file_rejection=true")
 print("collision_fail_closed=true")
 print("entry_budget_enforced_before_sort=true")
+print("streaming_tree_enumeration_global_budget=true")
 print("exact_source_blob_asserted=true")
 print("host_census_not_executed_in_ci=true")
 print("production_census_read_only=true")
+print("production_receipt_scoped_authority_keys=true")
 print("python_no_bytecode_mode_required=true")
 print("without_dash_b_bootstrap_hold=true")
 print("production_census_filesystem_write=false")

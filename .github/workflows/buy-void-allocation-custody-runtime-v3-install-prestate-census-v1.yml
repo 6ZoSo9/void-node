@@ -45,11 +45,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "c2e0c53336665578e4ab26204f7d67908c66ad3f"
+            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "73b27bb169a3ad9eb751e5b57611b37fc405c8dd"
+            "a63eca7368c337d68f5cda31d9e52b0b759f1b53"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-install-prestate-census-v1.md)" = \
-            "779f2f90c7a4fd96b1732ebea67315c03a9ccb7c"
+            "8125d427981777de86649eff93162635c80330d9"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
@@ -125,9 +125,11 @@ jobs:
             'special_file_rejection=true' \
             'collision_fail_closed=true' \
             'entry_budget_enforced_before_sort=true' \
+            'streaming_tree_enumeration_global_budget=true' \
             'exact_source_blob_asserted=true' \
             'host_census_not_executed_in_ci=true' \
             'production_census_read_only=true' \
+            'production_receipt_scoped_authority_keys=true' \
             'python_no_bytecode_mode_required=true' \
             'without_dash_b_bootstrap_hold=true' \
             'production_census_filesystem_write=false' \
