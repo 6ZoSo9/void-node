@@ -36,9 +36,9 @@ jobs:
           EXPECTED_HEAD="${{ github.event.pull_request.head.sha || github.sha }}"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b"
-          test "$(git rev-parse HEAD:ops/security/void_v7_v5_stage_role_separation_contract_v1.json)" = "9fc65073c54d7fe70283439ef3ea107dd3f856f6"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_role_separation_contract_v1.py)" = "c23ab26f702efe68823d490cf22aa2457281477e"
-          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-role-separation-contract-v1.md)" = "259d7ec5538f402e1c5bc13a7ecc3610aa41c36f"
+          test "$(git rev-parse HEAD:ops/security/void_v7_v5_stage_role_separation_contract_v1.json)" = "1dccc0f7fd1c74005b519113b0728ebd25477ad5"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_role_separation_contract_v1.py)" = "57ea99ffad3ed75a64e83a82ed8e35fd4d252d18"
+          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-role-separation-contract-v1.md)" = "194a8e022d6a4d5b100076a6622f0fe6a9ef5275"
           git merge-base --is-ancestor 555db189091321a727b98d5177c7428430fd23a1 "$EXPECTED_HEAD"
           BASE="${{ github.event.pull_request.base.sha }}"
           test "$BASE" = "555db189091321a727b98d5177c7428430fd23a1"
@@ -53,7 +53,7 @@ jobs:
           diff -u /tmp/v7-expected-scope.sorted /tmp/v7-actual-scope
           git diff --check "$BASE" "$EXPECTED_HEAD" --
 
-      - name: Exact legacy boundary and 19 negative role models
+      - name: Exact legacy boundary and 21 negative role models
         shell: bash
         run: |
           set -euo pipefail
