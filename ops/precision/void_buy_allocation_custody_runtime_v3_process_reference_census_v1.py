@@ -280,6 +280,34 @@ def _target_snapshot_record(
     }
 
 
+def _observe_target_regular_at(
+    parent_fd: int,
+    name: str,
+    before: os.stat_result,
+    expected_mnt_id: int,
+) -> os.stat_result:
+    fd = os.open(name, _leaf_flags(), dir_fd=parent_fd)
+    try:
+        opened = os.fstat(fd)
+        if _fd_mount_id(fd) != expected_mnt_id:
+            hold("target_cross_mount_file_forbidden")
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or _generation(before) != _generation(opened)
+        ):
+            hold("target_file_rebound")
+        after = os.fstat(fd)
+        visible = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if (
+            _generation(opened) != _generation(after)
+            or _generation(after) != _generation(visible)
+        ):
+            hold("target_file_generation_changed")
+        return after
+    finally:
+        os.close(fd)
+
+
 def _scan_target_dir(
     fd: int,
     expected_dev: int,
@@ -348,7 +376,13 @@ def _scan_target_dir(
             finally:
                 os.close(child_fd)
         elif stat.S_ISREG(before.st_mode):
-            records.append(_target_snapshot_record(relative, before, "file"))
+            observed = _observe_target_regular_at(
+                fd,
+                name,
+                before,
+                expected_mnt_id,
+            )
+            records.append(_target_snapshot_record(relative, observed, "file"))
         elif stat.S_ISLNK(before.st_mode):
             records.append(_target_snapshot_record(relative, before, "symlink"))
         else:
@@ -706,6 +740,10 @@ def current_uid_census(
             "attempt": attempt,
             "target_snapshot_before": target_before["snapshot_id"],
             "target_snapshot_after": target_after["snapshot_id"],
+            "target_root_dev": target_before["root_dev"],
+            "target_root_ino": target_before["root_ino"],
+            "target_mount_id": target_before["mount_id"],
+            "target_entry_count": target_before["entry_count"],
             "target_identity_count_before": target_before["identity_count"],
             "target_identity_count_after": target_after["identity_count"],
             **result,
@@ -726,6 +764,12 @@ def current_uid_census(
             selected["target_snapshot_after"],
         "selected_target_snapshot_stable":
             selected["target_snapshot_stable"],
+        "selected_target_root_dev": selected["target_root_dev"],
+        "selected_target_root_ino": selected["target_root_ino"],
+        "selected_target_mount_id": selected["target_mount_id"],
+        "selected_target_entry_count": selected["target_entry_count"],
+        "selected_target_identity_count":
+            selected["target_identity_count_before"],
         "current_uid_target_reference_absent_candidate":
             selected["current_uid_target_reference_absent_candidate"],
         "all_process_reference_absence_proven": False,
@@ -742,15 +786,15 @@ def census() -> dict[str, Any]:
     _assert_unprivileged_execution()
     lock = verify_source_inputs()
     process = current_uid_census(TARGET)
-    target = target_identity_set(TARGET)
     target_public = {
         "path": str(TARGET),
-        "root_dev": target["root_dev"],
-        "root_ino": target["root_ino"],
-        "mount_id": target["mount_id"],
-        "identity_count": target["identity_count"],
-        "entry_count": target["entry_count"],
-        "snapshot_id": target["snapshot_id"],
+        "root_dev": process["selected_target_root_dev"],
+        "root_ino": process["selected_target_root_ino"],
+        "mount_id": process["selected_target_mount_id"],
+        "identity_count": process["selected_target_identity_count"],
+        "entry_count": process["selected_target_entry_count"],
+        "snapshot_id": process["selected_target_snapshot_before"],
+        "snapshot_matches_selected_attempt": True,
     }
     body = {
         "schema": SCHEMA,
@@ -872,6 +916,8 @@ def self_test() -> None:
     print("target_snapshot_change_fail_closed=true")
     print("target_rescan_each_attempt=true")
     print("target_snapshot_stable_required=true")
+    print("regular_file_mount_id_checked=true")
+    print("receipt_target_bound_to_selected_attempt=true")
     print("legacy_tree_entry_limit=32768")
     print("root_execution_forbidden=true")
     print("current_uid_target_reference_absent_candidate_tested=true")
