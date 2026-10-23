@@ -76,7 +76,10 @@
     "supervisor_durable_inflight_unknown_fence_committed_before_worker_launch_required": true,
     "supervisor_fence_clear_only_after_quiescence_and_terminal_revalidation_required": true,
     "terminal_authorization_winner_revalidation_required": true,
-    "terminal_durable_claim_record_revalidation_required": true
+    "terminal_durable_claim_record_revalidation_required": true,
+    "callback_worker_uncaught_exception_listener_registration_forbidden": true,
+    "callback_worker_uncaught_exception_capture_callback_forbidden": true,
+    "callback_worker_exception_surface_mutation_attempt_maps_to_hold_required": true
   },
   "authority": {
     "protected_host_execution_authorized": false,
@@ -92,7 +95,7 @@
     "funds_movement_authorized": false
   },
   "next_gate": "DISTINCT_REVIEW_FAILURE_DOMAIN_PLAN_THEN_BUILD_ISOLATED_RUNTIME_CANDIDATE_V1",
-  "plan_id": "voidapollyonclaimcallbackcontain1_9dd940ac663df8b532be0d25455eb522e9762563e2f04414ac933072aadc3a3f",
+  "plan_id": "voidapollyonclaimcallbackcontain1_9f64ebd8cd027083db530c333418e24bbbad64aefe852a21478f155358662369",
   "worker_resource_ceiling_contract": {
     "worker_deadline_ms": 5000,
     "worker_tree_reap_timeout_ms": 5000,
