@@ -55,4 +55,3 @@ if (data.boundary?.money_movement_enabled !== false) throw new Error('must not e
 if (data.boundary?.public_internet_mesh_claim !== false) throw new Error('must not claim public internet mesh');
 
 console.log(`${marker}_GREEN`);
-
