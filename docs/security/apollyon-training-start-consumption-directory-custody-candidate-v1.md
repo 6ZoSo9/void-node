@@ -132,7 +132,7 @@ source generation.
 ## October 19 — writer diagnostic source rebind
 
 The synthetic fixture observer now uses the strict disposable-root/default ACL
-source blob `f8062b282ef71e6b345e5ea1ffbad138b3694489`. The writer and request
+source blob `ed6eb47c2f83b35b489d0e9034a4b87c2d10b9dd`. The writer and request
 are rebound to the corrected source generations `76f5a6bcbc9854a1133cd1324eb862cb50102c0e` and
 `079576db7f880872f2d4dea8e7759bd536161516`. This new composite source generation also includes #3552's disposable-root
 lexical confinement and default-POSIX-ACL rejection. This is still fixture-only
@@ -180,11 +180,33 @@ ACL on the consumption directory and requires the same fail-closed
 This remains fixture-only evidence; it grants no production writer, protected
 store, training, credential, transaction or funds authority.
 
+## Final fixture-root policy revalidation
+
+The fixture root's first mode/owner/ACL check is not itself a terminal custody
+snapshot. Another process can retain authority over the same inode and change
+mode or ACL state after that first check. The observer therefore keeps the
+*already validated* root metadata as its baseline rather than replacing it
+with a fresh unchecked `fstat`.
+
+Immediately before a positive fixture receipt, both the root and consumption
+directory are checked again for:
+
+- exact retained/visible metadata generation;
+- private owner/group and mode 0700;
+- absent POSIX access and default ACLs; and
+- unchanged metadata generation after the terminal ACL checks.
+
+The proof injects two races in the window after the initial root checks:
+one changes root mode to 0750 and one makes an access ACL appear only on the
+terminal ACL recheck. Both must HOLD with no descriptor leak. This closes the
+fixture-evidence TOCTOU seam only; it is not mount provenance, protected-store
+origin or writer authority.
+
 ## Composite fixture identity (October 19)
 
 This exact source generation combines the terminal-close provenance repair in
 protected writer blob `76f5a6bcbc9854a1133cd1324eb862cb50102c0e` with the synthetic-only root/default ACL
-observer blob `f8062b282ef71e6b345e5ea1ffbad138b3694489`. The custody
+observer blob `ed6eb47c2f83b35b489d0e9034a4b87c2d10b9dd`. The custody
 proof is pinned to the same writer and protected request generation `079576db7f880872f2d4dea8e7759bd536161516`.
 No installed host reader, protected store claim, training, credential, key,
 transaction or funds authority is promoted by this source-only composition.
