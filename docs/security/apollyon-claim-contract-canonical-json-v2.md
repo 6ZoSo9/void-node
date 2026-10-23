@@ -53,6 +53,11 @@ Accepted values are deliberately closed:
 - ordinary or null-prototype objects with enumerable own string **data**
   properties only.
 
+Object-key emission reproduces frozen V1's final ECMAScript property order,
+including numeric array-index-like object keys: integer indices are emitted
+numerically first, while the remaining keys retain V1's lexicographic insertion
+order. The proof includes the 0/2/10/4294967294/4294967295/01 boundary.
+
 The serializer rejects:
 
 - Proxies before reflective traversal;
@@ -79,7 +84,8 @@ callbacks can execute.
 
 The V2 proof requires byte-for-byte equality with frozen V1 for a representative
 valid fixture vector covering nested records, dense arrays, safe integer
-boundaries, JSON control escapes, Unicode, emoji and lone surrogates.
+boundaries, integer-like object-key ordering, JSON control escapes, Unicode,
+emoji and lone surrogates.
 
 After importing V2, the proof separately poisons:
 
