@@ -224,18 +224,21 @@ target_name = "/var/lib/void-apollyon-attempt-claim-v2"
 baseline_cover = mounts[target_name]
 baseline_hash = baseline_cover["cover_row_sha256"]
 
-for label, changed_line in (
+for label, sentinel, changed_line in (
     (
         "mount_options",
-        "37 36 0:32 / /var/lib/void-apollyon-attempt-claim-v2 ro - ext4 /dev/root rw",
+        "void_mount_option_sentinel",
+        "37 36 0:32 / /var/lib/void-apollyon-attempt-claim-v2 rw,void_mount_option_sentinel - ext4 /dev/root rw",
     ),
     (
         "mount_source",
-        "37 36 0:32 / /var/lib/void-apollyon-attempt-claim-v2 rw - ext4 /dev/mapper/voidroot rw",
+        "void_mount_source_sentinel",
+        "37 36 0:32 / /var/lib/void-apollyon-attempt-claim-v2 rw - ext4 /dev/mapper/void_mount_source_sentinel rw",
     ),
     (
         "super_options",
-        "37 36 0:32 / /var/lib/void-apollyon-attempt-claim-v2 rw - ext4 /dev/root ro,nosuid",
+        "void_super_option_sentinel",
+        "37 36 0:32 / /var/lib/void-apollyon-attempt-claim-v2 rw - ext4 /dev/root rw,void_super_option_sentinel",
     ),
 ):
     variant = (
@@ -256,9 +259,15 @@ for label, changed_line in (
         observed["cover_row_sha256"] != baseline_hash,
         "mount_" + label + "_drift_not_bound",
     )
-
-need("/dev/root" not in json.dumps(mounts), "mount_source_leaked_to_receipt")
-need("ro,nosuid" not in json.dumps(mounts), "mount_super_options_leaked_to_receipt")
+    emitted = json.dumps(observed, sort_keys=True, separators=(",", ":"))
+    need(
+        sentinel not in emitted,
+        "mount_" + label + "_raw_material_leaked_to_receipt",
+    )
+    need(
+        "_complete_row" not in observed,
+        "mount_" + label + "_complete_row_field_leaked",
+    )
 
 ambiguous_mount_sample = (
     "36 25 0:32 / / rw - ext4 /dev/root rw\n"
@@ -491,6 +500,7 @@ print("mount_options_drift_bound=true")
 print("mount_source_drift_bound=true")
 print("mount_super_options_drift_bound=true")
 print("raw_mount_source_not_emitted=true")
+print("adversarial_mount_material_not_emitted=true")
 print("systemctl_show_only_contract=true")
 print("inert_full_pass_orchestration_executed=true")
 print("whole_pass_drift_adversaries_rejected=true")
