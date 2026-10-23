@@ -17,7 +17,7 @@ if (
         print(_BOOTSTRAP_MARKER)
         print("status=HOLD")
         print("reason=python_isolated_unoptimized_nobytecode_mode_required")
-        print("host_write=false")
+        print("production_host_write_performed=false")
         print("protected_source_install_authorized=false")
         print("funds_movement=false")
         raise SystemExit(2)
@@ -856,6 +856,7 @@ def _publish_into_parent(
             "source_bytes": REVIEWED_SOURCE_BYTES,
             "source_sha256": REVIEWED_SOURCE_SHA256,
             "root_census_executed": False,
+            "host_write_performed": True,
             "replacement_apply_authorized": False,
             "payment_acceptance": False,
             "public_presale_activation": False,
@@ -920,7 +921,7 @@ def source_plan() -> None:
     print("post_publication_exact_reverification_required=true")
     print("install_receipt_external_review_required=true")
     print("root_census_execution_authorized=false")
-    print("host_write=false")
+    print("production_host_write_performed=false")
     print("service_mutation=false")
     print("systemd_mutation=false")
     print("replacement_apply_authorized=false")
