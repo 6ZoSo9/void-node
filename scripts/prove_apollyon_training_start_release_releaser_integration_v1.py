@@ -14,8 +14,8 @@ SOURCE = ROOT / "ops/xiphos/apollyon_training_start_release_releaser_integration
 TRAINER = ROOT / "ops/xiphos/apollyon_training_start_release_native_candidate_v1.c"
 PIPE_PAIR = ROOT / "ops/xiphos/apollyon_release_pipe_pair_generation_v1.c"
 
-SOURCE_BLOB = "29d04d61277f1d616a46063c771ca506b4c25d20"
-TRAINER_BLOB = "3c81dbbe694f421a0e6cbc18d8fb7d6f4c7fd983"
+SOURCE_BLOB = "afd2d6b78c89fda568fe25d885368c0f36a86fe7"
+TRAINER_BLOB = "098276fc92c247fa1465c11c6403c2c50a61629a"
 PIPE_PAIR_BLOB = "93390eefd1e72e70af7206e9982c8eaa5e042149"
 
 MARKER = "VOID_APOLLYON_TRAINING_START_RELEASE_RELEASER_INTEGRATION_V1"
@@ -68,7 +68,7 @@ assert git_blob(PIPE_PAIR.read_bytes()) == PIPE_PAIR_BLOB
 source_text = SOURCE.read_text(encoding="utf-8")
 for required in (
     'PARENT_PIPE_PAIR_BLOB_SHA1 "93390eefd1e72e70af7206e9982c8eaa5e042149"',
-    'TRAINER_NATIVE_BLOB_SHA1 "3c81dbbe694f421a0e6cbc18d8fb7d6f4c7fd983"',
+    'TRAINER_NATIVE_BLOB_SHA1 "098276fc92c247fa1465c11c6403c2c50a61629a"',
     "PROC_SUPER_MAGIC",
     "singleton_self",
     "release_pipe_fd_scan",
@@ -247,6 +247,7 @@ with tempfile.TemporaryDirectory(
         "release_gate_shape_verified=true",
         "release_frame_verified=true",
         "release_eof_verified=true",
+        "x32_syscall_namespace_rejected=true",
         "trainer_releaser_lineage_proven=false",
         "trainer_release_authorized=false",
         "training_execution_authorized=false",
@@ -309,6 +310,7 @@ print("io_uring_setup_enter_register_denied=true")
 print("scm_rights_receive_denied=true")
 print("ptrace_mutation_denied_detach_allowed=true")
 print("process_vm_writev_denied=true")
+print("x32_safe_trainer_generation_bound=true")
 print("extra_releaser_thread_rejected=true")
 print("child_retained_writer_rejected=true")
 print("wrong_trainer_pipe_rejected=true")
