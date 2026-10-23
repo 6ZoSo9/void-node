@@ -46,11 +46,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py)" = \
-            "7a292a4df12d3ce280c947cedc197f6edfdca1b3"
+            "52420cd888474558b1498454b30004779783a51f"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_uid_process_census_v1.py)" = \
-            "4a3442376b85c9841c7ac34b6a6bf940e1652091"
+            "8b3f575e74a90da08c0cdc8f99a70e6030ddecbd"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-uid-process-census-v1.md)" = \
-            "1a6ef5779953fefe74c42a06f7ad9bb197dc9252"
+            "611fbef70b2071a624abd28171acbc37a7b057ed"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs)" = \
@@ -82,6 +82,9 @@ jobs:
             'thread_uid_slots_classified=true' \
             'proc_visibility_verified_before_empty_candidate=true' \
             'hidepid_restricted_proc_holds=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'private_pid_namespace_rejected=true' \
+            'host_pid_namespace_lease_mismatch_rejected=true' \
             'malformed_live_status_holds=true' \
             'proc_entry_budget_enforced_before_sort=true' \
             'two_pass_uid_process_set_stability=true' \
@@ -119,6 +122,9 @@ jobs:
             'thread_uid_slots_classified=true' \
             'proc_visibility_verified_before_empty_candidate=true' \
             'hidepid_restricted_proc_holds=true' \
+            'host_pid_namespace_external_lease_required=true' \
+            'private_pid_namespace_rejected=true' \
+            'host_pid_namespace_lease_mismatch_rejected=true' \
             'malformed_live_status_holds=true' \
             'missing_live_status_holds=true' \
             'proc_entry_budget_enforced_before_sort=true' \
