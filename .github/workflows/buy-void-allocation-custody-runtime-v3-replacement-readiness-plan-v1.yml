@@ -47,11 +47,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-runtime-v3-replacement-readiness-plan-v1.mjs)" = \
-            "5b1d88f3cf3e7125e979700fe7c3dcb1d9bfaa8f"
+            "6aefcbccc250ba393f59d7c5f1bcd54905d8ac46"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_replacement_readiness_plan_v1.mjs)" = \
-            "e549734c6d95711a0337fb56c00c05ab74df8796"
+            "d61e6147c2032bb5cb1140f028d36319299351d5"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-replacement-readiness-plan-v1.md)" = \
-            "6926988e4fcc135859f26f22d35e6ab41ac19006"
+            "65b6de6881c5dbfc076304d586bb83e05ef1e589"
 
           test "$(git rev-parse "$BASE:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py")" = \
             "e32ebd94ad09cd80e03489079e74657aab159d7a"
@@ -104,6 +104,7 @@ jobs:
             'forged_all_process_proof_rejected=true' \
             'caller_apply_authority_injection_rejected=true' \
             'receipt_contract_mutation_overclaims_rejected=true' \
+            'nested_process_contract_overclaims_rejected=true' \
             'repaired_prestate_process_sources_bound=true' \
             'privileged_all_process_reference_absence_required=true' \
             'live_node_binary_identity_verification_required=true' \
