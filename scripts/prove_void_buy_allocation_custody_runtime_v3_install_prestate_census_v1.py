@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "116e074a3205e23a205a5e7ceb947a642d2e3e2a"
+EXPECTED_SOURCE_BLOB = "95f77816dc53175829f6550b13c86a24672c98ea"
 
 spec = importlib.util.spec_from_file_location(
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1",
@@ -152,6 +152,7 @@ for required in (
     "read_bound_regular",
     "scan_target_at",
     "content_metadata_sha256",
+    "target_tree_cross_device_entry_forbidden",
     "rollback_rename_candidate",
     "create_only_install_candidate",
     "request_history_read",
@@ -194,6 +195,7 @@ print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_INSTALL_PRESTATE_CENSUS_V1_PROOF_GREEN")
 print("archive_lock_exact=true")
 print("descriptor_bound_tree_scan=true")
 print("target_tree_content_metadata_digest=true")
+print("nested_mount_rejection_bound=true")
 print("absent_target_create_only_candidate_proven=true")
 print("present_target_rollback_candidate_proven=true")
 print("special_file_rejection=true")
