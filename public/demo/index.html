@@ -84,6 +84,17 @@
       color:var(--text);
       font-weight:600;
     }
+    .sr-only{
+      position:absolute;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
     textarea,input{
       width:100%;
       border:1px solid var(--border);
@@ -123,7 +134,7 @@
       <section class="card">
         <h2>Node Health</h2>
         <div class="row mb">
-          <span class="pill" role="status" aria-live="polite" aria-atomic="true"><span id="healthDot" class="dot"></span><span id="healthLabel">unknown</span></span>
+          <span class="pill" role="status" aria-live="polite" aria-atomic="true"><span class="sr-only">Node health: </span><span id="healthDot" class="dot"></span><span id="healthLabel">unknown</span></span>
           <button id="refreshAll" class="btn">Refresh</button>
         </div>
         <div class="kv">
@@ -156,7 +167,7 @@
       </div>
       <div class="row">
         <button id="submitBtn" class="btn">Submit Demo Job</button>
-        <span id="submitState" class="pill" role="status" aria-live="polite" aria-atomic="true"><span id="submitDot" class="dot"></span><span id="submitLabel">idle</span></span>
+        <span id="submitState" class="pill" role="status" aria-live="polite" aria-atomic="true"><span class="sr-only">Job submission: </span><span id="submitDot" class="dot"></span><span id="submitLabel">idle</span></span>
       </div>
       <div class="kv mt">
         <div class="k">job id</div><div id="jobId" class="mono">-</div>
