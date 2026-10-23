@@ -630,106 +630,166 @@ def write_create_only(path: Path, raw: bytes) -> os.stat_result:
         or absolute.parent == absolute
     ):
         hold("output_leaf_invalid")
+    required = (
+        getattr(os, "O_TMPFILE", None),
+        getattr(os, "O_RDWR", None),
+    )
+    if (
+        any(type(flag) is not int for flag in required)
+        or os.link not in os.supports_dir_fd
+        or os.link not in os.supports_follow_symlinks
+        or os.stat not in os.supports_dir_fd
+        or not Path("/proc/self/fd").is_dir()
+    ):
+        hold("output_tmpfile_publication_capability_invalid")
+
     parent_fd, parent_generation = open_bound_private_directory(absolute.parent)
     fd = -1
-    created = False
-    leaf_path = f"/proc/self/fd/{parent_fd}/{leaf}"
+    published = False
+
+    def readback_exact(expected: bytes) -> None:
+        readback = bytearray()
+        offset = 0
+        while offset < len(expected):
+            chunk = os.pread(fd, min(65536, len(expected) - offset), offset)
+            if not chunk:
+                hold("archive_output_readback_short")
+            readback.extend(chunk)
+            offset += len(chunk)
+        if os.pread(fd, 1, len(expected)) != b"":
+            hold("archive_output_readback_growth")
+        if bytes(readback) != expected:
+            hold("archive_output_bytes_changed")
+
     try:
+        # Stage in an unnamed inode. Any failure before the single link()
+        # publication simply closes this fd; there is no pathname to clean up.
         fd = os.open(
-            leaf_path,
-            os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+            ".",
+            os.O_RDWR | os.O_TMPFILE,
             0o600,
+            dir_fd=parent_fd,
         )
-        created = True
         total = 0
         while total < len(raw):
             written = os.write(fd, raw[total:])
             if written <= 0:
                 hold("archive_write_failed")
             total += written
-        opened_before_fsync = os.fstat(fd)
+
+        staged_before_fsync = os.fstat(fd)
         if (
-            not stat.S_ISREG(opened_before_fsync.st_mode)
-            or opened_before_fsync.st_nlink != 1
-            or stat.S_IMODE(opened_before_fsync.st_mode) & 0o077
-            or opened_before_fsync.st_size != len(raw)
+            not stat.S_ISREG(staged_before_fsync.st_mode)
+            or staged_before_fsync.st_nlink != 0
+            or stat.S_IMODE(staged_before_fsync.st_mode) != 0o600
+            or staged_before_fsync.st_size != len(raw)
         ):
-            hold("archive_output_or_parent_generation_invalid")
+            hold("archive_output_tmpfile_generation_invalid")
+
         os.fsync(fd)
-        opened_before_readback = os.fstat(fd)
-        if not _same_file_generation(
-            opened_before_fsync, opened_before_readback
-        ):
+        staged_after_fsync = os.fstat(fd)
+        if not _same_file_generation(staged_before_fsync, staged_after_fsync):
             hold("archive_output_generation_changed_during_file_fsync")
 
-        readback = bytearray()
-        read_offset = 0
-        while read_offset < len(raw):
-            chunk = os.pread(
-                fd, min(65536, len(raw) - read_offset), read_offset
-            )
-            if not chunk:
-                hold("archive_output_readback_short")
-            readback.extend(chunk)
-            read_offset += len(chunk)
-        if os.pread(fd, 1, len(raw)) != b"":
-            hold("archive_output_readback_growth")
-        opened = os.fstat(fd)
-        if (
-            not _same_file_generation(opened_before_readback, opened)
-            or bytes(readback) != raw
-        ):
-            hold("archive_output_bytes_or_generation_changed")
+        readback_exact(raw)
+        staged_after_readback = os.fstat(fd)
+        if not _same_file_generation(staged_after_fsync, staged_after_readback):
+            hold("archive_output_generation_changed_during_readback")
 
-        parent_after = os.fstat(parent_fd)
-        parent_visible_after = os.stat(str(absolute.parent), follow_symlinks=False)
+        parent_before_publish = os.fstat(parent_fd)
+        parent_visible_before_publish = os.stat(
+            str(absolute.parent), follow_symlinks=False
+        )
         if (
-            not _same_identity(parent_generation, parent_after)
-            or not _same_identity(parent_after, parent_visible_after)
+            not _same_identity(parent_generation, parent_before_publish)
+            or not _same_identity(
+                parent_before_publish, parent_visible_before_publish
+            )
         ):
             hold("archive_output_or_parent_generation_invalid")
+
+        # One create-only publication syscall links the already validated
+        # unnamed inode into the retained parent. FileExistsError is the
+        # create-only refusal and leaves the staged inode unnamed.
+        os.link(
+            f"/proc/self/fd/{fd}",
+            leaf,
+            dst_dir_fd=parent_fd,
+            follow_symlinks=True,
+        )
+        published = True
+
+        published_before_fsync = os.fstat(fd)
+        visible_after_link = os.stat(
+            leaf, dir_fd=parent_fd, follow_symlinks=False
+        )
+        if (
+            not stat.S_ISREG(published_before_fsync.st_mode)
+            or published_before_fsync.st_nlink != 1
+            or stat.S_IMODE(published_before_fsync.st_mode) != 0o600
+            or published_before_fsync.st_size != len(raw)
+            or not _same_file_generation(
+                published_before_fsync, visible_after_link
+            )
+            or staged_after_readback.st_dev != published_before_fsync.st_dev
+            or staged_after_readback.st_ino != published_before_fsync.st_ino
+            or staged_after_readback.st_uid != published_before_fsync.st_uid
+            or staged_after_readback.st_gid != published_before_fsync.st_gid
+            or stat.S_IMODE(staged_after_readback.st_mode)
+            != stat.S_IMODE(published_before_fsync.st_mode)
+            or staged_after_readback.st_size != published_before_fsync.st_size
+            or staged_after_readback.st_mtime_ns
+            != published_before_fsync.st_mtime_ns
+        ):
+            hold("archive_output_publication_identity_invalid")
+
+        # Re-fsync after publication so any write race after the first fsync
+        # is either made visible to the generation checks or rejected.
+        os.fsync(fd)
+        published_after_fsync = os.fstat(fd)
+        if not _same_file_generation(
+            published_before_fsync, published_after_fsync
+        ):
+            hold("archive_output_generation_changed_during_publication_file_fsync")
+
+        readback_exact(raw)
+        published_after_readback = os.fstat(fd)
+        if not _same_file_generation(
+            published_after_fsync, published_after_readback
+        ):
+            hold("archive_output_generation_changed_during_published_readback")
+
         os.fsync(parent_fd)
         parent_durable = os.fstat(parent_fd)
         parent_visible_durable = os.stat(
             str(absolute.parent), follow_symlinks=False
         )
         try:
-            leaf_durable = os.stat(leaf_path, follow_symlinks=False)
+            leaf_durable = os.stat(
+                leaf, dir_fd=parent_fd, follow_symlinks=False
+            )
         except FileNotFoundError:
             hold("archive_output_leaf_changed_after_parent_fsync")
+        final_opened = os.fstat(fd)
         if (
             not _same_identity(parent_generation, parent_durable)
             or not _same_identity(parent_durable, parent_visible_durable)
         ):
             hold("archive_output_parent_generation_changed_after_fsync")
         if (
-            not stat.S_ISREG(leaf_durable.st_mode)
-            or not _same_file_generation(opened, leaf_durable)
+            not _same_file_generation(
+                published_after_readback, final_opened
+            )
+            or not _same_file_generation(final_opened, leaf_durable)
         ):
             hold("archive_output_leaf_changed_after_parent_fsync")
-        return opened
+        return final_opened
     except BaseException:
-        if created:
-            cleanup_error: BaseException | None = None
-            try:
-                opened_now = os.fstat(fd)
-                visible_now = os.stat(leaf_path, follow_symlinks=False)
-                if (
-                    not stat.S_ISREG(visible_now.st_mode)
-                    or opened_now.st_dev != visible_now.st_dev
-                    or opened_now.st_ino != visible_now.st_ino
-                ):
-                    hold("partial_output_cleanup_identity_invalid")
-                os.unlink(leaf, dir_fd=parent_fd)
-                os.fsync(parent_fd)
-            except FileNotFoundError:
-                pass
-            except BaseException as exc:
-                cleanup_error = exc
-            if cleanup_error is not None:
-                raise ArchiveHold(
-                    "custody_runtime_install_archive_v3_partial_output_cleanup_failed"
-                ) from cleanup_error
+        # Before publication the inode is unnamed, so closing fd is exact
+        # cleanup. After publication, never perform pathname cleanup here:
+        # a same-UID rename/replacement could otherwise make unlink delete a
+        # different inode. Downstream consumption requires command success
+        # plus independent archive inspection.
         raise
     finally:
         if fd >= 0:
@@ -801,7 +861,6 @@ def self_test() -> None:
             if (
                 not content_race_exercised
                 and stat.S_ISREG(os.fstat(fd).st_mode)
-                and content_race.exists()
             ):
                 os.ftruncate(fd, 0)
                 if os.pwrite(fd, raw, 0) != len(raw):
@@ -826,7 +885,9 @@ def self_test() -> None:
 
         partial = parent / "partial-write.tar"
         original_write = os.write
+        original_link = os.link
         write_calls = 0
+        publication_calls = 0
 
         def fail_after_partial_write(fd: int, data: bytes) -> int:
             nonlocal write_calls
@@ -835,7 +896,13 @@ def self_test() -> None:
                 return original_write(fd, data[: min(64, len(data))])
             raise OSError("synthetic_partial_archive_write_failure")
 
+        def count_publication(*args: Any, **kwargs: Any) -> None:
+            nonlocal publication_calls
+            publication_calls += 1
+            original_link(*args, **kwargs)
+
         os.write = fail_after_partial_write
+        os.link = count_publication
         try:
             try:
                 write_create_only(partial, raw)
@@ -845,6 +912,9 @@ def self_test() -> None:
                 hold("self_test_partial_write_failure_not_raised")
         finally:
             os.write = original_write
+            os.link = original_link
+        if publication_calls != 0:
+            hold("self_test_partial_write_attempted_publication")
         if partial.exists():
             hold("self_test_partial_write_left_final_path")
 
@@ -1024,7 +1094,10 @@ def main(argv: list[str]) -> int:
         print("deterministic_ustar=true")
         print("descriptor_bound_source_reads=true")
         print("descriptor_bound_create_only_output=true")
-        print("partial_output_cleanup_on_failure=true")
+        print("unnamed_tmpfile_staging=true")
+        print("partial_write_final_path_absent=true")
+        print("failure_cleanup_unlink_not_used=true")
+        print("atomic_create_only_link_publication=true")
         print("archive_bytes_validated_before_final_publication=true")
         print("failed_validation_final_path_absent=true")
         print("single_create_only_final_publication_after_validation=true")
@@ -1032,7 +1105,7 @@ def main(argv: list[str]) -> int:
         print("successful_output_exact_readback=true")
         print("output_generation_stable_across_file_fsync=true")
         print("output_leaf_revalidated_after_parent_fsync=true")
-        print("retained_parent_cleanup_survives_path_rebind=true")
+        print("retained_parent_unnamed_staging_survives_path_rebind=true")
         print("symlink_output_parent_rejected=true")
         print("fifo_substitution_rejected_without_blocking=true")
         print("archive_candidate_accepted=false")
