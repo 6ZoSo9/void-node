@@ -35,7 +35,7 @@ V4 preserves the 49-row inventory SHA-256 `686745113e5e5223a357c053a41496dc8ded1
 
 - lock blob: `416202f5a7ee4c55950d5db9d13a718c721fc801`;
 - lock SHA-256: `95a16e215ae223c663f7675537ff6037ec2c85491c4aa9dd945e1439684d01b9`;
-- proof blob: `2a3bab07d2f74e39d19f0e22b1f64ac69a4873a3`.
+- proof blob: `1eb43afaea8e46dfc061a67e15e5dae099874091`.
 
 The lock proof reads candidate/lock dependencies through bounded `O_NOFOLLOW|O_NONBLOCK` descriptors with pre/open/post generation revalidation. Its inert fixture exercises same-size regular replacement, lstat-to-open symlink substitution, lstat-to-open FIFO substitution without blocking, and oversize rejection.
 
