@@ -288,7 +288,14 @@ const MATERIAL_KEY_LOOKUP=keyLookup(MATERIAL_KEYS);
 const FULL_KEY_LOOKUP=keyLookup(FULL_KEYS);
 
 function fail(code){throw new Error(code);}
-function sha256(raw){return APPLY(CREATE_HASH,crypto,["sha256"]).update(raw).digest("hex");}
+function sha256(raw){
+  const hash=APPLY(CREATE_HASH,crypto,["sha256"]);
+  APPLY(HASH_UPDATE,hash,[raw]);
+  return APPLY(HASH_DIGEST,hash,["hex"]);
+}
+function matches(pattern,value){
+  return APPLY(REGEXP_TEST,pattern,[value]);
+}
 const APPLY=Reflect.apply;
 const REFLECT_OWN_KEYS=Reflect.ownKeys;
 const GET_PROTOTYPE_OF=Object.getPrototypeOf;
@@ -297,11 +304,16 @@ const HAS_OWN=Object.hasOwn;
 const CREATE_NULL=Object.create;
 const FREEZE=Object.freeze;
 const OBJECT_PROTOTYPE=Object.prototype;
+const ARRAY_CTOR=Array;
 const ARRAY_IS_ARRAY=Array.isArray;
 const IS_SAFE_INTEGER=Number.isSafeInteger;
 const IS_PROXY=utilTypes.isProxy;
+const REGEXP_TEST=RegExp.prototype.test;
 const PRIMITIVE_STRING=String;
 const CREATE_HASH=crypto.createHash;
+const HASH_PROTOTYPE=GET_PROTOTYPE_OF(APPLY(CREATE_HASH,crypto,["sha256"]));
+const HASH_UPDATE=HASH_PROTOTYPE.update;
+const HASH_DIGEST=HASH_PROTOTYPE.digest;
 const BUFFER_CTOR=Buffer;
 const BUFFER_FROM=Buffer.from;
 const BUFFER_CONCAT=Buffer.concat;
@@ -335,7 +347,7 @@ function primitivePayload(value){
 function frameRecord(value,withId){
   const snapshot=snapshotFlat(value,withId);
   const keys=withId?FULL_KEYS:MATERIAL_KEYS;
-  const chunks=new Array(1+keys.length*4);
+  const chunks=new ARRAY_CTOR(1+keys.length*4);
   chunks[0]=bytes("VOID_APOLLYON_PROTECTED_STORE_REVALIDATOR_V2_FRAME_1\0","ascii");
   let offset=1;
   for(let index=0;index<keys.length;index+=1){
@@ -419,30 +431,30 @@ function validateMaterial(value){
     value.fixed_claim_state_root!==FIXED_ROOT||
     value.fixed_training_start_consumption_directory!==FIXED_DIRECTORY||
     value.next_gate!==NEXT_GATE||
-    !GIT40.test(value.parent_head)||
-    !GIT40.test(value.parent_revalidation_request_blob_sha1)||
-    !GIT40.test(value.parent_protected_writer_blob_sha1)||
-    !GIT40.test(value.parent_directory_custody_source_blob_sha1)||
-    !GIT40.test(value.reviewed_canonicalizer_v2_head)||
-    !GIT40.test(value.reviewed_canonicalizer_v2_blob_sha1)||
-    !REQUEST_ID.test(value.revalidation_request_id)||
-    !STORE_POLICY_ID.test(value.store_policy_id)||
-    !STORE_CONTRACT_ID.test(value.store_contract_id)||
-    !STORE_GENERATION_ID.test(value.store_generation_id)||
-    !TERMINAL_ID.test(value.terminal_receipt_id)||
-    !AUTH_ID.test(value.authorization_id)||
-    !AUTH_SLOT_ID.test(value.authorization_slot_id)||
-    !AUTH_SLOT_RECORD_ID.test(value.authorization_slot_record_id)||
-    !CUSTODY_ID.test(value.custody_generation_id)||
-    !HASH64.test(value.custody_record_sha256)||
-    !CLAIM_ID.test(value.claim_record_id)||
-    !HASH64.test(value.claim_record_sha256)||
-    !HASH64.test(value.publish_request_sha256)||
-    !CONSUMPTION_SLOT_ID.test(value.training_start_consumption_slot_id)||
-    !SLOT_LEAF.test(value.training_start_consumption_slot_leaf)||
-    !CONSUMPTION_ID.test(value.training_start_consumption_id)||
-    !TRAINER_GENERATION_ID.test(value.trainer_generation_id)||
-    !HASH64.test(value.trainer_boot_id_sha256)||
+    !matches(GIT40,value.parent_head)||
+    !matches(GIT40,value.parent_revalidation_request_blob_sha1)||
+    !matches(GIT40,value.parent_protected_writer_blob_sha1)||
+    !matches(GIT40,value.parent_directory_custody_source_blob_sha1)||
+    !matches(GIT40,value.reviewed_canonicalizer_v2_head)||
+    !matches(GIT40,value.reviewed_canonicalizer_v2_blob_sha1)||
+    !matches(REQUEST_ID,value.revalidation_request_id)||
+    !matches(STORE_POLICY_ID,value.store_policy_id)||
+    !matches(STORE_CONTRACT_ID,value.store_contract_id)||
+    !matches(STORE_GENERATION_ID,value.store_generation_id)||
+    !matches(TERMINAL_ID,value.terminal_receipt_id)||
+    !matches(AUTH_ID,value.authorization_id)||
+    !matches(AUTH_SLOT_ID,value.authorization_slot_id)||
+    !matches(AUTH_SLOT_RECORD_ID,value.authorization_slot_record_id)||
+    !matches(CUSTODY_ID,value.custody_generation_id)||
+    !matches(HASH64,value.custody_record_sha256)||
+    !matches(CLAIM_ID,value.claim_record_id)||
+    !matches(HASH64,value.claim_record_sha256)||
+    !matches(HASH64,value.publish_request_sha256)||
+    !matches(CONSUMPTION_SLOT_ID,value.training_start_consumption_slot_id)||
+    !matches(SLOT_LEAF,value.training_start_consumption_slot_leaf)||
+    !matches(CONSUMPTION_ID,value.training_start_consumption_id)||
+    !matches(TRAINER_GENERATION_ID,value.trainer_generation_id)||
+    !matches(HASH64,value.trainer_boot_id_sha256)||
     !IS_SAFE_INTEGER(value.trainer_pid)||value.trainer_pid<=1||
     typeof value.trainer_process_start_time_ticks!=="string"||
     !/^[1-9][0-9]{0,19}$/u.test(value.trainer_process_start_time_ticks)||
@@ -450,7 +462,7 @@ function validateMaterial(value){
       value.trainer_uid<=0||value.trainer_uid>65533||
     !IS_SAFE_INTEGER(value.trainer_gid)||
       value.trainer_gid<=0||value.trainer_gid>65533||
-    !HASH64.test(value.trainer_source_identity_sha256)
+    !matches(HASH64,value.trainer_source_identity_sha256)
   )fail(code);
   for(let index=0;index<TRUE_KEYS.length;index+=1){
     if(value[TRUE_KEYS[index]]!==true)fail(code);
@@ -619,7 +631,7 @@ export function qualifyApollyonTrainingStartProtectedStoreRevalidatorCandidateV2
   input,
 ){
   const value=snapshotFlat(input,true);
-  if(!CANDIDATE_ID.test(value.revalidator_candidate_id)){
+  if(!matches(CANDIDATE_ID,value.revalidator_candidate_id)){
     fail("apollyon_training_start_protected_store_revalidator_v2_candidate_id_invalid");
   }
   const material={...value};
