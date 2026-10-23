@@ -531,16 +531,8 @@ def plan_receipt() -> dict[str, Any]:
         "next_action": "SEPARATE_OPERATOR_AUTHORIZATION_THEN_RUN_METADATA_SAFE_FIRST_HOST_PASS",
     }
 
-def run_host_pass() -> dict[str, Any]:
-    if socket.gethostname().casefold() != TARGET_HOST.casefold():
-        hold("wrong_host")
-    digest = normalize_machine_id(
-        _read_exact_regular(MACHINE_ID, MAX_MACHINE_ID_BYTES, "machine_id")
-    )
-    if digest != EXPECTED_MACHINE_ID_SHA256:
-        hold("machine_identity_mismatch")
-
-    ancestors = {
+def _ancestor_observation() -> dict[str, Any]:
+    return {
         str(path): _trusted_ancestor(path)
         for path in (
             Path("/"), Path("/var"), Path("/var/lib"), Path("/run"),
@@ -548,7 +540,9 @@ def run_host_pass() -> dict[str, Any]:
             Path("/etc/systemd/system"),
         )
     }
-    paths = {
+
+def _fixed_path_observation() -> dict[str, Any]:
+    return {
         "claim_state_root": _open_metadata(
             CLAIM_STATE_ROOT, "directory", check_acl=True
         ),
@@ -568,9 +562,46 @@ def run_host_pass() -> dict[str, Any]:
             CLAIM_PUBLISHER_SOURCE_ROOT, "directory", check_acl=False
         ),
     }
-    service = _systemctl_show()
-    process = _process_observation(service["MainPID"])
-    mounts = _mount_observation()
+
+def run_host_pass() -> dict[str, Any]:
+    if socket.gethostname().casefold() != TARGET_HOST.casefold():
+        hold("wrong_host")
+
+    digest_before = normalize_machine_id(
+        _read_exact_regular(MACHINE_ID, MAX_MACHINE_ID_BYTES, "machine_id_before")
+    )
+    if digest_before != EXPECTED_MACHINE_ID_SHA256:
+        hold("machine_identity_mismatch")
+
+    ancestors_before = _ancestor_observation()
+    paths_before = _fixed_path_observation()
+    mounts_before = _mount_observation()
+    service_before = _systemctl_show()
+    process = _process_observation(service_before["MainPID"])
+    service_after = _systemctl_show()
+    mounts_after = _mount_observation()
+    paths_after = _fixed_path_observation()
+    ancestors_after = _ancestor_observation()
+
+    digest_after = normalize_machine_id(
+        _read_exact_regular(MACHINE_ID, MAX_MACHINE_ID_BYTES, "machine_id_after")
+    )
+    if digest_after != digest_before:
+        hold("machine_identity_changed_during_pass")
+    if ancestors_after != ancestors_before:
+        hold("trusted_ancestor_metadata_changed_during_pass")
+    if paths_after != paths_before:
+        hold("fixed_path_metadata_changed_during_pass")
+    if mounts_after != mounts_before:
+        hold("mount_metadata_changed_during_pass")
+    if service_after != service_before:
+        hold("service_state_changed_during_pass")
+
+    digest = digest_after
+    ancestors = ancestors_after
+    paths = paths_after
+    mounts = mounts_after
+    service = service_after
 
     receipt = {
         "marker": MARKER,
