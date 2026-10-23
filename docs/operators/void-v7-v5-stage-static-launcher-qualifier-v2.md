@@ -221,3 +221,45 @@ funds_movement=false
 ```
 
 PROTECT THE CORE.
+
+## Whole-tree numerical-bound repair — October 23, 2026
+
+This versioned successor closes the staging-pair qualifier's exact node/depth
+boundary gap without changing its read-only authority.
+
+The recursive custody scan now defines:
+
+- `MAX_CUSTODY_NODES = 250000` as the maximum **total traversed nodes,
+  including the source-stage root**;
+- `MAX_CUSTODY_DEPTH = 64` with the root at depth 0, applied to **every
+  child type before directory/file branching**;
+- therefore a regular file at depth 64 is allowed, while any directory or
+  regular file at depth 65 is rejected;
+- the root consumes one node from the global budget before any children are
+  enumerated, and every directory or regular-file child consumes exactly one
+  additional node.
+
+The production helper is exercised at the exact count and depth boundaries.
+The disposable self-test requires the root+nested-directory+leaf fixture to
+report three total nodes, rejects one node beyond the configured cap, rejects
+depth cap + 1, and specifically rejects a regular-file child beyond the depth
+limit.
+
+These repairs do not change the existing custody, Git-generation, receipt,
+launcher, or authority boundaries. The qualifier remains read-only and
+production-disabled:
+
+```text
+production_payload_manifest_accepted=false
+launcher_install_authorized=false
+root_execution_authorized=false
+source_stage_apply_authorized=false
+receipt_stage_apply_authorized=false
+fixed_source_exchange_authority=false
+fixed_receipt_exchange_authority=false
+service_mutation=false
+public_presale_activation=false
+funds_movement=false
+```
+
+PROTECT THE CORE.
