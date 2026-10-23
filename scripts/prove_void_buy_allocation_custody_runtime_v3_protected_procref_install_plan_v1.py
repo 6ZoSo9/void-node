@@ -11,7 +11,7 @@ TARGET = (
     / "ops/precision/"
       "void_buy_allocation_custody_runtime_v3_protected_procref_install_plan_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "ddbc7d99e5c08fbd51332541316b1d24c3fbcc6c"
+EXPECTED_SOURCE_BLOB = "5dff4dc3f4aab4df1ac8e3c61302ca2707cbd027"
 
 
 def git_blob(raw: bytes) -> str:
@@ -159,6 +159,10 @@ for required in (
     '"apply_available": False',
     '"protected_install_authorized": False',
     '"protected_install_performed": False',
+    '"host_identity_bound": False',
+    '"observation_time_bound": False',
+    '"observation_freshness_proven": False',
+    '"live_at_use_prestate_reverification_required": True',
     '"live_privileged_census_authorized": False',
     '"live_privileged_census_executed": False',
     '"legacy_runtime_target_mutation": False',
@@ -191,6 +195,10 @@ print("read_only=true")
 print("filesystem_write=false")
 print("protected_install_authorized=false")
 print("protected_install_performed=false")
+print("host_identity_bound=false")
+print("observation_time_bound=false")
+print("observation_freshness_proven=false")
+print("live_at_use_prestate_reverification_required=true")
 print("live_privileged_census_authorized=false")
 print("live_privileged_census_executed=false")
 print("legacy_runtime_target_mutation=false")
