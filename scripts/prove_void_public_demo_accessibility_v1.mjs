@@ -137,6 +137,42 @@ function htmlAttributeValue(tag, name) {
   return parseStartTagAttributes(tag).get(name) ?? null;
 }
 
+function startTagHasSelfClosingFlag(tag) {
+  let index = 1;
+  while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+    tag[index] !== "/" && tag[index] !== ">") {
+    index += 1;
+  }
+
+  while (index < tag.length) {
+    while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+    if (tag[index] === ">") return false;
+    if (tag[index] === "/") return tag[index + 1] === ">";
+
+    while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+      tag[index] !== "=" && tag[index] !== "/" && tag[index] !== ">") {
+      index += 1;
+    }
+    while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+    if (tag[index] !== "=") continue;
+
+    index += 1;
+    while (index < tag.length && isAsciiWhitespace(tag[index])) index += 1;
+    const quote = tag[index] === '"' || tag[index] === "'" ? tag[index] : null;
+    if (quote !== null) {
+      index += 1;
+      while (index < tag.length && tag[index] !== quote) index += 1;
+      if (tag[index] === quote) index += 1;
+      continue;
+    }
+    while (index < tag.length && !isAsciiWhitespace(tag[index]) &&
+      tag[index] !== ">") {
+      index += 1;
+    }
+  }
+  return false;
+}
+
 function htmlTagsBefore(html, limit) {
   const tags = [];
   let index = 0;
@@ -179,7 +215,7 @@ function htmlTagsBefore(html, limit) {
       closing,
       name,
       raw,
-      selfClosing: !closing && /\/\s*>$/u.test(raw),
+      selfClosing: !closing && startTagHasSelfClosingFlag(raw),
     });
     index = cursor + 1;
   }
@@ -505,6 +541,14 @@ const negativeMutations = [
     error: /must not be nested inside a live region/u,
   },
   {
+    name: "result_payload_foreign_unquoted_slash_live_ancestor",
+    html: source.replace(
+      '<pre id="resultBox">No result yet.</pre>',
+      '<svg><g role="status" data-token=value/><pre id="resultBox">No result yet.</pre></g></svg>',
+    ),
+    error: /must not be nested inside a live region/u,
+  },
+  {
     name: "result_payload_svg_html_integration_live_ancestor",
     html: source.replace(
       '<pre id="resultBox">No result yet.</pre>',
@@ -630,6 +674,7 @@ console.log("encoded_aria_live_ancestor_rejected=true");
 console.log("quoted_gt_live_ancestor_rejected=true");
 console.log("nonvoid_self_closing_live_ancestor_rejected=true");
 console.log("foreign_self_closing_live_element_closed=true");
+console.log("foreign_unquoted_slash_attribute_not_self_closing=true");
 console.log("foreign_html_integration_live_ancestor_rejected=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=23");
+console.log("negative_mutations=24");
