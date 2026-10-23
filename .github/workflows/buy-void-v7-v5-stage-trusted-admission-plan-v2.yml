@@ -1,0 +1,95 @@
+name: VOID V7 V5 trusted staging admission plan v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-v7-v5-stage-trusted-admission-plan-v2.yml"
+      - "docs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v2.md"
+      - "ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json"
+      - "scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v2.mjs"
+      - ".github/workflows/buy-void-v7-v5-source-receipt-stage-install-v1.yml"
+      - "ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
+      - "ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py"
+      - "scripts/prove_buy_void_v7_v5_source_stage_install_v1.py"
+      - "scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py"
+      - "ops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json"
+      - "ops/security/buy-void-source-finality-v7-deployment-receipt-v5.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact plan head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact parent and four-add scope
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          PARENT=ea2193709dab86ea3eb3c2235d08e8a6858a23c6
+          test "$(git merge-base "$PARENT" HEAD)" = "$PARENT"
+          mapfile -t actual < <(git diff --name-status "$PARENT" HEAD | sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-v7-v5-stage-trusted-admission-plan-v2.yml'
+            $'A\tdocs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v2.md'
+            $'A\tops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json'
+            $'A\tscripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v2.mjs'
+          )
+          test "${#actual[@]}" -eq "${#expected[@]}"
+          for i in "${!expected[@]}"; do test "${actual[$i]}" = "${expected[$i]}"; done
+          git diff --check "$PARENT" HEAD
+
+      - name: Setup Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Bind exact V2 plan surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json)" = "5669b393a87c2bfd584375e5cff2ef3f3ffdf5d9"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v2.mjs)" = "438a3d9f418e793794356cf34c6dcc2d1c21cedb"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-v5-stage-trusted-admission-plan-v2.md)" = "0813952fdd373a9f558d458c66db61db7193eac1"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "d88a9548ea34b8209ed7dcd53732fd25dd1371bf"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py)" = "b462696826b4f90fdf5f4938cd5467e5711addab"
+
+      - name: Syntax
+        run: node --check scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v2.mjs
+
+      - name: Prove trusted admission V2
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/v5-stage-admission-v2.log"
+          node scripts/prove_buy_void_v7_v5_stage_trusted_admission_plan_v2.mjs | tee "$out"
+          grep -Fx 'VOID_V7_V5_STAGE_TRUSTED_ADMISSION_PLAN_V2_PROOF_GREEN' "$out"
+          grep -Fx 'source_stage_mode_0755_required=true' "$out"
+          grep -Fx 'source_internal_stage_build_v1_required=true' "$out"
+          grep -Fx 'predecessor_0555_tmp_v1_assumptions_rejected=true' "$out"
+          grep -Fx 'launcher_source_expected_generation_bound=true' "$out"
+          grep -Fx 'read_only_pair_qualifier_v2_required=true' "$out"
+          grep -Fx 'caller_path_authority=false' "$out"
+          grep -Fx 'root_execution_authorized=false' "$out"
+          grep -Fx 'source_stage_apply_authorized=false' "$out"
+          grep -Fx 'receipt_stage_apply_authorized=false' "$out"
+          grep -Fx 'fixed_source_exchange_authority=false' "$out"
+          grep -Fx 'fixed_receipt_exchange_authority=false' "$out"
+          grep -Fx 'service_mutation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
