@@ -53,15 +53,26 @@ It refuses UID 0 execution from a user-owned diagnostic source and scans only
 processes whose procfs directory is owned by the caller's effective UID.
 
 A clean current-UID candidate also requires an externally reviewed host
-PID-namespace `dev:ino` lease. The census opens canonical `/proc` once and
-retains that directory descriptor for the complete attempt. Through that
-retained descriptor it requires `self/ns/pid` and `1/ns/pid` to match each
-other and the external lease, identifies the retained procfs mount, rejects
-restricted `hidepid` views, and performs PID enumeration plus all process
-observations descriptor-relatively. It revalidates the retained procfs
-descriptor, namespace lease, visibility contract, and terminal visible
-`/proc` identity before a clean candidate can be emitted. Temporary pathname
-overmounts therefore cannot switch the scan to a narrower procfs view.
+PID-namespace `dev:ino` lease. The census does not derive or mint that lease
+from its own current namespace and then relabel it as external evidence.
+
+The census opens canonical `/proc` once and retains that directory descriptor
+for the complete attempt. Through that retained descriptor it requires:
+
+- visible `/proc` to be a direct root-owned/root-grouped directory that is not
+  group/world writable;
+- `self/ns/pid` and `1/ns/pid` to match each other and the external lease;
+- the selected procfs mount to have root exactly `/`, mount point exactly
+  `/proc`, and filesystem type `proc`;
+- no restrictive `hidepid` view; and
+- retained `self/stat` to report the running census PID.
+
+PID enumeration and all process observations are descriptor-relative. The
+retained procfs generation/mount ID, namespace lease, complete-visibility
+contract, runtime-PID binding, and terminal visible `/proc` identity are
+revalidated before a clean candidate can be emitted. Temporary pathname
+overmounts or procfs-subtree views therefore cannot substitute a narrower
+process universe.
 
 It never reads:
 
@@ -137,7 +148,10 @@ process-reference absence as complete.
 
 After source/CI qualification, isolated no-bytecode mode is mandatory; omitting
 `-B` HOLDs before ordinary imports so a successful production receipt cannot
-silently permit Python bytecode-cache writes:
+silently permit Python bytecode-cache writes.
+
+The `<DEV>:<INO>` value below must come from a **separate reviewed host-level
+observation**, not from this same census process:
 
 ```bash
 python3 -I -B \
@@ -156,7 +170,12 @@ host_pid_namespace_external_lease_required=true
 host_pid_namespace_lease_verified=true
 host_pid_namespace_lease_revalidated_after_census=true
 complete_proc_visibility_verified=true
+proc_mount_root_is_slash_required=true
+proc_mount_point_exact_required=true
+proc_root_root_owned_nonwritable_required=true
+proc_self_pid_matches_runtime_required=true
 proc_visibility_revalidated_after_census=true
+proc_self_pid_revalidated_after_census=true
 retained_procfs_view_used=true
 retained_procfs_view_revalidated_after_census=true
 production_filesystem_write=false
