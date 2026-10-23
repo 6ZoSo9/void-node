@@ -142,7 +142,6 @@ assert.ok(
 );
 for (const watchedPath of [
   "public/public-node/connect/public-node-connect-pack-v1.json",
-  "public/public-node/index.json",
   "docs/public/public-node-connect-pack-v1.md",
   "tools/proof-public-node-connect-pack-v1.mjs",
   "tools/proof-public-node-connect-pack-closeout-v1.mjs",
@@ -155,6 +154,15 @@ for (const watchedPath of [
     `workflow must watch ${watchedPath}`,
   );
 }
+assert.equal(
+  workflow.includes('"public/public-node/index.json"'),
+  false,
+  "shared public root index must not be a focused-workflow trigger",
+);
+assert.ok(
+  rootIndex.public_node_connect_pack,
+  "proof must still read and validate the shared root index contract",
+);
 assert.ok(
   workflow.includes('merge_base="$(git merge-base "$BASE" "$HEAD")"'),
   "workflow must derive the common ancestor from the moving base tip",
