@@ -29,6 +29,9 @@
   },
   "fixed_host_contract": {
     "target_host": "Xiphos",
+    "machine_identity_kind": "etc_machine_id_sha256",
+    "expected_machine_id_sha256": null,
+    "machine_identity_binding_status": "UNBOUND_REQUIRES_SEPARATE_AUTHENTICATED_XIPHOS_MACHINE_ID_EVIDENCE",
     "claim_state_root": "/var/lib/void-apollyon-attempt-claim-v2",
     "consumption_directory": "/var/lib/void-apollyon-attempt-claim-v2/training-start-consumption-v1"
   },
@@ -37,6 +40,7 @@
     "root_privilege_only_if_required_for_metadata_visibility": true,
     "read_only_metadata_safe_only": true,
     "exact_target_host_required": true,
+    "authenticated_machine_identity_evidence_required_before_host_pass": true,
     "exact_parent_candidate_identity_required": true,
     "installed_source_generation_identity_observation_required": true,
     "installed_package_runtime_identity_observation_required": true,
@@ -74,6 +78,7 @@
   },
   "authority": {
     "host_pass_performed": false,
+    "machine_identity_bound": false,
     "protected_store_origin_proven": false,
     "current_store_generation_revalidation_performed": false,
     "authorization_winner_reread_performed": false,
@@ -89,6 +94,6 @@
     "transaction": false,
     "funds_movement": false
   },
-  "next_gate": "SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS",
-  "plan_id": "voidapollyonfirsthostplan1_658cd84a07a7162ce3c9e650feffdf388d9ab08a17bf41ce461f81e96ed9960f"
+  "next_gate": "BIND_AUTHENTICATED_XIPHOS_MACHINE_ID_THEN_SEPARATE_AUTHORIZATION_THEN_READ_ONLY_METADATA_SAFE_XIPHOS_FIRST_PASS",
+  "plan_id": "voidapollyonfirsthostplan1_be2b83c33630bce1e9bc635cbdd90981f55df38ab0e929706acd4cd7798015ca"
 }
