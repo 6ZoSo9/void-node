@@ -6,7 +6,7 @@
 
 This planning contract is stacked on the separately reviewed two-role staging draft **#3748** at exact head `eca1b2313f7c384b619151998613d9374fde1bc2`. It does not change that role-separation contract (Git blob `1dccc0f7fd1c74005b519113b0728ebd25477ad5`), the canonical V5 installer (blob `b8b52649730cd1b1cf23ffc8c68878cef8ecfc5b`), the existing custody services, launcher, manifest or host.
 
-Machine-readable source: `ops/security/void_v7_stage_verifier_create_only_account_plan_v1.json`, Git blob `e2e052fa0fa1858e842063f994ddd3e611772949`. Exact-source read-only proof: `scripts/prove_void_v7_stage_verifier_create_only_account_plan_v1.py`, Git blob `060c9842a760d4df11677d7e8dab1e04ccc6b2b7`.
+Machine-readable source: `ops/security/void_v7_stage_verifier_create_only_account_plan_v1.json`, Git blob `d48634d76ca277794090423d98da978a791d0e28`. Exact-source read-only proof: `scripts/prove_void_v7_stage_verifier_create_only_account_plan_v1.py`, Git blob `2dd6f1c9507b1c2c00778372084d6b2deaf92f60`.
 
 ### Proposed name, **not** approved identity
 
@@ -40,7 +40,7 @@ Run without root in a checkout of this exact branch:
 python3 -I -B scripts/prove_void_v7_stage_verifier_create_only_account_plan_v1.py
 ```
 
-The source proof binds the exact role contract, original V5 source and planned account-source blob to the current Git generation, requires all **22** future host/pre-provision checks, source-only authority denials, create-only group→user ordering and safe recovery, and evaluates **35 synthetic negative cases**. The artificial numeric values 65000/65001 in the proof are fake *test-only* slots, not selections or recommendations. Even a fully valid synthetic shape produces only `SHAPE_ONLY_PENDING_SEPARATELY_REVIEWED_PROVISIONER`, never runtime, provisioning or presale authority.
+The source proof binds the exact role contract, original V5 source and planned account-source blob to the current Git generation, requires all **24** future host/pre-provision checks, source-only authority denials, create-only group→user ordering and safe recovery, and evaluates **35 synthetic negative cases**. The artificial numeric values 65000/65001 in the proof are fake *test-only* slots, not selections or recommendations. Even a fully valid synthetic shape produces only `SHAPE_ONLY_PENDING_SEPARATELY_REVIEWED_PROVISIONER`, never runtime, provisioning or presale authority.
 
 Expected successful source-only marker: `VOID_V7_STAGE_VERIFIER_CREATE_ONLY_ACCOUNT_PLAN_V1_PROOF_GREEN`.
 
