@@ -306,6 +306,7 @@ const HAS_OWN=Object.hasOwn;
 const CREATE_NULL=Object.create;
 const ERROR_CTOR=Error;
 const FREEZE=Object.freeze;
+const OBJECT_CTOR=Object;
 const OBJECT_PROTOTYPE=Object.prototype;
 const ARRAY_CTOR=Array;
 const ARRAY_IS_ARRAY=Array.isArray;
@@ -352,7 +353,7 @@ function frameRecord(value,withId){
   const keys=withId?FULL_KEYS:MATERIAL_KEYS;
   const chunks=new ARRAY_CTOR(1+keys.length*4);
   const put=(index,value)=>{
-    APPLY(DEFINE_PROPERTY,Object,[chunks,PRIMITIVE_STRING(index),{
+    APPLY(DEFINE_PROPERTY,OBJECT_CTOR,[chunks,PRIMITIVE_STRING(index),{
       value,writable:true,enumerable:true,configurable:true,
     }]);
   };
