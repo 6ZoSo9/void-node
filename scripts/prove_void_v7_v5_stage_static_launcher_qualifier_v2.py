@@ -14,7 +14,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[1]
 LAUNCHER_REL="ops/precision/void_v7_v5_source_receipt_stage_root_launcher_v2.c"
 LAUNCHER_BLOB="2337466b713b6572cc5ec832817899bbcb4e2ac2"
 QUALIFIER_REL="ops/precision/void_v7_v5_source_receipt_stage_pair_qualifier_v2.py"
-QUALIFIER_BLOB="5fe3e64903868e06dd88949ee59c8b99a71d7831"
+QUALIFIER_BLOB="4de9e927d73f8ec5acd0b9cce26617355456efcd"
 PLAN_REL="ops/security/buy-void-v7-v5-stage-trusted-admission-plan-v2.json"
 PLAN_BLOB="c7ff1128ff04f3ce5f995206af52f844564c6b39"
 SOURCE_INSTALLER_REL="ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
@@ -152,6 +152,9 @@ for token in (
     'max_depth:int=MAX_CUSTODY_DEPTH',
     'child_depth=depth+1',
     'whole_tree_node_limit_includes_root=true',
+    'node_limit_preaccess_enforced=true',
+    'def visit(fd:int,rel:str,depth:int,*,claimed:bool=False)->None:',
+    'visit(child_fd,child_rel,child_depth,claimed=True)',
     'regular_file_depth_cap_plus_one_rejected=true',
     'os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC',
     'receipt_path_substitution_rejected=true',
@@ -248,6 +251,7 @@ for marker in (
     "recursive_source_custody_bound=true",
     "whole_tree_node_limit_includes_root=true",
     "whole_tree_node_cap_boundary_tested=true",
+    "node_limit_preaccess_enforced=true",
     "all_child_types_depth_limited=true",
     "regular_file_depth_cap_plus_one_rejected=true",
     "writable_descendant_file_rejected=true",
@@ -270,6 +274,7 @@ print("launcher_blob="+LAUNCHER_BLOB)
 print("qualifier_blob="+QUALIFIER_BLOB)
 print("whole_tree_node_limit_includes_root=true")
 print("whole_tree_node_cap_boundary_tested=true")
+print("node_limit_preaccess_enforced=true")
 print("all_child_types_depth_limited=true")
 print("regular_file_depth_cap_plus_one_rejected=true")
 print("trusted_admission_plan_blob="+PLAN_BLOB)
