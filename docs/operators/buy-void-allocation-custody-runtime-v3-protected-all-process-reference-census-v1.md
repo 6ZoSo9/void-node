@@ -97,14 +97,19 @@ For ordinary live processes the census observes:
 - **per-thread** `cwd`, `root`, and open-descriptor tables by dev/inode
   identity, so a non-leader that unshares `CLONE_FS` or `CLONE_FILES`
   cannot hide a persistent target reference behind the TGID leader;
+- every live TID's `ns/mnt` identity before and after its reference
+  observation. Every live task must remain in the already verified host mount
+  namespace. A task that enters or retains a private mount namespace makes the
+  attempt incomplete rather than a clean host-scoped candidate;
 - process-level `exe` and mapped-file dev/inode identities from bounded
   `/proc/<pid>/maps`. Linux thread groups share the address-space/mm
   contract, while files/fs state is conservatively inspected per TID.
 
-A candidate requires the complete TID set and each TID's start-time generation
-to remain identical across the process observation. Task creation, exit, TID
-reuse, unreadable task state, or per-thread observation ambiguity prevents a
-clean result.
+A candidate requires the complete TID set, each TID's start-time generation,
+and every live TID's mount-namespace identity to remain identical across the
+process observation. Task creation, exit, TID reuse, unreadable task state,
+private per-thread mount namespace, mount-namespace switch, or per-thread
+observation ambiguity prevents a clean result.
 
 It never reads:
 
@@ -167,6 +172,26 @@ Accordingly, passing arbitrary lease strings is not replacement authority.
 A later ceremony must bind the expected leases to independent host evidence and
 must still perform live-at-use revalidation.
 
+The process census also fail-closes on **per-task mount namespace divergence**.
+For every live TID, `/proc/<tgid>/task/<tid>/ns/mnt` must match the verified
+host mount-namespace dev/inode both before and after that task's fd/cwd/root
+observation. This prevents a process from hiding a retained legacy bind mount
+inside a private task mount namespace while appearing reference-free through
+the leader.
+
+This is still **not** an exhaustive mount-object census. The source does not
+enumerate all mount roots in the verified host mount namespace and therefore
+continues to report:
+
+```text
+mount_namespace_reference_scan_performed=false
+mount_namespace_reference_absence_proven=false
+```
+
+Those false fields are intentional. The new per-task equality rule removes the
+private-namespace blind spot without overstating that every mount object is
+reference-free.
+
 ## Observation is not replacement authority
 
 Even a mechanically clean protected run under the supplied namespace leases
@@ -190,6 +215,9 @@ mount_namespace_reference_scan_performed=false
 mount_namespace_reference_absence_proven=false
 task_inventory_generation_stability_required=true
 per_thread_files_fs_reference_scan_required=true
+per_thread_host_mount_namespace_required=true
+task_mount_namespace_generation_stability_required=true
+private_task_mount_namespace_rejected=true
 host_pid_namespace_external_lease_required=true
 host_pid_namespace_lease_verified=true
 host_mount_namespace_external_lease_required=true
@@ -234,6 +262,10 @@ Synthetic tests cover:
 - target-reference rejection;
 - a synthetic **non-leader-only FD reference**, which must be detected even
   when the TGID leader has a clean FD/filesystem view;
+- a live non-leader in a synthetic private mount namespace, which must prevent
+  a clean candidate;
+- a mid-observation task mount-namespace switch, which must be detected by the
+  terminal namespace inventory;
 - a zombie TGID leader with a surviving worker, which must remain incomplete
   rather than being classified as dead;
 - bounded task-set/start-generation churn detection;
@@ -273,6 +305,9 @@ mount_namespace_reference_scan_performed=false
 mount_namespace_reference_absence_proven=false
 task_inventory_generation_stability_required=true
 per_thread_files_fs_reference_scan_required=true
+per_thread_host_mount_namespace_required=true
+task_mount_namespace_generation_stability_required=true
+private_task_mount_namespace_rejected=true
 zombie_leader_live_worker_rejected=true
 host_filesystem_root_matches_pid1=true
 retained_host_root_used=true
