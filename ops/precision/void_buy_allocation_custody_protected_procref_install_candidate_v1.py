@@ -84,10 +84,20 @@ class InstallHold(RuntimeError):
     pass
 
 
-class PublishedInstallHold(InstallHold):
-    def __init__(self, reason: str, phase: str) -> None:
+class HostMutationHold(InstallHold):
+    def __init__(
+        self,
+        reason: str,
+        phase: str,
+        cleanup_succeeded: bool | None = None,
+    ) -> None:
         super().__init__(reason)
         self.phase = phase
+        self.cleanup_succeeded = cleanup_succeeded
+
+
+class PublishedInstallHold(HostMutationHold):
+    pass
 
 
 def hold(reason: str) -> None:
@@ -582,6 +592,7 @@ def _cleanup_stage(
     expected_uid: int,
     expected_gid: int,
     expected_mount_id: int,
+    expected_stage: dict[str, int],
 ) -> bool:
     try:
         before = os.stat(STAGE_NAME, dir_fd=parent_fd, follow_symlinks=False)
@@ -592,18 +603,43 @@ def _cleanup_stage(
     stage_fd = -1
     try:
         stage_fd = os.open(STAGE_NAME, _directory_flags(), dir_fd=parent_fd)
-        _stage_record(
+        opened = os.fstat(stage_fd)
+        if _identity(before) != _identity(opened):
+            return False
+        current = _stage_record(
             stage_fd,
             expected_uid=expected_uid,
             expected_gid=expected_gid,
             expected_mount_id=expected_mount_id,
         )
+        if current != expected_stage:
+            return False
         names = _bounded_names(stage_fd)
         if any(name != SOURCE_NAME for name in names):
             return False
         if SOURCE_NAME in names:
             os.unlink(SOURCE_NAME, dir_fd=stage_fd)
             os.fsync(stage_fd)
+
+        # Cleanup is allowed only while the canonical stage pathname still
+        # resolves to the exact retained stage generation we created.
+        visible = os.stat(
+            STAGE_NAME,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        retained = os.fstat(stage_fd)
+        if (
+            _identity(visible) != _identity(retained)
+            or _stage_record(
+                stage_fd,
+                expected_uid=expected_uid,
+                expected_gid=expected_gid,
+                expected_mount_id=expected_mount_id,
+            ) != expected_stage
+        ):
+            return False
+
         os.close(stage_fd)
         stage_fd = -1
         os.rmdir(STAGE_NAME, dir_fd=parent_fd)
@@ -614,6 +650,50 @@ def _cleanup_stage(
     finally:
         if stage_fd >= 0:
             os.close(stage_fd)
+
+
+def _revalidate_stage_for_publication(
+    parent_fd: int,
+    stage_fd: int,
+    expected_stage: dict[str, int],
+    raw: bytes,
+    *,
+    expected_uid: int,
+    expected_gid: int,
+    expected_mount_id: int,
+) -> None:
+    try:
+        visible = os.stat(
+            STAGE_NAME,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+    except FileNotFoundError:
+        hold("stage_path_missing_before_publication")
+    opened = os.fstat(stage_fd)
+    if (
+        not stat.S_ISDIR(visible.st_mode)
+        or stat.S_ISLNK(visible.st_mode)
+        or _identity(visible) != _identity(opened)
+    ):
+        hold("stage_path_generation_changed_before_publication")
+    current = _stage_record(
+        stage_fd,
+        expected_uid=expected_uid,
+        expected_gid=expected_gid,
+        expected_mount_id=expected_mount_id,
+    )
+    if current != expected_stage:
+        hold("stage_generation_or_mount_changed_before_publication")
+    if _bounded_names(stage_fd) != [SOURCE_NAME]:
+        hold("stage_entries_changed_before_publication")
+    _read_exact_file_at(
+        stage_fd,
+        SOURCE_NAME,
+        expected_uid=expected_uid,
+        expected_gid=expected_gid,
+        expected_raw=raw,
+    )
 
 
 def _post_publication_checks(
@@ -664,6 +744,7 @@ def _publish_into_parent(
     expected_gid: int,
     target_name: str = INSTALL_NAME,
     stage_name: str = STAGE_NAME,
+    _prepublication_hook: Any = None,
 ) -> dict[str, Any]:
     # Production constants are defaults; fixtures supply temporary parent fd
     # but preserve the exact publication sequence.
@@ -686,53 +767,74 @@ def _publish_into_parent(
 
     created_stage = False
     published = False
+    stage_fd = -1
+    stage_initial: dict[str, int] | None = None
     try:
         os.mkdir(stage_name, 0o755, dir_fd=parent_fd)
         created_stage = True
         stage_fd = os.open(stage_name, _directory_flags(), dir_fd=parent_fd)
-        try:
-            os.fchmod(stage_fd, 0o755)
-            stage_initial = _stage_record(
-                stage_fd,
-                expected_uid=expected_uid,
-                expected_gid=expected_gid,
-                expected_mount_id=parent_initial["mount_id"],
-            )
-            _create_source_file(
-                stage_fd,
-                raw,
-                expected_uid=expected_uid,
-                expected_gid=expected_gid,
-            )
-            os.fsync(stage_fd)
-            if _bounded_names(stage_fd) != [SOURCE_NAME]:
-                hold("stage_entries_invalid")
-            stage_after = _stage_record(
-                stage_fd,
-                expected_uid=expected_uid,
-                expected_gid=expected_gid,
-                expected_mount_id=parent_initial["mount_id"],
-            )
-            if stage_after != stage_initial:
-                hold("stage_generation_or_mount_changed")
-            _read_exact_file_at(
-                stage_fd,
-                SOURCE_NAME,
-                expected_uid=expected_uid,
-                expected_gid=expected_gid,
-                expected_raw=raw,
-            )
-        finally:
-            os.close(stage_fd)
+        os.fchmod(stage_fd, 0o755)
+        stage_initial = _stage_record(
+            stage_fd,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+            expected_mount_id=parent_initial["mount_id"],
+        )
+        _create_source_file(
+            stage_fd,
+            raw,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+        )
+        os.fsync(stage_fd)
+        _revalidate_stage_for_publication(
+            parent_fd,
+            stage_fd,
+            stage_initial,
+            raw,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+            expected_mount_id=parent_initial["mount_id"],
+        )
 
+        if _prepublication_hook is not None:
+            _prepublication_hook(parent_fd, stage_fd, stage_initial)
+
+        # Both retained descriptors remain open. Revalidate the exact stage
+        # pathname and parent generation at the immediate publication boundary.
         _revalidate_parent(
             parent_fd,
             parent_initial,
             expected_uid=expected_uid,
             expected_gid=expected_gid,
         )
+        _revalidate_stage_for_publication(
+            parent_fd,
+            stage_fd,
+            stage_initial,
+            raw,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+            expected_mount_id=parent_initial["mount_id"],
+        )
+
         _rename_noreplace(parent_fd, stage_name, target_name)
         published = True
+
+        # The atomically published target must be the exact retained stage
+        # generation, not merely a same-shaped directory at the target name.
+        target_visible = os.stat(
+            target_name,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        stage_retained = os.fstat(stage_fd)
+        if _identity(target_visible) != _identity(stage_retained):
+            raise PublishedInstallHold(
+                "published_target_not_retained_stage_generation",
+                "publication_binding",
+            )
+
         _post_publication_checks(
             parent_fd,
             parent_initial,
@@ -765,15 +867,39 @@ def _publish_into_parent(
                 "voidbuycustodyprocrefinstall1_" + sha256(canonical(receipt_body))
             ),
         }
-    except BaseException:
-        if created_stage and not published:
-            _cleanup_stage(
+    except BaseException as exc:
+        if published:
+            if isinstance(exc, PublishedInstallHold):
+                raise
+            raise PublishedInstallHold(
+                "post_publication_unclassified_failure",
+                "post_publication",
+            ) from exc
+
+        cleanup_succeeded: bool | None = None
+        if stage_fd >= 0:
+            os.close(stage_fd)
+            stage_fd = -1
+        if created_stage and stage_initial is not None:
+            cleanup_succeeded = _cleanup_stage(
                 parent_fd,
                 expected_uid=expected_uid,
                 expected_gid=expected_gid,
                 expected_mount_id=parent_initial["mount_id"],
+                expected_stage=stage_initial,
             )
+        if created_stage:
+            if isinstance(exc, HostMutationHold):
+                raise
+            raise HostMutationHold(
+                "prepublication_host_mutation_failed",
+                "prepublication",
+                cleanup_succeeded,
+            ) from exc
         raise
+    finally:
+        if stage_fd >= 0:
+            os.close(stage_fd)
 
 
 def source_plan() -> None:
@@ -781,7 +907,8 @@ def source_plan() -> None:
     print(MARKER)
     print("mode=source-plan")
     print("source_candidate_only=true")
-    print("production_apply_exposed=false")
+    print("production_apply_cli_present=true")
+    print("production_apply_reachable=false")
     print("production_apply_authorized=false")
     print("reviewed_source_head=" + REVIEWED_SOURCE_HEAD)
     print("reviewed_source_git_blob=" + REVIEWED_SOURCE_GIT_BLOB)
@@ -930,6 +1057,83 @@ def self_test() -> None:
             os.close(parent_fd)
 
     with tempfile.TemporaryDirectory(
+        prefix="void-procref-install-stage-substitution-"
+    ) as tmp:
+        parent = Path(tmp) / "opt"
+        parent.mkdir(mode=0o755)
+        parent_fd = os.open(parent, _directory_flags())
+        saved_name = ".void-buy-allocation-custody-procref-v1.fixture-original"
+
+        def substitute_stage(
+            hook_parent_fd: int,
+            _stage_fd: int,
+            _expected_stage: dict[str, int],
+        ) -> None:
+            _rename_noreplace(
+                hook_parent_fd,
+                STAGE_NAME,
+                saved_name,
+            )
+            os.mkdir(STAGE_NAME, 0o755, dir_fd=hook_parent_fd)
+
+        try:
+            try:
+                _publish_into_parent(
+                    parent_fd,
+                    raw,
+                    expected_uid=uid,
+                    expected_gid=gid,
+                    _prepublication_hook=substitute_stage,
+                )
+            except HostMutationHold as exc:
+                if exc.phase != "prepublication":
+                    raise
+                if exc.cleanup_succeeded is not False:
+                    hold("self_test_foreign_stage_cleanup_not_refused")
+            else:
+                hold("self_test_substituted_stage_published")
+
+            try:
+                os.stat(INSTALL_NAME, dir_fd=parent_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                pass
+            else:
+                hold("self_test_substitution_created_final_target")
+
+            replacement = os.stat(
+                STAGE_NAME,
+                dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
+            if not stat.S_ISDIR(replacement.st_mode):
+                hold("self_test_substitute_stage_missing")
+            original = os.stat(
+                saved_name,
+                dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
+            if not stat.S_ISDIR(original.st_mode):
+                hold("self_test_original_stage_generation_missing")
+
+            # Fixture-only cleanup. Production cleanup intentionally refused the
+            # substituted canonical stage generation.
+            os.rmdir(STAGE_NAME, dir_fd=parent_fd)
+            saved_fd = os.open(
+                saved_name,
+                _directory_flags(),
+                dir_fd=parent_fd,
+            )
+            try:
+                os.unlink(SOURCE_NAME, dir_fd=saved_fd)
+                os.fsync(saved_fd)
+            finally:
+                os.close(saved_fd)
+            os.rmdir(saved_name, dir_fd=parent_fd)
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
+
+    with tempfile.TemporaryDirectory(
         prefix="void-procref-install-parent-drift-"
     ) as tmp:
         parent = Path(tmp) / "opt"
@@ -980,11 +1184,26 @@ def self_test() -> None:
                 )
             finally:
                 os.close(stage_fd)
+            stage_fd = os.open(
+                STAGE_NAME,
+                _directory_flags(),
+                dir_fd=parent_fd,
+            )
+            try:
+                expected_stage = _stage_record(
+                    stage_fd,
+                    expected_uid=uid,
+                    expected_gid=gid,
+                    expected_mount_id=parent_record["mount_id"],
+                )
+            finally:
+                os.close(stage_fd)
             if not _cleanup_stage(
                 parent_fd,
                 expected_uid=uid,
                 expected_gid=gid,
                 expected_mount_id=parent_record["mount_id"],
+                expected_stage=expected_stage,
             ):
                 hold("self_test_stage_cleanup_failed")
             try:
@@ -1012,11 +1231,19 @@ def self_test() -> None:
     print("content_addressed_install_receipt_fixture_green=true")
     print("truthful_post_publication_failure_classification=true")
     print("prepublication_stage_cleanup_fixture_green=true")
+    print("stage_descriptor_retained_through_publication=true")
+    print("stage_path_revalidated_before_publication=true")
+    print("stage_substitution_rejected=true")
+    print("foreign_stage_cleanup_refused=true")
+    print("exact_stage_generation_cleanup=true")
+    print("truthful_host_write_failure_classification=true")
     print("install_parent_drift_rejected=true")
-    print("production_apply_exposed=false")
+    print("production_apply_cli_present=true")
+    print("production_apply_reachable=false")
     print("production_apply_authorized=false")
     print("root_census_execution_authorized=false")
-    print("host_write=false")
+    print("production_host_write_performed=false")
+    print("self_test_temporary_filesystem_write=true")
     print("service_mutation=false")
     print("systemd_mutation=false")
     print("replacement_apply_authorized=false")
@@ -1057,6 +1284,7 @@ if __name__ == "__main__":
     ) as exc:
         print(MARKER)
         print("status=HOLD")
+        host_write_performed = isinstance(exc, HostMutationHold)
         print("reason=" + str(exc)[:240])
         print(
             "publication_state="
@@ -1064,11 +1292,25 @@ if __name__ == "__main__":
         )
         print(
             "publication_failure_phase="
-            + (exc.phase if isinstance(exc, PublishedInstallHold) else "not_published")
+            + (exc.phase if isinstance(exc, HostMutationHold) else "not_published")
         )
+        print(
+            "prepublication_cleanup_succeeded="
+            + (
+                str(exc.cleanup_succeeded).lower()
+                if isinstance(exc, HostMutationHold)
+                and exc.cleanup_succeeded is not None
+                else "not_applicable"
+            )
+        )
+        print("production_apply_cli_present=true")
+        print("production_apply_reachable=false")
         print("production_apply_authorized=false")
         print("root_census_execution_authorized=false")
-        print("host_write=false")
+        print(
+            "production_host_write_performed="
+            + str(host_write_performed).lower()
+        )
         print("service_mutation=false")
         print("systemd_mutation=false")
         print("replacement_apply_authorized=false")
