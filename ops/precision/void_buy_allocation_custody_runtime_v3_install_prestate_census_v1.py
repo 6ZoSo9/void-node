@@ -61,8 +61,8 @@ PROPOSED_ROLLBACK_NAME = (
 )
 PROPOSED_ROLLBACK = INSTALL_PARENT / PROPOSED_ROLLBACK_NAME
 
-MAX_TREE_ENTRIES = 4096
-MAX_FILE_BYTES = 32 * 1024 * 1024
+MAX_TREE_ENTRIES = 32768
+MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_TOTAL_REGULAR_BYTES = 512 * 1024 * 1024
 MAX_SYMLINK_BYTES = 4096
 MAX_DEPTH = 64
@@ -821,8 +821,9 @@ def self_test() -> None:
     print("symlink_opaque_identity_bound=true")
     print("special_file_rejection=true")
     print("stage_and_rollback_collision_observed=true")
-    print("read_only=true")
-    print("filesystem_write=false")
+    print("production_census_read_only=true")
+    print("production_census_filesystem_write=false")
+    print("self_test_temporary_filesystem_write=true")
     print("archive_extraction=false")
     print("service_state_checked=false")
     print("service_mutation=false")
@@ -861,8 +862,12 @@ if __name__ == "__main__":
         print(MARKER)
         print("status=HOLD")
         print("reason=" + str(exc))
-        print("read_only=true")
-        print("filesystem_write=false")
+        print("production_census_read_only=true")
+        print("production_census_filesystem_write=false")
+        print(
+            "self_test_temporary_filesystem_write="
+            + ("true" if "--self-test" in _bootstrap_sys.argv[1:] else "false")
+        )
         print("service_mutation=false")
         print("payment_acceptance=false")
         print("public_presale_activation=false")
