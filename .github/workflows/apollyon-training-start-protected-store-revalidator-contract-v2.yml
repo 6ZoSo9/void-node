@@ -56,9 +56,9 @@ jobs:
             | LC_ALL=C sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = cf934d43324370a05bb2790bfa5fad0f482121cc
-          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 65ce3c8cc15ce5d1f870ac14eab9e8cc2b36b5fd
-          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = d71a4ee2fef7d4ecd95df054a2c3827cf29e9a0f
+          test "$(git rev-parse HEAD:tools/apollyon-training-start-protected-store-revalidator-contract-v2.mjs)" = bb5281d9836d9879cc086eba75585b276d2768fe
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_training_start_protected_store_revalidator_contract_v2.mjs)" = 41c3e1a1c4a8fb1a7750b02f18c6ade4f2e38733
+          test "$(git rev-parse HEAD:docs/security/apollyon-training-start-protected-store-revalidator-contract-v2.md)" = 28d14b4acd6521f4faa25274ad9d1a7bffeb7da3
 
           test "$(git rev-parse HEAD:tools/apollyon-training-start-store-revalidation-request-v1.mjs)" = 079576db7f880872f2d4dea8e7759bd536161516
           test "$(git rev-parse HEAD:tools/apollyon-training-start-consumption-protected-writer-v1.mjs)" = 76f5a6bcbc9854a1133cd1324eb862cb50102c0e
@@ -93,6 +93,11 @@ jobs:
             'captured_reflection_primordials_bound=true' \
             'revoked_proxy_candidate_rejected=true' \
             'reviewed_canonicalizer_v2_future_host_required=true' \
+            'full_3557_future_host_matrix_bound=true' \
+            'automatic_retry_forbidden=true' \
+            'transaction_lease_fencing_performed=false' \
+            'terminal_receipt_reread_performed=false' \
+            'custody_record_reread_performed=false' \
             'parent_v1_request_host_realm_proven=false' \
             'public_candidate_not_bearer_authority=true' \
             'parent_request_cross_binding_required=true' \
