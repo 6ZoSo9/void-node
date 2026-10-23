@@ -613,6 +613,8 @@ export class VoidUdpSwarmPublicRelayIntroductionCollectorV1 {
     candidate: VoidUdpSwarmPublicRelayIntroductionTransportCandidateV1,
   ) => Promise<unknown>;
   private timer: NodeJS.Timeout | null = null;
+  private startPromise:
+    Promise<VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1> | null = null;
   private running = false;
   private stopped = false;
   private runCount = 0;
@@ -648,9 +650,29 @@ export class VoidUdpSwarmPublicRelayIntroductionCollectorV1 {
       options.fetchIntroduction ?? fetchVoidUdpSwarmPublicRelayIntroductionV1;
   }
 
-  async start(): Promise<VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1> {
-    if (this.stopped) throw new Error("public relay introduction collector is stopped");
-    if (this.timer) return this.lastOutcome;
+  start(): Promise<VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1> {
+    if (this.stopped) {
+      return Promise.reject(
+        new Error("public relay introduction collector is stopped"),
+      );
+    }
+    if (this.timer) return Promise.resolve(this.lastOutcome);
+    if (this.startPromise) return this.startPromise;
+
+    const operation = this.startExclusive();
+    this.startPromise = operation;
+    void operation.then(
+      () => {
+        if (this.startPromise === operation) this.startPromise = null;
+      },
+      () => {
+        if (this.startPromise === operation) this.startPromise = null;
+      },
+    );
+    return operation;
+  }
+
+  private async startExclusive(): Promise<VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1> {
     const first = await this.runOnce();
     if (this.stopped) return first;
     this.timer = setInterval(() => {
