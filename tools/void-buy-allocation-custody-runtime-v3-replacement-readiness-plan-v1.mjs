@@ -426,6 +426,12 @@ function validateProcess(raw) {
     "process_target_snapshot_binding_invalid",
   );
   const process = object(value.process, "process_body_invalid");
+  requireExactBooleanContract(process, "process_body", {
+    target_snapshot_stable_required: true,
+    fd_table_stability_proven: false,
+    mapping_set_stability_proven: false,
+    live_at_use_reverification_required: true,
+  });
   bool(
     process.all_process_reference_absence_proven,
     false,
