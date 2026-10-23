@@ -461,7 +461,14 @@ def parse_mountinfo(raw: bytes, targets: tuple[Path, ...]) -> dict[str, Any]:
                 candidates.append(row)
         if not candidates:
             hold("mountinfo_target_uncovered:" + name)
-        cover = max(candidates, key=lambda row: len(row["mount_point"]))
+        max_specificity = max(len(row["mount_point"]) for row in candidates)
+        most_specific = [
+            row for row in candidates
+            if len(row["mount_point"]) == max_specificity
+        ]
+        if len(most_specific) != 1:
+            hold("mountinfo_target_ambiguous:" + name)
+        cover = most_specific[0]
         alias_count = sum(
             1 for row in rows
             if row["major_minor"] == cover["major_minor"]
