@@ -62,11 +62,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "ce4497baae23c75abc7e459b7dff85010df9806f"
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py)" = "edb57a8128624327917d93bfcd81e2ff3873c2ee"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_source_stage_install_v1.py)" = "a39c51f9f6bd7ff62f38c13d39482e631d82daa1"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py)" = "463fb162f56c843182b719d8dbeddeae3bb6173e"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-v5-source-receipt-stage-install-v1.md)" = "f5e990b947979eaa0d23ef16071ad3f44f3f345f"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "d88a9548ea34b8209ed7dcd53732fd25dd1371bf"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py)" = "b462696826b4f90fdf5f4938cd5467e5711addab"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_source_stage_install_v1.py)" = "a71cb0a24196ac0ab5ed9ed5c21817a30b41fcec"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py)" = "7d968740c9e0c787c57bd493e5c51f5ed385eed1"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-v5-source-receipt-stage-install-v1.md)" = "02fa010cd66a50c5e2858b6cced9a7e08ee295af"
           test "$(git rev-parse HEAD:ops/security/buy-void-v7-v5-source-receipt-stage-plan-v1.json)" = "1ce5de6d4ffa0a89ead32ca734d43f0da72fed59"
           test "$(git rev-parse HEAD:ops/security/buy-void-source-finality-v7-deployment-receipt-v5.json)" = "933e81f5d695eba57b969bf7da0d565be5198073"
 
