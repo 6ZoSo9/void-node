@@ -33,7 +33,7 @@ PINS = {
     ".github/workflows/apollyon-protected-store-machine-identity-binding-v1.yml":
         "c8737fe68f15894bd15af0e775fc79cb2b50d9bb",
     SOURCE_REL:
-        "9cca0579810e91a7e55293041ab52bcc632823c2",
+        "7a5380491c31eb4967547c7f1f3c84ba28161230",
 }
 SELF = "scripts/prove_apollyon_protected_store_first_host_collector_v1.py"
 DOC = "docs/security/apollyon-protected-store-first-host-collector-v1.md"
@@ -210,6 +210,18 @@ need(
     mounts["/var/lib/void-apollyon-attempt-claim-v2"]["exact_mount_point"] is True,
     "mount_exact_positive_invalid",
 )
+ambiguous_mount_sample = (
+    "36 25 0:32 / / rw - ext4 /dev/root rw\n"
+    "37 36 0:32 / /var/lib/void-apollyon-attempt-claim-v2 rw - ext4 /dev/root rw\n"
+    "38 36 0:33 / /var/lib/void-apollyon-attempt-claim-v2 rw - tmpfs tmpfs rw\n"
+).encode()
+expect_hold(
+    lambda: mod.parse_mountinfo(
+        ambiguous_mount_sample,
+        (Path("/var/lib/void-apollyon-attempt-claim-v2"),),
+    ),
+    "mountinfo_target_ambiguous:",
+)
 
 with tempfile.TemporaryDirectory(prefix="apollyon-first-host-collector-proof-") as td:
     root = Path(td) / "root"
@@ -313,6 +325,7 @@ print("raw_process_args_read=false")
 print("directory_enumeration_not_required=true")
 print("acl_adversary_rejected=true")
 print("terminal_metadata_drift_rejected=true")
+print("ambiguous_stacked_mount_rejected=true")
 print("systemctl_show_only_contract=true")
 print("host_pass_performed=false")
 print("filesystem_mutation=false")
