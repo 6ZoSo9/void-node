@@ -731,6 +731,7 @@ def current_uid_census(
         "all_process_reference_absence_proven": False,
         "privileged_all_process_scan": False,
         "custody_principal_process_scan_performed": False,
+        "target_snapshot_stable_required": True,
         "fd_table_stability_proven": False,
         "mapping_set_stability_proven": False,
         "live_at_use_reverification_required": True,
@@ -769,6 +770,7 @@ def census() -> dict[str, Any]:
         "read_only": True,
         "production_filesystem_write": False,
         "root_execution_forbidden": True,
+        "target_snapshot_stable_required": True,
         "fd_table_stability_proven": False,
         "mapping_set_stability_proven": False,
         "live_at_use_reverification_required": True,
@@ -869,6 +871,8 @@ def self_test() -> None:
     print("pid_set_change_fail_closed=true")
     print("target_snapshot_change_fail_closed=true")
     print("target_rescan_each_attempt=true")
+    print("target_snapshot_stable_required=true")
+    print("legacy_tree_entry_limit=32768")
     print("root_execution_forbidden=true")
     print("current_uid_target_reference_absent_candidate_tested=true")
     print("all_process_reference_absence_proven=false")
@@ -912,6 +916,7 @@ if __name__ == "__main__":
         print("production_filesystem_write=false")
         print("root_execution_forbidden=true")
         print("all_process_reference_absence_proven=false")
+        print("target_snapshot_stable_required=true")
         print("fd_table_stability_proven=false")
         print("mapping_set_stability_proven=false")
         print("live_at_use_reverification_required=true")
