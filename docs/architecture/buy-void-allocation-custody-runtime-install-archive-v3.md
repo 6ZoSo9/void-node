@@ -125,10 +125,12 @@ artifact in a caller-selected already-private build directory. Before that
 final path can exist, the exact in-memory archive bytes are fully inspected,
 rebound to the accepted V3 candidate, and required to satisfy the canonical
 archive contract. Only after validation succeeds does the create-only write
-begin. After the file fsync, the exact archive bytes are read back through the
-same retained output descriptor, required to equal the prevalidated in-memory
-bytes exactly, and required to retain one stable file generation before the
-parent-directory durability step can proceed.
+begin. The written file generation is captured **before** file fsync. That same
+generation must survive fsync unchanged; an exact-byte truncate/rewrite during
+fsync is rejected even if the bytes are restored. The exact archive bytes are
+then read back through the same retained output descriptor, required to equal
+the prevalidated in-memory bytes exactly, and required to keep that generation
+stable before the parent-directory durability step can proceed.
 
 The output parent is traversed and retained through descriptor-relative
 `O_DIRECTORY|O_NOFOLLOW|O_NONBLOCK` opens. The same retained descriptor is used
@@ -141,9 +143,10 @@ After that directory fsync, the archive leaf is re-statted through the retained
 parent descriptor and must still be the exact opened file generation before
 returning success. Any parent or leaf drift HOLDS and enters retained-descriptor
 cleanup. Synthetic tests require both regular-file and directory fsync on
-success, truncate the retained output immediately after file fsync to prove
-exact-byte readback, remove the leaf immediately after parent fsync to prove the
-terminal leaf check, force a partial write and an output-parent pathname rebind,
+success, truncate and restore the exact retained output bytes during file
+fsync to prove pre-fsync generation stability, remove the leaf immediately after
+parent fsync to prove the terminal leaf check, force a partial write and an
+output-parent pathname rebind,
 and require no discoverable failed archive. An existing final path is never
 overwritten.
 
