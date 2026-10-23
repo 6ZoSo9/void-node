@@ -59,10 +59,15 @@ The proposed private stage would be:
 
 The plan merely observes whether the install root and stage root are absent.
 
-Even if both are absent:
+Even if both are absent, the observation remains point-in-time and
+non-authoritative:
 
 ```text
 create_only_prestate_candidate=true
+host_identity_bound=false
+observation_time_bound=false
+observation_freshness_proven=false
+live_at_use_prestate_reverification_required=true
 protected_install_ready=false
 protected_install_authorized=false
 ```
@@ -133,6 +138,10 @@ apply_implemented=false
 apply_available=false
 protected_install_authorized=false
 protected_install_performed=false
+host_identity_bound=false
+observation_time_bound=false
+observation_freshness_proven=false
+live_at_use_prestate_reverification_required=true
 live_privileged_census_authorized=false
 live_privileged_census_executed=false
 service_mutation=false
