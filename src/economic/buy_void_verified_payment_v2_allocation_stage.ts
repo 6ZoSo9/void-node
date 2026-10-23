@@ -3,6 +3,7 @@
 // allocation-required dispatcher planner. No writer, IPC, RPC or funds access.
 import { createHash } from "node:crypto";
 import path from "node:path";
+import { types as utilTypes } from "node:util";
 import {
   planBuyVoidOperatorAllocationDispatchV1,
   VOID_BUY_VOID_ALLOCATION_LEDGER_ROOT_V1,
@@ -15,6 +16,9 @@ import {
 import {
   VOID_BUY_VOID_CANONICAL_PRESALE_ECONOMICS_V1,
 } from "./buy_void_crash_consistent_saga_server_policy_v1.js";
+import {
+  classifyBuyVoidPreappendVerifiedPaymentLineageV1,
+} from "./buy_void_verified_allocation_replay_binding_v1.js";
 
 export const VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE =
   "VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE";
@@ -27,6 +31,9 @@ export const VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_AUTHORITY =
     legacy_payment_only_path_forbidden: true,
     allocation_roots_canonical: true,
     event_and_request_immutable_snapshot: true,
+    payment_instruction_amount_bound: true,
+    canonical_first_request_lineage_preflight_required: true,
+    request_history_source_authenticated: false,
     source_only_unmounted: true,
     source_finality_authentication_verified: false,
     cross_uid_service_authenticated: false,
@@ -50,6 +57,124 @@ const NATIVE_USDC_BY_CHAIN: Readonly<Record<string, string>> = Object.freeze({
   base: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
   ethereum: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
 });
+
+const MAX_LINEAGE_HISTORY_BYTES = 64 * 1024 * 1024;
+const LINEAGE_TYPED_ARRAY_PROTO = Object.getPrototypeOf(Uint8Array.prototype);
+const LINEAGE_TYPED_ARRAY_LENGTH_GETTER =
+  Object.getOwnPropertyDescriptor(LINEAGE_TYPED_ARRAY_PROTO, "length")?.get;
+const LINEAGE_TYPED_ARRAY_BUFFER_GETTER =
+  Object.getOwnPropertyDescriptor(LINEAGE_TYPED_ARRAY_PROTO, "buffer")?.get;
+const LINEAGE_REFLECT_APPLY_NATIVE = Reflect.apply;
+const LINEAGE_IS_SHARED_BACKING_NATIVE = utilTypes.isSharedArrayBuffer;
+const LINEAGE_TYPED_ARRAY_SET_NATIVE = Uint8Array.prototype.set;
+
+function detachLineageHistoryBuffer(
+  value: unknown,
+  label: string,
+): Buffer {
+  const invalid = (): never => hold(label + "_bytes_invalid");
+  if (
+    utilTypes.isProxy(value) ||
+    !Buffer.isBuffer(value) ||
+    Object.getPrototypeOf(value) !== Buffer.prototype ||
+    Object.getOwnPropertyDescriptor(value, "length") ||
+    Object.getOwnPropertyDescriptor(value, "byteLength") ||
+    Object.getOwnPropertyDescriptor(value, "buffer") ||
+    !LINEAGE_TYPED_ARRAY_LENGTH_GETTER ||
+    !LINEAGE_TYPED_ARRAY_BUFFER_GETTER
+  ) {
+    return invalid();
+  }
+
+  let count: number;
+  let backing: ArrayBufferLike;
+  try {
+    count = LINEAGE_REFLECT_APPLY_NATIVE(
+      LINEAGE_TYPED_ARRAY_LENGTH_GETTER,
+      value,
+      [],
+    ) as number;
+    backing = LINEAGE_REFLECT_APPLY_NATIVE(
+      LINEAGE_TYPED_ARRAY_BUFFER_GETTER,
+      value,
+      [],
+    ) as ArrayBufferLike;
+  } catch {
+    return invalid();
+  }
+
+  if (
+    !Number.isSafeInteger(count) ||
+    count < 0 ||
+    count > MAX_LINEAGE_HISTORY_BYTES ||
+    LINEAGE_IS_SHARED_BACKING_NATIVE(backing)
+  ) {
+    return invalid();
+  }
+
+  try {
+    // Intrinsic TypedArray#set validates the source typed array's backing
+    // store and throws on detachment, including a detached zero-length Buffer.
+    // Unlike ArrayBuffer#slice it does not perform SpeciesConstructor lookup
+    // on caller-controlled backing-object properties.
+    const detached = Buffer.alloc(count);
+    LINEAGE_REFLECT_APPLY_NATIVE(
+      LINEAGE_TYPED_ARRAY_SET_NATIVE,
+      detached,
+      [value, 0],
+    );
+    return detached;
+  } catch {
+    return invalid();
+  }
+}
+
+export type BuyVoidVerifiedPaymentV2LineageHistoryInput = Readonly<{
+  requests_jsonl: Buffer;
+  prior_operator_events_jsonl: Buffer;
+  allocation_jsonl: Buffer;
+}>;
+
+const HISTORY_INPUT_KEYS = Object.freeze([
+  "allocation_jsonl",
+  "prior_operator_events_jsonl",
+  "requests_jsonl",
+]);
+
+function captureLineageHistoryInput(
+  input: unknown,
+): BuyVoidVerifiedPaymentV2LineageHistoryInput {
+  if (!input || typeof input !== "object" || Array.isArray(input) ||
+      utilTypes.isProxy(input)) {
+    hold("lineage_history_container_not_plain_data");
+  }
+  const prototype = Object.getPrototypeOf(input);
+  if (prototype !== Object.prototype && prototype !== null) {
+    hold("lineage_history_container_not_plain_data");
+  }
+  const keys = Reflect.ownKeys(input);
+  if (keys.length !== HISTORY_INPUT_KEYS.length) {
+    hold("lineage_history_fields_invalid");
+  }
+  const captured: Record<string, Buffer> = Object.create(null);
+  for (const key of HISTORY_INPUT_KEYS) {
+    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    if (!descriptor || !descriptor.enumerable ||
+        !Object.hasOwn(descriptor, "value")) {
+      hold("lineage_history_fields_invalid");
+    }
+    captured[key] = detachLineageHistoryBuffer(
+      descriptor.value,
+      "lineage_history_" + key,
+    );
+  }
+  for (const key of keys) {
+    if (typeof key !== "string" || !HISTORY_INPUT_KEYS.includes(key)) {
+      hold("lineage_history_fields_invalid");
+    }
+  }
+  return Object.freeze(captured) as BuyVoidVerifiedPaymentV2LineageHistoryInput;
+}
 
 // The request-first public checkout records numeric quotes. Some reviewed
 // private event formats use decimal text. Preserve both primitive types but
@@ -94,8 +219,13 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
   req: unknown,
   res: any,
   rawServerInput: BuyVoidOperatorAllocationDispatchInputV1,
+  rawLineageHistory: BuyVoidVerifiedPaymentV2LineageHistoryInput,
 ) {
   if (!authorizeBuyVoidVerifiedPaymentTransportV2(req, res)) return null;
+  // The history container is read only after private transport authentication.
+  // These bytes are source-preflight evidence, not authenticated filesystem
+  // finality; a later trusted reader must establish their durable origin.
+  const lineageHistory = captureLineageHistoryInput(rawLineageHistory);
   // Canonical planner first snapshots all caller state, validates event/status
   // and normalizes the private roots to its two exact reviewed constants.
   const plan = planBuyVoidOperatorAllocationDispatchV1(rawServerInput);
@@ -125,6 +255,12 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
   // Never fabricate a quote inside the verifier's event to make staging pass.
   const originalQuoteMicro = canonicalPositiveQuoteMicro(original.quoted_void);
   const originalUsdcMicro = canonicalPositiveQuoteMicro(original.usdc_amount);
+  const instructedUsdcMicro =
+    original.payment_instructions &&
+    typeof original.payment_instructions === "object" &&
+    !Array.isArray(original.payment_instructions)
+      ? canonicalPositiveQuoteMicro(original.payment_instructions.amount)
+      : null;
   const verifiedUsdcMicro = canonicalPositiveUnitText(verifier?.amount_units);
   const verifiedRequestMicro =
     canonicalPositiveUnitText(verifier?.requested_units);
@@ -162,6 +298,8 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
     verifiedRequestMicro === null ||
     verifiedUsdcMicro !== originalUsdcMicro ||
     verifiedRequestMicro !== originalUsdcMicro ||
+    instructedUsdcMicro === null ||
+    instructedUsdcMicro !== originalUsdcMicro ||
     expectedQuoteMicro === null ||
     expectedQuoteMicro !== originalQuoteMicro ||
     original.rate_void_per_usdc !== ECON.rate_void_units_numerator ||
@@ -175,6 +313,31 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
     !sameHex(verifier.delivery_address, original.delivery_address, ADDRESS) ||
     !sameHex(verifier.receive_address, original.receive_address, ADDRESS)
   ) hold("event_request_original_identity_mismatch");
+
+  // The canonical replay/preappend classifier owns first-row semantics:
+  // later snapshots cannot backfill missing launch authority, native-USDC
+  // contract or buyer delivery wallet into allocation authority. The real V2
+  // verifier event intentionally has no quote field, so create a separate
+  // hypothetical durable-event snapshot solely for this pure classifier.
+  const lineageEvent = Object.freeze({
+    ...event,
+    quoted_void: original.quoted_void,
+  });
+  const lineage = classifyBuyVoidPreappendVerifiedPaymentLineageV1({
+    request: original,
+    event: lineageEvent,
+    requests_jsonl: lineageHistory.requests_jsonl,
+    prior_operator_events_jsonl: lineageHistory.prior_operator_events_jsonl,
+    allocation_jsonl: lineageHistory.allocation_jsonl,
+  });
+  if (
+    lineage.ok !== true ||
+    lineage.status !== "ready" ||
+    lineage.operation_performed !== false ||
+    lineage.request_id !== event.request_id
+  ) {
+    hold("original_request_lineage_unqualified");
+  }
 
   const eventJson = stringify(event);
   const requestJson = stringify(original);
@@ -201,6 +364,9 @@ export function stageAuthenticatedBuyVoidVerifiedPaymentV2(
     read_sale_state: plan.read_sale_state,
     event_snapshot_sha256: sha(eventJson),
     request_snapshot_sha256: sha(requestJson),
+    payment_instruction_amount_bound: true as const,
+    canonical_first_request_lineage_preflight_verified: true as const,
+    request_history_source_authenticated: false as const,
     source_finality_authentication_verified: false as const,
     cross_uid_service_authenticated: false as const,
     payment_capacity_lock_verified: false as const,

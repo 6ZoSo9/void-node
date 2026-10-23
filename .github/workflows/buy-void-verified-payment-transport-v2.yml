@@ -10,8 +10,6 @@ on:
       - "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs"
       - "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs"
       - ".github/workflows/buy-void-verified-payment-transport-v2.yml"
-  workflow_dispatch:
-
 permissions:
   contents: read
 
@@ -36,18 +34,19 @@ jobs:
       - name: Verify historical source generation and current-main restack
         shell: bash
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           set -euo pipefail
           HISTORICAL_BASE="1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"
           HISTORICAL_HEAD="0628d81259fed779ea3bb6c4d067b66b19a3e577"
-          CURRENT_MAIN="e83b1df4bc3b52d08d5e38e076fa6c80085f7e01"
 
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$BASE_REF" = "main"
-          git cat-file -e "$CURRENT_MAIN^{commit}"
-          git merge-base --is-ancestor "$CURRENT_MAIN" "$EXPECTED_HEAD"
+          SOURCE_BASE="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
+          test -n "$SOURCE_BASE"
+          echo "source_base=$SOURCE_BASE"
+          git merge-base --is-ancestor "$SOURCE_BASE" "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$HISTORICAL_HEAD" "$EXPECTED_HEAD"
 
           # Preserve the original seven ADD-only generation exactly.
@@ -61,17 +60,17 @@ jobs:
           diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/historical"
 
           # Current-main composition must expose the same seven ADD-only paths.
-          git diff --name-status "$CURRENT_MAIN" "$EXPECTED_HEAD" --             | sort > "$RUNNER_TEMP/current"
+          git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" --             | sort > "$RUNNER_TEMP/current"
           diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/current"
 
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs)" =             "d0a81327e43a76e7b8171d975b7dde981483219f"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs)" =             "b87945fb2d7df4af4740fc28ae467f8f660361e3"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_transport_v2.ts)" =             "2714988acfbcded3d4779ef79a141cd3e39b1426"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts)" =             "d447fad19edbb0897166f67ab2e435fe34d5e164"
-          test "$(git rev-parse HEAD:src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs)" =             "84d956baa930c2edc8142942a8fd6fd8dc4cdf17"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts)" =             "addd7842edb7f0e851d1e589d4303c0dc6e2756f"
+          test "$(git rev-parse HEAD:src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs)" =             "45ade2941e28a51e4dbb4884dfcbe9ec549022e6"
           test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_transport_v2.ts)" =             "61dc219117538f2894b170ac98bb56806f69f430"
-          test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_v2_allocation_stage.ts)" =             "ef397b7377a87326187f5e2e9882d6e4bdc0a4f8"
+          test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_v2_allocation_stage.ts)" =             "6efb2be5f03ff87290ef376d7852d22db22900f8"
 
-          git diff --check "$CURRENT_MAIN" "$EXPECTED_HEAD" --
+          git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Verify all seven protected-domain paths trigger the security matrix
         shell: bash
@@ -82,7 +81,7 @@ jobs:
           from pathlib import Path
 
           body = Path(".github/workflows/buy-void-verified-payment-transport-v2.yml").read_text(encoding="utf-8")
-          block = body.split("  workflow_dispatch:", 1)[0]
+          block = body.split("\npermissions:", 1)[0]
           observed = re.findall(r'^      - "([^"]+)"$', block, flags=re.MULTILINE)
           required = {
               ".github/workflows/buy-void-verified-payment-transport-v2.yml",
@@ -111,13 +110,24 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_PROOF_GREEN' "$stage_out"
           grep -Fx 'real_canonical_verifier_event_without_quote_stages=true' "$stage_out"
           grep -Fx 'request_quote_bound_to_verified_usdc_micro_units_and_rate=true' "$stage_out"
+          grep -Fx 'payment_instruction_amount_bound_to_verified_usdc=true' "$stage_out"
+          grep -Fx 'first_request_launch_and_native_usdc_backfill_rejected=true' "$stage_out"
+          grep -Fx 'canonical_first_request_lineage_preflight_verified=true' "$stage_out"
+          grep -Fx 'lineage_history_bounded_before_copy=true' "$stage_out"
+          grep -Fx 'lineage_history_accessor_and_proxy_traps_not_executed=true' "$stage_out"
+          grep -Fx 'lineage_history_backing_constructor_not_consulted=true' "$stage_out"
+          grep -Fx 'lineage_history_detached_buffer_rejected=true' "$stage_out"
+          grep -Fx 'request_history_source_authenticated=false' "$stage_out"
           # Compose the private bearer + staged payment with the real
           # custody-V2 Unix inspect protocol on a disposable same-UID fixture.
           custody_out="$RUNNER_TEMP/verified-payment-v2-custody-inspect.log"
           timeout 120s node scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs | tee "$custody_out"
           grep -Fx 'VOID_BUY_VOID_V2_CUSTODY_INSPECT_BRIDGE_REAL_UNIX_PROOF_GREEN' "$custody_out"
           grep -Fx 'real_custody_v2_unix_socket_and_existing_client_exercised=true' "$custody_out"
-          grep -Fx 'authentication_precedes_socket_config_access=true' "$custody_out"
+          grep -Fx 'authentication_precedes_history_and_socket_config_access=true' "$custody_out"
+          grep -Fx 'canonical_first_request_lineage_preflight_before_ipc=true' "$custody_out"
+          grep -Fx 'payment_instruction_amount_bound_before_ipc=true' "$custody_out"
+          grep -Fx 'request_history_source_authenticated=false' "$custody_out"
           grep -Fx 'custody_inspect_never_promotes_reservation_authority=true' "$custody_out"
           grep -Fx 'canonical_payment_and_allocation_journals_unchanged=true' "$custody_out"
           grep -Fx 'real_private_bearer_and_canonical_allocation_planner_used=true' "$stage_out"

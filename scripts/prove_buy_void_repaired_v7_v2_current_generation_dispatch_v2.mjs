@@ -49,29 +49,45 @@ const LEGACY_NONPROTECTED_ECONOMIC_DRIFT=Object.freeze([
 ].sort());
 const V2_ADDED_ECONOMIC_SOURCE_BLOBS=Object.freeze({
   "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs":
-    "84d956baa930c2edc8142942a8fd6fd8dc4cdf17",
+    "45ade2941e28a51e4dbb4884dfcbe9ec549022e6",
   "src/economic/buy_void_verified_payment_transport_v2.ts":
     "61dc219117538f2894b170ac98bb56806f69f430",
   "src/economic/buy_void_verified_payment_v2_allocation_stage.ts":
-    "ef397b7377a87326187f5e2e9882d6e4bdc0a4f8",
+    "6efb2be5f03ff87290ef376d7852d22db22900f8",
 });
 const V2_HISTORICAL_SOURCE_BASE="1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c";
 const V2_HISTORICAL_ADDITION_HEAD="0628d81259fed779ea3bb6c4d067b66b19a3e577";
 const V2_HISTORICAL_ADDITION_TREE="282648386bb2f0b79f95af398de61f231e79504c";
 const V2_HISTORICAL_WORKFLOW_BLOB="650360be459bd04083c0fceaf42696ac985abe22";
-const V2_SOURCE_BASE="e83b1df4bc3b52d08d5e38e076fa6c80085f7e01";
-const V2_ACCEPTED_ADDITION_HEAD="8238fc68eacc5cc6bd7ff2a7c47128f37e585140";
-const V2_ACCEPTED_ADDITION_TREE="8d4dcf83d563b7a645b6236643ca4e47b50de801";
-const V2_FROZEN_V1_PROOF_BLOB="4e123302d25dd0a83923032d2dc0f40c8937e77f";
-const V2_SOURCE_FILES=Object.freeze({
+const V2_HISTORICAL_SOURCE_FILES=Object.freeze({
   ".github/workflows/buy-void-verified-payment-transport-v2.yml":
-    "953cda83de685b3360ec40468284f823b7e51886",
+    "650360be459bd04083c0fceaf42696ac985abe22",
   "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs":
     "d0a81327e43a76e7b8171d975b7dde981483219f",
   "scripts/prove_buy_void_verified_payment_transport_v2.ts":
     "2714988acfbcded3d4779ef79a141cd3e39b1426",
   "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts":
     "d447fad19edbb0897166f67ab2e435fe34d5e164",
+  "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs":
+    "84d956baa930c2edc8142942a8fd6fd8dc4cdf17",
+  "src/economic/buy_void_verified_payment_transport_v2.ts":
+    "61dc219117538f2894b170ac98bb56806f69f430",
+  "src/economic/buy_void_verified_payment_v2_allocation_stage.ts":
+    "ef397b7377a87326187f5e2e9882d6e4bdc0a4f8",
+});
+const V2_SOURCE_BASE="61b0f81b2112aab32e3dc16084fe2d43178ec4da";
+const V2_ACCEPTED_ADDITION_HEAD="f84d380d41e3aefd3c96b3fa956f5f7addf9f908";
+const V2_ACCEPTED_ADDITION_TREE="6d03b668ca51cc7ffa115c164955d09dc9b13e70";
+const V2_FROZEN_V1_PROOF_BLOB="4e123302d25dd0a83923032d2dc0f40c8937e77f";
+const V2_SOURCE_FILES=Object.freeze({
+  ".github/workflows/buy-void-verified-payment-transport-v2.yml":
+    "0cc7e50febb6d289c343e188a10e63bbd22053d6",
+  "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs":
+    "b87945fb2d7df4af4740fc28ae467f8f660361e3",
+  "scripts/prove_buy_void_verified_payment_transport_v2.ts":
+    "2714988acfbcded3d4779ef79a141cd3e39b1426",
+  "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts":
+    "addd7842edb7f0e851d1e589d4303c0dc6e2756f",
   ...V2_ADDED_ECONOMIC_SOURCE_BLOBS,
 });
 const NONPROTECTED_ECONOMIC_DRIFT=Object.freeze([
@@ -161,17 +177,112 @@ function git(args){return String(run("/usr/bin/git",["--no-replace-objects","-C"
 function names(a,b,...paths){
   return git(["diff","--name-only",a,b,"--",...paths]).split("\n").filter(Boolean).sort();
 }
+function sameReadGeneration(a,b,label){
+  for(const key of ["dev","ino","uid","gid","mode","nlink","size","mtimeMs","ctimeMs"]){
+    assert.equal(b[key],a[key],label+":"+key);
+  }
+}
+function readFromRoot(root,relative,max=4*1024*1024){
+  assert.ok(Number.isSafeInteger(max)&&max>0,"read_max_invalid");
+  assert.ok(!path.isAbsolute(relative),"absolute_path:"+relative);
+  const parts=relative.split("/");
+  assert.ok(parts.length>0&&parts.every(part=>
+    part!=="."&&part!==".."&&/^[A-Za-z0-9_.-]+$/u.test(part)
+  ),"unsafe_path:"+relative);
+  const visiblePath=path.join(root,...parts);
+  const before=fs.lstatSync(visiblePath);
+  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&
+    before.size>0&&before.size<=max,"invalid_file:"+relative);
+  const directoryFlags=fs.constants.O_RDONLY|fs.constants.O_CLOEXEC|
+    fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK|fs.constants.O_DIRECTORY;
+  const leafFlags=fs.constants.O_RDONLY|fs.constants.O_CLOEXEC|
+    fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK;
+  const dirFds=[];
+  let leafFd=-1;
+  try{
+    let dirFd=fs.openSync(root,directoryFlags);
+    dirFds.push(dirFd);
+    assert.ok(fs.fstatSync(dirFd).isDirectory(),"root_not_directory");
+    for(const component of parts.slice(0,-1)){
+      const nextPath="/proc/self/fd/"+String(dirFd)+"/"+component;
+      const nextFd=fs.openSync(nextPath,directoryFlags);
+      assert.ok(fs.fstatSync(nextFd).isDirectory(),
+        "path_component_not_directory:"+component);
+      dirFds.push(nextFd);
+      dirFd=nextFd;
+    }
+    const leafPath="/proc/self/fd/"+String(dirFd)+"/"+parts.at(-1);
+    leafFd=fs.openSync(leafPath,leafFlags);
+    const opened=fs.fstatSync(leafFd);
+    assert.ok(opened.isFile()&&opened.nlink===1&&opened.size>0&&opened.size<=max,
+      "opened_file_invalid:"+relative);
+    sameReadGeneration(before,opened,"file_changed_before_open:"+relative);
+    const bytes=Buffer.alloc(opened.size);
+    let offset=0;
+    while(offset<bytes.length){
+      const got=fs.readSync(leafFd,bytes,offset,bytes.length-offset,null);
+      assert.ok(got>0,"short_read:"+relative);
+      offset+=got;
+    }
+    const extra=Buffer.alloc(1);
+    assert.equal(fs.readSync(leafFd,extra,0,1,null),0,
+      "file_grew_during_read:"+relative);
+    const after=fs.fstatSync(leafFd);
+    const visibleAfter=fs.lstatSync(visiblePath);
+    sameReadGeneration(opened,after,"file_changed_during_read:"+relative);
+    sameReadGeneration(after,visibleAfter,"visible_file_changed:"+relative);
+    return bytes;
+  }finally{
+    if(leafFd>=0)fs.closeSync(leafFd);
+    for(let i=dirFds.length-1;i>=0;i--)fs.closeSync(dirFds[i]);
+  }
+}
 function read(relative,max=4*1024*1024){
-  assert.ok(!path.isAbsolute(relative)&&!relative.split("/").includes(".."),"unsafe_path:"+relative);
-  const p=path.join(ROOT,relative);
-  const before=fs.lstatSync(p);
-  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&before.size>0&&before.size<=max,
-    "invalid_file:"+relative);
-  const bytes=fs.readFileSync(p);
-  const after=fs.lstatSync(p);
-  for(const key of ["dev","ino","size","mtimeMs","ctimeMs","nlink"])assert.equal(after[key],before[key],"file_changed:"+relative+":"+key);
-  assert.equal(bytes.length,before.size,"short_read:"+relative);
-  return bytes;
+  return readFromRoot(ROOT,relative,max);
+}
+function selfTestBoundedReader(){
+  const root=fs.mkdtempSync("/tmp/void-v2-source-bounded-reader-");
+  const nested=path.join(root,"nested");
+  const leaf=path.join(nested,"target");
+  const displaced=leaf+".regular";
+  fs.mkdirSync(nested,{mode:0o700});
+  fs.writeFileSync(leaf,Buffer.from("accepted","utf8"),{mode:0o600});
+  assert.equal(readFromRoot(root,"nested/target",1024).toString("utf8"),"accepted");
+  const originalOpen=fs.openSync;
+  let leafOpenObserved=false;
+  let fifoSubstituted=false;
+  try{
+    fs.openSync=function(target,flags,...rest){
+      const targetText=String(target);
+      if(!fifoSubstituted&&targetText.startsWith("/proc/self/fd/")&&
+          targetText.endsWith("/target")&&
+          (Number(flags)&fs.constants.O_DIRECTORY)===0){
+        leafOpenObserved=true;
+        assert.equal(Number(flags)&fs.constants.O_NONBLOCK,fs.constants.O_NONBLOCK,
+          "bounded_reader_nonblocking_flag_missing");
+        assert.equal(Number(flags)&fs.constants.O_NOFOLLOW,fs.constants.O_NOFOLLOW,
+          "bounded_reader_nofollow_flag_missing");
+        fs.renameSync(leaf,displaced);
+        const mk=spawnSync("/usr/bin/mkfifo",["-m","600",leaf],{
+          encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:5000,
+          env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC"},
+        });
+        assert.equal(mk.error,undefined,String(mk.error||""));
+        assert.equal(mk.status,0,String(mk.stderr||""));
+        fifoSubstituted=true;
+      }
+      return originalOpen.call(fs,target,flags,...rest);
+    };
+    let held=false;
+    try{readFromRoot(root,"nested/target",1024);}catch{held=true;}
+    assert.equal(held,true,"fifo_substitution_not_rejected");
+  }finally{
+    fs.openSync=originalOpen;
+    if(fs.existsSync(displaced))assert.equal(fs.readFileSync(displaced,"utf8"),"accepted");
+    fs.rmSync(root,{recursive:true,force:true});
+  }
+  assert.equal(leafOpenObserved,true,"bounded_reader_leaf_open_not_observed");
+  assert.equal(fifoSubstituted,true,"bounded_reader_fifo_fixture_not_exercised");
 }
 function pin(relative,blob,max=4*1024*1024){
   const bytes=read(relative,max);
@@ -268,6 +379,11 @@ function verifyV2AcceptedSourceAdditions(){
     "v2_accepted_head_tree_changed",
   );
 
+  assert.deepEqual(
+    Object.keys(V2_HISTORICAL_SOURCE_FILES).sort(),
+    Object.keys(V2_SOURCE_FILES).sort(),
+    "v2_historical_current_source_key_set_mismatch",
+  );
   const expected=Object.keys(V2_SOURCE_FILES)
     .map(relative=>"A\t"+relative).sort();
   const historicalActual=git([
@@ -285,10 +401,9 @@ function verifyV2AcceptedSourceAdditions(){
 
   pin(SELF,V2_FROZEN_V1_PROOF_BLOB,64*1024);
   for(const [relative,blob] of Object.entries(V2_SOURCE_FILES)){
-    const historicalBlob=
-      relative===".github/workflows/buy-void-verified-payment-transport-v2.yml"
-        ? V2_HISTORICAL_WORKFLOW_BLOB
-        : blob;
+    const historicalBlob=V2_HISTORICAL_SOURCE_FILES[relative];
+    assert.equal(typeof historicalBlob,"string",
+      "v2_historical_blob_missing:"+relative);
     assert.equal(
       git(["ls-tree",V2_HISTORICAL_SOURCE_BASE,"--",relative]),
       "",
@@ -486,6 +601,13 @@ function verifyWorkflowDispatch(){
     assert.ok(source.includes(marker),"v2_workflow_dispatch_marker_missing:"+relative);
     assert.ok(source.includes(SELF),"historical_v1_trigger_missing:"+relative);
     assert.ok(source.includes(successor),"v2_workflow_trigger_missing:"+relative);
+    assert.ok(source.includes("V2_ACCEPTANCE_SPLIT_ASSERTION_V1"),
+      "v2_acceptance_split_marker_missing:"+relative);
+    assert.ok(source.includes(
+      "historical_v2_candidate_enforcement_identity_accepted,true"),
+      "v2_historical_acceptance_assertion_missing:"+relative);
+    assert.ok(source.includes("candidate_enforcement_identity_accepted,false"),
+      "v2_current_acceptance_false_assertion_missing:"+relative);
     assert.ok(source.includes("node "+successor+" --self-test"),
       "v2_workflow_invocation_missing:"+relative);
     assert.ok(!source.includes("node "+SELF+" --self-test"),
@@ -537,7 +659,9 @@ function verify(){
     provider_source_identity_preserved:true,
     provider_built_artifact_identity_preserved:true,
     current_generation_integration_verified:true,
-    candidate_enforcement_identity_accepted:true,
+    historical_v2_candidate_enforcement_identity_accepted:true,
+    candidate_enforcement_identity_accepted:false,
+    current_v2_consumer_acceptance_split_assertions_bound:true,
     successor_runtime_generation_accepted:false,
     deployed_artifact_generation_verified:false,
     runtime_mount_authority:false,
@@ -547,10 +671,34 @@ function verify(){
   });
 }
 
+function assertCurrentV2AcceptanceSplit(receipt){
+  assert.equal(receipt.historical_v2_candidate_enforcement_identity_accepted,true,
+    "historical_v2_candidate_identity_acceptance_lost");
+  assert.equal(receipt.candidate_enforcement_identity_accepted,false,
+    "current_v2_candidate_identity_must_remain_unaccepted");
+  assert.equal(receipt.independent_source_acceptance_complete,false,
+    "current_v2_independent_source_acceptance_must_remain_false");
+  assert.equal(receipt.successor_runtime_generation_accepted,false,
+    "current_v2_successor_runtime_acceptance_must_remain_false");
+  return receipt;
+}
+function selfTestCurrentV2AcceptanceSplit(receipt){
+  assert.throws(
+    ()=>assertCurrentV2AcceptanceSplit({
+      ...receipt,candidate_enforcement_identity_accepted:true,
+    }),
+    /current_v2_candidate_identity_must_remain_unaccepted/u,
+  );
+}
+
 const args=process.argv.slice(2);
 if(args.length===0||(args.length===1&&args[0]==="--self-test")){
-  const receipt=verify();
+  selfTestBoundedReader();
+  const receipt=assertCurrentV2AcceptanceSplit(verify());
+  selfTestCurrentV2AcceptanceSplit(receipt);
   console.log("VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2_GREEN");
+  console.log("v2_source_reader_descriptor_bound=true");
+  console.log("v2_source_reader_fifo_swap_rejected=true");
   console.log("v2_seven_add_only_paths_exact=true");
   console.log("v2_three_new_economic_sources_pinned=true");
   console.log("v2_five_workflow_dispatches_bound=true");
@@ -565,11 +713,20 @@ if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   console.log("current_built_census_identity_matches_frozen_v4="+receipt.current_built_census_identity_matches_frozen_v4);
   console.log("frozen_candidate_rederived_on_current_head=false");
   console.log("current_generation_integration_verified=true");
+  console.log("historical_v2_candidate_enforcement_identity_accepted="+
+    receipt.historical_v2_candidate_enforcement_identity_accepted);
+  console.log("candidate_enforcement_identity_accepted="+
+    receipt.candidate_enforcement_identity_accepted);
+  console.log("current_v2_consumer_acceptance_split_assertions_bound="+
+    receipt.current_v2_consumer_acceptance_split_assertions_bound);
+  console.log("unqualified_current_acceptance_promotion_rejected=true");
   console.log("deployment_or_runtime_authority=false");
   console.log("public_presale_activation=false");
   console.log("funds_movement=false");
 }else if(args.length===1&&args[0]==="--receipt"){
-  process.stdout.write(JSON.stringify(verify(),null,2)+"\n");
+  process.stdout.write(JSON.stringify(
+    assertCurrentV2AcceptanceSplit(verify()),null,2,
+  )+"\n");
 }else{
   throw new Error("usage: prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs [--self-test|--receipt]");
 }

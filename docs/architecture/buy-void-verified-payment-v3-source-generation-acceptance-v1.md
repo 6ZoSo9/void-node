@@ -9,9 +9,13 @@ route or grant custody, signing, delivery, presale, treasury, or funds authority
 
 Primary source parent:
 
-- PR #3698 head `78b5e4d2566fea29fbc8d2a495238fe68d4d20cc`
-- tree `70d5899f3d3fe8a0daa5cbac912507bef2595b69`
-- V2 source proof blob `ad1c47b610b6b986250c250eb788f4ec26366009`
+- PR #3698 head `f3d84944d35b39dcdadc382c1b1167aaf2ca4cad`
+- tree `86ed50c28e079528db49256f2e15f4f18f2a747c`
+- V2 source proof blob `18db5888c079f23631c06ad617657297dceef39f`
+- V2 trigger proof blob `480cab83e3b64144f30dc3f1c672857eddece1ce`
+- repaired V2 transport parent `f84d380d41e3aefd3c96b3fa956f5f7addf9f908`
+  binds payment-instruction amount and canonical first-request lineage while
+  keeping installed request-history authentication false
 
 Capacity repair evidence:
 
@@ -44,8 +48,8 @@ provider source/artifact closure, and the three original nonprotected economic
 drift paths. Of those three legacy paths, only the capacity writer is permitted
 to advance, and only to the exact reviewed FIFO-safe Git blob.
 
-The V2 source proof is preserved byte-for-byte and **must refuse** V3 with the
-specific capacity-source generation mismatch. The V1 historical source proof
+The repaired V2 source proof is preserved byte-for-byte from exact #3698 and
+**must refuse** V3 with the specific capacity-source generation mismatch. The V1 historical source proof
 must also continue refusing the expanded economic generation. V3 is therefore a
 versioned successor, not a silent repin of either frozen gate.
 

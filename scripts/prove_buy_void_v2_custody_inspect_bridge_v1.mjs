@@ -69,6 +69,17 @@ function input() {
   const tx = "0x" + "a".repeat(64), buyer = "0x" + "b".repeat(40),
     receiver = "0x" + "c".repeat(40), id = "buyvoid_stage_aaaaaaaa";
   const nativeUsdc = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+  const launchAuthority = Object.freeze({
+    marker: "VOID_BUY_COUPLED_REQUEST_AUTHORITY_V1",
+    version: 1,
+    coupled_launch_id: "sha256:" + "1".repeat(64),
+    source_composition_id: "sha256:" + "2".repeat(64),
+    activation_generation: "0x" + "3".repeat(64),
+    generation_tip_sha256: "sha256:" + "4".repeat(64),
+    activation_receipt_id: "voidbclive1_" + "5".repeat(64),
+    activation_receipt_sha256: "6".repeat(64),
+    expires_at_ms: 1_900_000_000_000,
+  });
   const transferTopic =
     "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
   const topicAddress = address => "0x" + "0".repeat(24) + address.slice(2);
@@ -78,6 +89,7 @@ function input() {
     usdc_amount: "3", quoted_void: "6",
     rate_void_per_usdc: "2", price_usdc_per_void: "0.50",
     usdc_contract: nativeUsdc,
+    launch_authority: launchAuthority,
     delivery_address: buyer, receive_address: receiver,
     payment_instructions: {
       send_chain: "base", send_chain_id: 8453,
@@ -117,6 +129,15 @@ function input() {
     read_sale_state: async () => {
       callbacks++; throw Error("unexpected_sale_state");
     },
+  };
+}
+function lineage(stageInput = input()) {
+  return {
+    requests_jsonl: Buffer.from(
+      JSON.stringify(stageInput.request) + "\n", "utf8",
+    ),
+    prior_operator_events_jsonl: Buffer.alloc(0),
+    allocation_jsonl: Buffer.alloc(0),
   };
 }
 function config(patch = {}) {
@@ -165,21 +186,31 @@ try {
   // Use a poison config to confirm auth returns BEFORE socket-config reads.
   const wrongBearer = http();
   wrongBearer.headers.authorization = "Bearer voidbvo1." + "E".repeat(43);
-  let reads = 0;
+  let socketReads = 0, historyReads = 0;
   const poison = new Proxy(config(), {
-    get() {reads++;throw Error("socket_config_getter_called_on_auth_fail");},
+    get() {
+      socketReads++;
+      throw Error("socket_config_getter_called_on_auth_fail");
+    },
+  });
+  const poisonHistory = new Proxy(lineage(), {
+    get() {
+      historyReads++;
+      throw Error("lineage_history_getter_called_on_auth_fail");
+    },
   });
   const denial = response();
   assert.equal(await inspectAuthenticatedBuyVoidV2CustodyBoundary(
-    wrongBearer,denial.res,input(),poison,
-  ),null);
+    wrongBearer, denial.res, input(), poisonHistory, poison,
+  ), null);
   assert.equal(denial.state.status,401);
-  assert.equal(reads,0);
+  assert.equal(socketReads,0);
+  assert.equal(historyReads,0);
   cases++;
 
   // No service: even authenticated requests fail closed, not approved.
   const off = await inspectAuthenticatedBuyVoidV2CustodyBoundary(
-    http(),response().res,input(),config(),
+    http(),response().res,input(),lineage(),config(),
   );
   assertedHeld(off,false);
 
@@ -198,7 +229,7 @@ try {
   // This is the actual server's inspect-only wire path. It reads a
   // disposable genesis ledger, but cannot perform reserve or recovery.
   const positive = await inspectAuthenticatedBuyVoidV2CustodyBoundary(
-    http(),response().res,input(),config(),
+    http(),response().res,input(),lineage(),config(),
   );
   assertedHeld(positive,true);
   assert.equal(positive.reason,"custody_inspection_only_no_reservation_authority");
@@ -206,7 +237,7 @@ try {
 
   // Valid socket with wrong expected identity is not a custody observation.
   const wrongOwner = await inspectAuthenticatedBuyVoidV2CustodyBoundary(
-    http(),response().res,input(),config({expected_socket_uid:uid+1}),
+    http(),response().res,input(),lineage(),config({expected_socket_uid:uid+1}),
   );
   assertedHeld(wrongOwner,false);
 
@@ -215,7 +246,7 @@ try {
   tampered.event.operator_status = "reviewed";
   await assert.rejects(
     async()=>inspectAuthenticatedBuyVoidV2CustodyBoundary(
-      http(),response().res,tampered,config(),
+      http(),response().res,tampered,lineage(tampered),config(),
     ),/legacy_payment_only_writer_forbidden/u
   );
   cases++;
@@ -229,10 +260,13 @@ try {
   assert.equal(callbacks,0);
   for(const name of ["source_only_unmounted","inspect_only_unix_socket_client",
     "existing_private_bearer_auth_before_ipc",
-    "canonical_allocation_plan_before_ipc"]) {
+    "canonical_allocation_plan_before_ipc",
+    "payment_instruction_amount_bound_before_ipc",
+    "canonical_first_request_lineage_preflight_before_ipc"]) {
     assert.equal(VOID_BUY_VOID_V2_CUSTODY_INSPECT_BRIDGE_AUTHORITY[name],true);
   }
-  for(const name of ["custody_reserve_or_recover_enabled","payment_acceptance",
+  for(const name of ["request_history_source_authenticated",
+    "custody_reserve_or_recover_enabled","payment_acceptance",
     "socket_peer_credentials_authenticated","funds_movement"]) {
     assert.equal(VOID_BUY_VOID_V2_CUSTODY_INSPECT_BRIDGE_AUTHORITY[name],false);
   }
@@ -247,7 +281,10 @@ console.log("VOID_BUY_VOID_V2_CUSTODY_INSPECT_BRIDGE_REAL_UNIX_PROOF_GREEN");
 console.log("cases="+String(cases));
 console.log("real_custody_v2_unix_socket_and_existing_client_exercised=true");
 console.log("real_v2_verifier_event_used_without_invented_quote=true");
-console.log("authentication_precedes_socket_config_access=true");
+console.log("authentication_precedes_history_and_socket_config_access=true");
+console.log("canonical_first_request_lineage_preflight_before_ipc=true");
+console.log("payment_instruction_amount_bound_before_ipc=true");
+console.log("request_history_source_authenticated=false");
 console.log("custody_inspect_never_promotes_reservation_authority=true");
 console.log("canonical_payment_and_allocation_journals_unchanged=true");
 console.log("source_only_unmounted=true");
