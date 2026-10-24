@@ -49,13 +49,13 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "4de1cb35a43045a0d9568b3bf4c10904c3653d34"
+            "a1368a6460bb7bb783371cdd1c8da3fb874a3ca9"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "69ff026141d26ffb0f7ad90465f223f855af182b"
+            "d0ef62467ba612f99e4327ab9c1e2dd74d7de55a"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-process-reference-census-v1.md)" = \
-            "6ea19b4944c790af865289c663298e26eb4f6bed"
+            "d67275ea99233c9c8b2f5d860123b29842068c8f"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "e32ebd94ad09cd80e03489079e74657aab159d7a"
+            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
