@@ -149,7 +149,12 @@ import stat
 import sys
 
 src, dst, expected = sys.argv[1:]
-flags = (\n    os.O_RDONLY\n    | getattr(os, "O_CLOEXEC", 0)\n    | getattr(os, "O_NOFOLLOW", 0)\n    | getattr(os, "O_NONBLOCK", 0)\n)
+flags = (
+    os.O_RDONLY
+    | getattr(os, "O_CLOEXEC", 0)
+    | getattr(os, "O_NOFOLLOW", 0)
+    | getattr(os, "O_NONBLOCK", 0)
+)
 fd = os.open(src, flags)
 try:
     st = os.fstat(fd)
@@ -207,7 +212,7 @@ declare -A reviewed_source_blob=(
   ["src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"]="4e5d9a633b05d9254424c2132fc6620b94ff3692"
   ["ops/mainnet0/buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.json"]="a03f6fd4d0f86024aa276aa3be9c1eb00fb4cef2"
   ["tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs"]="f8281ffc9cfbfd2b810a11a10f8cb3ff8473fa95"
-  ["ops/precision/void_precision_buy_void_postgres_host_qualification_v1.sh"]="16721cfcd61ae1c745b7c38901feef6e9c792e5f"
+  ["ops/precision/void_precision_buy_void_postgres_host_qualification_v1.sh"]="cd798a5dc74aa4f8f4bdbc1e5406ffc4dcd4851b"
   ["tools/void-precision-buy-void-postgres-host-qualification-v1.mjs"]="3a9db8d007539bc605b6aa374dee6ba59ca36e1c"
   ["ops/systemd/void-node-live.service.d/91-buy-void-payment-keyed-production-dormant-v1.conf.example"]="a3500a7f1813972b90e5c00dbf8a03ed4b4ddd6b"
   ["ops/systemd/void-node-live.service.d/92-buy-void-dispatcher-postgres-credentials-v1.conf.example"]="dfe25fac6dfd98bc884ade38fe5196e6c048f60b"
