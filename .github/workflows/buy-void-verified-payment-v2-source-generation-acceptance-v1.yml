@@ -55,7 +55,7 @@ jobs:
           carrier="29057c25f06fcb214853bc612ea7606211778f81"
           git merge-base --is-ancestor "$carrier" HEAD
           test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs)" = "796cad42e6413a1894eef8dc0466848377176645"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "70975825045357e7a20c2f9b037c36338670c97e"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "022df6f95b19865064a1e92f7866a74d5cc0bf9e"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v2_trigger_closure_v1.mjs)" = "480cab83e3b64144f30dc3f1c672857eddece1ce"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v2_trigger_closure_v2.mjs)" = "4ffa6b0a9bb4671a4fd62654bf1511c7399b7587"
           test "$(git rev-parse HEAD:docs/architecture/buy-void-verified-payment-v2-source-generation-acceptance-v1.md)" = "d9bfcfb6491b4b01cdb785c2ba3af2641633a6b9"
@@ -64,7 +64,7 @@ jobs:
           test "$(git rev-parse "$carrier:.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml")" = "71395eb72458a4a4e48c9f3f3bdb457580dfd8b1"
           test "$(git rev-parse HEAD:.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml)" = "5f549ea3343f3d83bb909bde30dafc8aea275e2b"
           test "$(git rev-parse "$carrier:.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml")" = "acbf97afa861b4353a129e4947098b11593b4445"
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml)" = "0656a53b3b2c9b9851435d6adb28242f1edb63b9"
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml)" = "a6ae616340dc479a4e0fa4802b726affc0e00665"
           test "$(git rev-parse "$carrier:.github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml")" = "e6f14d279eea0124453adedb580e9206df0e5b3b"
           test "$(git rev-parse HEAD:.github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml)" = "2c57eb2be3aa2067f2a3a7fd4a211ec7f702ac0e"
           test "$(git rev-parse "$carrier:.github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml")" = "aa5f915bf9cc7fde5cf0d0ef00469bf5110d1b8f"
