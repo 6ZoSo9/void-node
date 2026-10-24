@@ -1,0 +1,184 @@
+name: Buy VOID verified-payment transport V2 (unmounted)
+
+on:
+  pull_request:
+    paths:
+      - "src/economic/buy_void_verified_payment_transport_v2.ts"
+      - "scripts/prove_buy_void_verified_payment_transport_v2.ts"
+      - "src/economic/buy_void_verified_payment_v2_allocation_stage.ts"
+      - "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts"
+      - "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs"
+      - "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs"
+      - ".github/workflows/buy-void-verified-payment-transport-v2.yml"
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: source-only transport / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Verify historical source generation and current-main restack
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          HISTORICAL_BASE="1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"
+          HISTORICAL_HEAD="0628d81259fed779ea3bb6c4d067b66b19a3e577"
+          SOURCE_ACCEPTANCE_HEAD="52ae2fed1464157848c95fdccf10f23802f85ed6"
+          SOURCE_ACCEPTANCE_TREE="ceae3ee1ea428d09376be71ec473d1c1b96af620"
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$BASE_REF" = "main"
+          SOURCE_BASE="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
+          test -n "$SOURCE_BASE"
+          echo "source_base=$SOURCE_BASE"
+          git merge-base --is-ancestor "$SOURCE_BASE" "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$HISTORICAL_HEAD" "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$SOURCE_ACCEPTANCE_HEAD" "$EXPECTED_HEAD"
+          test "$(git rev-parse "$SOURCE_ACCEPTANCE_HEAD^{tree}")" = "$SOURCE_ACCEPTANCE_TREE"
+
+          # Preserve the original seven ADD-only generation exactly.
+          test "$(git merge-base "$HISTORICAL_BASE" "$HISTORICAL_HEAD")" = "$HISTORICAL_BASE"
+          test "$(git rev-parse "$HISTORICAL_HEAD^{tree}")" =             "282648386bb2f0b79f95af398de61f231e79504c"
+          test "$(git rev-parse "$HISTORICAL_HEAD:.github/workflows/buy-void-verified-payment-transport-v2.yml")" =             "650360be459bd04083c0fceaf42696ac985abe22"
+
+          printf '%b\n'             'A	.github/workflows/buy-void-verified-payment-transport-v2.yml'             'A	scripts/prove_buy_void_verified_payment_transport_v2.ts'             'A	src/economic/buy_void_verified_payment_transport_v2.ts'             'A	src/economic/buy_void_verified_payment_v2_allocation_stage.ts'             'A	scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts'             'A	src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs'             'A	scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs'             | sort > "$RUNNER_TEMP/expected"
+
+          git diff --name-status "$HISTORICAL_BASE" "$HISTORICAL_HEAD" --             | sort > "$RUNNER_TEMP/historical"
+          diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/historical"
+
+          # The combined direct-main head intentionally includes the accepted
+          # nine-path V2 source-acceptance/protected-dispatch successor on top
+          # of the historical seven-path transport generation. Validate that
+          # 16-path composition exactly rather than misclassifying it as drift.
+          printf '%b\n' \
+            'M\t.github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml' \
+            'M\t.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml' \
+            'M\t.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml' \
+            'M\t.github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml' \
+            'M\t.github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml' \
+            'A\t.github/workflows/buy-void-verified-payment-transport-v2.yml' \
+            'A\t.github/workflows/buy-void-verified-payment-v2-source-generation-acceptance-v1.yml' \
+            'A\tdocs/architecture/buy-void-verified-payment-v2-source-generation-acceptance-v1.md' \
+            'A\tscripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs' \
+            'A\tscripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs' \
+            'A\tscripts/prove_buy_void_verified_payment_transport_v2.ts' \
+            'A\tscripts/prove_buy_void_verified_payment_v2_allocation_stage.ts' \
+            'A\tscripts/prove_buy_void_verified_payment_v2_trigger_closure_v1.mjs' \
+            'A\tsrc/economic/buy_void_v2_custody_inspect_bridge_v1.mjs' \
+            'A\tsrc/economic/buy_void_verified_payment_transport_v2.ts' \
+            'A\tsrc/economic/buy_void_verified_payment_v2_allocation_stage.ts' \
+            | sort > "$RUNNER_TEMP/current-expected"
+
+          git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" -- \
+            | sort > "$RUNNER_TEMP/current"
+          diff -u "$RUNNER_TEMP/current-expected" "$RUNNER_TEMP/current"
+
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs)" =             "b87945fb2d7df4af4740fc28ae467f8f660361e3"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_transport_v2.ts)" =             "2714988acfbcded3d4779ef79a141cd3e39b1426"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts)" =             "addd7842edb7f0e851d1e589d4303c0dc6e2756f"
+          test "$(git rev-parse HEAD:src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs)" =             "45ade2941e28a51e4dbb4884dfcbe9ec549022e6"
+          test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_transport_v2.ts)" =             "61dc219117538f2894b170ac98bb56806f69f430"
+          test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_v2_allocation_stage.ts)" =             "6efb2be5f03ff87290ef376d7852d22db22900f8"
+
+          git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Verify all seven protected-domain paths trigger the security matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import re
+          from pathlib import Path
+
+          body = Path(".github/workflows/buy-void-verified-payment-transport-v2.yml").read_text(encoding="utf-8")
+          block = body.split("\npermissions:", 1)[0]
+          observed = re.findall(r'^      - "([^"]+)"$', block, flags=re.MULTILINE)
+          required = {
+              ".github/workflows/buy-void-verified-payment-transport-v2.yml",
+              "scripts/prove_buy_void_verified_payment_transport_v2.ts",
+              "src/economic/buy_void_verified_payment_transport_v2.ts",
+              "src/economic/buy_void_verified_payment_v2_allocation_stage.ts",
+              "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts",
+              "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs",
+              "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs",
+          }
+          assert len(observed) == len(required) and set(observed) == required, "V2 security trigger closure mismatch"
+          print("VOID_BUY_VOID_VERIFIED_PAYMENT_V2_TRIGGER_CLOSURE_GREEN")
+          PY
+
+      - name: Prove inert V2 private transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run typecheck
+          npm run build
+          out="$RUNNER_TEMP/verified-payment-transport-v2.log"
+          timeout 90s npx tsx scripts/prove_buy_void_verified_payment_transport_v2.ts | tee "$out"
+          stage_out="$RUNNER_TEMP/verified-payment-v2-allocation-stage.log"
+          timeout 90s npx tsx scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts | tee "$stage_out"
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_PAYMENT_V2_ALLOCATION_STAGE_PROOF_GREEN' "$stage_out"
+          grep -Fx 'real_canonical_verifier_event_without_quote_stages=true' "$stage_out"
+          grep -Fx 'request_quote_bound_to_verified_usdc_micro_units_and_rate=true' "$stage_out"
+          grep -Fx 'payment_instruction_amount_bound_to_verified_usdc=true' "$stage_out"
+          grep -Fx 'first_request_launch_and_native_usdc_backfill_rejected=true' "$stage_out"
+          grep -Fx 'canonical_first_request_lineage_preflight_verified=true' "$stage_out"
+          grep -Fx 'lineage_history_bounded_before_copy=true' "$stage_out"
+          grep -Fx 'lineage_history_accessor_and_proxy_traps_not_executed=true' "$stage_out"
+          grep -Fx 'lineage_history_backing_constructor_not_consulted=true' "$stage_out"
+          grep -Fx 'lineage_history_detached_buffer_rejected=true' "$stage_out"
+          grep -Fx 'request_history_source_authenticated=false' "$stage_out"
+          # Compose the private bearer + staged payment with the real
+          # custody-V2 Unix inspect protocol on a disposable same-UID fixture.
+          custody_out="$RUNNER_TEMP/verified-payment-v2-custody-inspect.log"
+          timeout 120s node scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs | tee "$custody_out"
+          grep -Fx 'VOID_BUY_VOID_V2_CUSTODY_INSPECT_BRIDGE_REAL_UNIX_PROOF_GREEN' "$custody_out"
+          grep -Fx 'real_custody_v2_unix_socket_and_existing_client_exercised=true' "$custody_out"
+          grep -Fx 'authentication_precedes_history_and_socket_config_access=true' "$custody_out"
+          grep -Fx 'canonical_first_request_lineage_preflight_before_ipc=true' "$custody_out"
+          grep -Fx 'payment_instruction_amount_bound_before_ipc=true' "$custody_out"
+          grep -Fx 'request_history_source_authenticated=false' "$custody_out"
+          grep -Fx 'custody_inspect_never_promotes_reservation_authority=true' "$custody_out"
+          grep -Fx 'canonical_payment_and_allocation_journals_unchanged=true' "$custody_out"
+          grep -Fx 'real_private_bearer_and_canonical_allocation_planner_used=true' "$stage_out"
+          grep -Fx 'payment_only_writer_unreachable=true' "$stage_out"
+          grep -Fx 'callback_and_protected_root_access=false' "$stage_out"
+          # Independently rerun existing real-temp-filesystem payment+allocation
+          # durability proof. Its synthetic writes are only under os.tmpdir().
+          handoff_out="$RUNNER_TEMP/verified-payment-allocation-handoff.log"
+          timeout 120s npx tsx scripts/prove_buy_void_verified_payment_allocation_handoff_v1.ts | tee "$handoff_out"
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_PAYMENT_ALLOCATION_HANDOFF_V1_PROOF_GREEN' "$handoff_out"
+          grep -Fx 'payment_fsync_crash_recovery_exactly_once=true' "$handoff_out"
+          grep -Fx 'allocation_before_sidecar_crash_replay_exactly_once=true' "$handoff_out"
+          grep -Fx 'runtime_integration=false' "$handoff_out"
+          for marker in \
+            'VOID_BUY_VOID_VERIFIED_PAYMENT_TRANSPORT_V2_PROOF_GREEN' \
+            'old_payment_only_route_remains_503=true' \
+            'new_v2_route_transport_credential_bound=true' \
+            'source_only_unmounted=true' \
+            'operator_principal_authenticated_for_allocation=false' \
+            'mounted_verified_allocation_dispatch=false' \
+            'custody_service_composed=false' \
+            'payment_acceptance=false' \
+            'presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

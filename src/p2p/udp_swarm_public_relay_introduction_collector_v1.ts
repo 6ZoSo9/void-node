@@ -613,6 +613,8 @@ export class VoidUdpSwarmPublicRelayIntroductionCollectorV1 {
     candidate: VoidUdpSwarmPublicRelayIntroductionTransportCandidateV1,
   ) => Promise<unknown>;
   private timer: NodeJS.Timeout | null = null;
+  private startPromise:
+    Promise<VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1> | null = null;
   private running = false;
   private stopped = false;
   private runCount = 0;
@@ -648,9 +650,45 @@ export class VoidUdpSwarmPublicRelayIntroductionCollectorV1 {
       options.fetchIntroduction ?? fetchVoidUdpSwarmPublicRelayIntroductionV1;
   }
 
-  async start(): Promise<VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1> {
-    if (this.stopped) throw new Error("public relay introduction collector is stopped");
-    if (this.timer) return this.lastOutcome;
+  start(): Promise<VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1> {
+    if (this.stopped) {
+      return Promise.reject(
+        new Error("public relay introduction collector is stopped"),
+      );
+    }
+    if (this.timer) return Promise.resolve(this.lastOutcome);
+    if (this.startPromise) return this.startPromise;
+
+    // Publish a pending shared latch before invoking any code that can
+    // synchronously reenter start(). Then begin the initial sweep in the same
+    // turn so a public runOnce() called immediately after start() cannot seize
+    // the run lock before this startup generation does.
+    let resolveOperation!:
+      (value: VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1) => void;
+    let rejectOperation!: (reason?: unknown) => void;
+    const operation =
+      new Promise<VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1>(
+        (resolve, reject) => {
+          resolveOperation = resolve;
+          rejectOperation = reject;
+        },
+      );
+    this.startPromise = operation;
+
+    const exclusive = this.startExclusive();
+    void exclusive.then(resolveOperation, rejectOperation);
+    void operation.then(
+      () => {
+        if (this.startPromise === operation) this.startPromise = null;
+      },
+      () => {
+        if (this.startPromise === operation) this.startPromise = null;
+      },
+    );
+    return operation;
+  }
+
+  private async startExclusive(): Promise<VoidUdpSwarmPublicRelayIntroductionCollectorOutcomeV1> {
     const first = await this.runOnce();
     if (this.stopped) return first;
     this.timer = setInterval(() => {

@@ -143,10 +143,10 @@
     "html": "/public-node/runtime/local-multibox-nimo-rejoin-operator-runbook-v1.html",
     "expected_green_marker": "VOID_LOCAL_MULTIBOX_NIMO_REJOIN_OPERATOR_RUNBOOK_V1_GREEN",
     "boundary": {
-      "read_only": true,
+      "read_only": false,
       "operator_guidance_only": true,
       "automatic_peer_dial_enabled_by_this_runbook": false,
-      "mutation_route_enabled": false,
+      "mutation_route_enabled": true,
       "wallet_send_enabled": false,
       "money_movement_enabled": false,
       "validator_admission_enabled": false,

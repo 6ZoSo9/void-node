@@ -6,6 +6,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 import { canonicalPeerAddress } from "../types/p2p.js";
+import { isVoidRetiredP2PNodeIdV1 } from "./retired_peer_identities_v1.js";
 
 export const VOID_P2P_VERIFIED_PEER_CACHE_VERSION_V1 = 1;
 export const VOID_P2P_VERIFIED_PEER_CACHE_MAX_PEERS_V1 = 128;
@@ -124,6 +125,9 @@ export function loadVoidVerifiedPeerCacheV1(
       if (!record) {
         return Object.freeze({ valid: false, records: Object.freeze([]), reason: "invalid cache peer record" });
       }
+      // Legacy cache bytes remain untouched on read, but retired identities
+      // must not be trusted, dialed, or copied into the next cache generation.
+      if (isVoidRetiredP2PNodeIdV1(record.node_id)) continue;
       if (nodeIds.has(record.node_id)) {
         return Object.freeze({ valid: false, records: Object.freeze([]), reason: "duplicate cached node id" });
       }
@@ -182,6 +186,9 @@ export function writeVoidVerifiedPeerCacheV1(
 ): void {
   if (records.length > VOID_P2P_VERIFIED_PEER_CACHE_MAX_PEERS_V1) {
     throw new Error("too many verified peer records");
+  }
+  if (records.some((record) => isVoidRetiredP2PNodeIdV1(record.node_id))) {
+    throw new Error("refusing to persist retired P2P identity");
   }
 
   const document = {
@@ -257,6 +264,9 @@ export function rememberVoidAuthenticatedPeerV1(
   if (!NODE_ID_RE.test(selfNodeId) || !NODE_ID_RE.test(peerNodeId) || peerNodeId === selfNodeId) {
     throw new Error("invalid self/peer node id for verified cache");
   }
+  if (isVoidRetiredP2PNodeIdV1(peerNodeId)) {
+    throw new Error("refusing retired authenticated P2P identity");
+  }
 
   const addresses = strictCanonicalAddresses(rawAddresses);
   if (!addresses) throw new Error("authenticated peer has no valid canonical listen addresses");
@@ -302,7 +312,7 @@ export function voidVerifiedPeerDialTargetsV1(
 ): ReadonlyArray<Readonly<{ node_id: string; address: string }>> {
   const out: Array<{ node_id: string; address: string }> = [];
   for (const record of records) {
-    if (record.node_id === selfNodeId) continue;
+    if (record.node_id === selfNodeId || isVoidRetiredP2PNodeIdV1(record.node_id)) continue;
     for (const address of record.addresses) {
       out.push(Object.freeze({ node_id: record.node_id, address }));
     }
