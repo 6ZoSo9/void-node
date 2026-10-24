@@ -2,14 +2,15 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import types
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = (
@@ -26,15 +27,64 @@ def git_blob(raw: bytes) -> str:
     return hashlib.sha1(prefix + raw).hexdigest()
 
 
-assert git_blob(TARGET.read_bytes()) == EXPECTED_SOURCE_BLOB
+def _generation(st: os.stat_result) -> tuple[int, ...]:
+    return (
+        st.st_dev,
+        st.st_ino,
+        st.st_uid,
+        st.st_gid,
+        st.st_mode,
+        st.st_nlink,
+        st.st_size,
+        st.st_mtime_ns,
+        st.st_ctime_ns,
+    )
 
-spec = importlib.util.spec_from_file_location(
-    "void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1",
+
+def read_bound_source(path: Path, maximum: int = 2 * 1024 * 1024) -> bytes:
+    before = os.stat(path, follow_symlinks=False)
+    assert stat.S_ISREG(before.st_mode)
+    assert not stat.S_ISLNK(before.st_mode)
+    assert 1 <= before.st_size <= maximum
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+    fd = os.open(path, flags)
+    try:
+        opened = os.fstat(fd)
+        assert stat.S_ISREG(opened.st_mode)
+        assert _generation(before) == _generation(opened)
+        raw = bytearray()
+        while len(raw) < opened.st_size:
+            chunk = os.read(fd, min(65536, opened.st_size - len(raw)))
+            assert chunk
+            raw.extend(chunk)
+        assert os.read(fd, 1) == b""
+        after = os.fstat(fd)
+        visible = os.stat(path, follow_symlinks=False)
+        assert _generation(opened) == _generation(after)
+        assert _generation(after) == _generation(visible)
+        return bytes(raw)
+    finally:
+        os.close(fd)
+
+
+def execute_verified_source(raw: bytes, path: Path, name: str) -> types.ModuleType:
+    source = raw.decode("utf-8")
+    code = compile(source, str(path), "exec", dont_inherit=True, optimize=0)
+    module = types.ModuleType(name)
+    module.__file__ = str(path)
+    module.__package__ = ""
+    exec(code, module.__dict__)
+    return module
+
+
+target_raw = read_bound_source(TARGET)
+assert git_blob(target_raw) == EXPECTED_SOURCE_BLOB
+target_source = target_raw.decode("utf-8")
+module = execute_verified_source(
+    target_raw,
     TARGET,
+    "void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1",
 )
-assert spec is not None and spec.loader is not None
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
 
 assert module.MARKER == (
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_INSTALL_PLAN_V1"
@@ -154,38 +204,45 @@ with tempfile.TemporaryDirectory(
     finally:
         module.ROOT = original_root
 
-without_b = subprocess.run(
-    [sys.executable, "-I", str(TARGET), "--plan"],
-    stdin=subprocess.DEVNULL,
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
-    text=True,
-    check=False,
-    timeout=10,
-    cwd="/",
-    env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
-)
-assert without_b.returncode == 2, without_b
-assert (
-    "reason=python_isolated_unoptimized_no_bytecode_mode_required"
-    in without_b.stdout
-)
+with tempfile.TemporaryDirectory(
+    prefix="void-custody-procref-install-plan-cli-proof-"
+) as cli_tmp:
+    verified_cli = Path(cli_tmp) / "install_plan.py"
+    verified_cli.write_bytes(target_raw)
 
-apply_attempt = subprocess.run(
-    [sys.executable, "-I", "-B", str(TARGET), "--apply"],
-    stdin=subprocess.DEVNULL,
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
-    text=True,
-    check=False,
-    timeout=10,
-    cwd="/",
-    env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
-)
-assert apply_attempt.returncode != 0
-assert "--apply" not in TARGET.read_text(encoding="utf-8")
+    without_b = subprocess.run(
+        [sys.executable, "-I", str(verified_cli), "--plan"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=10,
+        cwd="/",
+        env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+    )
+    assert without_b.returncode == 2, without_b
+    assert (
+        "reason=python_isolated_unoptimized_no_bytecode_mode_required"
+        in without_b.stdout
+    )
 
-source = TARGET.read_text(encoding="utf-8")
+    apply_attempt = subprocess.run(
+        [sys.executable, "-I", "-B", str(verified_cli), "--apply"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=10,
+        cwd="/",
+        env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+    )
+    assert apply_attempt.returncode != 0
+
+assert "--apply" not in target_source
+
+source = target_source
 pre_main = source.split("def self_test()", 1)[0]
 
 for forbidden in (
