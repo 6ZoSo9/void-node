@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 
@@ -13,7 +14,7 @@ import {
 } from "../src/economic/buy_void_custody_launch_observed_read_v1.mjs";
 
 const SOURCE = "src/economic/buy_void_custody_launch_observed_read_v1.mjs";
-const SOURCE_BLOB = "d0dd148d6701e5e47cc8301d71a0777876560834";
+const SOURCE_BLOB = "4b6ae905766d5bec3ecae3166e8d3de67a62b713";
 const bytes = fs.readFileSync(SOURCE);
 const actual = crypto.createHash("sha1")
   .update(Buffer.from("blob "+bytes.length+"\0"))
@@ -43,6 +44,7 @@ for(const field of [
   "presale_or_market_activation", "funds_movement",
 ])assert.equal(policy[field],false,field);
 assert.equal(policy.source_only_descriptor_reader,true);
+assert.equal(policy.fifo_leaf_substitution_nonblocking,true);
 
 const root=fs.mkdtempSync(path.join(os.tmpdir(),"void-custody-observer-v1-"));
 const shared=path.join(root,"shared"),economic=path.join(shared,"economic");
@@ -123,10 +125,61 @@ try {
   fs.unlinkSync(highWater);
   fs.renameSync(highWater+".normal",highWater);
 
+  let attacked=false;
+  let fifoCreated=false;
+  let kernelOpenCompleted=false;
+  let fifoFixtureError=null;
+  const fifoOriginal=highWater+".fifo-original";
+  try{
+    fs.openSync=function(p,flags,...args){
+      if(!attacked&&typeof p==="string"&&
+          p.startsWith("/proc/self/fd/")&&
+          p.endsWith("/"+path.basename(highWater))){
+        assert.ok((Number(flags)&fs.constants.O_NONBLOCK)!==0,
+          "custody launch leaf open lost O_NONBLOCK");
+        try{
+          fs.renameSync(highWater,fifoOriginal);
+          execFileSync("/usr/bin/mkfifo",[highWater],{
+            stdio:"ignore",
+            env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
+          });
+          fifoCreated=fs.lstatSync(highWater).isFIFO();
+          assert.equal(fifoCreated,true,
+            "custody launch FIFO fixture was not created");
+          fs.chmodSync(highWater,0o600);
+          attacked=true;
+        }catch(error){
+          fifoFixtureError=error;
+          throw error;
+        }
+        try{
+          const fd=originalOpen.call(fs,p,flags,...args);
+          kernelOpenCompleted=true;
+          return fd;
+        }catch(error){
+          fifoFixtureError=error;
+          throw error;
+        }
+      }
+      return originalOpen.call(fs,p,flags,...args);
+    };
+    const fifoHeld=held();
+    if(fifoFixtureError)throw fifoFixtureError;
+    assert.equal(attacked,true,"custody launch FIFO adversary did not execute");
+    assert.equal(fifoCreated,true,"custody launch FIFO fixture creation not proven");
+    assert.equal(kernelOpenCompleted,true,
+      "custody launch FIFO kernel open did not complete");
+    assert.equal(fifoHeld.reason,"evidence_descriptor_or_path_unqualified");
+  } finally {
+    fs.openSync=originalOpen;
+    if(fs.existsSync(highWater))fs.unlinkSync(highWater);
+    if(fs.existsSync(fifoOriginal))fs.renameSync(fifoOriginal,highWater);
+  }
+
   const away=path.join(root,"outside");
   fs.mkdirSync(away,{mode:0o700});
   fs.writeFileSync(path.join(away,path.basename(journal)),"ALIEN\n",{mode:0o600});
-  let attacked=false;
+  attacked=false;
   try{
     fs.openSync=function(p,...args){
       if(!attacked&&typeof p==="string"&&
@@ -208,6 +261,9 @@ try {
   console.log("custody_high_water_absent_holds=true");
   console.log("custody_high_water_permissions_fail_closed=true");
   console.log("leaf_symlink_rejected=true");
+  console.log("leaf_fifo_substitution_nonblocking=true");
+  console.log("leaf_fifo_fixture_created=true");
+  console.log("leaf_fifo_kernel_open_completed=true");
   console.log("ancestor_preopen_swap_rejected=true");
   console.log("ancestor_during_read_swap_rejected=true");
   console.log("same_size_in_place_mutation_rejected=true");

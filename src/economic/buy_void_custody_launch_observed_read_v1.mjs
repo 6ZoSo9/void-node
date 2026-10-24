@@ -9,6 +9,7 @@ export const VOID_BUY_VOID_CUSTODY_LAUNCH_READ_ONLY_EVIDENCE_POLICY_V1 =
   Object.freeze({
     source_only_descriptor_reader: true,
     linux_procfs_dirfd_required: true,
+    fifo_leaf_substitution_nonblocking: true,
     review_root_anchoring_required: true,
     caller_provided_root_authority: false,
     server_path_configuration_verified: false,
@@ -82,14 +83,17 @@ function readBoundLinuxFile(absolute, maxBytes, privateCustody = false) {
   }
   if (!Number.isInteger(fs.constants.O_NOFOLLOW) ||
       !Number.isInteger(fs.constants.O_DIRECTORY) ||
-      fs.constants.O_NOFOLLOW <= 0) {
+      !Number.isInteger(fs.constants.O_NONBLOCK) ||
+      fs.constants.O_NOFOLLOW <= 0 ||
+      fs.constants.O_NONBLOCK <= 0) {
     throw new Error("dirfd_linux_flags_unavailable");
   }
   assertSafeAbsolute(absolute, "input");
   const directoryFlags =
     fs.constants.O_RDONLY | fs.constants.O_DIRECTORY |
     fs.constants.O_NOFOLLOW;
-  const fileFlags = fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW;
+  const fileFlags = fs.constants.O_RDONLY |
+    fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK;
   const components = absolute.split("/").slice(1);
   const basename = components.pop();
   const heldDirs = [];
