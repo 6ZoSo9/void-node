@@ -1,0 +1,245 @@
+name: VOID Buy custody V3 protected all-process installer candidate v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.yml"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py"
+      - "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v6.json"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact installer-candidate V2 successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="329134210c56930e684b2ffdffb45a7ee55fbfb9"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.md'
+            $'A\tops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
+            "bd8728be0b59bce3db0f559d0ebd01692f9a5844"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
+            "a8c3847b34da4fa05a50f741625b2171a1e34548"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.md)" = \
+            "ba1609aa65e7ef8dfaa8326f9c6a3c589528af6d"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
+            "0fef4e6f76738dd474ea775985b1facdd922bb54"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v6.json)" = \
+            "5ba0c8d7b1ab8e8384472bb867e0603e6986b9b1"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
+            "33a7221cad37aec70474b97b26c2b10e2ef60f66"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json)" = \
+            "a1e1f4887787b408d313e73360966f93a63b2b58"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile Python sources
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py
+
+      - name: Self-test disposable create-only algorithm
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/protected-procref-installer-selftest.txt"
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py \
+            --self-test | tee "$out"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_INSTALLER_CANDIDATE_V2_SELF_TEST_GREEN' "$out"
+          for marker in \
+            'accepted_plan_exact=true' \
+            'accepted_lock_exact=true' \
+            'predecessor_installer_lock_exact=true' \
+            'accepted_source_exact=true' \
+            'installer_algorithm_implemented=true' \
+            'fixed_least_authority_install_entrypoint=true' \
+            'parameterized_internal_receipt_never_claims_protected_install=true' \
+            'wrong_payload_cannot_claim_protected_install=true' \
+            'wrong_destination_cannot_claim_protected_install=true' \
+            'direct_apply_cli=false' \
+            'protected_first_entry_required=true' \
+            'create_only=true' \
+            'destination_collision_rejected=true' \
+            'bound_stage_cleanup_before_publication=true' \
+            'stage_identity_bound_on_first_successful_post_create_read=true' \
+            'stage_generation_unknown_hold=true' \
+            'possible_residual_stage_reported=true' \
+            'retry_after_unknown_stage_requires_operator_inspection=true' \
+            'cleanup_failure_explicit_hold=true' \
+            'forced_rename_failure_cleanup_proven=true' \
+            'kernel_rename_noreplace_required=true' \
+            'builtin_voidfs_required=true' \
+            'voidfs_contract_validator_tested=true' \
+            'voidfs_builtin_loader_verified=true' \
+            'voidfs_preloaded_cache_rejected=true' \
+            'ctypes_forbidden=true' \
+            'dynamic_symbol_lookup_forbidden=true' \
+            'libc_symbol_lookup_fallback=false' \
+            'same_parent_fd_publication_required=true' \
+            'production_voidfs_bridge_no_os_rename_fallback=true' \
+            'fixed_entrypoint_no_bridge_override=true' \
+            'source_fsync_required=true' \
+            'stage_directory_fsync_required=true' \
+            'install_parent_fsync_required=true' \
+            'exact_post_publication_verification_required=true' \
+            'truthful_post_publication_failure_receipt=true' \
+            'postpublication_failure_preserves_final_root=true' \
+            'hosted_postpublication_fixture_bridge_explicit=true' \
+            'protected_install_authorized=false' \
+            'live_privileged_census_authorized=false' \
+            'replacement_apply_authorized=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove installer candidate boundary
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/protected-procref-installer-proof.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py \
+            | tee "$proof"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_INSTALLER_CANDIDATE_V2_PROOF_GREEN' "$proof"
+          for marker in \
+            'exact_source_blob_asserted=true' \
+            'accepted_plan_exact=true' \
+            'accepted_lock_exact=true' \
+            'predecessor_installer_lock_exact=true' \
+            'accepted_source_exact=true' \
+            'installer_algorithm_implemented=true' \
+            'fixed_least_authority_install_entrypoint=true' \
+            'parameterized_internal_receipt_never_claims_protected_install=true' \
+            'wrong_payload_cannot_claim_protected_install=true' \
+            'wrong_destination_cannot_claim_protected_install=true' \
+            'fixed_entrypoint_exact_arguments_proven=true' \
+            'direct_apply_cli=false' \
+            'protected_first_entry_required=true' \
+            'create_only=true' \
+            'destination_collision_rejected=true' \
+            'bound_stage_cleanup_before_publication=true' \
+            'stage_identity_bound_on_first_successful_post_create_read=true' \
+            'stage_generation_unknown_hold=true' \
+            'possible_residual_stage_reported=true' \
+            'retry_after_unknown_stage_requires_operator_inspection=true' \
+            'first_post_mkdir_identity_failure_regression=true' \
+            'cleanup_failure_explicit_hold=true' \
+            'forced_rename_failure_cleanup_proven=true' \
+            'kernel_rename_noreplace_required=true' \
+            'builtin_voidfs_required=true' \
+            'voidfs_contract_validator_tested=true' \
+            'voidfs_builtin_loader_verified=true' \
+            'voidfs_preloaded_cache_rejected=true' \
+            'sys_modules_shadow_regression=true' \
+            'ctypes_forbidden=true' \
+            'dynamic_symbol_lookup_forbidden=true' \
+            'libc_symbol_lookup_fallback=false' \
+            'same_parent_fd_publication_required=true' \
+            'source_fsync_before_publication=true' \
+            'stage_directory_fsync_before_publication=true' \
+            'parent_fsync_after_publication=true' \
+            'exact_post_publication_verification_required=true' \
+            'final_root_descriptor_close_deterministic=true' \
+            'internal_final_source_name_parameterized=true' \
+            'truthful_post_publication_failure_receipt=true' \
+            'postpublication_failure_preserves_final_root=true' \
+            'hosted_postpublication_fixture_bridge_explicit=true' \
+            'repository_input_fifo_substitution_nonblocking_rejected=true' \
+            'without_dash_b_bootstrap_hold=true' \
+            'protected_install_authorized=false' \
+            'protected_source_installed=false' \
+            'live_privileged_census_authorized=false' \
+            'replacement_apply_authorized=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Validate non-mutating CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/protected-procref-installer-source-plan.json"
+
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py \
+            --source-plan > "$plan"
+
+          python3 -I -B - "$plan" <<'PY'
+          import json, pathlib, sys
+          value=json.loads(pathlib.Path(sys.argv[1]).read_text())
+          assert value["candidate_contract"]["installer_algorithm_implemented"] is True
+          assert value["candidate_contract"]["fixed_install_entrypoint"] == "install_accepted_source_create_only_after_protected_first_entry"
+          assert value["candidate_contract"]["parameterized_internal_receipt_never_claims_protected_install"] is True
+          assert value["candidate_contract"]["direct_apply_cli"] is False
+          assert value["candidate_contract"]["protected_first_entry_required"] is True
+          assert value["candidate_contract"]["builtin_voidfs_required"] is True
+          assert value["candidate_contract"]["voidfs_origin_required"] == "built-in"
+          assert value["candidate_contract"]["voidfs_public_surface_exact"] == ["rename_noreplace"]
+          assert value["candidate_contract"]["ctypes_forbidden"] is True
+          assert value["candidate_contract"]["dynamic_symbol_lookup_forbidden"] is True
+          assert value["candidate_contract"]["libc_symbol_lookup_fallback"] is False
+          assert value["candidate_contract"]["same_parent_fd_publication_required"] is True
+          assert value["candidate_contract"]["stage_generation_unknown_hold_required"] is True
+          assert value["candidate_contract"]["retry_after_unknown_stage_requires_operator_inspection"] is True
+          assert value["authority"]["protected_install_authorized"] is False
+          assert value["authority"]["protected_source_installed"] is False
+          assert value["authority"]["live_privileged_census_authorized"] is False
+          assert value["authority"]["replacement_apply_authorized"] is False
+          assert value["authority"]["funds_movement"] is False
+          PY
+
+          set +e
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py \
+            --apply >"$RUNNER_TEMP/apply.out" 2>"$RUNNER_TEMP/apply.err"
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          ! grep -q 'protected_source_installed=true' "$RUNNER_TEMP/apply.out"
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
