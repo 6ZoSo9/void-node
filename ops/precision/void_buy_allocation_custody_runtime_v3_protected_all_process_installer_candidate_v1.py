@@ -474,7 +474,7 @@ def _cleanup_stage(
     return True
 
 
-def apply_create_only_algorithm(
+def _apply_create_only_internal(
     *,
     parent: Path,
     install_name: str,
@@ -636,7 +636,8 @@ def apply_create_only_algorithm(
             "final_verification_completed": True,
             "create_only": True,
             "rename_noreplace_used": True,
-            "protected_source_installed": True,
+            "fixture_or_internal_publication": True,
+            "protected_source_installed": False,
             "live_privileged_census_executed": False,
             "replacement_apply_authorized": False,
             "payment_acceptance": False,
@@ -669,6 +670,51 @@ def apply_create_only_algorithm(
         os.close(parent_fd)
 
 
+def install_accepted_source_create_only_after_protected_first_entry() -> dict[str, Any]:
+    if os.getuid() != 0 or os.geteuid() != 0 or os.getgid() != 0 or os.getegid() != 0:
+        raise InstallError("protected_install_root_identity_required")
+
+    accepted = verify_repository_inputs()
+    if (
+        len(accepted) != ACCEPTED_SOURCE_BYTES
+        or sha256(accepted) != ACCEPTED_SOURCE_SHA256
+        or git_blob(accepted) != ACCEPTED_SOURCE_GIT_BLOB
+    ):
+        raise InstallError("fixed_entrypoint_accepted_source_mismatch")
+
+    result = _apply_create_only_internal(
+        parent=INSTALL_PARENT,
+        install_name=INSTALL_NAME,
+        stage_name=STAGE_NAME,
+        source_name=SOURCE_NAME,
+        source_raw=accepted,
+        expected_uid=0,
+        expected_gid=0,
+        require_root_parent=True,
+    )
+    if (
+        result.get("publication") is not True
+        or result.get("publication_state") != "published_verified"
+        or result.get("protected_source_installed") is not False
+    ):
+        raise InstallError("fixed_entrypoint_internal_receipt_invalid")
+
+    return {
+        **result,
+        "fixture_or_internal_publication": False,
+        "protected_source_installed": True,
+        "fixed_destination_bound": True,
+        "accepted_source_identity_bound": True,
+        "root_identity_bound": True,
+        "protected_first_entry_precondition_required": True,
+        "live_privileged_census_executed": False,
+        "replacement_apply_authorized": False,
+        "payment_acceptance": False,
+        "public_presale_activation": False,
+        "funds_movement": False,
+    }
+
+
 def source_plan() -> dict[str, Any]:
     source_raw = verify_repository_inputs()
     return {
@@ -693,6 +739,10 @@ def source_plan() -> dict[str, Any]:
         },
         "candidate_contract": {
             "installer_algorithm_implemented": True,
+            "fixed_install_entrypoint": (
+                "install_accepted_source_create_only_after_protected_first_entry"
+            ),
+            "parameterized_internal_receipt_never_claims_protected_install": True,
             "direct_apply_cli": False,
             "protected_first_entry_required": True,
             "create_only": True,
@@ -740,7 +790,7 @@ def self_test() -> None:
         uid = os.geteuid()
         gid = os.getegid()
 
-        result = apply_create_only_algorithm(
+        result = _apply_create_only_internal(
             parent=parent,
             install_name=INSTALL_NAME,
             stage_name=STAGE_NAME,
@@ -753,7 +803,8 @@ def self_test() -> None:
         if (
             result["publication"] is not True
             or result["publication_state"] != "published_verified"
-            or result["protected_source_installed"] is not True
+            or result["fixture_or_internal_publication"] is not True
+            or result["protected_source_installed"] is not False
             or result["live_privileged_census_executed"] is not False
         ):
             raise InstallError("self_test_success_receipt_invalid")
@@ -771,13 +822,52 @@ def self_test() -> None:
             os.close(parent_fd)
 
     with tempfile.TemporaryDirectory(
+        prefix="void-custody-procref-installer-wrong-payload-"
+    ) as tmp:
+        parent = Path(tmp) / "opt"
+        parent.mkdir(mode=0o755)
+        altered = accepted + b"\n# altered fixture\n"
+        result = _apply_create_only_internal(
+            parent=parent,
+            install_name=INSTALL_NAME,
+            stage_name=STAGE_NAME,
+            source_name=SOURCE_NAME,
+            source_raw=altered,
+            expected_uid=os.geteuid(),
+            expected_gid=os.getegid(),
+            require_root_parent=False,
+        )
+        if result["protected_source_installed"] is not False:
+            raise InstallError("self_test_wrong_payload_claimed_protected_install")
+
+    with tempfile.TemporaryDirectory(
+        prefix="void-custody-procref-installer-wrong-destination-"
+    ) as tmp:
+        parent = Path(tmp) / "opt"
+        parent.mkdir(mode=0o755)
+        result = _apply_create_only_internal(
+            parent=parent,
+            install_name="neighboring-procref-root",
+            stage_name=".neighboring-procref-stage",
+            source_name="neighboring.py",
+            source_raw=accepted,
+            expected_uid=os.geteuid(),
+            expected_gid=os.getegid(),
+            require_root_parent=False,
+        )
+        if result["protected_source_installed"] is not False:
+            raise InstallError(
+                "self_test_wrong_destination_claimed_protected_install"
+            )
+
+    with tempfile.TemporaryDirectory(
         prefix="void-custody-procref-installer-collision-"
     ) as tmp:
         parent = Path(tmp) / "opt"
         parent.mkdir(mode=0o755)
         (parent / INSTALL_NAME).mkdir(mode=0o755)
         try:
-            apply_create_only_algorithm(
+            _apply_create_only_internal(
                 parent=parent,
                 install_name=INSTALL_NAME,
                 stage_name=STAGE_NAME,
@@ -805,7 +895,7 @@ def self_test() -> None:
             raise InstallError("injected_rename_failure")
 
         try:
-            apply_create_only_algorithm(
+            _apply_create_only_internal(
                 parent=parent,
                 install_name=INSTALL_NAME,
                 stage_name=STAGE_NAME,
@@ -836,7 +926,7 @@ def self_test() -> None:
             raise OSError("injected_parent_fsync_failure")
 
         try:
-            apply_create_only_algorithm(
+            _apply_create_only_internal(
                 parent=parent,
                 install_name=INSTALL_NAME,
                 stage_name=STAGE_NAME,
@@ -866,6 +956,10 @@ def self_test() -> None:
     print("accepted_lock_exact=true")
     print("accepted_source_exact=true")
     print("installer_algorithm_implemented=true")
+    print("fixed_least_authority_install_entrypoint=true")
+    print("parameterized_internal_receipt_never_claims_protected_install=true")
+    print("wrong_payload_cannot_claim_protected_install=true")
+    print("wrong_destination_cannot_claim_protected_install=true")
     print("direct_apply_cli=false")
     print("protected_first_entry_required=true")
     print("create_only=true")
