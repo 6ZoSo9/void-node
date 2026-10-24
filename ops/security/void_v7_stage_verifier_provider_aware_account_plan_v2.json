@@ -68,27 +68,30 @@
     "provider_health_must_be_positive_before_absence_is_accepted": true,
     "provider_unavailable_or_timeout_policy": "HOLD",
     "enumeration_only_is_insufficient": true,
-    "name_and_numeric_negative_lookup_required_for_every_provider": true,
-    "current_provider_profile_recheck_before_each_create_operation": true
+    "current_provider_profile_recheck_before_each_create_operation": true,
+    "passwd_and_group_routes_may_differ": true,
+    "files_provider_required_for_local_account_creation": true,
+    "namespace_specific_name_and_numeric_negative_lookup_required": true,
+    "expected_post_group_local_binding_is_not_a_collision": true
   },
   "provider_requirements": {
     "files": [
       "descriptor_bind_root_owned_nonwritable_nsswitch_passwd_group_shadow_gshadow_login_defs",
-      "parse_local_name_uid_gid_membership_collisions",
+      "parse_local_passwd_name_uid_and_group_name_gid_collisions",
       "bind_system_uid_gid_ranges_from_exact_login_defs_generation",
-      "recheck_local_file_generation_before_each_create_operation"
+      "recheck_local_file_generation_and_expected_phase_specific_entries_before_each_create_operation"
     ],
     "systemd": [
       "bind_running_system_manager_generation_and_nss_systemd_availability",
       "census_dynamic_and_transient_user_group_allocations_and_reservations",
-      "direct_name_uid_gid_negative_lookup_against_systemd_provider",
-      "hold_if_dynamic_user_allocator_state_or_manager_generation_changes"
+      "direct_passwd_name_uid_negative_lookup_when_configured",
+      "direct_group_name_gid_negative_lookup_when_configured_and_recheck_after_local_group_creation"
     ],
     "sss": [
-      "bind_sssd_provider_configuration_and_health_generation",
-      "require_direct_name_uid_gid_negative_lookup_not_enumeration_only",
-      "hold_if_domain_offline_degraded_unreachable_or_lookup_status_ambiguous",
-      "bind_domain_and_cache_generation_used_for_negative_evidence"
+      "bind_sssd_provider_configuration_health_domain_and_cache_generation",
+      "require_direct_passwd_name_uid_negative_lookup_when_configured_not_enumeration_only",
+      "require_direct_group_name_gid_negative_lookup_when_configured_not_enumeration_only",
+      "hold_if_domain_offline_degraded_unreachable_timeout_or_lookup_status_ambiguous"
     ]
   },
   "global_numeric_authority_requirements": [
@@ -102,8 +105,13 @@
     "exclude_preexisting_uid_gid_file_ownership",
     "exclude_preexisting_numeric_posix_access_and_default_acl_references",
     "exclude_systemd_dynamic_user_reservations",
-    "repeat_provider_process_mount_ownership_acl_census_immediately_before_group_creation",
-    "repeat_provider_process_mount_ownership_acl_census_immediately_before_user_creation"
+    "before_group_creation_require_user_and_group_names_and_uid_gid_absent_in_each_configured_namespace_provider",
+    "repeat_complete_provider_process_mount_ownership_acl_census_immediately_before_group_creation",
+    "after_group_creation_bind_exact_expected_local_files_group_name_gid_generation",
+    "after_group_creation_require_group_name_gid_absent_from_all_configured_nonfiles_group_providers",
+    "before_user_creation_require_user_name_uid_absent_from_all_configured_passwd_providers",
+    "before_user_creation_require_selected_gid_has_no_non_accountdb_file_acl_process_or_service_authority",
+    "repeat_complete_provider_process_mount_ownership_acl_census_immediately_before_user_creation"
   ],
   "future_create_only_sequence": [
     {
@@ -111,7 +119,8 @@
       "operation": "create_exact_primary_group",
       "requires_explicit_reviewed_gid": true,
       "modify_existing": false,
-      "implemented_here": false
+      "implemented_here": false,
+      "postcondition": "exact_local_files_group_binding_only_no_nonfiles_collision"
     },
     {
       "order": 2,
@@ -123,7 +132,8 @@
       "create_home": false,
       "supplementary_group_count": 0,
       "modify_existing": false,
-      "implemented_here": false
+      "implemented_here": false,
+      "precondition": "expected_local_group_bound_user_name_uid_still_absent"
     }
   ],
   "post_create_requirements": [
