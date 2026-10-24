@@ -40,16 +40,16 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git merge-base --is-ancestor e6336075802680577f4d3e82ab7384b5c212bb4c HEAD
+          git merge-base --is-ancestor 4a051b906b827836fd50216e80b226f8e0b23300 HEAD
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e0a682ea4038ca22e3a3b97da2cac29874096c46"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e634e666d3a190368ddb031f936ebbb6347b7196"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "fd4dc893171a666b8abba83873a63261466d36fd"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md)" = "03bb9e47b9d10f8fc36ab74277c75d9fc5d607c8"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs)" = "d3bc8810f0a1dc5152020e25f7598ab3a18a28e2"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md)" = "28587045cba4960f23bd582eb07678b8ab4d054e"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "5301c32f53c2a82435152e38b36486507a73f906"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "e530390e505d447ca0ad9e2a098ec6a819ae3e6c"
-          git diff --name-status e6336075802680577f4d3e82ab7384b5c212bb4c HEAD > "$RUNNER_TEMP/delta.txt"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "2dd9e7024eaafe4641c0d3ac7d10f542a441bb92"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md)" = "36947405bbf3fede19004b9b2352d678b5632fd7"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs)" = "d2c690277cb5b370d57af9ed3445babf46825004"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md)" = "33af5c86ea701ab8235863608a6d9d629960fb25"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "f1b9d661eb3363e9bf18dbeb3610c659a54219bb"
+          git diff --name-status 4a051b906b827836fd50216e80b226f8e0b23300 HEAD > "$RUNNER_TEMP/delta.txt"
           cat > "$RUNNER_TEMP/expected-delta.txt" <<'EOF'
           M	.github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml
           M	.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml
@@ -67,7 +67,7 @@ jobs:
           sort -k2,2 "$RUNNER_TEMP/delta.txt" -o "$RUNNER_TEMP/delta.txt"
           sort -k2,2 "$RUNNER_TEMP/expected-delta.txt" -o "$RUNNER_TEMP/expected-delta.txt"
           cmp "$RUNNER_TEMP/expected-delta.txt" "$RUNNER_TEMP/delta.txt"
-          git diff --check e6336075802680577f4d3e82ab7384b5c212bb4c HEAD
+          git diff --check 4a051b906b827836fd50216e80b226f8e0b23300 HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:

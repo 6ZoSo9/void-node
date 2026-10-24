@@ -6,19 +6,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const BASE="e6336075802680577f4d3e82ab7384b5c212bb4c";
+const BASE="4a051b906b827836fd50216e80b226f8e0b23300";
 const TOOL="ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts";
 const TOOL_BLOB="e0a682ea4038ca22e3a3b97da2cac29874096c46";
 const TOOL_PROOF="scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts";
 const TOOL_PROOF_BLOB="e634e666d3a190368ddb031f936ebbb6347b7196";
 const DISPATCH="scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs";
-const DISPATCH_BLOB="fd4dc893171a666b8abba83873a63261466d36fd";
+const DISPATCH_BLOB="2dd9e7024eaafe4641c0d3ac7d10f542a441bb92";
 const DISPATCH_DOC="docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md";
-const DISPATCH_DOC_BLOB="03bb9e47b9d10f8fc36ab74277c75d9fc5d607c8";
+const DISPATCH_DOC_BLOB="36947405bbf3fede19004b9b2352d678b5632fd7";
 const CANDIDATE="ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json";
-const CANDIDATE_BLOB="5301c32f53c2a82435152e38b36486507a73f906";
+const CANDIDATE_BLOB="40c7d21e0f22bc2ffe079f80360af342f4d8a6aa";
 const LOCK="ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json";
-const LOCK_BLOB="e530390e505d447ca0ad9e2a098ec6a819ae3e6c";
+const LOCK_BLOB="f1b9d661eb3363e9bf18dbeb3610c659a54219bb";
 const OLD_TOOL_BLOB="3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0";
 const EXPECTED=Object.freeze([
   ["M",".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml"],

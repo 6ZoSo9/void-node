@@ -120,10 +120,10 @@ jobs:
           integration="$RUNNER_TEMP/current-protected-integration-v3-${{ matrix.node }}.json"
           node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --self-test
           node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --receipt > "$integration"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "5301c32f53c2a82435152e38b36486507a73f906"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa"
           test "$(wc -c < ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" -eq 17392
-          test "$(sha256sum ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json | awk '{print $1}')" = "eb2be386ecf374bc75d6c10e4d5cfa3ea5fa309acbef5612f74991c6ba311aab"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "e530390e505d447ca0ad9e2a098ec6a819ae3e6c"
+          test "$(sha256sum ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json | awk '{print $1}')" = "7f9c032bb3685d0d45f439123878af0ba366bd587e29a98df3270f0f13808c96"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "f1b9d661eb3363e9bf18dbeb3610c659a54219bb"
           node --input-type=module - "$integration" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";

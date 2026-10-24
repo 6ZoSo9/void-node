@@ -5,6 +5,7 @@ import * as crypto from "node:crypto";
 import * as net from "node:net";
 
 import { parsePeerAddress } from "../types/p2p.js";
+import { isVoidRetiredP2PNodeIdV1 } from "./retired_peer_identities_v1.js";
 
 export const VOID_P2P_DIRECT_UPGRADE_PROTOCOL_VERSION_V1 = 1;
 export const VOID_P2P_DIRECT_UPGRADE_MAX_PENDING_REQUESTS_V1 = 64;
@@ -230,6 +231,7 @@ export function normalizeVoidDirectUpgradeControlMessageV1(
       VOID_P2P_DIRECT_UPGRADE_MAX_ATTEMPT_TIMEOUT_MS_V1,
     );
     if (!request_id || !stream_id || !target_node_id ||
+        isVoidRetiredP2PNodeIdV1(target_node_id) ||
         start_delay_ms === undefined || attempt_timeout_ms === undefined) return;
     return Object.freeze({
       type, request_id, stream_id, target_node_id,
@@ -261,6 +263,7 @@ export function normalizeVoidDirectUpgradeControlMessageV1(
       VOID_P2P_DIRECT_UPGRADE_MAX_ATTEMPT_TIMEOUT_MS_V1,
     );
     if (!request_id || !session_id || !stream_id || !peer_node_id ||
+        isVoidRetiredP2PNodeIdV1(peer_node_id) ||
         !peer_observed_address || start_delay_ms === undefined ||
         attempt_timeout_ms === undefined) return;
     return Object.freeze({
@@ -363,9 +366,12 @@ export class VoidDirectUpgradeRelayStateV1 {
       Number.MAX_SAFE_INTEGER,
     );
     if (!requestId || !streamId || !sourceNodeId || !targetNodeId ||
-        sourceNodeId === targetNodeId || !sourceObservedAddress ||
-        !targetObservedAddress || startDelayMs === undefined ||
-        attemptTimeoutMs === undefined || nowMs === undefined) {
+        sourceNodeId === targetNodeId ||
+        isVoidRetiredP2PNodeIdV1(sourceNodeId) ||
+        isVoidRetiredP2PNodeIdV1(targetNodeId) ||
+        !sourceObservedAddress || !targetObservedAddress ||
+        startDelayMs === undefined || attemptTimeoutMs === undefined ||
+        nowMs === undefined) {
       throw new Error("direct-upgrade relay session input is invalid");
     }
 
@@ -467,7 +473,13 @@ export class VoidDirectUpgradeRelayStateV1 {
 
   sweep(nowMs = Date.now()): void {
     for (const [sessionId, session] of this.sessions) {
-      if (session.expires_at_ms <= nowMs) this.sessions.delete(sessionId);
+      if (
+        session.expires_at_ms <= nowMs ||
+        isVoidRetiredP2PNodeIdV1(session.source_node_id) ||
+        isVoidRetiredP2PNodeIdV1(session.target_node_id)
+      ) {
+        this.sessions.delete(sessionId);
+      }
     }
   }
 
