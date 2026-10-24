@@ -32,11 +32,11 @@ const CURRENT_RUNTIME_BLOB =
 const EPOCH2_SOURCE_V3 =
   "tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs";
 const EPOCH2_SOURCE_V3_BLOB =
-  "c4413b4a8f9dfb95a31bce9613d0af7939233736";
+  "38230df7822b3dcbdc24a42e4fd2e2c24cc43009";
 const EPOCH2_SOURCE_V3_PROOF =
   "scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs";
 const EPOCH2_SOURCE_V3_PROOF_BLOB =
-  "e349a0e2e7bb5c61da58574f96bd5ff977170491";
+  "95f4ac1c4c764feed6b1782c22f1ec1038518015";
 
 function gitBlobSha1(bytes) {
   return crypto
