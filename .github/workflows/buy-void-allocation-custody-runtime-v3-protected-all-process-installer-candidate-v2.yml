@@ -47,9 +47,9 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
-            "096fa82312b31822aa5a464734d70e933a8e9e30"
+            "e9eb7f539caa0a98171793801f80c62b4a187a71"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
-            "ec5f601aee649653f8ff565388271f50b2dd605e"
+            "443e78db53e70544c9590a15bdd20f32a3e288a1"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.md)" = \
             "eb05ebe03c69f2814712b82928c70a8a2c00586a"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
@@ -116,6 +116,7 @@ jobs:
             'exact_post_publication_verification_required=true' \
             'truthful_post_publication_failure_receipt=true' \
             'postpublication_failure_preserves_final_root=true' \
+            'hosted_postpublication_fixture_bridge_explicit=true' \
             'protected_install_authorized=false' \
             'live_privileged_census_authorized=false' \
             'replacement_apply_authorized=false' \
@@ -173,6 +174,7 @@ jobs:
             'internal_final_source_name_parameterized=true' \
             'truthful_post_publication_failure_receipt=true' \
             'postpublication_failure_preserves_final_root=true' \
+            'hosted_postpublication_fixture_bridge_explicit=true' \
             'without_dash_b_bootstrap_hold=true' \
             'protected_install_authorized=false' \
             'protected_source_installed=false' \
