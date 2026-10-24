@@ -173,16 +173,16 @@ for forbidden in (
 ):
     assert forbidden not in pre_self_test, forbidden
 
-assert "node_binary_execution_performed": False" in source
-assert "version_command_executed": False" in source
-assert "node_binary_identity_verified": False" in source
-assert "source_execution_protected": False" in source
-assert "replacement_apply_authorized": False" in source
-assert "runtime_integration": False" in source
-assert "payment_acceptance": False" in source
-assert "public_presale_activation": False" in source
-assert "production_gate_ready": False" in source
-assert "funds_movement": False" in source
+assert '"node_binary_execution_performed": False' in source
+assert '"version_command_executed": False' in source
+assert '"node_binary_identity_verified": False' in source
+assert '"source_execution_protected": False' in source
+assert '"replacement_apply_authorized": False' in source
+assert '"runtime_integration": False' in source
+assert '"payment_acceptance": False' in source
+assert '"public_presale_activation": False' in source
+assert '"production_gate_ready": False' in source
+assert '"funds_movement": False' in source
 
 print("VOID_BUY_VOID_CUSTODY_NODE_BINARY_LIVE_CENSUS_V1_PROOF_GREEN")
 print("exact_source_blob_asserted=true")
