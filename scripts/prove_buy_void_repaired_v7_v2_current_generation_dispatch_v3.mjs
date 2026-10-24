@@ -49,32 +49,58 @@ const LEGACY_NONPROTECTED_ECONOMIC_DRIFT=Object.freeze([
 ].sort());
 const V2_ADDED_ECONOMIC_SOURCE_BLOBS=Object.freeze({
   "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs":
-    "84d956baa930c2edc8142942a8fd6fd8dc4cdf17",
+    "45ade2941e28a51e4dbb4884dfcbe9ec549022e6",
   "src/economic/buy_void_verified_payment_transport_v2.ts":
     "61dc219117538f2894b170ac98bb56806f69f430",
   "src/economic/buy_void_verified_payment_v2_allocation_stage.ts":
-    "ef397b7377a87326187f5e2e9882d6e4bdc0a4f8",
+    "6efb2be5f03ff87290ef376d7852d22db22900f8",
 });
-const V2_SOURCE_BASE="e83b1df4bc3b52d08d5e38e076fa6c80085f7e01";
-const V2_ACCEPTED_ADDITION_HEAD="8238fc68eacc5cc6bd7ff2a7c47128f37e585140";
-const V2_ACCEPTED_ADDITION_TREE="8d4dcf83d563b7a645b6236643ca4e47b50de801";
-const V2_FROZEN_V1_PROOF_BLOB="4e123302d25dd0a83923032d2dc0f40c8937e77f";
-const V2_SUCCESSOR_PROOF="scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs";
-const V2_SUCCESSOR_PROOF_BLOB="ad1c47b610b6b986250c250eb788f4ec26366009";
-const V3_CAPACITY_SOURCE="src/economic/buy_void_verified_payment_capacity_admission_v1.ts";
-const V3_CAPACITY_PREDECESSOR_BLOB="ac8bf352979e0e24d2cab45c3b23949e1bd2b026";
-const V3_CAPACITY_SOURCE_BLOB="d1320be22fe55af24017b84f0655fbcde82dbee9";
-const V3_CAPACITY_FIFO_PROOF="scripts/prove_buy_void_verified_payment_capacity_fifo_nonblocking_v2.ts";
-const V3_CAPACITY_FIFO_PROOF_BLOB="1b3d72c2eda967f5cd84d929cd80c62508cce16e";
-const V2_SOURCE_FILES=Object.freeze({
+const V2_HISTORICAL_SOURCE_BASE="1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c";
+const V2_HISTORICAL_ADDITION_HEAD="0628d81259fed779ea3bb6c4d067b66b19a3e577";
+const V2_HISTORICAL_ADDITION_TREE="282648386bb2f0b79f95af398de61f231e79504c";
+const V2_HISTORICAL_WORKFLOW_BLOB="650360be459bd04083c0fceaf42696ac985abe22";
+const V2_HISTORICAL_SOURCE_FILES=Object.freeze({
   ".github/workflows/buy-void-verified-payment-transport-v2.yml":
-    "953cda83de685b3360ec40468284f823b7e51886",
+    "650360be459bd04083c0fceaf42696ac985abe22",
   "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs":
     "d0a81327e43a76e7b8171d975b7dde981483219f",
   "scripts/prove_buy_void_verified_payment_transport_v2.ts":
     "2714988acfbcded3d4779ef79a141cd3e39b1426",
   "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts":
     "d447fad19edbb0897166f67ab2e435fe34d5e164",
+  "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs":
+    "84d956baa930c2edc8142942a8fd6fd8dc4cdf17",
+  "src/economic/buy_void_verified_payment_transport_v2.ts":
+    "61dc219117538f2894b170ac98bb56806f69f430",
+  "src/economic/buy_void_verified_payment_v2_allocation_stage.ts":
+    "ef397b7377a87326187f5e2e9882d6e4bdc0a4f8",
+});
+const V2_SOURCE_BASE="61b0f81b2112aab32e3dc16084fe2d43178ec4da";
+const V2_ACCEPTED_ADDITION_HEAD="f84d380d41e3aefd3c96b3fa956f5f7addf9f908";
+const V2_ACCEPTED_ADDITION_TREE="6d03b668ca51cc7ffa115c164955d09dc9b13e70";
+const V2_LANDED_MAIN_HEAD="652197dc8df36f0f2004d50c6bbf95369790e2d1";
+const V2_LANDED_MAIN_TREE="00e5dd00386372e533c945141dd857f663fdf036";
+const V2_FROZEN_V1_PROOF_BLOB="4e123302d25dd0a83923032d2dc0f40c8937e77f";
+const V2_ACCEPTED_SOURCE_FILES=Object.freeze({
+  ".github/workflows/buy-void-verified-payment-transport-v2.yml":
+    "0cc7e50febb6d289c343e188a10e63bbd22053d6",
+  "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs":
+    "b87945fb2d7df4af4740fc28ae467f8f660361e3",
+  "scripts/prove_buy_void_verified_payment_transport_v2.ts":
+    "2714988acfbcded3d4779ef79a141cd3e39b1426",
+  "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts":
+    "addd7842edb7f0e851d1e589d4303c0dc6e2756f",
+  ...V2_ADDED_ECONOMIC_SOURCE_BLOBS,
+});
+const V2_SOURCE_FILES=Object.freeze({
+  ".github/workflows/buy-void-verified-payment-transport-v2.yml":
+    "6d9c8e821ba70f28183bc2d879b95b7e2f829be1",
+  "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs":
+    "b87945fb2d7df4af4740fc28ae467f8f660361e3",
+  "scripts/prove_buy_void_verified_payment_transport_v2.ts":
+    "2714988acfbcded3d4779ef79a141cd3e39b1426",
+  "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts":
+    "addd7842edb7f0e851d1e589d4303c0dc6e2756f",
   ...V2_ADDED_ECONOMIC_SOURCE_BLOBS,
 });
 const NONPROTECTED_ECONOMIC_DRIFT=Object.freeze([
@@ -82,6 +108,13 @@ const NONPROTECTED_ECONOMIC_DRIFT=Object.freeze([
   ...Object.keys(V2_ADDED_ECONOMIC_SOURCE_BLOBS),
 ].sort());
 
+const V2_SUCCESSOR_PROOF="scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs";
+const V2_SUCCESSOR_PROOF_BLOB="796cad42e6413a1894eef8dc0466848377176645";
+const V3_CAPACITY_SOURCE="src/economic/buy_void_verified_payment_capacity_admission_v1.ts";
+const V3_CAPACITY_PREDECESSOR_BLOB="ac8bf352979e0e24d2cab45c3b23949e1bd2b026";
+const V3_CAPACITY_SOURCE_BLOB="d1320be22fe55af24017b84f0655fbcde82dbee9";
+const V3_CAPACITY_FIFO_PROOF="scripts/prove_buy_void_verified_payment_capacity_fifo_nonblocking_v2.ts";
+const V3_CAPACITY_FIFO_PROOF_BLOB="1b3d72c2eda967f5cd84d929cd80c62508cce16e";
 const CANDIDATE_PROOF="scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v2.mjs";
 const CANDIDATE_PROOF_BLOB="5cb990d0ef680f80292bed5f6b28c11d4ee1ffed";
 const LOCK_PROOF="scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v2.mjs";
@@ -371,46 +404,114 @@ function verifyRestackScope(){
   }
 }
 function verifyV2AcceptedSourceAdditions(){
+  git(["cat-file","-e",V2_HISTORICAL_ADDITION_HEAD+"^{commit}"]);
   git(["cat-file","-e",V2_ACCEPTED_ADDITION_HEAD+"^{commit}"]);
-  git(["merge-base","--is-ancestor",V2_ACCEPTED_ADDITION_HEAD,"HEAD"]);
+  git(["cat-file","-e",V2_LANDED_MAIN_HEAD+"^{commit}"]);
+  git(["merge-base","--is-ancestor",V2_HISTORICAL_ADDITION_HEAD,V2_ACCEPTED_ADDITION_HEAD]);
+  // #3692 landed by squash merge. Preserve the exact accepted branch as
+  // immutable evidence, but bind current/future execution to the permanent
+  // landed-main carrier rather than requiring impossible branch ancestry.
+  git(["merge-base","--is-ancestor",V2_LANDED_MAIN_HEAD,"HEAD"]);
+  assert.equal(
+    git(["rev-parse",V2_HISTORICAL_ADDITION_HEAD+"^{tree}"]),
+    V2_HISTORICAL_ADDITION_TREE,
+    "v2_historical_head_tree_changed",
+  );
   assert.equal(
     git(["rev-parse",V2_ACCEPTED_ADDITION_HEAD+"^{tree}"]),
     V2_ACCEPTED_ADDITION_TREE,
     "v2_accepted_head_tree_changed",
   );
+  assert.equal(
+    git(["rev-parse",V2_LANDED_MAIN_HEAD+"^{tree}"]),
+    V2_LANDED_MAIN_TREE,
+    "v2_landed_main_tree_changed",
+  );
 
-  // The dependency PR may contain many commits, but exactly seven previously
-  // nonexistent file paths are added relative to its admitted base.
-  const actual=git([
+  assert.deepEqual(
+    Object.keys(V2_HISTORICAL_SOURCE_FILES).sort(),
+    Object.keys(V2_ACCEPTED_SOURCE_FILES).sort(),
+    "v2_historical_accepted_source_key_set_mismatch",
+  );
+  assert.deepEqual(
+    Object.keys(V2_ACCEPTED_SOURCE_FILES).sort(),
+    Object.keys(V2_SOURCE_FILES).sort(),
+    "v2_accepted_current_source_key_set_mismatch",
+  );
+  const expected=Object.keys(V2_ACCEPTED_SOURCE_FILES)
+    .map(relative=>"A\t"+relative).sort();
+  const historicalActual=git([
+    "diff","--name-status",V2_HISTORICAL_SOURCE_BASE,
+    V2_HISTORICAL_ADDITION_HEAD,"--",
+  ]).split("\n").filter(Boolean).sort();
+  assert.deepEqual(
+    historicalActual,expected,
+    "v2_historical_source_addition_scope_changed",
+  );
+  const acceptedActual=git([
     "diff","--name-status",V2_SOURCE_BASE,V2_ACCEPTED_ADDITION_HEAD,"--",
   ]).split("\n").filter(Boolean).sort();
-  const expected=Object.keys(V2_SOURCE_FILES)
-    .map(relative=>"A\t"+relative).sort();
-  assert.deepEqual(actual,expected,"v2_source_addition_scope_changed");
+  assert.deepEqual(acceptedActual,expected,"v2_accepted_source_addition_scope_changed");
+
+  const currentTransitions=Object.keys(V2_SOURCE_FILES)
+    .filter(relative=>
+      V2_SOURCE_FILES[relative]!==V2_ACCEPTED_SOURCE_FILES[relative]);
+  assert.deepEqual(
+    currentTransitions,
+    [".github/workflows/buy-void-verified-payment-transport-v2.yml"],
+    "v2_current_source_transition_set_invalid",
+  );
 
   pin(SELF,V2_FROZEN_V1_PROOF_BLOB,64*1024);
-  for(const [relative,blob] of Object.entries(V2_SOURCE_FILES)){
+  for(const [relative,acceptedBlob] of Object.entries(V2_ACCEPTED_SOURCE_FILES)){
+    const historicalBlob=V2_HISTORICAL_SOURCE_FILES[relative];
+    const currentBlob=V2_SOURCE_FILES[relative];
+    assert.equal(typeof historicalBlob,"string",
+      "v2_historical_blob_missing:"+relative);
+    assert.equal(typeof currentBlob,"string",
+      "v2_current_blob_missing:"+relative);
+    assert.equal(
+      git(["ls-tree",V2_HISTORICAL_SOURCE_BASE,"--",relative]),
+      "",
+      "v2_historical_new_path_not_absent_at_source_base:"+relative,
+    );
+    assert.equal(
+      treeBlob(V2_HISTORICAL_ADDITION_HEAD,relative),historicalBlob,
+      "v2_historical_head_blob_drift:"+relative,
+    );
     assert.equal(
       git(["ls-tree",V2_SOURCE_BASE,"--",relative]),
       "",
       "v2_new_path_not_absent_at_source_base:"+relative,
     );
     assert.equal(
-      treeBlob(V2_ACCEPTED_ADDITION_HEAD,relative),blob,
+      treeBlob(V2_ACCEPTED_ADDITION_HEAD,relative),acceptedBlob,
       "v2_accepted_head_blob_drift:"+relative,
     );
     assert.equal(
-      treeBlob("HEAD",relative),blob,
+      treeBlob(V2_LANDED_MAIN_HEAD,relative),currentBlob,
+      "v2_landed_main_source_blob_drift:"+relative,
+    );
+    assert.equal(
+      treeBlob("HEAD",relative),currentBlob,
       "v2_successor_head_blob_drift:"+relative,
     );
+    if(relative!==".github/workflows/buy-void-verified-payment-transport-v2.yml"){
+      assert.equal(currentBlob,acceptedBlob,
+        "v2_unreviewed_current_source_transition:"+relative);
+    }
+    assert.equal(treeMode(V2_HISTORICAL_ADDITION_HEAD,relative),"100644",
+      "v2_historical_source_mode_drift:"+relative);
     assert.equal(treeMode("HEAD",relative),"100644",
       "v2_added_source_mode_drift:"+relative);
-    pin(relative,blob,256*1024);
+    pin(relative,currentBlob,256*1024);
   }
+  assert.equal(Object.keys(V2_ACCEPTED_SOURCE_FILES).length,7);
   assert.equal(Object.keys(V2_SOURCE_FILES).length,7);
   assert.equal(Object.keys(V2_ADDED_ECONOMIC_SOURCE_BLOBS).length,3);
   return true;
 }
+
 function verifyFrozenEvidence(){
   pin(CANDIDATE_PROOF,CANDIDATE_PROOF_BLOB,256*1024);
   pin(LOCK_PROOF,LOCK_PROOF_BLOB,256*1024);
@@ -645,6 +746,9 @@ function verify(){
     historical_economic_drift_preserved_from_restack_base:true,
     accepted_v2_add_only_head:V2_ACCEPTED_ADDITION_HEAD,
     accepted_v2_add_only_tree:V2_ACCEPTED_ADDITION_TREE,
+    landed_v2_source_acceptance_main_head:V2_LANDED_MAIN_HEAD,
+    landed_v2_source_acceptance_main_tree:V2_LANDED_MAIN_TREE,
+    landed_v2_source_acceptance_carrier_bound:true,
     added_v2_economic_source_count:3,
     capacity_fifo_safe_source_transition_verified:true,
     capacity_fifo_safe_source_blob:V3_CAPACITY_SOURCE_BLOB,
@@ -687,6 +791,7 @@ if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   console.log("v2_seven_add_only_paths_exact=true");
   console.log("v2_three_new_economic_sources_pinned=true");
   console.log("v2_five_workflow_dispatches_bound=true");
+  console.log("landed_v2_source_acceptance_carrier_bound=true");
   console.log("capacity_fifo_safe_source_transition_verified=true");
   console.log("predecessor_v2_source_proof_refuses_current_generation=true");
   console.log("historical_v1_source_proof_preserved=true");
