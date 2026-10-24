@@ -1,0 +1,146 @@
+name: VOID Buy VOID repaired V7/V2 current dispatch v3
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-repaired-v7-v2-current-generation-dispatch-v3.yml"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs"
+      - "runtime/canonical-producer-self-http-guard-v5.cjs"
+      - "ops/run-void-node-live-v1.sh"
+      - "src/index.ts"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v2.mjs"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v2.mjs"
+      - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json"
+      - "scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-repaired-v7-v2-current-generation-dispatch-v3.yml"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs"
+      - "runtime/canonical-producer-self-http-guard-v5.cjs"
+      - "ops/run-void-node-live-v1.sh"
+      - "src/index.ts"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v2.mjs"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v2.mjs"
+      - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json"
+      - "scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs"
+      - "src/economic/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "tsconfig.build.json"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: protected successor V3 / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build exact current source
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+      - name: Prove reviewed protected successor dispatch V3
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --self-test
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --receipt \
+            > "protected-v3-${{ matrix.node }}.json"
+          node --input-type=module - "protected-v3-${{ matrix.node }}.json" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const v=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(v.schema,"void_buy_void_repaired_v7_v2_current_generation_dispatch_v3");
+          assert.equal(v.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
+          assert.equal(v.version,3);
+          assert.equal(v.protected_path_count,49);
+          assert.equal(v.frozen_protected_inventory_preserved,true);
+          assert.equal(v.protected_path_identity_preserved,false);
+          assert.equal(v.unchanged_protected_path_count,47);
+          assert.equal(v.reviewed_protected_successor_count,2);
+          assert.equal(v.current_protected_successor_binding_verified,true);
+          assert.equal(v.current_router_v6_successor_verified,true);
+          assert.equal(v.canonical_producer_v5_successor_verified,true);
+          assert.equal(v.historical_v2_candidate_enforcement_identity_accepted,true);
+          assert.equal(v.candidate_enforcement_identity_accepted,false);
+          assert.equal(v.successor_runtime_generation_accepted,false);
+          assert.equal(v.production_source_finality_authority_ready,false);
+          assert.equal(v.public_presale_activation,false);
+          assert.equal(v.funds_movement,false);
+          NODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: protected-v7-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: protected-v3-${{ matrix.node }}.json
+          if-no-files-found: error
+          retention-days: 7
+      - run: git diff --check
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: protected-v7-v3-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          merge-multiple: true
+          path: receipts
+      - name: Require exact Node 22/24/26 V3 receipt equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do test -s "receipts/protected-v3-$node.json"; done
+          cmp receipts/protected-v3-22.json receipts/protected-v3-24.json
+          cmp receipts/protected-v3-22.json receipts/protected-v3-26.json
+          sha256sum receipts/protected-v3-22.json
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const v=JSON.parse(fs.readFileSync("receipts/protected-v3-22.json","utf8"));
+          assert.equal(v.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
+          assert.equal(v.unchanged_protected_path_count,47);
+          assert.equal(v.reviewed_protected_successor_count,2);
+          assert.equal(v.current_protected_successor_binding_verified,true);
+          assert.equal(v.candidate_enforcement_identity_accepted,false);
+          assert.equal(v.funds_movement,false);
+          console.log("VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3_CROSS_NODE_GREEN");
+          NODE
