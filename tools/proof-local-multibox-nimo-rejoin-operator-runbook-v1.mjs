@@ -28,11 +28,11 @@ if (peerCard.nodes?.nimo?.node_id !== '042c8b22f14cf343139e9bc806937bf3') throw 
 if (peerCard.nodes?.nimo?.p2p !== '192.168.1.99:4701') throw new Error('peer card nimo p2p mismatch');
 
 for (const [k, want] of Object.entries({
-  read_only: true,
+  read_only: false,
   public_routes_only: true,
   operator_guidance_only: true,
   automatic_peer_dial_enabled_by_this_runbook: false,
-  mutation_route_enabled: false,
+  mutation_route_enabled: true,
   wallet_send_enabled: false,
   money_movement_enabled: false,
   buy_void_fulfillment_enabled: false,
@@ -45,15 +45,28 @@ for (const [k, want] of Object.entries({
   if (data.boundary?.[k] !== want) throw new Error(`boundary ${k} expected ${want}, got ${data.boundary?.[k]}`);
 }
 
-for (const needle of [
-  marker,
-  '192.168.1.99:4701',
-  '042c8b22f14cf343139e9bc806937bf3',
-  'automatic peer dialing',
-  'public internet mesh claim'
-]) {
-  if (!doc.includes(needle)) throw new Error(`doc missing ${needle}`);
-  if (!html.includes(needle)) throw new Error(`html missing ${needle}`);
+if (data.summary?.manual_dial_may_update_local_peer_state !== true) throw new Error('manual dial side effect missing');
+if (!data.operator_commands?.manual_dial?.includes('curl --fail-with-body --silent --show-error')) throw new Error('manual dial hides rejection body');
+if (!data.operator_commands?.verify_peers?.includes('/p2p/peers')) throw new Error('peer verification route mismatch');
+if (!data.dial_outcomes?.accepted_response?.includes('does not prove')) throw new Error('accepted response overclaims connection progress');
+if (!data.dial_outcomes?.connection_verification?.includes('/p2p/peers')) throw new Error('connection verification route missing');
+
+for (const [label, surface] of Object.entries({ doc, html })) {
+  for (const needle of [
+    marker,
+    '192.168.1.99:4701',
+    '042c8b22f14cf343139e9bc806937bf3',
+    'curl --fail-with-body --silent --show-error',
+    '/p2p/peers',
+    'does not prove',
+    'do not retry blindly',
+    'automatic peer dialing',
+    'public internet mesh claim'
+  ]) {
+    if (!surface.includes(needle)) throw new Error(`${label} missing ${needle}`);
+  }
+  if (surface.includes('http://127.0.0.1:4100/peers')) throw new Error(`${label} still uses obsolete /peers route`);
+  if (surface.includes('curl -fsS -X POST')) throw new Error(`${label} still suppresses dial rejection bodies`);
 }
 
 console.log(green);
