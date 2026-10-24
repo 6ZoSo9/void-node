@@ -17,7 +17,7 @@ PLAN_REL = "ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.j
 ROLE_REL = "ops/security/void_v7_v5_stage_role_separation_contract_v2.json"
 SOURCE_REL = "ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
 RECEIPT_REL = "ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py"
-PLAN_BLOB = "dc68696a60a226ea774b95c9c9f0a38201769957"
+PLAN_BLOB = "c38b886ec58bcc2e274d43b937defe0db4754a1a"
 ROLE_BLOB = "4801caaca496baeb85c7842b5b8b4b47122582ab"
 SOURCE_BLOB = "d88a9548ea34b8209ed7dcd53732fd25dd1371bf"
 RECEIPT_BLOB = "b462696826b4f90fdf5f4938cd5467e5711addab"
@@ -193,13 +193,28 @@ def classify(candidate: dict) -> str:
                 return "HOLD_GROUP_PROVIDER_COLLISION_OR_AMBIGUITY:" + provider
         if provider == "files" and not state.get("local_files_generation_bound"):
             return "HOLD_FILES_GENERATION"
-        if provider == "systemd" and not state.get("dynamic_user_census_bound"):
-            return "HOLD_SYSTEMD_DYNAMIC_USER_CENSUS"
+        if provider == "systemd":
+            if not state.get("dynamic_user_census_bound"):
+                return "HOLD_SYSTEMD_DYNAMIC_USER_CENSUS"
+            if not state.get("userdb_services_bound"):
+                return "HOLD_SYSTEMD_USERDB_SERVICES"
+            if not state.get("future_dynamic_range_collision_absent"):
+                return "HOLD_SYSTEMD_FUTURE_DYNAMIC_RANGE"
         if provider == "sss":
             if not state.get("domain_generation_bound"):
                 return "HOLD_SSS_DOMAIN_GENERATION"
+            if not state.get("future_id_mapping_collision_absent"):
+                return "HOLD_SSS_FUTURE_ID_MAPPING_RANGE"
             if state.get("enumeration_only"):
                 return "HOLD_SSS_ENUMERATION_ONLY"
+    if not candidate["system_uid_gid_ranges_bound"]:
+        return "HOLD_SYSTEM_ID_RANGE_UNBOUND"
+    if not candidate["uid_gid_inside_system_ranges"]:
+        return "HOLD_OUTSIDE_SYSTEM_ID_RANGE"
+    if not candidate["subuid_collision_absent"]:
+        return "HOLD_SUBUID_DELEGATION_COLLISION"
+    if not candidate["subgid_collision_absent"]:
+        return "HOLD_SUBGID_DELEGATION_COLLISION"
     if not candidate["host_namespace_leases_bound"]:
         return "HOLD_NAMESPACE_LEASE"
     if not candidate["complete_procfs_census"]:
@@ -302,6 +317,7 @@ for key in (
     "namespace_specific_name_and_numeric_negative_lookup_required",
     "expected_post_group_local_binding_is_not_a_collision",
     "current_provider_profile_recheck_before_each_create_operation",
+    "future_provider_allocation_ranges_must_exclude_candidate",
 ):
     assert provider[key] is True, key
 assert provider["unknown_provider_or_action_clause_policy"] == "HOLD"
@@ -309,15 +325,18 @@ assert provider["provider_unavailable_or_timeout_policy"] == "HOLD"
 
 requirements = plan["provider_requirements"]
 assert set(requirements) == set(ALLOWED_PROVIDERS)
-assert len(requirements["files"]) == len(requirements["systemd"]) == len(requirements["sss"]) == 4
-assert len(plan["global_numeric_authority_requirements"]) == 17
+assert len(requirements["files"]) == len(requirements["systemd"]) == len(requirements["sss"]) == 6
+assert len(plan["global_numeric_authority_requirements"]) == 19
 assert len(plan["future_create_only_sequence"]) == 2
 assert plan["future_create_only_sequence"][0]["operation"] == "create_exact_primary_group"
 assert plan["future_create_only_sequence"][0]["postcondition"] == "exact_local_files_group_binding_only_no_nonfiles_collision"
+assert plan["future_create_only_sequence"][0]["requires_gid_inside_bound_system_range"] is True
 assert plan["future_create_only_sequence"][1]["operation"] == "create_exact_system_user"
 assert plan["future_create_only_sequence"][1]["precondition"] == "expected_local_group_bound_user_name_uid_still_absent"
+assert plan["future_create_only_sequence"][1]["requires_uid_inside_bound_system_range"] is True
+assert plan["future_create_only_sequence"][1]["must_not_create_subuid_or_subgid_delegation"] is True
 assert all(step["implemented_here"] is False for step in plan["future_create_only_sequence"])
-assert len(plan["post_create_requirements"]) == 9
+assert len(plan["post_create_requirements"]) == 10
 assert role["stage_verifier"]["status"] == "UNSELECTED"
 assert role["stage_verifier"]["uid"] is None and role["stage_verifier"]["gid"] is None
 assert role["identity_selection_dependency"]["status"] == "HOLD_PROVIDER_AWARE_ACCOUNT_PLAN_REQUIRED"
@@ -350,11 +369,17 @@ positive = {
                   "local_files_generation_bound": True},
         "systemd": {"health": True, "passwd_name_negative": True, "uid_negative": True,
                     "group_name_negative": True, "gid_negative": True,
-                    "dynamic_user_census_bound": True},
+                    "dynamic_user_census_bound": True, "userdb_services_bound": True,
+                    "future_dynamic_range_collision_absent": True},
         "sss": {"health": True, "passwd_name_negative": True, "uid_negative": True,
                 "group_name_negative": True, "gid_negative": True,
-                "domain_generation_bound": True, "enumeration_only": False},
+                "domain_generation_bound": True, "future_id_mapping_collision_absent": True,
+                "enumeration_only": False},
     },
+    "system_uid_gid_ranges_bound": True,
+    "uid_gid_inside_system_ranges": True,
+    "subuid_collision_absent": True,
+    "subgid_collision_absent": True,
     "host_namespace_leases_bound": True,
     "complete_procfs_census": True,
     "live_uid_slots": set(), "live_gid_slots": set(),
@@ -400,8 +425,15 @@ negative_cases = (
     ({"providers": {**positive["providers"], "systemd": {**positive["providers"]["systemd"], "gid_negative": False}}}, "HOLD_GROUP_PROVIDER_COLLISION_OR_AMBIGUITY:systemd"),
     ({"providers": {**positive["providers"], "files": {**positive["providers"]["files"], "local_files_generation_bound": False}}}, "HOLD_FILES_GENERATION"),
     ({"providers": {**positive["providers"], "systemd": {**positive["providers"]["systemd"], "dynamic_user_census_bound": False}}}, "HOLD_SYSTEMD_DYNAMIC_USER_CENSUS"),
+    ({"providers": {**positive["providers"], "systemd": {**positive["providers"]["systemd"], "userdb_services_bound": False}}}, "HOLD_SYSTEMD_USERDB_SERVICES"),
+    ({"providers": {**positive["providers"], "systemd": {**positive["providers"]["systemd"], "future_dynamic_range_collision_absent": False}}}, "HOLD_SYSTEMD_FUTURE_DYNAMIC_RANGE"),
     ({"providers": {**positive["providers"], "sss": {**positive["providers"]["sss"], "domain_generation_bound": False}}}, "HOLD_SSS_DOMAIN_GENERATION"),
+    ({"providers": {**positive["providers"], "sss": {**positive["providers"]["sss"], "future_id_mapping_collision_absent": False}}}, "HOLD_SSS_FUTURE_ID_MAPPING_RANGE"),
     ({"providers": {**positive["providers"], "sss": {**positive["providers"]["sss"], "enumeration_only": True}}}, "HOLD_SSS_ENUMERATION_ONLY"),
+    ({"system_uid_gid_ranges_bound": False}, "HOLD_SYSTEM_ID_RANGE_UNBOUND"),
+    ({"uid_gid_inside_system_ranges": False}, "HOLD_OUTSIDE_SYSTEM_ID_RANGE"),
+    ({"subuid_collision_absent": False}, "HOLD_SUBUID_DELEGATION_COLLISION"),
+    ({"subgid_collision_absent": False}, "HOLD_SUBGID_DELEGATION_COLLISION"),
     ({"host_namespace_leases_bound": False}, "HOLD_NAMESPACE_LEASE"),
     ({"complete_procfs_census": False}, "HOLD_PROCFS_CENSUS"),
     ({"live_uid_slots": {123456789}}, "HOLD_LIVE_PROCESS_COLLISION"),
