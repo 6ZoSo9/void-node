@@ -256,6 +256,7 @@ prepare = function_source(source, tree, "_prepare_private_stage_for_runtime_veri
 seal = function_source(source, tree, "_seal_verified_stage_for_publication")
 copy = function_source(source, tree, "_copy_candidate_to_stage")
 root_guard = function_source(source, tree, "_require_privileged_source_custody")
+publish = function_source(source, tree, "_rename_noreplace")
 apply = function_source(source, tree, "apply")
 
 assert '(ACL_USER, runtime_perm, RUNTIME_UID)' in acl
@@ -271,6 +272,10 @@ for op in ('operation == "collect_plan"', 'operation == "verify_stage_private"',
     assert op in child, "operation_dispatch_drift:" + op
 assert "_copy_candidate_to_stage(" not in child
 assert 'raise InstallError("root_required_for_privileged_apply")' in root_guard
+assert "RENAME_NOREPLACE" in publish
+assert 'raise InstallError("rename_noreplace_failed:"' in publish
+assert "os.fsync(parent_fd)" in publish
+assert publish.count("_revalidate_install_parent_after_stage(expected_ancestors)") == 2
 assert apply.find("_require_privileged_source_custody()") >= 0
 assert apply.find("_copy_candidate_to_stage(") > apply.find("_require_privileged_source_custody()")
 assert "_set_runtime_uid_read_acl_fd(" in prepare
@@ -354,6 +359,7 @@ print("current_source_installer_blob=" + SOURCE_BLOB)
 print("current_receipt_installer_blob=" + RECEIPT_BLOB)
 print("current_identity_lines=13")
 print("root_only_protected_copy=GREEN")
+print("rename_noreplace_and_parent_fsync_bound=true")
 print("candidate_owner_uid_gid=1000:1000")
 print("stage_verifier_identity=UNSELECTED")
 print("historical_3754_account_plan_reusable=false")
