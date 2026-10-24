@@ -16,14 +16,19 @@ on:
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v2.md"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs"
+      - "runtime/canonical-producer-self-http-guard-v5.cjs"
+      - "ops/run-void-node-live-v1.sh"
+      - "src/index.ts"
       - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v1.md"
       - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"
       - "ops/precision/**"
       - "ops/security/**"
-      - "ops/run-void-node-live-v1.sh"
       - "runtime/**"
       - "src/economic/**"
-      - "src/index.ts"
       - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "package.json"
@@ -46,14 +51,19 @@ on:
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v2.md"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs"
+      - "runtime/canonical-producer-self-http-guard-v5.cjs"
+      - "ops/run-void-node-live-v1.sh"
+      - "src/index.ts"
       - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v1.md"
       - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"
       - "ops/precision/**"
       - "ops/security/**"
-      - "ops/run-void-node-live-v1.sh"
       - "runtime/**"
       - "src/economic/**"
-      - "src/index.ts"
       - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "package.json"
@@ -98,11 +108,11 @@ jobs:
       - name: Verify frozen candidate against current protected integration
         run: |
           set -euo pipefail
-          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"
-          echo "V2_ACCEPTANCE_SPLIT_ASSERTION_V1"
+          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V3"
+          echo "V3_PROTECTED_SUCCESSOR_ASSERTION_V1"
           integration="$RUNNER_TEMP/current-protected-integration-${{ matrix.node }}.json"
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --receipt > "$integration"
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --self-test
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --receipt > "$integration"
           candidate="$RUNNER_TEMP/final-protected-v7-v2-candidate-${{ matrix.node }}.json"
           cp ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json "$candidate"
           node --input-type=module - "$candidate" "$integration" <<'NODE'
@@ -117,11 +127,17 @@ jobs:
           assert.equal(c.candidate_enforcement_identity_accepted,false);
           assert.equal(c.public_presale_activation,false);
           assert.equal(c.funds_movement,false);
-          assert.equal(i.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2");
+          assert.equal(i.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
           assert.equal(i.historical_v2_candidate_enforcement_identity_accepted,true);
           assert.equal(i.candidate_enforcement_identity_accepted,false);
           assert.equal(i.protected_path_count,49);
-          assert.equal(i.protected_path_identity_preserved,true);
+          assert.equal(i.frozen_protected_inventory_preserved,true);
+          assert.equal(i.protected_path_identity_preserved,false);
+          assert.equal(i.unchanged_protected_path_count,47);
+          assert.equal(i.reviewed_protected_successor_count,2);
+          assert.equal(i.current_protected_successor_binding_verified,true);
+          assert.equal(i.current_router_v6_successor_verified,true);
+          assert.equal(i.canonical_producer_v5_successor_verified,true);
           assert.equal(i.current_built_census_identity_matches_frozen_v4,true);
           assert.equal(i.provider_source_identity_preserved,true);
           assert.equal(i.frozen_candidate_rederived_on_current_head,false);
@@ -139,32 +155,39 @@ jobs:
           candidate="$RUNNER_TEMP/final-protected-v7-v2-candidate-${{ matrix.node }}.json"
           cmp "$candidate" ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v2.json
           lock="$RUNNER_TEMP/final-protected-v7-v2-lock-${{ matrix.node }}.json"
-          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"
-          echo "V2_ACCEPTANCE_SPLIT_ASSERTION_V1"
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test
+          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V3"
+          echo "V3_PROTECTED_SUCCESSOR_ASSERTION_V1"
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --self-test
           cp ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json "$lock"
           cmp "$lock" ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json
           test "$(wc -c < "$candidate")" -eq 16342
           test "$(sha256sum "$candidate" | awk '{print $1}')" = "092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb"
           test "$(git hash-object "$candidate")" = "4e23ecbb64eb26c14f5ab15af85eb86d59c3a718"
 
-      - name: Prove accepted lock is deployment-planner consumable
+      - name: Require frozen V2 lock to refuse current protected successor
         run: |
           set -euo pipefail
           head="$(git rev-parse HEAD)"
           tree="$(git rev-parse 'HEAD^{tree}')"
           git switch -C main "$head"
+          log="$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
+          set +e
           npx tsx ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
             --plan \
             --expected-commit "$head" \
             --expected-tree "$tree" \
             --accepted-enforcement-lock-path ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json \
-            | tee "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
-          grep -Fx 'status=PLAN_GREEN' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
-          grep -Fx 'accepted_enforcement_set_sha256=05d7648032223f74a05d89200ef23a76a5265ef2a3a26e52c7f51ce3b33bc852' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
-          grep -Fx 'filesystem_mutation=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
-          grep -Fx 'presale_activation=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
-          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
+            >"$log" 2>&1
+          status=$?
+          set -e
+          test "$status" -ne 0
+          grep -Fx 'marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1_HOLD' "$log"
+          grep -Fx 'reason=accepted_enforcement_candidate_current_source_inventory_mismatch:ops/run-void-node-live-v1.sh' "$log"
+          echo 'frozen_v2_deployment_plan_refuses_current_protected_successor=true'
+          echo 'candidate_enforcement_identity_accepted=false'
+          echo 'successor_runtime_generation_accepted=false'
+          echo 'public_presale_activation=false'
+          echo 'funds_movement=false'
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -235,5 +258,5 @@ jobs:
           assert.equal(lock.funds_movement,false);
           console.log("lock_json_sha256="+crypto.createHash("sha256").update(lockBytes).digest("hex"));
           console.log("accepted_enforcement_set_sha256="+lock.candidate_evidence.candidate_enforcement_set_sha256);
-          console.log("candidate_enforcement_identity_accepted=true");
+          console.log("historical_v2_lock_candidate_enforcement_identity_accepted=true");
           NODE
