@@ -198,9 +198,14 @@ that deterministic close structure.
 ## Built-in publication bridge
 
 V2 removes the V1 dynamic-symbol publication path entirely. Production
-publication requires `_voidfs` to be present in `sys.builtin_module_names`,
-import with `__spec__.origin == "built-in"`, and expose exactly one public
-operation:
+publication rejects any preloaded `sys.modules["_voidfs"]` entry before import,
+requires `_voidfs` to be present in `sys.builtin_module_names`, resolves the
+module only through `importlib.machinery.BuiltinImporter.find_spec`, requires
+the spec and module loader to be exactly `BuiltinImporter` with
+`origin == "built-in"`, and executes the resulting uncached module object
+through that builtin loader. No cached module object is trusted.
+
+The accepted module exposes exactly one public operation:
 
 ```text
 rename_noreplace
@@ -217,7 +222,9 @@ rename in the protected fixed entrypoint.
 
 Hosted CI does **not** pretend ordinary GitHub Python contains `_voidfs`.
 Disposable self-tests inject an explicit fixture rename function into the
-parameterized internal helper. The production fixed entrypoint keeps the
+parameterized internal helper. They also place a spoof object in
+`sys.modules["_voidfs"]` and require the production bridge to reject it before
+any callable can be accepted. The production fixed entrypoint keeps the
 built-in `_voidfs` bridge as its default and cannot accept a caller-supplied
 publication primitive.
 
