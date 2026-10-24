@@ -67,12 +67,24 @@ def git_blob_id(data: bytes) -> str:
 
 
 def read_exact_path(path: Path, maximum: int, expected_blob: str | None = None) -> bytes:
+    before = os.lstat(path)
+    assert stat.S_ISREG(before.st_mode), "source_not_regular:" + os.fspath(path)
+    assert not stat.S_ISLNK(before.st_mode), "source_symlink:" + os.fspath(path)
+    assert before.st_nlink == 1, "source_link_count:" + os.fspath(path)
+    assert 0 <= before.st_size <= maximum, "source_oversize:" + os.fspath(path)
+
     flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
     fd = os.open(path, flags)
     try:
         opened = os.fstat(fd)
-        assert stat.S_ISREG(opened.st_mode), "source_not_regular:" + os.fspath(path)
-        assert 0 <= opened.st_size <= maximum, "source_oversize:" + os.fspath(path)
+        fields = lambda st: (
+            st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode,
+            st.st_nlink, st.st_size, st.st_mtime_ns, st.st_ctime_ns,
+        )
+        assert stat.S_ISREG(opened.st_mode), "source_opened_not_regular:" + os.fspath(path)
+        assert fields(before) == fields(opened), (
+            "source_rebound_before_open:" + os.fspath(path)
+        )
         data = bytearray()
         while len(data) < opened.st_size:
             chunk = os.read(fd, min(65536, opened.st_size - len(data)))
@@ -82,10 +94,7 @@ def read_exact_path(path: Path, maximum: int, expected_blob: str | None = None) 
         terminal = os.fstat(fd)
         visible = os.lstat(path)
         assert stat.S_ISREG(visible.st_mode), "source_visible_not_regular:" + os.fspath(path)
-        fields = lambda st: (
-            st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode,
-            st.st_nlink, st.st_size, st.st_mtime_ns, st.st_ctime_ns,
-        )
+        assert not stat.S_ISLNK(visible.st_mode), "source_visible_symlink:" + os.fspath(path)
         assert fields(opened) == fields(terminal) == fields(visible), (
             "source_generation_drift:" + os.fspath(path)
         )
@@ -143,9 +152,21 @@ def unique_object(items):
     return out
 
 
-def exact_blob(rel: str, blob: str) -> None:
+PIN_LIMITS = {
+    CONTRACT_REL: 64 * 1024,
+    SOURCE_REL: 512 * 1024,
+    RECEIPT_REL: 512 * 1024,
+    "scripts/prove_buy_void_v7_v5_source_stage_install_v1.py": 512 * 1024,
+    "scripts/prove_buy_void_v7_v5_receipt_stage_install_v1.py": 512 * 1024,
+    "docs/operators/buy-void-v7-v5-source-receipt-stage-install-v1.md": 256 * 1024,
+    ".github/workflows/buy-void-v7-v5-source-receipt-stage-install-v1.yml": 256 * 1024,
+}
+
+
+def exact_blob(rel: str, blob: str) -> bytes:
     assert git("rev-parse", "HEAD:" + rel) == blob, "head_blob_drift:" + rel
-    assert git("hash-object", "--no-filters", rel) == blob, "worktree_blob_drift:" + rel
+    assert rel in PIN_LIMITS, "missing_worktree_size_bound:" + rel
+    return read_exact(rel, PIN_LIMITS[rel], blob)
 
 
 def function_source(source: str, tree: ast.Module, name: str) -> str:
@@ -210,6 +231,7 @@ for rel, blob in (
     (".github/workflows/buy-void-v7-v5-source-receipt-stage-install-v1.yml", INSTALLER_WORKFLOW_BLOB),
 ):
     exact_blob(rel, blob)
+assert len(PIN_LIMITS) == 7, "pinned_worktree_input_count"
 
 self_test_descriptor_bound_reads()
 
@@ -424,6 +446,7 @@ print("current_identity_lines=13")
 print("root_only_protected_copy=GREEN")
 print("rename_noreplace_and_parent_fsync_bound=true")
 print("descriptor_bound_nonblocking_exact_reads=true")
+print("all_pinned_worktree_inputs_descriptor_bound=true")
 print("fifo_symlink_read_regressions=GREEN")
 print("candidate_owner_uid_gid=1000:1000")
 print("stage_verifier_identity=UNSELECTED")
