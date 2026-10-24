@@ -47,11 +47,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v1.py)" = \
-            "c4138cea2d8acc2b7779c15d50a5a7479a64f62c"
+            "5e7bc14863ea9e4ab61a982083ab552258cdd692"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v1.py)" = \
-            "25b9861e77230d047ffe1fbfb70ab01241e5019e"
+            "ad8f44abf6c3c446f4acefd0b23f496f9df1ba99"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v1.md)" = \
-            "e241bdba4ef37b7fae96479f4b5f2729b7bffb42"
+            "73ee33df90f72d3cdf7e409f481deb745a9ad027"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
             "d0d500d5a4715c9319e702350a8851884b4baff8"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v6.json)" = \
@@ -84,6 +84,10 @@ jobs:
             'accepted_lock_exact=true' \
             'accepted_source_exact=true' \
             'installer_algorithm_implemented=true' \
+            'fixed_least_authority_install_entrypoint=true' \
+            'parameterized_internal_receipt_never_claims_protected_install=true' \
+            'wrong_payload_cannot_claim_protected_install=true' \
+            'wrong_destination_cannot_claim_protected_install=true' \
             'direct_apply_cli=false' \
             'protected_first_entry_required=true' \
             'create_only=true' \
@@ -123,6 +127,11 @@ jobs:
             'accepted_lock_exact=true' \
             'accepted_source_exact=true' \
             'installer_algorithm_implemented=true' \
+            'fixed_least_authority_install_entrypoint=true' \
+            'parameterized_internal_receipt_never_claims_protected_install=true' \
+            'wrong_payload_cannot_claim_protected_install=true' \
+            'wrong_destination_cannot_claim_protected_install=true' \
+            'fixed_entrypoint_exact_arguments_proven=true' \
             'direct_apply_cli=false' \
             'protected_first_entry_required=true' \
             'create_only=true' \
@@ -164,6 +173,8 @@ jobs:
           import json, pathlib, sys
           value=json.loads(pathlib.Path(sys.argv[1]).read_text())
           assert value["candidate_contract"]["installer_algorithm_implemented"] is True
+          assert value["candidate_contract"]["fixed_install_entrypoint"] == "install_accepted_source_create_only_after_protected_first_entry"
+          assert value["candidate_contract"]["parameterized_internal_receipt_never_claims_protected_install"] is True
           assert value["candidate_contract"]["direct_apply_cli"] is False
           assert value["candidate_contract"]["protected_first_entry_required"] is True
           assert value["authority"]["protected_install_authorized"] is False
