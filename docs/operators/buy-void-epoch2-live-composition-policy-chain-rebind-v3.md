@@ -142,12 +142,15 @@ considered.
 ## Rollback and failure truth
 
 Stage preparation is fail-atomic after this invocation wins the create-only
-`O_CREAT|O_EXCL` stage. V3 records the created stage inode immediately. If a
-later write, chmod, file fsync, exact-content verification, or parent fsync
-fails, cleanup is attempted only when the visible stage still has that exact
-device/inode identity. A replaced stage is never deleted as if it were owned by
-this invocation. The failure receipt truthfully records whether that cleanup
-was attempted and whether it completed.
+`O_CREAT|O_EXCL` stage. V3 records the created stage inode immediately and
+retains that ownership identity through pre-exchange revalidation and rollback.
+If a later write, chmod, file fsync, exact-content verification, parent fsync,
+or pre-exchange revalidation fails, cleanup is attempted only when the visible
+stage still has that exact single-link device/inode identity. The same identity
+is required before deleting the displaced new policy during automatic rollback.
+A replaced or hard-linked stage is never deleted as if it were owned by this
+invocation. The failure receipt truthfully records whether cleanup was
+attempted and whether it completed.
 
 If failure occurs after the live exchange, V3 restores the exact
 `4c80887...` predecessor through the same atomic exchange primitive. The
@@ -176,6 +179,7 @@ Hosted CI performs source-only checks:
 - interrupted V3-stage refusal;
 - publication-aware failure receipt checks;
 - forced stage-fsync failure with identity-bound incomplete-stage cleanup;
+- stage-path replacement adversary proving a different inode is never deleted;
 - rollback-exchange ordering that fsyncs live and staging directories before
   recovery cleanup;
 - exact no-authority markers.
