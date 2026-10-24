@@ -7,7 +7,7 @@ accepted-lock + canonical V5 composition in Draft #3682.
 
 Exact parent:
 
-`94a07497a1583ec990ac0ca665604bebf570b5e7`
+`a016ea761ccdba10352337ad97c05ba8b52ce6cf`
 
 The parent preserves accepted V4 lock evidence from #3688 and advances exactly
 one protected inventory row to canonical producer V5:
@@ -22,25 +22,25 @@ The repaired range router is
 
 ## Bound composition evidence
 
-Hosted composition run `39995907220` is terminal SUCCESS on all three Node
+Hosted composition run `40092224628` is terminal SUCCESS on all three Node
 majors:
 
-- Node 22 job `120559244919`;
-- Node 24 job `120559244633`;
-- Node 26 job `120559245016`.
+- Node 22 job `120867064615`;
+- Node 24 job `120867064444`;
+- Node 26 job `120867064630`.
 
 The candidate proof pins the exact composition evidence:
 
-- proof `1d76844acb0f09eeaef5df5803280dbc8830d7de`;
-- document `e25a32fcc852f9feffc88920842a0a04de682195`;
-- workflow `91803f0ccaca8840c5ddb227add74ae39dfa248a`.
+- proof `0f731f9932d043f6c0eaac8db6cc4eca7673f9c2`;
+- document `221bd4b8d7b908b2f893e5301143600952545901`;
+- workflow `21971621fae40fdce2d4bcd7f54e269c7fdf22b7`.
 
 It also preserves:
 
-- V4 candidate `b8341906d9563739a50dac98ea184a1d93267531`;
-- accepted V4 lock `416202f5a7ee4c55950d5db9d13a718c721fc801`;
+- V4 candidate `ec00f0c552e600fff38e4998e4beb128c93b481d`;
+- accepted V4 lock `4de9c2185a1359d2877b17958666f91497a91179`;
 - accepted V4 enforcement set
-  `f28b445fe5f1e632d1265ead825ecf9338644a3ae2704fde83ba1cedaf6be695`.
+  `00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a`.
 
 ## Candidate derivation
 
@@ -49,6 +49,8 @@ V4 rows except the single reviewed V4→V5 runner transition. It verifies every
 current tree mode/blob, executes the canonical V5 source-generation dispatcher,
 requires V5 observer behavior and obsolete-generation refusal, and emits a
 content-addressed V5 candidate JSON.
+
+The candidate remains deliberately unaccepted. Its proof now uses a bounded same-descriptor `maxBytes + 1` reader, revalidates descriptor and visible-path generation, and directly tests lstat→open regular replacement, symlink, FIFO substitution with `O_NONBLOCK|O_NOFOLLOW`, post-open growth, and oversize rejection.
 
 The candidate remains deliberately unaccepted:
 
@@ -81,3 +83,7 @@ access, signing, transaction/payment acceptance, presale/WC activation,
 treasury/liquidity action, or funds movement.
 
 PROTECT THE CORE.
+
+## Current proof identity
+
+Hardened candidate proof Git blob: `d0640059728e4e68c1c80e65841de2b192c9c57c`.

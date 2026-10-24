@@ -5,7 +5,7 @@
   "repository": "6ZoSo9/void-node",
   "runtime_source_parent": "16563121f8d6c2a1fa7cd2f99ca4be2f88aa3cca",
   "protected_census_parent": "3faa7ba803b479d0f709bdc1f437b553154787d9",
-  "current_enforcement_parent": "5e71209a92cb428fe0692a4764b3dd7466645e75",
+  "current_enforcement_parent": "1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26",
   "hosted_census_evidence": {
     "workflow_run": 38649905025,
     "node22_artifact_id": 11934412568,
@@ -61,7 +61,7 @@
     },
     {
       "path": "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts",
-      "git_blob_sha1": "f2d5288d6c1b639df6d9dcb1c174046ec9287f3b",
+      "git_blob_sha1": "e0a682ea4038ca22e3a3b97da2cac29874096c46",
       "git_mode": "100644"
     },
     {
@@ -286,7 +286,7 @@
     }
   ],
   "current_enforcement_tracked_source_inventory_count": 49,
-  "current_enforcement_tracked_source_inventory_sha256": "686745113e5e5223a357c053a41496dc8ded12698c31967d541efea7bfe469f1",
+  "current_enforcement_tracked_source_inventory_sha256": "c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d",
   "current_enforcement_tracked_source_inventory_verified": true,
   "current_enforcement_parent_path_identity_preserved": true,
   "predecessor_enforcement": {
@@ -376,35 +376,25 @@
   "funds_movement": false,
   "successor_transition": {
     "predecessor_candidate_path": "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json",
-    "predecessor_candidate_git_blob_sha1": "5301c32f53c2a82435152e38b36486507a73f906",
+    "predecessor_candidate_git_blob_sha1": "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa",
     "predecessor_lock_path": "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json",
-    "predecessor_lock_git_blob_sha1": "e530390e505d447ca0ad9e2a098ec6a819ae3e6c",
-    "composition_parent": "5e71209a92cb428fe0692a4764b3dd7466645e75",
-    "composition_proof_path": "scripts/prove_buy_void_v7_v2_hardened_receipt_range_composition_v1.mjs",
-    "composition_proof_git_blob_sha1": "3e2e5aac39a1a1ba4c09d48c67a84591c77e24a9",
-    "predecessor_current_inventory_sha256": "65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589",
-    "current_inventory_sha256": "686745113e5e5223a357c053a41496dc8ded12698c31967d541efea7bfe469f1",
+    "predecessor_lock_git_blob_sha1": "f1b9d661eb3363e9bf18dbeb3610c659a54219bb",
+    "dispatch_v3_proof_path": "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs",
+    "dispatch_v3_proof_git_blob_sha1": "2dd9e7024eaafe4641c0d3ac7d10f542a441bb92",
+    "frozen_protected_inventory_sha256": "65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589",
+    "current_protected_inventory_sha256": "c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d",
     "reviewed_protected_drift_count": 1,
-    "reviewed_protected_drift": {
-      "path": "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts",
-      "predecessor_git_blob_sha1": "3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0",
-      "current_git_blob_sha1": "f2d5288d6c1b639df6d9dcb1c174046ec9287f3b",
-      "git_mode": "100644"
-    },
+    "reviewed_deployment_reader_successor_bound": true,
+    "workflow_dispatch_contracts_bound": true,
+    "production_tracked_file_nonblocking": true,
+    "production_tracked_file_fifo_swap_rejected": true,
+    "frozen_v4_census_proof_preserved": true,
+    "nonprotected_economic_drift_count": 3,
+    "predecessor_tool_git_blob_sha1": "3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0",
+    "current_tool_git_blob_sha1": "e0a682ea4038ca22e3a3b97da2cac29874096c46",
     "predecessor_candidate_preserved": true,
     "predecessor_lock_preserved": true,
     "current_candidate_rederived": true
   },
-  "hosted_composition_evidence": {
-    "workflow_run": 39982169951,
-    "node22_artifact_id": 12514272109,
-    "node24_artifact_id": 12514485977,
-    "node26_artifact_id": 12513009476,
-    "cross_node_job_id": 120514201748,
-    "planner_hold_job_id": 120515308789,
-    "cross_node_byte_identity_verified": true,
-    "accepted_v3_lock_hardened_receipt_hold_verified": true,
-    "current_enforcement_tracked_source_inventory_sha256": "686745113e5e5223a357c053a41496dc8ded12698c31967d541efea7bfe469f1"
-  },
-  "candidate_enforcement_set_sha256": "f28b445fe5f1e632d1265ead825ecf9338644a3ae2704fde83ba1cedaf6be695"
+  "candidate_enforcement_set_sha256": "00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a"
 }

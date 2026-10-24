@@ -26,47 +26,8 @@ jobs:
       - name: Bind exact four-file scope and blobs
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.repository.default_branch }}
-          EVENT_NAME: ${{ github.event_name }}
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REF" = "ren/v7-v2-hardened-receipt-range-composition-v1-20261021" ]; then
-            test "$PR_BASE" = "e6336075802680577f4d3e82ab7384b5c212bb4c"
-            git merge-base --is-ancestor "$PR_BASE" "$EXPECTED_HEAD"
-            expected="$RUNNER_TEMP/composition-expected.txt"
-            actual="$RUNNER_TEMP/composition-actual.txt"
-            printf '%s\n' \
-              '.github/workflows/buy-void-v7-protected-substrate-install-v4.yml' \
-              '.github/workflows/buy-void-v7-v2-hardened-receipt-range-composition-v1.yml' \
-              '.github/workflows/void-v7-source-release-full-history-reseal-v1.yml' \
-              'docs/architecture/buy-void-v7-v2-hardened-receipt-range-composition-v1.md' \
-              'docs/operators/buy-void-source-finality-v7-deployment-receipt-install-v1.md' \
-              'docs/operators/buy-void-v7-protected-substrate-install-v4.md' \
-              'ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts' \
-              'ops/precision/void_buy_void_v7_protected_substrate_install_v4.py' \
-              'scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts' \
-              'scripts/prove_buy_void_v7_protected_substrate_install_v4.py' \
-              'scripts/prove_buy_void_v7_v2_hardened_receipt_range_composition_v1.mjs' \
-              | sort > "$expected"
-            git diff --name-only "$PR_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
-            diff -u "$expected" "$actual"
-            git diff --check "$PR_BASE" "$EXPECTED_HEAD"
-            test -z "$(git status --porcelain=v1 --untracked-files=all)"
-            echo "composition_scope_exact=true"
-            return_from_scope_guard=1
-          else
-            return_from_scope_guard=0
-          fi
-
-          if [ "$return_from_scope_guard" -eq 1 ]; then
-            test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
-            test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v1.py)" = "b59b4ad0d2c31988908a281ad18f40ecbb3961ac"
-            test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v1.md)" = "1e53d9fc404e2711358dbad796ab913f1dc481da"
-            exit 0
-          fi
           test "$(git rev-parse HEAD:ops/precision/void_v7_source_release_full_history_reseal_v1.py)" = "030182d544a92cd6c67868fa4c4f3e83188e4249"
           test "$(git rev-parse HEAD:scripts/prove_void_v7_source_release_full_history_reseal_v1.py)" = "b59b4ad0d2c31988908a281ad18f40ecbb3961ac"
           test "$(git rev-parse HEAD:docs/operators/void-v7-source-release-full-history-reseal-v1.md)" = "1e53d9fc404e2711358dbad796ab913f1dc481da"

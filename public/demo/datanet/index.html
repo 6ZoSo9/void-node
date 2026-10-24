@@ -107,6 +107,7 @@
     .toolbar { margin-bottom: 12px; }
     .full { width: 100%; }
     .stack { display: grid; gap: 12px; }
+    .quick-field { display: grid; flex: 1; gap: 6px; }
     .selectedBox {
       background: #0a1228;
       border: 1px solid var(--border);
@@ -141,6 +142,7 @@
         <span id="quickDemoPill" class="pill warn">quick demo: ready</span>
       </div>
 
+      <label for="quickPlaintext" class="small muted">Text to store</label>
       <textarea id="quickPlaintext">hello from VOID DataNet quick demo</textarea>
 
       <div class="row" style="margin-top:10px;">
@@ -148,11 +150,20 @@
         <button onclick="quickFetchText()">Fetch stored text</button>
         <button onclick="quickCopyDatasetId()">Copy dataset id</button>
         <button onclick="quickCopyShareLink()">Copy share link</button>
-        <input id="quickDatasetIdInput" type="text" placeholder="Paste dataset id to open" style="min-width:280px;flex:1;" />
+        <div class="quick-field" style="min-width:280px;">
+          <label for="quickDatasetIdInput" class="small muted">Dataset id to open</label>
+          <input id="quickDatasetIdInput" type="text" placeholder="Paste dataset id" />
+        </div>
         <button onclick="quickOpenDatasetById()">Open dataset id</button>
-        <input id="quickPeerHttpInput" type="text" placeholder="Peer URL, e.g. http://100.x.x.x:4100" style="min-width:320px;flex:1;" />
+        <div class="quick-field" style="min-width:320px;">
+          <label for="quickPeerHttpInput" class="small muted">Peer URL to import from</label>
+          <input id="quickPeerHttpInput" type="text" placeholder="e.g. http://100.x.x.x:4100" />
+        </div>
         <button onclick="quickImportFromPeer()">Import from peer</button>
-        <input id="quickShareImportInput" type="text" placeholder="Paste peer share URL to import" style="min-width:360px;flex:1;" />
+        <div class="quick-field" style="min-width:360px;">
+          <label for="quickShareImportInput" class="small muted">Peer share URL to import</label>
+          <input id="quickShareImportInput" type="text" placeholder="Paste peer share URL" />
+        </div>
         <button onclick="quickImportFromShareUrl()">Import share URL</button>
         <span id="quickStatus" class="muted small"></span><!-- VOID_DATANET_DEMO_SHARE_OPEN_BY_ID_UI_V1 --><!-- VOID_DATANET_DEMO_PEER_IMPORT_UI_V1 --><!-- VOID_DATANET_DEMO_IMPORT_SHARE_URL_UI_V1 -->
       </div>

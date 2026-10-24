@@ -2,28 +2,29 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const MARKER="VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V5";
-const PARENT="94a07497a1583ec990ac0ca665604bebf570b5e7";
+const PARENT="a016ea761ccdba10352337ad97c05ba8b52ce6cf";
 const SELF="scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs";
 const DOC="docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v5.md";
 const WORKFLOW=".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v5.yml";
 
 const COMPOSITION_PROOF="scripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs";
-const COMPOSITION_PROOF_BLOB="1d76844acb0f09eeaef5df5803280dbc8830d7de";
+const COMPOSITION_PROOF_BLOB="0f731f9932d043f6c0eaac8db6cc4eca7673f9c2";
 const COMPOSITION_DOC="docs/architecture/buy-void-protected-v4-lock-canonical-v5-composition-v2.md";
-const COMPOSITION_DOC_BLOB="e25a32fcc852f9feffc88920842a0a04de682195";
+const COMPOSITION_DOC_BLOB="221bd4b8d7b908b2f893e5301143600952545901";
 const COMPOSITION_WORKFLOW=".github/workflows/buy-void-protected-v4-lock-canonical-v5-composition-v2.yml";
-const COMPOSITION_WORKFLOW_BLOB="91803f0ccaca8840c5ddb227add74ae39dfa248a";
+const COMPOSITION_WORKFLOW_BLOB="21971621fae40fdce2d4bcd7f54e269c7fdf22b7";
 const HOSTED_COMPOSITION=Object.freeze({
-  workflow_run:39995907220,
-  node22_job_id:120559244919,
-  node24_job_id:120559244633,
-  node26_job_id:120559245016,
+  workflow_run:40092224628,
+  node22_job_id:120867064615,
+  node24_job_id:120867064444,
+  node26_job_id:120867064630,
   node22_success:true,
   node24_success:true,
   node26_success:true,
@@ -32,10 +33,10 @@ const HOSTED_COMPOSITION=Object.freeze({
 });
 
 const CANDIDATE_V4="ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json";
-const CANDIDATE_V4_BLOB="b8341906d9563739a50dac98ea184a1d93267531";
+const CANDIDATE_V4_BLOB="ec00f0c552e600fff38e4998e4beb128c93b481d";
 const LOCK_V4="ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json";
-const LOCK_V4_BLOB="416202f5a7ee4c55950d5db9d13a718c721fc801";
-const ACCEPTED_V4_SET="f28b445fe5f1e632d1265ead825ecf9338644a3ae2704fde83ba1cedaf6be695";
+const LOCK_V4_BLOB="4de9c2185a1359d2877b17958666f91497a91179";
+const ACCEPTED_V4_SET="00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a";
 
 const RUNNER="ops/run-void-node-live-v1.sh";
 const RUNNER_V4_BLOB="6fb040de128ce0df16e848d61ea5f4acb62794da";
@@ -89,27 +90,50 @@ function treeEntry(ref,relative){
   assert.equal(m[3],relative);
   return Object.freeze({mode:m[1],blob:m[2]});
 }
-function readExact(relative,max=4*1024*1024){
-  assert.equal(path.isAbsolute(relative),false);
-  assert.equal(relative.split("/").some(x=>!x||x==="."||x===".."),false);
-  const absolute=path.join(ROOT,...relative.split("/"));
+const STAT_FIELDS=Object.freeze(["dev","ino","mode","nlink","uid","gid","rdev","size","mtimeMs","ctimeMs"]);
+function sameStat(actual,expected,label){for(const key of STAT_FIELDS)assert.equal(actual[key],expected[key],label+":"+key);}
+function readExactAt(root,relative,max=4*1024*1024,{beforeOpen=null,afterOpen=null}={}){
+  assert.equal(path.isAbsolute(relative),false,"absolute_path:"+relative);
+  assert.equal(relative.split("/").some(x=>!x||x==="."||x===".."),false,"unsafe_path:"+relative);
+  assert.ok(Number.isSafeInteger(max)&&max>0&&max<Number.MAX_SAFE_INTEGER,"invalid_max:"+relative);
+  const absolute=path.join(root,...relative.split("/"));
   const before=fs.lstatSync(absolute);
-  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1);
-  assert.ok(before.size>0&&before.size<=max);
-  const flags=fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK;
-  const fd=fs.openSync(absolute,flags);
+  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&before.size>0&&before.size<=max,"invalid_file:"+relative);
+  if(beforeOpen)beforeOpen(absolute,before);
+  let fd=-1;
   try{
+    fd=fs.openSync(absolute,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
     const opened=fs.fstatSync(fd);
-    assert.equal(opened.isFile(),true);
-    assert.equal(opened.dev,before.dev);assert.equal(opened.ino,before.ino);
-    assert.equal(opened.size,before.size);
-    const bytes=fs.readFileSync(fd);
-    const after=fs.fstatSync(fd);
-    assert.equal(after.dev,opened.dev);assert.equal(after.ino,opened.ino);
-    assert.equal(after.size,opened.size);
-    assert.equal(bytes.length,opened.size);
-    return bytes;
-  }finally{fs.closeSync(fd);}
+    assert.ok(opened.isFile()&&opened.nlink===1&&opened.size>0&&opened.size<=max,"invalid_opened_file:"+relative);
+    sameStat(opened,before,"open_generation:"+relative);
+    if(afterOpen)afterOpen(absolute,opened,fd);
+    const chunks=[];const scratch=Buffer.alloc(Math.min(64*1024,max+1));let total=0;
+    while(total<=max){
+      const want=Math.min(scratch.length,max+1-total);if(!want)break;
+      const n=fs.readSync(fd,scratch,0,want,null);if(!n)break;
+      chunks.push(Buffer.from(scratch.subarray(0,n)));total+=n;
+    }
+    assert.ok(total<=max,"file_size_limit:"+relative);
+    assert.equal(total,opened.size,"short_or_grown_read:"+relative);
+    sameStat(fs.fstatSync(fd),opened,"descriptor_generation:"+relative);
+    sameStat(fs.lstatSync(absolute),opened,"visible_generation:"+relative);
+    return Buffer.concat(chunks,total);
+  }finally{if(fd>=0)fs.closeSync(fd);}
+}
+const readExact=(relative,max=4*1024*1024)=>readExactAt(ROOT,relative,max);
+function readerSelfTest(){
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-v5-candidate-reader-"));
+  try{
+    const dep=path.join(temp,"dep"),target=path.join(temp,"target");
+    fs.writeFileSync(dep,"good",{mode:0o600});assert.equal(readExactAt(temp,"dep",8).toString(),"good");
+    assert.throws(()=>readExactAt(temp,"dep",8,{beforeOpen:absolute=>{fs.renameSync(absolute,absolute+".old");fs.writeFileSync(absolute,"evil",{mode:0o600});}}),/open_generation:dep/);
+    fs.rmSync(dep,{force:true});fs.writeFileSync(target,"good",{mode:0o600});fs.symlinkSync("target",dep);assert.throws(()=>readExactAt(temp,"dep",8),/invalid_file:dep/);
+    fs.rmSync(dep,{force:true});fs.writeFileSync(dep,"good",{mode:0o600});assert.throws(()=>readExactAt(temp,"dep",8,{beforeOpen:absolute=>{fs.renameSync(absolute,absolute+".link-old");fs.symlinkSync("target",absolute);}}),err=>err&&err.code==="ELOOP");
+    fs.rmSync(dep,{force:true});fs.writeFileSync(dep,"good",{mode:0o600});assert.throws(()=>readExactAt(temp,"dep",8,{beforeOpen:absolute=>{fs.renameSync(absolute,absolute+".fifo-old");run("/usr/bin/mkfifo",[absolute],{timeout:5000});}}),/invalid_opened_file:dep/);
+    fs.rmSync(dep,{force:true});fs.writeFileSync(dep,"good",{mode:0o600});assert.throws(()=>readExactAt(temp,"dep",8,{afterOpen:absolute=>fs.appendFileSync(absolute,"x")}),/short_or_grown_read:dep/);
+    fs.rmSync(dep,{force:true});fs.writeFileSync(dep,"good",{mode:0o600});assert.throws(()=>readExactAt(temp,"dep",8,{afterOpen:absolute=>fs.appendFileSync(absolute,"growth")}),/file_size_limit:dep/);
+    fs.rmSync(dep,{force:true});fs.writeFileSync(dep,"123456789",{mode:0o600});assert.throws(()=>readExactAt(temp,"dep",8),/invalid_file:dep/);
+  }finally{fs.rmSync(temp,{recursive:true,force:true});}
 }
 function pin(relative,blob,max=4*1024*1024){
   const bytes=readExact(relative,max);
@@ -138,6 +162,7 @@ function proveV5(){
 }
 function derive(){
   assertScope();
+  readerSelfTest();
   pin(COMPOSITION_PROOF,COMPOSITION_PROOF_BLOB,256*1024);
   pin(COMPOSITION_DOC,COMPOSITION_DOC_BLOB,128*1024);
   pin(COMPOSITION_WORKFLOW,COMPOSITION_WORKFLOW_BLOB,128*1024);
@@ -282,6 +307,8 @@ function derive(){
 const args=process.argv.slice(2);
 if(args.length===1&&args[0]==="--derive"){
   process.stdout.write(JSON.stringify(derive(),null,2)+"\n");
+}else if(args.length===1&&args[0]==="--reader-self-test"){
+  readerSelfTest();console.log("VOID_BUY_VOID_V5_CANDIDATE_READER_SELF_TEST_GREEN");
 }else if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   const c=derive();
   assert.match(c.candidate_enforcement_set_sha256,/^[0-9a-f]{64}$/u);
@@ -302,5 +329,5 @@ if(args.length===1&&args[0]==="--derive"){
   console.log("public_presale_activation=false");
   console.log("funds_movement=false");
 }else{
-  throw Error("usage: proof [--self-test|--derive]");
+  throw Error("usage: proof [--self-test|--reader-self-test|--derive]");
 }

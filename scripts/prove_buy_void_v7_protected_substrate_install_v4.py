@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import ast, os, pathlib, shutil, stat, subprocess, sys, tempfile
+import ast, importlib.util, os, pathlib, stat, subprocess, sys, tempfile
 
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 MARKER="VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4_PROOF"
@@ -16,7 +16,7 @@ def gblob(path:pathlib.Path)->str:
     if cp.returncode or cp.stderr: raise RuntimeError("hash_object_failed:"+str(path))
     return cp.stdout.strip()
 
-assert gblob(INS)=="94112afa2f805e0a6ce881a490c1c64e31e0413e"
+assert gblob(INS)=="4448acb51cbc15d845550a55cd11c38f4185a7b3"
 assert gblob(MAT)=="474614da950db72082fb95a5174405ce8caf2513"
 assert gblob(PRED)=="4bf7c29dc32b6c358a3cd299055bf6c2ebe71c38"
 assert gblob(LOCK)=="831f6e3f79a62a334662cebc6d2c39133bc7a309"
@@ -62,7 +62,7 @@ required=(
     'installed_qualifier_v3_bound=true',
     'immutable_source_release_root_mode_0555_required=true',
     'protected_source_root_mode_0755_required=true',
-    'def require_git_metadata_provenance(root: pathlib.Path, label: str) -> None:',
+    'def require_git_metadata_provenance(root: pathlib.Path, label: str) -> str:',
     'git_dir_must_be_real_directory',
     'git_metadata_indirection_forbidden',
     'git_config_include_forbidden',
@@ -71,18 +71,28 @@ required=(
     'git_config_core_attributesfile_forbidden',
     'git_config_filter_forbidden',
     'git_local_config_exact_allowlist_required=true',
-    'git_raw_head_tree_manifest_required=true',
-    'git_ignored_untracked_rejected_by_manifest=true',
+    'def _write_git_metadata_fixture(',
+    'def _assert_git_metadata_fixture_rejected(mutator: Any) -> None:',
+    'def _direct_main_ref(root: pathlib.Path, label: str) -> str:',
+    'def _git_tree_oid_from_worktree(root: pathlib.Path, label: str) -> str:',
+    'with os.scandir(directory) as scan:',
+    'for entry in scan:',
+    'if nodes > MAX_NODES:',
+    'names.append(entry.name)',
     'def require_worktree_matches_tree(root: pathlib.Path, expected_tree: str, label: str) -> None:',
-    'def _verify_worktree_manifest(',
     'git_config_promisor_forbidden',
-    '"rev-parse", "--git-common-dir"',
-    '"rev-parse", "--is-shallow-repository"',
     'require_git_metadata_provenance(ROOT, "checkout")',
     'require_git_metadata_provenance(SOURCE_RELEASE, "source_release")',
     'require_git_metadata_provenance(SOURCE_STAGE, "source_stage")',
     'require_git_metadata_provenance(SOURCE_TARGET, "protected_source")',
     'git_metadata_provenance_required_for_all_roots=true',
+    'git_dynamic_observer_authority_removed=true',
+    'direct_main_ref_required=true',
+    'direct_worktree_git_tree_oid_required=true',
+    'trusted_launcher_expected_head_tree_pair_required=true',
+    'dynamic_git_execution_not_authoritative=true',
+    'parser.add_argument("--expected-tree", default="")',
+    '"expected_tree": expected_tree',
     'def install_parent_custody()',
     'def install_parent_fd_matches(',
     '"install_parent_custody_exact": True',
@@ -115,17 +125,6 @@ required=(
     'def _require_runtime_uid_nonwritable(',
     'os.fork()',
     'os.setgroups([])',
-    'def _open_trusted_tool_lease(',
-    'def _revalidate_trusted_tool_lease(',
-    'def _run_runtime_observer_tool(',
-    'f"/proc/self/fd/{tool_fd}"',
-    'pass_fds=(tool_fd,)',
-    'preexec_fn=_drop_to_runtime_identity_preexec',
-    'PR_SET_NO_NEW_PRIVS = 38',
-    'def _drop_to_runtime_identity_preexec() -> None:',
-    'prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)',
-    'os.setgid(RUNTIME_GID)',
-    'os.setuid(RUNTIME_UID)',
     'os.access(raw_path, os.W_OK, effective_ids=True)',
     '_require_runtime_uid_nonwritable(runtime_paths, "privileged_source")',
     '_require_runtime_uid_nonwritable(runtime_paths, "install_parent")',
@@ -154,16 +153,16 @@ assert 'FIXED_PYTHON' not in src
 assert '_RUNTIME_WRITE_AUDIT_CODE' not in src
 assert 'FIXED_SETPRIV' not in src
 assert 'setpriv_fd' not in src
+assert 'FIXED_GIT' not in src
+assert '/usr/bin/git' not in src
+assert 'subprocess.' not in src
+assert '_run_runtime_observer_tool' not in src
+assert '_open_trusted_tool_lease' not in src
+assert 'preexec_fn=' not in src
 assert '"--no-new-privs"' not in src
-assert 'preexec_fn=_drop_to_runtime_identity_preexec' in src
-observer_drop=src[src.index('def _drop_to_runtime_identity_preexec'):src.index('def _run_runtime_observer_tool(')]
-assert observer_drop.index('prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)') < observer_drop.index('os.setgroups([])')
-assert observer_drop.index('os.setgroups([])') < observer_drop.index('os.setgid(RUNTIME_GID)') < observer_drop.index('os.setuid(RUNTIME_UID)')
-observer_run=src[src.index('def _run_runtime_observer_tool('):src.index('def _read_metadata_file(')]
-assert 'f"/proc/self/fd/{tool_fd}"' in observer_run
-assert 'pass_fds=(tool_fd,)' in observer_run
-assert 'preexec_fn=_drop_to_runtime_identity_preexec' in observer_run
-assert 'setpriv' not in observer_run.lower()
+assert 'list(os.scandir(' not in src
+assert 'sorted(os.scandir(' not in src
+assert 'os.listdir(' not in src
 tree_body=src[src.index('def tree_digest('):src.index('def candidate_fd_metadata_valid(')]
 dir_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_directories, "tree_directories")')
 reg_audit=tree_body.index('_require_runtime_uid_nonwritable(runtime_regulars, "tree_regulars")')
@@ -171,7 +170,7 @@ content_read=tree_body.index('digest = _read_regular_sha256_exact(')
 root_pre_descent=tree_body.index('_require_runtime_uid_nonwritable([root], "tree_root_pre_descent")')
 first_scandir=tree_body.index('os.scandir(directory)')
 child_pre_descent=tree_body.index('_require_runtime_uid_nonwritable([child], "tree_directory_pre_descent")')
-child_queue=tree_body.index('pending.append((child, rel / entry.name))')
+child_queue=tree_body.index('pending.append((child, rel / entry_name))')
 assert root_pre_descent < first_scandir
 assert first_scandir < child_pre_descent < child_queue
 assert dir_audit < reg_audit < content_read
@@ -286,29 +285,82 @@ with tempfile.TemporaryDirectory(prefix="void-v7-effective-write-model-") as td:
     assert (mode & 0o022)==0
     assert os.access(model,os.W_OK,effective_ids=True)
 
-with tempfile.TemporaryDirectory(prefix="void-v7-trusted-tool-path-swap-") as td:
-    t=pathlib.Path(td)
-    visible=t/"tool"
-    retained=t/"retained-python"
-    shutil.copyfile(sys.executable,visible)
-    os.chmod(visible,0o555)
-    fd=os.open(visible,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK)
+spec = importlib.util.spec_from_file_location("void_v7_install_v4_direct_tree", INS)
+assert spec is not None and spec.loader is not None
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+with tempfile.TemporaryDirectory(prefix="void-v7-direct-tree-node-ceiling-") as td:
+    wide = pathlib.Path(td)
+    for index in range(4):
+        (wide / ("entry-" + str(index))).write_bytes(b"x")
+    original_max_nodes = module.MAX_NODES
+    module.MAX_NODES = 3
     try:
-        before=os.fstat(fd)
-        visible.rename(retained)
-        visible.write_text("#!/bin/sh\\nprintf \'ATTACKER\\\\n\'\\n","utf-8")
-        os.chmod(visible,0o555)
-        after_visible=visible.lstat()
-        assert (after_visible.st_dev,after_visible.st_ino)!=(before.st_dev,before.st_ino)
-        cp_swap=subprocess.run(
-            [f"/proc/self/fd/{fd}","-I","-B","-c","print(\'RETAINED_ORIGINAL\')"],
-            stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=20,
-            pass_fds=(fd,),
-        )
-        assert cp_swap.returncode==0 and cp_swap.stderr=="" and cp_swap.stdout.strip()=="RETAINED_ORIGINAL"
-        assert (os.fstat(fd).st_dev,os.fstat(fd).st_ino)==(before.st_dev,before.st_ino)
+        try:
+            module._git_tree_oid_from_worktree(wide, "proof_node_ceiling")
+        except module.InstallError as exc:
+            assert str(exc) == "proof_node_ceiling_worktree_node_limit"
+        else:
+            raise AssertionError("direct_tree_node_ceiling_not_enforced")
     finally:
-        os.close(fd)
+        module.MAX_NODES = original_max_nodes
+
+with tempfile.TemporaryDirectory(prefix="void-v7-direct-tree-git-oracle-") as td:
+    repo = pathlib.Path(td) / "repo"
+    repo.mkdir()
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/nonexistent",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+        "GIT_AUTHOR_NAME": "VOID Test",
+        "GIT_AUTHOR_EMAIL": "void@example.invalid",
+        "GIT_COMMITTER_NAME": "VOID Test",
+        "GIT_COMMITTER_EMAIL": "void@example.invalid",
+    }
+    def run_git(*args: str) -> subprocess.CompletedProcess[str]:
+        cp = subprocess.run(
+            ["/usr/bin/git", "-C", str(repo), *args],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            check=False, timeout=30, env=env,
+        )
+        assert cp.returncode == 0, (args, cp.stdout, cp.stderr)
+        return cp
+
+    run_git("init", "-q", "-b", "main")
+    (repo / "sub").mkdir()
+    (repo / "plain.txt").write_bytes(b"plain-bytes\n")
+    executable = repo / "sub" / "run.sh"
+    executable.write_bytes(b"#!/bin/sh\nexit 0\n")
+    os.chmod(executable, 0o755)
+    group_exec = repo / "group-exec.sh"
+    group_exec.write_bytes(b"#!/bin/sh\nexit 0\n")
+    os.chmod(group_exec, 0o650)
+    (repo / "link").symlink_to("plain.txt")
+    # Prefix-order adversary: Git sorts a directory as if its name ended in '/'.
+    (repo / "aa.dir").write_bytes(b"prefix-file\n")
+    (repo / "aa").mkdir()
+    (repo / "aa" / "inside").write_bytes(b"inside\n")
+    run_git("add", "-A")
+    run_git("commit", "-q", "-m", "fixture")
+    expected_head = run_git("rev-parse", "HEAD").stdout.strip()
+    expected_tree = run_git("rev-parse", "HEAD^{tree}").stdout.strip()
+
+    assert module.require_git_metadata_provenance(repo, "proof_fixture") == expected_head
+    assert module._git_tree_oid_from_worktree(repo, "proof_fixture") == expected_tree
+    module.require_worktree_matches_tree(repo, expected_tree, "proof_fixture")
+
+    untracked = repo / "untracked.tmp"
+    untracked.write_bytes(b"must-change-tree")
+    assert module._git_tree_oid_from_worktree(repo, "proof_fixture") != expected_tree
+    try:
+        module.require_worktree_matches_tree(repo, expected_tree, "proof_fixture")
+    except module.InstallError as exc:
+        assert str(exc) == "proof_fixture_worktree_tree_oid_mismatch"
+    else:
+        raise AssertionError("direct_tree_untracked_path_not_rejected")
 
 cp=subprocess.run([sys.executable,"-I","-B",str(INS),"--self-test"],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
 assert cp.returncode==0 and cp.stderr=="" and "VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V4_SELF_TEST_GREEN" in cp.stdout.splitlines()
@@ -329,11 +381,16 @@ assert "git_core_worktree_redirect_rejected=true" in cp.stdout.splitlines()
 assert "git_core_attributesfile_rejected=true" in cp.stdout.splitlines()
 assert "git_filter_driver_rejected=true" in cp.stdout.splitlines()
 assert "git_local_config_exact_allowlist_required=true" in cp.stdout.splitlines()
-assert "git_raw_head_tree_manifest_required=true" in cp.stdout.splitlines()
-assert "git_ignored_untracked_rejected_by_manifest=true" in cp.stdout.splitlines()
+assert "git_dynamic_observer_authority_removed=true" in cp.stdout.splitlines()
+assert "direct_main_ref_required=true" in cp.stdout.splitlines()
+assert "direct_worktree_git_tree_oid_required=true" in cp.stdout.splitlines()
+assert "trusted_launcher_expected_head_tree_pair_required=true" in cp.stdout.splitlines()
+assert "dynamic_git_execution_not_authoritative=true" in cp.stdout.splitlines()
+assert "untracked_paths_change_direct_tree_oid=true" in cp.stdout.splitlines()
+assert "direct_worktree_git_tree_oid_fixture_green=true" in cp.stdout.splitlines()
 assert "git_worktree_config_extension_rejected=true" in cp.stdout.splitlines()
 assert "git_promisor_partial_clone_rejected=true" in cp.stdout.splitlines()
-assert "git_exact_dir_common_toplevel_required=true" in cp.stdout.splitlines()
+assert "git_direct_main_ref_generation_required=true" in cp.stdout.splitlines()
 assert "git_metadata_provenance_required_for_all_roots=true" in cp.stdout.splitlines()
 assert "acl_aware_runtime_uid_nonwritability_required=true" in cp.stdout.splitlines()
 assert "tree_root_acl_audit_precedes_first_scandir=true" in cp.stdout.splitlines()
@@ -346,8 +403,7 @@ assert "installed_binary_acl_audit_precedes_hash=true" in cp.stdout.splitlines()
 assert "installed_binary_descriptor_hash_required=true" in cp.stdout.splitlines()
 assert "tree_regular_fifo_race_rejected_nonblocking=true" in cp.stdout.splitlines()
 assert "tree_regular_symlink_race_rejected_nofollow=true" in cp.stdout.splitlines()
-assert "trusted_tool_root_descriptor_execution_required=true" in cp.stdout.splitlines()
-assert "trusted_tool_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
+assert "dynamic_git_root_or_runtime_exec_removed=true" in cp.stdout.splitlines()
 assert "runtime_write_audit_external_helper_free=true" in cp.stdout.splitlines()
 assert "source_release_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
 assert "source_release_ancestor_generation_revalidation_required=true" in cp.stdout.splitlines()
@@ -361,10 +417,12 @@ assert "accepted_v1_lock_install_authority=false" in cp.stdout.splitlines()
 assert "git_metadata_provenance_required_for_all_roots=true" in cp.stdout.splitlines()
 assert "git_external_metadata_and_object_indirection_rejected=true" in cp.stdout.splitlines()
 assert "git_local_config_exact_allowlist_required=true" in cp.stdout.splitlines()
-assert "git_raw_head_tree_manifest_required=true" in cp.stdout.splitlines()
+assert "git_dynamic_observer_authority_removed=true" in cp.stdout.splitlines()
+assert "direct_main_ref_required=true" in cp.stdout.splitlines()
+assert "direct_worktree_git_tree_oid_required=true" in cp.stdout.splitlines()
+assert "trusted_launcher_expected_head_tree_pair_required=true" in cp.stdout.splitlines()
+assert "dynamic_git_execution_not_authoritative=true" in cp.stdout.splitlines()
 assert "acl_aware_runtime_uid_nonwritability_required=true" in cp.stdout.splitlines()
-assert "trusted_tool_root_descriptor_execution_required=true" in cp.stdout.splitlines()
-assert "trusted_tool_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
 assert "runtime_write_audit_external_helper_free=true" in cp.stdout.splitlines()
 assert "source_release_ancestor_acl_custody_required=true" in cp.stdout.splitlines()
 assert "source_release_ancestor_generation_revalidation_required=true" in cp.stdout.splitlines()
@@ -429,24 +487,28 @@ print("git_includeif_horizontal_whitespace_rejected=true")
 print("git_core_attributesfile_rejected=true")
 print("git_filter_driver_rejected=true")
 print("git_local_config_exact_allowlist_required=true")
-print("git_raw_head_tree_manifest_required=true")
-print("git_ignored_untracked_rejected_by_manifest=true")
-print("git_exact_dir_common_toplevel_bound=true")
+print("git_dynamic_observer_authority_removed=true")
+print("direct_main_ref_bound=true")
+print("direct_worktree_git_tree_oid_bound=true")
+print("trusted_launcher_expected_head_tree_pair_bound=true")
+print("dynamic_git_execution_not_authoritative=true")
+print("untracked_paths_change_direct_tree_oid_bound=true")
+print("git_direct_main_ref_generation_bound=true")
 print("git_metadata_provenance_all_privileged_roots_bound=true")
 print("trusted_root_launcher_still_required=true")
 print("mode_only_nonwritable_is_insufficient_model=true")
 print("installer_acl_aware_runtime_uid_write_audit_bound=true")
 print("runtime_uid_cleared_groups_write_audit_bound=true")
 print("runtime_write_audit_external_helper_free_bound=true")
-print("runtime_observer_root_time_setpriv_exec_removed=true")
-print("runtime_observer_no_new_privs_before_uid_drop_bound=true")
-print("runtime_observer_direct_uid_gid_drop_before_tool_exec_bound=true")
-print("trusted_tool_root_descriptor_execution_bound=true")
-print("trusted_tool_ancestor_acl_custody_bound=true")
-print("trusted_tool_terminal_revalidation_bound=true")
+print("v4_dynamic_git_subprocess_removed=true")
+print("v4_dynamic_git_evidence_authority_removed=true")
+print("v4_direct_tree_oracle_fixture_green=true")
 print("source_release_ancestor_acl_custody_bound=true")
 print("source_release_ancestor_generation_revalidation_bound=true")
-print("trusted_tool_descriptor_path_swap_adversary_bound=true")
+print("direct_tree_untracked_adversary_bound=true")
+print("direct_tree_node_ceiling_streamed_bound=true")
+print("all_v4_directory_walks_streamed_bound=true")
+print("all_v4_directory_materialization_fail_fast_bound=true")
 print("qualifier_acl_aware_runtime_uid_write_audit_bound=true")
 print("qualifier_runtime_uid_gid_1000_bound=true")
 print("qualifier_supplementary_groups_empty_bound=true")

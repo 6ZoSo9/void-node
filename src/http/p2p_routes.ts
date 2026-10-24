@@ -4,14 +4,19 @@
 // src/http/p2p_routes.ts
 import type express from "express";
 
+import { parsePeerAddress } from "../types/p2p.js";
+
 export function registerP2PRoutes(app: express.Express, node: any) {
   // Dial another node's P2P address, e.g. 127.0.0.1:4700
   const doDial = (addr: string) => {
-    if (!addr || !/^[^:]+:\d+$/.test(addr)) return { ok: false, error: "bad addr" };
+    const parsed = parsePeerAddress(addr);
+    if (!parsed) return { ok: false, error: "bad addr" };
+
+    const canonical = parsed.canonical;
     try {
       if (typeof node.connect === "function") {
-        node.connect(addr);
-        return { ok: true, dialing: addr };
+        node.connect(canonical);
+        return { ok: true, dialing: canonical };
       }
       return { ok: false, error: "node.connect() not available" };
     } catch (e: any) {
@@ -19,13 +24,16 @@ export function registerP2PRoutes(app: express.Express, node: any) {
     }
   };
 
+  const readAddress = (value: unknown) =>
+    typeof value === "string" ? value : "";
+
   app.get("/p2p/dial", (req, res) => {
-    const addr = String(req.query.addr || "");
+    const addr = readAddress(req.query.addr);
     res.json(doDial(addr));
   });
 
   app.post("/p2p/dial", (req, res) => {
-    const addr = String((req.body && (req.body.addr ?? req.query.addr)) || "");
+    const addr = readAddress(req.body?.addr ?? req.query.addr);
     res.json(doDial(addr));
   });
 
@@ -61,4 +69,3 @@ export function registerP2PRoutes(app: express.Express, node: any) {
     res.json({ ok: true, known });
   });
 }
-

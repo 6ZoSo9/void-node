@@ -1,0 +1,87 @@
+name: VOID Buy VOID V7 protected substrate installer V6
+
+on:
+  pull_request:
+    paths:
+      - 'ops/precision/void_buy_void_v7_protected_substrate_install_v6.py'
+      - 'ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v5.py'
+      - 'scripts/prove_buy_void_v7_protected_substrate_install_v6.py'
+      - 'docs/operators/buy-void-v7-protected-substrate-install-v6.md'
+      - '.github/workflows/buy-void-v7-protected-substrate-install-v6.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  protected-substrate-v6-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+
+      - name: Bind exact five-file generation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v6.py)" = "bff71178f3771a04d96d4f4a9aabe88e050eb683"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v5.py)" = "e078cc69386f513c0bc4181ab12499d58356af61"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v6.py)" = "2fc74b7f4c19e945575cfdc11fed2482cd12e0b7"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v6.md)" = "d5e219636f66d94087a86e531097f47c96e5ffe3"
+          git merge-base --is-ancestor cfc77165cdff35dd02090c1137473dadd385e8f4 HEAD
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cat > "$RUNNER_TEMP/expected-v6-scope" <<'EOF'
+          A	.github/workflows/buy-void-v7-protected-substrate-install-v6.yml
+          A	docs/operators/buy-void-v7-protected-substrate-install-v6.md
+          A	ops/precision/void_buy_void_v7_protected_substrate_install_v6.py
+          A	ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v5.py
+          A	scripts/prove_buy_void_v7_protected_substrate_install_v6.py
+          EOF
+            git diff --name-status "${{ github.event.pull_request.base.sha }}" HEAD -- | sort > "$RUNNER_TEMP/actual-v6-scope"
+            sort "$RUNNER_TEMP/expected-v6-scope" > "$RUNNER_TEMP/expected-v6-scope.sorted"
+            diff -u "$RUNNER_TEMP/expected-v6-scope.sorted" "$RUNNER_TEMP/actual-v6-scope"
+          fi
+          git diff --check
+
+      - name: Compile Python sources
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for rel in (
+              "ops/precision/void_buy_void_v7_protected_substrate_install_v6.py",
+              "ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v5.py",
+              "scripts/prove_buy_void_v7_protected_substrate_install_v6.py",
+          ):
+              raw = Path(rel).read_bytes()
+              compile(raw, rel, "exec", dont_inherit=True, optimize=0)
+          PY
+
+      - name: Prove V5 to V6 bridge transition
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_buy_void_v7_protected_substrate_install_v6.py
+
+      - name: Reassert authority boundary
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_install_v6.py --source-plan > "$RUNNER_TEMP/v6-source-plan"
+          grep -Fx 'source_only=true' "$RUNNER_TEMP/v6-source-plan"
+          grep -Fx 'builtin_voidfs_required=true' "$RUNNER_TEMP/v6-source-plan"
+          grep -Fx 'ctypes_forbidden=true' "$RUNNER_TEMP/v6-source-plan"
+          grep -Fx 'protected_filesystem_mutation=false' "$RUNNER_TEMP/v6-source-plan"
+          grep -Fx 'service_mutation=false' "$RUNNER_TEMP/v6-source-plan"
+          grep -Fx 'transaction=false' "$RUNNER_TEMP/v6-source-plan"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v6-source-plan"
+
+          python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v5.py --source-plan > "$RUNNER_TEMP/q5-source-plan"
+          grep -Fx 'v6_installer_git_blob_sha1=bff71178f3771a04d96d4f4a9aabe88e050eb683' "$RUNNER_TEMP/q5-source-plan"
+          grep -Fx 'host_read=false' "$RUNNER_TEMP/q5-source-plan"
+          grep -Fx 'host_write=false' "$RUNNER_TEMP/q5-source-plan"
