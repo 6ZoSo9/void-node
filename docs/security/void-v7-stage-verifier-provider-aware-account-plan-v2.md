@@ -12,7 +12,7 @@ Current exact role/stager identities:
 - source-stage installer: Git blob `d88a9548ea34b8209ed7dcd53732fd25dd1371bf`;
 - receipt-stage installer: Git blob `b462696826b4f90fdf5f4938cd5467e5711addab`.
 
-This plan's exact machine source is `ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json`, Git blob `c38b886ec58bcc2e274d43b937defe0db4754a1a`. The exact source proof is `scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py`, Git blob `13b39f49a5827283c7c8385deb35a2f53a6c95fc`.
+This plan's exact machine source is `ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json`, Git blob `932fffe5fd5ba5d996f8cb6fd8928a618a9f92fb`. The exact source proof is `scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py`, Git blob `0a32190afaa03674d8b4f575d8f8d00cda39338a`.
 
 ## Why historical #3754 is not enough
 
@@ -73,19 +73,24 @@ A future candidate numeric UID/GID also requires:
 1. authenticated initial host PID and user namespace leases;
 2. complete procfs census over all live PIDs, including every real/effective/saved/filesystem UID and GID plus supplementary groups;
 3. explicit exclusion of deleted-account credentials retained by running processes;
-4. complete authenticated mounted-filesystem authority scope and mount generation;
-5. inclusion of tmpfs, bind, remote, and other mounts wherever numeric ownership or POSIX ACLs can confer authority;
-6. HOLD on any unreadable, unsupported or unclassifiable relevant mount;
-7. absence of existing ownership by the candidate UID/GID;
-8. absence of numeric POSIX access/default ACL references to the candidate UID/GID;
-9. absence from systemd DynamicUser/reservation state and future allocation ranges;
-10. absence from every existing subordinate-UID delegation;
-11. absence from every existing subordinate-GID delegation;
-12. absence from every configured SSSD future ID-mapping/allocation range unless separately reserved for the local identity;
-13. repetition of provider, process, mount, ownership and ACL evidence immediately before group creation;
-14. after group creation, re-authentication of the exact expected local group plus continued nonlocal group-provider absence;
-15. before user creation, renewed passwd-provider absence and proof that the selected GID acquired no process/file/ACL/service authority outside the expected account database record;
-16. the same complete provider/process/mount/ownership/ACL evidence immediately before user creation.
+4. census of every live user namespace's UID/GID mapping ranges, excluding any mapping that can translate the candidate host UID/GID into authority inside a live namespace;
+5. complete authenticated mounted-filesystem authority scope and mount generation;
+6. inclusion of tmpfs, bind, remote, and other mounts wherever numeric ownership or POSIX ACLs can confer authority;
+7. HOLD on any unreadable, unsupported or unclassifiable relevant mount;
+8. absence of existing ownership by the candidate UID/GID;
+9. absence of numeric POSIX access/default ACL references to the candidate UID/GID;
+10. absence from systemd DynamicUser/reservation state and future allocation ranges;
+11. absence from every existing subordinate-UID delegation;
+12. absence from every existing subordinate-GID delegation;
+13. absence from every configured SSSD future ID-mapping/allocation range unless separately reserved for the local identity;
+14. absence from System V IPC owner/creator UID/GID fields and any other persistent kernel authority object that can be completely censused; unknown or incomplete kernel authority scope is HOLD;
+15. identification of every idmapped mount/user-namespace mapping that affects numeric ownership or ACL interpretation, with correct host-ID translation or HOLD;
+16. absence of the proposed future **name** from subordinate-ID delegation entries, systemd-sysusers definitions, preexisting systemd credential/unit references, sudoers/Polkit or equivalent privilege policies, SSH login authorization, cron/at or scheduled execution, and tmpfiles/automatic chown/chgrp rules;
+17. a generation-bound name-authority census that HOLDs if any relevant name-based authority surface is unreadable, unknown, or unclassifiable;
+18. repetition of provider, process, mount, ownership and ACL evidence immediately before group creation;
+19. after group creation, re-authentication of the exact expected local group plus continued nonlocal group-provider absence;
+20. before user creation, renewed passwd-provider absence and proof that the selected GID acquired no process/file/ACL/service authority outside the expected account database record;
+21. the same complete provider/process/mount/ownership/ACL evidence immediately before user creation.
 
 A matching source-plan digest is never host attestation.
 
@@ -98,9 +103,11 @@ A separately reviewed provisioner may eventually:
 
 No existing identity may be modified or reused.
 
+Before either future create-only step, the proposed user/group name must also be absent from preexisting **name-based authority**: subordinate-ID entries, sysusers definitions, unexpected systemd User=/Group= or credential references, sudo/Polkit/SSH privilege rules, scheduled jobs, tmpfiles ownership rules, and other reviewed automatic privilege/chown surfaces. A preexisting future-facing reference is not made safe merely because NSS currently reports the name as absent.
+
 After the future group-create step, the selected group is expected to exist **exactly once in the bound local-files provider**. Before user creation, that exact local group binding must be re-authenticated, the same group name/GID must remain absent from every configured non-`files` group provider, the user name/UID must remain absent from every configured passwd provider, and complete process/mount/ownership/ACL evidence must be repeated. The expected local group is therefore not misclassified as a collision.
 
-Partial creation is HOLD. No automatic `usermod`, `userdel`, or `groupdel` is allowed. Rollback requires separate authorization and exact proof that the created generation owns no files/ACLs, has no live processes, group members, services, or other dependents, and was not preexisting.
+Partial creation is HOLD. No automatic `usermod`, `userdel`, or `groupdel` is allowed. Rollback requires separate authorization and exact proof that the created generation owns no files/ACLs, has no live processes, group members, services, user-namespace mappings, kernel IPC objects, or name-based authority dependents, and was not preexisting.
 
 After provisioning, effective NSS must resolve a unique name↔UID/GID mapping across the entire configured provider stack; no subordinate UID/GID delegation may have been created; and the selected IDs must remain outside provider-controlled future allocation ranges. Account creation alone still does **not** authorize V5 staging.
 
@@ -112,7 +119,7 @@ Run under a nonroot account on this exact branch:
 python3 -I -B scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py
 ```
 
-The proof pins this plan, current #3804 role contract, and both current #3715 installers. Its plan/role JSON reads use retained `O_NOFOLLOW|O_NONBLOCK` descriptors with exact regular-file size/EOF, visible-generation and Git-blob checks, plus disposable FIFO/symlink substitution regressions. It verifies all authority fields remain false and evaluates **54 synthetic fail-closed cases**, including provider-profile/order errors, unknown providers, provider health/collision ambiguity, SSS enumeration-only and future-ID-range evidence, systemd userdb/DynamicUser current and future allocation gaps, system-account-range and subordinate-ID delegation collisions, live-process collisions, mount/ownership/ACL reuse, stale recensus, login/group/admin authority, and recovery errors.
+The proof pins this plan, current #3804 role contract, and both current #3715 installers. Its plan/role JSON reads use retained `O_NOFOLLOW|O_NONBLOCK` descriptors with exact regular-file size/EOF, visible-generation and Git-blob checks, plus disposable FIFO/symlink substitution regressions. It verifies all authority fields remain false and evaluates **68 synthetic fail-closed cases**, including provider-profile/order errors, unknown providers, provider health/collision ambiguity, SSS enumeration-only and future-ID-range evidence, systemd userdb/DynamicUser current and future allocation gaps, system-account-range and subordinate-ID delegation collisions, live-process and live-user-namespace mapping collisions, SysV/kernel authority reuse, idmapped-mount ambiguity, stale numeric ownership/ACL reuse, latent name-based sysusers/systemd/sudo/Polkit/SSH/scheduled/tmpfiles authority, stale recensus, login/group/admin authority, and recovery errors.
 
 The fake `123456789/123456790` values are deliberately absurd proof-only numbers. Even the synthetic fully satisfied case returns only `SHAPE_ONLY_PROVIDER_AWARE_NOT_HOST_ATTESTED`.
 
