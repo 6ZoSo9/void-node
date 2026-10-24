@@ -1,0 +1,97 @@
+name: VOID Buy allocation custody host-evidence source plan v5
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-allocation-custody-host-evidence-source-plan-v5.yml"
+      - ".github/workflows/buy-void-authenticated-user-manager-unit-evidence-v4.yml"
+      - "docs/architecture/buy-void-allocation-custody-host-evidence-source-plan-v5.md"
+      - "docs/architecture/buy-void-authenticated-user-manager-unit-evidence-v4.md"
+      - "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v2.ts"
+      - "ops/precision/void_buy_void_user_manager_private_unit_query_v1.c"
+      - "ops/security/buy-void-user-manager-query-elf-lock-v6.json"
+      - "ops/security/buy-void-allocation-custody-host-evidence-source-plan-v5.json"
+      - "scripts/prove_buy_void_allocation_custody_host_evidence_source_plan_v5.mjs"
+      - "scripts/prove_buy_void_presale_allocation_custody_host_evidence_port_v2.ts"
+      - "scripts/prove_void_buy_allocation_custody_host_evidence_v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_host_evidence_v4.mjs"
+      - "scripts/prove_void_buy_allocation_custody_polkit_deny_profile_v1.mjs"
+      - "scripts/prove_void_buy_allocation_custody_service_v2.mjs"
+      - "scripts/prove_void_buy_allocation_custody_socket_runtime_directory_policy_v1.mjs"
+      - "scripts/prove_void_buy_user_manager_cap_last_cap_projection_v6.mjs"
+      - "scripts/prove_void_buy_user_manager_query_elf_lock_v6.mjs"
+      - "scripts/prove_void_buy_void_user_manager_query_live_qualification_v6.py"
+      - "scripts/prove_void_buy_stable_request_root_policy_v1.mjs"
+      - "src/economic/buy_void_allocation_custody_witness_live_read_replay_rollback_second_control_composition_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_ledger_v1.ts"
+      - "src/economic/buy_void_allocation_reservation_high_water_v1.ts"
+      - "src/economic/buy_void_cross_uid_capacity_exclusive_lock_v1.mjs"
+      - "src/economic/buy_void_custody_allocation_roots_observed_read_v1.mjs"
+      - "src/economic/buy_void_custody_payment_ledgers_observed_read_v1.mjs"
+      - "src/economic/buy_void_verified_allocation_replay_binding_v1.ts"
+      - "tools/void-buy-allocation-custody-host-evidence-v1.mjs"
+      - "tools/void-buy-allocation-custody-host-evidence-v4.mjs"
+      - "tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs"
+      - "tools/void-buy-allocation-custody-polkit-deny-profile-v1.mjs"
+      - "tools/void-buy-allocation-custody-service-v2.mjs"
+      - "tools/void-buy-allocation-custody-socket-runtime-directory-policy-v1.mjs"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v2.mjs"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v2.mjs"
+      - "tools/void-buy-stable-request-root-policy-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact checkout identity
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Prove exact source-only V5 plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_allocation_custody_host_evidence_source_plan_v5.mjs
+          proof_log="$RUNNER_TEMP/custody-host-source-plan-v5.txt"
+          node scripts/prove_buy_void_allocation_custody_host_evidence_source_plan_v5.mjs | tee "$proof_log"
+          grep -Fx 'VOID_BUY_VOID_ALLOCATION_CUSTODY_HOST_EVIDENCE_SOURCE_PLAN_V5_PROOF_GREEN' "$proof_log"
+          grep -Fx 'source_binding_count=31' "$proof_log"
+          grep -Fx 'custody_service_v2_direct_source_closure_bound=true' "$proof_log"
+          grep -Fx 'custody_service_v2_direct_import_count=6' "$proof_log"
+          grep -Fx 'authenticated_user_manager_v4_historical_semantics_bound=true' "$proof_log"
+          grep -Fx 'authenticated_user_manager_v6_acceptance_contract_bound=true' "$proof_log"
+          grep -Fx 'declared_base_tree_verified=true' "$proof_log"
+          grep -Fx 'declared_base_ancestor_verified=true' "$proof_log"
+          grep -Fx 'exact_four_add_only_scope_verified=true' "$proof_log"
+          grep -Fx 'workflow_trigger_dependency_closure=true' "$proof_log"
+          grep -Fx 'complete_host_evidence_collector=false' "$proof_log"
+          grep -Fx 'production_host_evidence_authority=false' "$proof_log"
+          grep -Fx 'host_read_performed=false' "$proof_log"
+          grep -Fx 'trusted_verification_clock_proven=false' "$proof_log"
+          grep -Fx 'evidence_generation_monotonicity_proven=false' "$proof_log"
+          grep -Fx 'external_transport_authenticated=false' "$proof_log"
+          grep -Fx 'external_witness_storage_proven=false' "$proof_log"
+          grep -Fx 'public_presale_activation=false' "$proof_log"
+          grep -Fx 'funds_movement=false' "$proof_log"
+      - name: Committed-range diff hygiene
+        run: git diff --check
