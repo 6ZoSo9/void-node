@@ -17,7 +17,7 @@ TARGET = (
       "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_installer_candidate_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "096fa82312b31822aa5a464734d70e933a8e9e30"
+EXPECTED_SOURCE_BLOB = "e9eb7f539caa0a98171793801f80c62b4a187a71"
 
 
 def git_blob(raw: bytes) -> str:
@@ -528,6 +528,7 @@ print("final_root_descriptor_close_deterministic=true")
 print("internal_final_source_name_parameterized=true")
 print("truthful_post_publication_failure_receipt=true")
 print("postpublication_failure_preserves_final_root=true")
+print("hosted_postpublication_fixture_bridge_explicit=true")
 print("without_dash_b_bootstrap_hold=true")
 print("protected_install_authorized=false")
 print("protected_source_installed=false")
