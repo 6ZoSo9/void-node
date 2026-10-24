@@ -16,7 +16,7 @@ TARGET = (
       "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_installer_candidate_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "d4500fdfb5e53e2e70a913f731ecbdd325406190"
+EXPECTED_SOURCE_BLOB = "3b4c7023f7a98bb877cd613f207660994d827959"
 
 
 def git_blob(raw: bytes) -> str:
@@ -148,6 +148,7 @@ source = TARGET.read_text(encoding="utf-8")
 
 for required in (
     "apply_create_only_algorithm",
+    "_verify_root",
     "_renameat2_noreplace",
     "RENAME_NOREPLACE",
     "destination_root_present",
@@ -198,6 +199,12 @@ assert source.index("os.fchmod(stage_fd, 0o700)") < source.index(
     "os.unlink(source_name, dir_fd=stage_fd)"
 )
 
+root_verifier = source.split("def _verify_root(", 1)[1].split(
+    "def _renameat2_noreplace(", 1
+)[0]
+assert "finally:" in root_verifier
+assert "os.close(fd)" in root_verifier
+
 print(
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_"
     "PROTECTED_ALL_PROCESS_INSTALLER_CANDIDATE_V1_PROOF_GREEN"
@@ -217,6 +224,7 @@ print("source_fsync_before_publication=true")
 print("stage_directory_fsync_before_publication=true")
 print("parent_fsync_after_publication=true")
 print("exact_post_publication_verification_required=true")
+print("final_root_descriptor_close_deterministic=true")
 print("truthful_post_publication_failure_receipt=true")
 print("postpublication_failure_preserves_final_root=true")
 print("without_dash_b_bootstrap_hold=true")
