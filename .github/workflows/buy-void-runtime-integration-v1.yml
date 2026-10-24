@@ -8,6 +8,8 @@ on:
       - "src/index.ts"
       - "src/economic/buy_void_*.ts"
       - "scripts/prove_buy_void_*.ts"
+      - "tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs"
+      - "scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs"
       - ".github/workflows/buy-void-runtime-integration-v1.yml"
       - "scripts/prove_buy_void_nimo_original_v1_current_v2_bridge_v1.mjs"
       - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
@@ -17,6 +19,8 @@ on:
       - "src/index.ts"
       - "src/economic/buy_void_*.ts"
       - "scripts/prove_buy_void_*.ts"
+      - "tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs"
+      - "scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs"
       - ".github/workflows/buy-void-runtime-integration-v1.yml"
       - "scripts/prove_buy_void_nimo_original_v1_current_v2_bridge_v1.mjs"
       - "scripts/prove_buy_void_nimo_combined_v3_unaccepted_source_v1.mjs"
@@ -34,6 +38,7 @@ jobs:
       - id: checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
       - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b
@@ -92,25 +97,26 @@ jobs:
             echo "VOID_BUY_VOID_PROOF_STACK_BEGIN=$proof"
             case "$proof" in
               scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts)
-                # Frozen E1 inherited-source verifier must reject E2. Do not
-                # re-pin it or silently mark its OLD E1 execution as ready.
-                test "$(git hash-object tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs)" = "db6a56b56eea4fe150ad1ebc98519bc263b70ee2"
-                test "$(git hash-object scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts)" = "a6759292c99f8b77e1bc2fc725621225dbd51e22"
-                if test "$(git hash-object tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs 2>/dev/null)" = "834f17d99c0351c0f2b10fb024f3ee43afae8a42" && \
-                   node tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs > "$RUNNER_TEMP/epoch2-source-current.log" 2>&1; then
-                  grep -Fx 'status=EPOCH2_SOURCE_TUPLE_REVIEWABLE_CREDENTIAL_AND_ACTIVATION_HOLD' "$RUNNER_TEMP/epoch2-source-current.log"
-                  grep -Fx 'historical_v1_authority_inherited=false' "$RUNNER_TEMP/epoch2-source-current.log"
-                  grep -Fx 'signer_control_or_systemd_credential_verified=false' "$RUNNER_TEMP/epoch2-source-current.log"
-                  grep -Fx 'production_payment_activation=false' "$RUNNER_TEMP/epoch2-source-current.log"
-                  set +e
-                  ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
-                  historical_status=$?
-                  set -e
-                  test "$historical_status" -ne 0
-                  grep -F 'head_inherited_source_blob_mismatch:src/economic/buy_void_payment_keyed_full_runtime_v1.ts' "$RUNNER_TEMP/$(basename "$proof").hold"
-                  echo 'HISTORICAL_E1_CLAIM_REFUSED_E2_SOURCE_AND_E2_QUALIFIED_SOURCE_ONLY=true'
-                  continue
-                fi
+                # Preserve the exact predecessor generation at the immutable
+                # #3807 base; execute only the separately qualified current
+                # Epoch-2 successor against current HEAD.
+                predecessor="084b9a657be7cc074dfd954d37651d8b00d47153"
+                git merge-base --is-ancestor "$predecessor" HEAD
+                test "$(git rev-parse "$predecessor:tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs")" = "db6a56b56eea4fe150ad1ebc98519bc263b70ee2"
+                test "$(git rev-parse "$predecessor:scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts")" = "a6759292c99f8b77e1bc2fc725621225dbd51e22"
+                test "$(git rev-parse HEAD:tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs)" = "f8281ffc9cfbfd2b810a11a10f8cb3ff8473fa95"
+                test "$(git rev-parse HEAD:scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts)" = "674de094c6750a1f7498fa06efa6f7571edb3151"
+                test "$(git rev-parse HEAD:tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs)" = "c4413b4a8f9dfb95a31bce9613d0af7939233736"
+                test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs)" = "e349a0e2e7bb5c61da58574f96bd5ff977170491"
+                node tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs > "$RUNNER_TEMP/epoch2-source-current-v3.log"
+                grep -Fx 'historical_v1_source_qualification_preserved=true' "$RUNNER_TEMP/epoch2-source-current-v3.log"
+                grep -Fx 'historical_v2_signer_control_evidence_preserved=true' "$RUNNER_TEMP/epoch2-source-current-v3.log"
+                grep -Fx 'current_activation_candidate_source_requalified=true' "$RUNNER_TEMP/epoch2-source-current-v3.log"
+                grep -Fx 'activation_authorized=false' "$RUNNER_TEMP/epoch2-source-current-v3.log"
+                grep -Fx 'funds_movement=false' "$RUNNER_TEMP/epoch2-source-current-v3.log"
+                ./node_modules/.bin/tsx "$proof"
+                echo 'PREDECESSOR_PRESERVED_AND_CURRENT_E2_ACTIVATION_PROOF_GREEN=true'
+                continue
                 ;;
               scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts)
                 set +e
