@@ -47,11 +47,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
-            "6fc600431e122d587661f2413b07d4a540cdc0c9"
+            "bd8728be0b59bce3db0f559d0ebd01692f9a5844"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
-            "66b10af111fefdfb99d33b958a58f9ce6fcc0a9b"
+            "e971dd5320811c6db9b450371e55f5588001c8ad"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.md)" = \
-            "9d4e47f9c4eefd7c18c5081e3b23f0dd4d5f29aa"
+            "ba1609aa65e7ef8dfaa8326f9c6a3c589528af6d"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
             "0fef4e6f76738dd474ea775985b1facdd922bb54"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v6.json)" = \
@@ -106,6 +106,8 @@ jobs:
             'kernel_rename_noreplace_required=true' \
             'builtin_voidfs_required=true' \
             'voidfs_contract_validator_tested=true' \
+            'voidfs_builtin_loader_verified=true' \
+            'voidfs_preloaded_cache_rejected=true' \
             'ctypes_forbidden=true' \
             'dynamic_symbol_lookup_forbidden=true' \
             'libc_symbol_lookup_fallback=false' \
@@ -164,6 +166,9 @@ jobs:
             'kernel_rename_noreplace_required=true' \
             'builtin_voidfs_required=true' \
             'voidfs_contract_validator_tested=true' \
+            'voidfs_builtin_loader_verified=true' \
+            'voidfs_preloaded_cache_rejected=true' \
+            'sys_modules_shadow_regression=true' \
             'ctypes_forbidden=true' \
             'dynamic_symbol_lookup_forbidden=true' \
             'libc_symbol_lookup_fallback=false' \
