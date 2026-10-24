@@ -357,6 +357,7 @@ def _file_ok(
 def _verify_root(
     parent_fd: int,
     name: str,
+    source_name: str,
     expected_raw: bytes,
     *,
     expected_uid: int,
@@ -379,12 +380,12 @@ def _verify_root(
             raise InstallError("installed_root_rebound")
 
         names = sorted(os.listdir(fd))
-        if len(names) > MAX_ENTRIES or names != [SOURCE_NAME]:
+        if len(names) > MAX_ENTRIES or names != [source_name]:
             raise InstallError("installed_root_entries_invalid")
 
         _file_ok(
             fd,
-            SOURCE_NAME,
+            source_name,
             expected_raw,
             expected_uid=expected_uid,
             expected_gid=expected_gid,
@@ -615,6 +616,7 @@ def _apply_create_only_internal(
             _verify_root(
                 parent_fd,
                 install_name,
+                source_name,
                 source_raw,
                 expected_uid=expected_uid,
                 expected_gid=expected_gid,
@@ -814,6 +816,7 @@ def self_test() -> None:
             _verify_root(
                 parent_fd,
                 INSTALL_NAME,
+                SOURCE_NAME,
                 accepted,
                 expected_uid=uid,
                 expected_gid=gid,
