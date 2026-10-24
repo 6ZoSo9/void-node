@@ -369,7 +369,7 @@ def build_plan() -> dict[str, Any]:
             "live_privileged_census_executed": False,
             "service_mutation": False,
             "systemd_mutation": False,
-            "install_target_selected": False,
+            "install_target_selected": True,
             "existing_target_replaced": False,
             "replacement_apply_authorized": False,
             "runtime_integration": False,
@@ -401,6 +401,7 @@ def self_test() -> None:
         or contract["kernel_noreplace_publication_required"] is not True
         or contract["existing_destination_replacement_forbidden"] is not True
         or contract["installed_execution_authorized"] is not False
+        or authority["install_target_selected"] is not True
         or authority["protected_install_authorized"] is not False
         or authority["replacement_apply_authorized"] is not False
         or authority["funds_movement"] is not False
@@ -427,6 +428,7 @@ def self_test() -> None:
     print("production_plan_explicit_filesystem_write=false")
     print("production_plan_filesystem_write_free=false")
     print("production_plan_atime_write_possible=true")
+    print("install_target_selected=true")
     print("protected_install_authorized=false")
     print("protected_source_installed=false")
     print("live_privileged_census_authorized=false")
