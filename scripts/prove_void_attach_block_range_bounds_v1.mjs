@@ -7,6 +7,7 @@ import {
   ATTACH_BLOCK_RANGE_MAX_SPAN,
   attachBlockRangeErrorV1,
   parseAttachBlockRange,
+  resolveAttachBlockRangeAliasV1,
 } from "../src/http/api_attach.ts";
 
 const tsSource = readFileSync("src/http/api_attach.ts", "utf8");
@@ -24,6 +25,7 @@ for (const source of [tsSource, jsSource]) {
     /boundedTo - from >= .*ATTACH_BLOCK_RANGE_MAX_SPAN/,
   );
   assert.match(source, /parseAttachBlockRange\(/);
+  assert.match(source, /resolveAttachBlockRangeAliasV1/);
 }
 assert.doesNotMatch(
   tsSource,
@@ -37,6 +39,35 @@ assert.doesNotMatch(
 );
 
 assert.equal(ATTACH_BLOCK_RANGE_MAX_SPAN, 250);
+assert.deepEqual(
+  resolveAttachBlockRangeAliasV1("10", undefined),
+  { ok: true, value: "10" },
+);
+assert.deepEqual(
+  resolveAttachBlockRangeAliasV1(undefined, "10"),
+  { ok: true, value: "10" },
+);
+assert.deepEqual(
+  resolveAttachBlockRangeAliasV1(undefined, undefined),
+  { ok: true, value: undefined },
+);
+for (const [primary, alias] of [["10", "10"], ["10", "11"]]) {
+  assert.deepEqual(
+    resolveAttachBlockRangeAliasV1(primary, alias),
+    { ok: false, value: null },
+    "dual alias definitions must fail closed",
+  );
+}
+for (const source of [tsSource, jsSource]) {
+  assert.match(
+    source,
+    /resolveAttachBlockRangeAliasV1\(\s*req\.query\.from,\s*req\.query\.start/s,
+  );
+  assert.match(
+    source,
+    /resolveAttachBlockRangeAliasV1\(\s*req\.query\.to,\s*req\.query\.end/s,
+  );
+}
 assert.deepEqual(
   parseAttachBlockRange(undefined, undefined, 7),
   { from: 0, to: 7 },
@@ -116,6 +147,31 @@ for (const [name, from, to, head] of [
 }
 
 assert.equal(ATTACH_BLOCK_RANGE_ERROR_CODE_V1, "VOID_BLOCK_RANGE_INVALID_V1");
+for (const invalidHead of [
+  Number.NaN,
+  -2,
+  1.5,
+  Number.MAX_SAFE_INTEGER + 1,
+]) {
+  assert.deepEqual(
+    attachBlockRangeErrorV1("5", "6", invalidHead),
+    {
+      ok: false,
+      error: "bad range",
+      code: "VOID_BLOCK_RANGE_INVALID_V1",
+      reason: "invalid_head",
+      max_heights: 250,
+      recovery: null,
+      aliases: { from: ["from", "start"], to: ["to", "end"] },
+    },
+    "invalid internal head must be non-retryable",
+  );
+  assert.equal(
+    parseAttachBlockRange("5", "6", invalidHead),
+    null,
+    "invalid internal head must remain rejected by the canonical parser",
+  );
+}
 assert.deepEqual(
   attachBlockRangeErrorV1(undefined, undefined, 1000),
   {
@@ -141,15 +197,38 @@ assert.deepEqual(
   },
 );
 assert.equal(attachBlockRangeErrorV1("2", "1", 1000).reason, "invalid_bounds");
+const emptyStoreRecovery = attachBlockRangeErrorV1(
+  undefined,
+  undefined,
+  -1,
+).recovery;
 assert.deepEqual(
-  attachBlockRangeErrorV1(undefined, undefined, -1).recovery,
-  { from: 0, to: -1 },
-  "empty-store recovery must preserve the no-data sentinel",
+  emptyStoreRecovery,
+  { from: 0, to: 0 },
+  "empty-store recovery must be parser-acceptable while representing no data",
 );
 assert.deepEqual(
   attachBlockRangeErrorV1("5", "bad", -1).recovery,
-  { from: 0, to: -1 },
+  { from: 0, to: 0 },
   "empty-store recovery must ignore malformed-request lower bounds",
+);
+assert.deepEqual(
+  parseAttachBlockRange(
+    emptyStoreRecovery.from,
+    emptyStoreRecovery.to,
+    -1,
+  ),
+  { from: 0, to: -1 },
+  "retrying advertised numeric empty-store recovery must yield the empty interval",
+);
+assert.deepEqual(
+  parseAttachBlockRange(
+    String(emptyStoreRecovery.from),
+    String(emptyStoreRecovery.to),
+    -1,
+  ),
+  { from: 0, to: -1 },
+  "URL-string empty-store recovery must round-trip through the canonical parser",
 );
 const beyondHeadRecovery = attachBlockRangeErrorV1(
   "1001",
@@ -175,6 +254,7 @@ for (const source of [tsSource, jsSource]) {
   assert.match(source, /VOID_BLOCK_RANGE_INVALID_V1/);
   assert.match(source, /max_heights/);
   assert.match(source, /range_span_exceeds_limit/);
+  assert.match(source, /invalid_head/);
   assert.match(source, /attachBlockRangeErrorV1/);
 }
 console.log("void_attach_block_range_bounds_v1=PASS");

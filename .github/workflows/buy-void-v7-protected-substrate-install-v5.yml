@@ -1,0 +1,128 @@
+name: Buy VOID V7 protected substrate install v5
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/buy-void-v7-protected-substrate-install-v5.yml'
+      - 'docs/operators/buy-void-v7-protected-substrate-install-v5.md'
+      - 'ops/precision/void_buy_void_v7_protected_substrate_install_v5.py'
+      - 'ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py'
+      - 'scripts/prove_buy_void_v7_protected_substrate_install_v5.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buy-void-v7-protected-substrate-install-v5-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+
+      - name: Bind exact source generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='f1702672f2399355758e7a07fdd8f0ffb8dc1d33'
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          expected="$RUNNER_TEMP/expected-scope"
+          actual="$RUNNER_TEMP/actual-scope"
+          cat >"$expected" <<'EOF'
+          A	.github/workflows/buy-void-v7-protected-substrate-install-v5.yml
+          A	docs/operators/buy-void-v7-protected-substrate-install-v5.md
+          A	ops/precision/void_buy_void_v7_protected_substrate_install_v5.py
+          A	ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py
+          A	scripts/prove_buy_void_v7_protected_substrate_install_v5.py
+          EOF
+          git diff --name-status "$BASE" HEAD | LC_ALL=C sort >"$actual"
+          LC_ALL=C sort -o "$expected" "$expected"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py)" = "69b1ff028487a139470671cf0afb8937a299897d"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_install_v5.py)" = "d62952830f96435f42858528310113f1887aba5e"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-install-v5.md)" = "be3bdb31cc948d1774dc634d4be34e865dd7cd2d"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Python syntax without bytecode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import ast
+          from pathlib import Path
+          for path in (
+              Path("ops/precision/void_buy_void_v7_protected_substrate_install_v5.py"),
+              Path("ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py"),
+              Path("scripts/prove_buy_void_v7_protected_substrate_install_v5.py"),
+          ):
+              ast.parse(path.read_text("utf-8"), filename=str(path))
+          print("VOID_V7_V5_SYNTAX_GREEN")
+          PY
+
+      - name: V5 inert self-test and source plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_install_v5.py --self-test             | tee "$RUNNER_TEMP/v5-self.log"
+          grep -Fx 'VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V5_SELF_TEST_GREEN' "$RUNNER_TEMP/v5-self.log"
+          grep -Fx 'installed_qualifier_v4_bound=true' "$RUNNER_TEMP/v5-self.log"
+
+          python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_install_v5.py --source-plan             | tee "$RUNNER_TEMP/v5-source-plan.log"
+          grep -Fx 'mode=source-plan' "$RUNNER_TEMP/v5-source-plan.log"
+          grep -Fx 'trusted_full_history_content_sha256_required=true' "$RUNNER_TEMP/v5-source-plan.log"
+          grep -Fx 'live_shallow_release_cross_binding_required=true' "$RUNNER_TEMP/v5-source-plan.log"
+          grep -Fx 'live_release_acl_aware_tree_custody_required=true' "$RUNNER_TEMP/v5-source-plan.log"
+          grep -Fx 'protected_full_history_replica_source_required=true' "$RUNNER_TEMP/v5-source-plan.log"
+          grep -Fx 'full_history_regular_single_link_required=true' "$RUNNER_TEMP/v5-source-plan.log"
+          grep -Fx 'live_runtime_release_mutation=false' "$RUNNER_TEMP/v5-source-plan.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/v5-source-plan.log"
+
+      - name: Qualifier V4 inert self-test and source plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py --self-test             | tee "$RUNNER_TEMP/q4-self.log"
+          grep -Fx 'VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALLED_QUALIFICATION_V4_SELF_TEST_GREEN' "$RUNNER_TEMP/q4-self.log"
+          grep -Fx 'content_digest_matches_replica_v1_contract=true' "$RUNNER_TEMP/q4-self.log"
+          grep -Fx 'acl_aware_whole_tree_nonwritability_required=true' "$RUNNER_TEMP/q4-self.log"
+          grep -Fx 'digest_self_test_does_not_weaken_production_acl_gate=true' "$RUNNER_TEMP/q4-self.log"
+          grep -Fx 'external_repository_observer=false' "$RUNNER_TEMP/q4-self.log"
+
+          python3 -I -B ops/precision/void_buy_void_v7_protected_substrate_installed_qualification_v4.py --source-plan             | tee "$RUNNER_TEMP/q4-source-plan.log"
+          grep -Fx 'mode=source-plan' "$RUNNER_TEMP/q4-source-plan.log"
+          grep -Fx 'trusted_full_history_content_sha256_required=true' "$RUNNER_TEMP/q4-source-plan.log"
+          grep -Fx 'host_write=false' "$RUNNER_TEMP/q4-source-plan.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/q4-source-plan.log"
+
+      - name: Focused source proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_buy_void_v7_protected_substrate_install_v5.py             | tee "$RUNNER_TEMP/proof.log"
+          grep -Fx 'VOID_BUY_VOID_V7_PROTECTED_SUBSTRATE_INSTALL_V5_PROOF_GREEN' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'live_shallow_release_is_cross_binding_only=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'full_history_replica_is_protected_source_authority=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'trusted_full_history_digest_participates_in_plan_id=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'qualifier_v4_reauthenticates_full_history_digest=true' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'external_repository_observer=false' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'protected_filesystem_mutation=false' "$RUNNER_TEMP/proof.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/proof.log"
+
+      - name: No bytecode or checkout mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(find . -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -quit)"
+          test -z "$(find . -type d -name '__pycache__' -print -quit)"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

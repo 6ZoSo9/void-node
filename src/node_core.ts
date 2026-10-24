@@ -70,6 +70,7 @@ import {
   voidVerifiedPeerDialTargetsV1,
   type VoidVerifiedPeerRecordV1,
 } from "./p2p/verified_peer_cache_v1.js";
+import { isVoidRetiredP2PNodeIdV1 } from "./p2p/retired_peer_identities_v1.js";
 import {
   loadVoidPublicP2PBootstrapIntroductionsV1,
   voidPublicP2PBootstrapIntroductionsEnabledV1,
@@ -925,6 +926,13 @@ export class Node {
           });
           continue;
         }
+        if (isVoidRetiredP2PNodeIdV1(introduction.expected_node_id)) {
+          console.warn("VOID_PUBLIC_P2P_BOOTSTRAP_INTRODUCTIONS_V1_RETIRED_SKIP", {
+            id: introduction.id,
+            node_id: introduction.expected_node_id,
+          });
+          continue;
+        }
 
         if (introduction.transport === "direct_ipv4_seed") {
           this.knownAddrs.add(introduction.address);
@@ -1082,6 +1090,7 @@ export class Node {
   private scheduleVerifiedPeerReconnect(peer: Peer) {
     if (
       this.stopping ||
+      isVoidRetiredP2PNodeIdV1(peer.id) ||
       peer.suppressReconnect ||
       peer.transport !== "direct" ||
       !peer.persistDirectEvidence ||
@@ -1136,7 +1145,11 @@ export class Node {
   private scheduleTorBootstrapReconnectV1(
     target: TorBootstrapReconnectV1,
   ): void {
-    if (this.stopping || target.expected_node_id === this.id) return;
+    if (
+      this.stopping ||
+      target.expected_node_id === this.id ||
+      isVoidRetiredP2PNodeIdV1(target.expected_node_id)
+    ) return;
     if (this.peers.has(target.expected_node_id)) return;
 
     const previous =
@@ -1169,6 +1182,7 @@ export class Node {
     if (
       this.stopping ||
       target.expected_node_id === this.id ||
+      isVoidRetiredP2PNodeIdV1(target.expected_node_id) ||
       this.peers.has(target.expected_node_id) ||
       this.torBootstrapDialing.has(target.endpoint)
     ) {
@@ -1229,6 +1243,7 @@ export class Node {
   private scheduleTorBootstrapPeerReconnectV1(peer: Peer): void {
     if (
       this.stopping ||
+      isVoidRetiredP2PNodeIdV1(peer.id) ||
       peer.suppressReconnect ||
       peer.transport !== "tor" ||
       !peer.torBootstrapReconnect
@@ -1793,8 +1808,12 @@ export class Node {
       group.push(observation);
       groups.set(key, group);
     }
+    const classificationNowMs = Date.now();
     const classifications = [...groups.values()].map((group) =>
-      classifyVoidP2PReachabilityRuntimeV1(group),
+      classifyVoidP2PReachabilityRuntimeV1(group, {
+        nowMs: classificationNowMs,
+        domainConsistencyObservations: observations,
+      }),
     );
     return {
       observer_failure_domain: this.reachabilityFailureDomain,
@@ -2561,6 +2580,7 @@ attachEphemeralDirectTransportV1(
       this.stopping ||
       !/^[0-9a-f]{32}$/.test(expectedNodeId) ||
       expectedNodeId === this.id ||
+      isVoidRetiredP2PNodeIdV1(expectedNodeId) ||
       typeof transportHint !== "string" ||
       transportHint.length < 1 ||
       transportHint.length > 256 ||
@@ -2778,6 +2798,17 @@ attachEphemeralDirectTransportV1(
       const auth = verifyVoidPeerAuthV1(msg, peer.localChallenge, peer.remoteHello);
       if (!auth) {
         this.rejectUnauthenticatedPeer(peer, "invalid AUTH");
+        return;
+      }
+      // This is the common authenticated entry point for direct, relay,
+      // Tor, UDP-upgrade candidates and reachability probes.
+      if (isVoidRetiredP2PNodeIdV1(auth.id)) {
+        console.warn("VOID_P2P_RETIRED_IDENTITY_V1_REJECT", {
+          node_id: auth.id,
+          transport: peer.transport,
+        });
+        peer.suppressReconnect = true;
+        this.rejectUnauthenticatedPeer(peer, "retired authenticated P2P identity");
         return;
       }
       this.finishAuthenticatedPeer(peer, auth);
@@ -3752,6 +3783,7 @@ attachEphemeralDirectTransportV1(
 
     const pinnedNodeId =
       expectedNodeId || this.cachedExpectedNodeByAddress.get(canonical);
+    if (isVoidRetiredP2PNodeIdV1(pinnedNodeId)) return;
 
     // Reserve the dial slot before the asynchronous route/local-address probe.
     // Without this, concurrent punch-capable callers can both pass shouldDial()
@@ -4315,6 +4347,7 @@ attachEphemeralDirectTransportV1(
 
     const pinnedNodeId =
       expectedNodeId || this.cachedExpectedNodeByAddress.get(canonical);
+    if (isVoidRetiredP2PNodeIdV1(pinnedNodeId)) return;
     this.dialing.add(canonical);
 
     const socket = net.createConnection(

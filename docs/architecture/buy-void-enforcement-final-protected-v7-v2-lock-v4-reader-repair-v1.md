@@ -1,40 +1,42 @@
 # Buy VOID protected V7/V2 lock V4 reader-repair V1
 
-Status: **source/CI evidence lock; candidate acceptance and independent review HOLD**.
+Status: **source/CI evidence lock; candidate acceptance remains HOLD**.
 
-This lock accepts only #3680 exact candidate `895c2bf320defbbca5fba6792e2a75126b2c4d76`, candidate blob
-`5893e300a78dc4ca7729ef47f95a8e3eea2043cf`, 17,788 bytes, SHA-256
-`bf360784af7a6ddf908812b9c335e8e52d4410ba249c5ea1988b97d9cfd5a72c`,
-enforcement-set SHA-256
-`ff084a754e7eb6bef08ec1b1079a17a6110b4333876f0231e46395eed63042d2`,
-and inventory SHA-256
-`8485ef25c236b8798bed3a67b9308ef7dcd383aedca1486f4f488d043d7efbe0`.
+This lock binds only #3680 exact candidate `827b94aabbecb915ab2cf22bba8f178b7d0568bc`:
 
-Hosted candidate evidence is run `39665164718`, Node 22/24/26 artifacts
-`12376738282` / `12377278277` / `12377118279`, cross-node job
-`119449789170`. Current Dispatch V4 evidence is separately bound in the manifest.
+- candidate blob `ec00f0c552e600fff38e4998e4beb128c93b481d`;
+- 17,788 bytes;
+- SHA-256 `fbf3d5fbc1efad92c7bb5bb3fb45f686d1bddb95d4a7c34cadbd862b69318c60`;
+- enforcement-set SHA-256 `00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a`;
+- protected inventory SHA-256 `c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d`;
+- derivation proof blob `3a7401202fee374f2a7da3f5efc0d29976f9792a`;
+- current Dispatch V4 proof blob `9de04b5340f904b8886562727d5f9006876b7ec5`.
 
-Historical V3 candidate/lock remain immutable. The reviewed V4 transition is exactly
-the deployment-receipt reader row from `3de6e4bd...` to `e0a682ea...`, mode
-`100644`. The proof uses bounded `O_NOFOLLOW|O_NONBLOCK` descriptor reads with
-regular-replacement, symlink, FIFO and oversize adversaries.
+Hosted exact-head evidence is workflow run `40053691462`:
+Node 22/24/26 candidate artifacts `12544821142 / 12544756476 / 12545000635`,
+cross-node job `120752978070`;
+Dispatch V4 artifacts `12545050015 / 12543609325 / 12545025023`,
+cross-node job `120752773488`;
+historical V3 lock source-proof job `120756509483`.
 
-The source lock binds and verifies this exact candidate with
-`candidate_identity_lock_evidence_verified=true`, but deliberately keeps
-`candidate_enforcement_identity_accepted=false` because existing VOID consumers
-treat that legacy field as authority and do not understand the newer review/lifecycle
-flags. A separately reviewed successor must perform any later acceptance promotion.
-It also retains:
+Historical V3 provenance remains immutable:
+candidate `40c7d21e0f22bc2ffe079f80360af342f4d8a6aa`,
+accepted lock `f1b9d661eb3363e9bf18dbeb3610c659a54219bb`.
+The reviewed protected transition remains exactly the descriptor-bound deployment-receipt reader
+`3de6e4bd... -> e0a682ea...`, mode `100644`.
+
+The evidence lock deliberately keeps:
+- `candidate_identity_lock_evidence_verified=true`;
+- `candidate_enforcement_identity_accepted=false`;
 - `independent_review_complete=false`;
 - `candidate_acceptance_lifecycle_ready=false`;
-- `downstream_candidate_v5_derivation_ready=false`.
+- `downstream_candidate_v5_derivation_ready=false`;
+- deployment/runtime/source-finality/presale/funds authority false.
 
-Codex review quota is exhausted. Same-account source work cannot satisfy the
-independent-review gate. #3682 must not derive or accept V5 until separate review
-clears this lock.
+A separately reviewed successor is required before any acceptance promotion or V5 derivation.
+No host apply, service mutation, credentials/signing, transaction/payment, treasury/liquidity or funds authority.
 
-Deployed artifact generation, runtime mount, production source-finality, public
-presale activation and funds movement remain false. No merge, host apply, service,
-credential/signing, transaction/payment, treasury/liquidity or funds authority.
+Lock blob: `c9e50cebb0735981f946a1afbc4de6d692ced347`.
+Proof blob: `025e2905e0a9d56cde7a2954f4c47ff4b33d0c37`.
 
 PROTECT THE CORE.

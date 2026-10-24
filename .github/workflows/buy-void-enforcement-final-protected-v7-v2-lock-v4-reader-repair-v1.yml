@@ -33,8 +33,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$EXPECTED_BASE" = "895c2bf320defbbca5fba6792e2a75126b2c4d76"
-          test "$(git merge-base "895c2bf320defbbca5fba6792e2a75126b2c4d76" "$EXPECTED_HEAD")" = "895c2bf320defbbca5fba6792e2a75126b2c4d76"
+          test "$EXPECTED_BASE" = "827b94aabbecb915ab2cf22bba8f178b7d0568bc"
+          test "$(git merge-base "827b94aabbecb915ab2cf22bba8f178b7d0568bc" "$EXPECTED_HEAD")" = "827b94aabbecb915ab2cf22bba8f178b7d0568bc"
           expected="$RUNNER_TEMP/expected.txt"
           actual="$RUNNER_TEMP/actual.txt"
           printf '%s\n' \
@@ -42,17 +42,17 @@ jobs:
             'A	docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.md' \
             'A	ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json' \
             'A	scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs' | sort > "$expected"
-          git diff --name-status "895c2bf320defbbca5fba6792e2a75126b2c4d76" "$EXPECTED_HEAD" -- | sort > "$actual"
+          git diff --name-status "827b94aabbecb915ab2cf22bba8f178b7d0568bc" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json)" = "559d04f3abb75e0112895d5a0657ef03a6a5dafb"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs)" = "463f7ffb4d6d5baf41f8acd6b8272db74876d134"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.md)" = "2c21764acff5ca609e057e1445ce929aa6a76893"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "5893e300a78dc4ca7729ef47f95a8e3eea2043cf"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs)" = "f33a579e62c8201de24d5076cfcbffab66df8dae"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs)" = "51a51a7f85c8068269bad0e09e3ae872c4323a58"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "245ce93ebfb53478211fab765489e88d8fa23c4a"
-          git diff --check "895c2bf320defbbca5fba6792e2a75126b2c4d76" "$EXPECTED_HEAD" --
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json)" = "c9e50cebb0735981f946a1afbc4de6d692ced347"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs)" = "025e2905e0a9d56cde7a2954f4c47ff4b33d0c37"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.md)" = "2b82a3a94f06f9d053f581eeb4b22731514e9156"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "ec00f0c552e600fff38e4998e4beb128c93b481d"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs)" = "3a7401202fee374f2a7da3f5efc0d29976f9792a"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs)" = "9de04b5340f904b8886562727d5f9006876b7ec5"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "f1b9d661eb3363e9bf18dbeb3610c659a54219bb"
+          git diff --check "827b94aabbecb915ab2cf22bba8f178b7d0568bc" "$EXPECTED_HEAD" --
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -65,7 +65,7 @@ jobs:
           out="$RUNNER_TEMP/lock-v4-reader-repair-${{ matrix.node }}.json"
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs --derive > "$out"
           cmp "$out" ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json
-          test "$(git hash-object "$out")" = "559d04f3abb75e0112895d5a0657ef03a6a5dafb"
+          test "$(git hash-object "$out")" = "c9e50cebb0735981f946a1afbc4de6d692ced347"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: buy-void-protected-v7-v2-lock-v4-reader-repair-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
@@ -94,8 +94,8 @@ jobs:
           import fs from "node:fs";
           const l=JSON.parse(fs.readFileSync("lock-v4-reader-repair/lock-v4-reader-repair-22.json","utf8"));
           assert.equal(l.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V4_READER_REPAIR_V1");
-          assert.equal(l.candidate_evidence.git_blob_sha1,"5893e300a78dc4ca7729ef47f95a8e3eea2043cf");
-          assert.equal(l.candidate_evidence.candidate_enforcement_set_sha256,"ff084a754e7eb6bef08ec1b1079a17a6110b4333876f0231e46395eed63042d2");
+          assert.equal(l.candidate_evidence.git_blob_sha1,"ec00f0c552e600fff38e4998e4beb128c93b481d");
+          assert.equal(l.candidate_evidence.candidate_enforcement_set_sha256,"00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a");
           assert.equal(l.candidate_identity_lock_evidence_verified,true);
           assert.equal(l.candidate_enforcement_identity_accepted,false);
           assert.equal(l.independent_review_complete,false);

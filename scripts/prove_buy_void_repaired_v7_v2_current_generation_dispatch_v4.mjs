@@ -7,8 +7,8 @@ import path from "node:path";
 import {fileURLToPath} from "node:url";
 
 const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
-const BASE="0344d7dab153be75716646d5c6f5162f926f25ee";
-const PARENT_TREE="0743c236a1d2788d17b9e3ae2ecde37319df0809";
+const BASE="1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26";
+const PARENT_TREE="338ff5b264dd441c8bb16bb2fb425b85d4285b89";
 const SELF="scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs";
 const DOC="docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v4.md";
 const TOOL="ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts";
@@ -16,25 +16,115 @@ const TOOL_BLOB="e0a682ea4038ca22e3a3b97da2cac29874096c46";
 const TOOL_PROOF="scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts";
 const TOOL_PROOF_BLOB="e634e666d3a190368ddb031f936ebbb6347b7196";
 const DISPATCH_V3="scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs";
-const DISPATCH_V3_BLOB="fba37e94a90b3d4278fd3fba10fbe6313f2f0625";
+const DISPATCH_V3_BLOB="2dd9e7024eaafe4641c0d3ac7d10f542a441bb92";
 const DISPATCH_V3_DOC="docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md";
-const DISPATCH_V3_DOC_BLOB="7567775b241a798752c1c36091d7059a75299b85";
+const DISPATCH_V3_DOC_BLOB="36947405bbf3fede19004b9b2352d678b5632fd7";
 const V3_CANDIDATE="ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json";
-const V3_CANDIDATE_BLOB="79998af4763b6afca84ffe4e8d14d9a6ff535dfd";
-const V3_CANDIDATE_SHA="df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6";
-const V3_CANDIDATE_SET="95a11602e5f2639d33b378293b92863ea7f9f37020ad18dec49d3d4ac6289fd4";
-const V3_INV="c0a56b378215feafacc089e9f59a9f966d57f11e5582e4a13afcd6351d2447bb";
+const V3_CANDIDATE_BLOB="40c7d21e0f22bc2ffe079f80360af342f4d8a6aa";
+const V3_CANDIDATE_SHA="7f9c032bb3685d0d45f439123878af0ba366bd587e29a98df3270f0f13808c96";
+const V3_CANDIDATE_SET="4d06da56a3fa3fa7891c64a0c7191756c344effb62b330a1b003bd4952dc0223";
+const V3_INV="65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589";
 const V3_LOCK="ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json";
-const V3_LOCK_BLOB="245ce93ebfb53478211fab765489e88d8fa23c4a";
+const V3_LOCK_BLOB="f1b9d661eb3363e9bf18dbeb3610c659a54219bb";
 const V4_CANDIDATE="ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json";
-const V4_CANDIDATE_BLOB="5893e300a78dc4ca7729ef47f95a8e3eea2043cf";
-const V4_CANDIDATE_SHA="bf360784af7a6ddf908812b9c335e8e52d4410ba249c5ea1988b97d9cfd5a72c";
-const V4_CANDIDATE_SET="ff084a754e7eb6bef08ec1b1079a17a6110b4333876f0231e46395eed63042d2";
+const V4_CANDIDATE_BLOB="ec00f0c552e600fff38e4998e4beb128c93b481d";
+const V4_CANDIDATE_SHA="fbf3d5fbc1efad92c7bb5bb3fb45f686d1bddb95d4a7c34cadbd862b69318c60";
+const V4_CANDIDATE_SET="00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a";
 const V4_CANDIDATE_BYTES=17788;
 const V4_PROOF="scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs";
-const V4_PROOF_BLOB="f33a579e62c8201de24d5076cfcbffab66df8dae";
-const INV="8485ef25c236b8798bed3a67b9308ef7dcd383aedca1486f4f488d043d7efbe0";
+const V4_PROOF_BLOB="3a7401202fee374f2a7da3f5efc0d29976f9792a";
+const INV="c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d";
 const EXPECTED_DELTA=Object.freeze([["M",".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml"],["M",".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"],["M",".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"],["M",".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"],["M",".github/workflows/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.yml"],["M",".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"],["A","docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v4.md"],["A","docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v4.md"],["A","ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json"],["A","scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs"],["A","scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs"]]);
+const PROVIDER_EVIDENCE_HEAD="bc510343c5c418a75154bedcc445cbf1251dc037";
+const PROVIDER_EVIDENCE_TREE="7e21075ccd632ea11f4d424424b348217a013dfe";
+const PROVIDER_EVIDENCE="ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json";
+const PROVIDER_EVIDENCE_BLOB="b08c03912e0f66742f06f314bf5e1f5cad81f20f";
+const PROVIDER_CANDIDATE_PROOF="scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs";
+const PROVIDER_CANDIDATE_PROOF_BLOB="bc9473b4fd79eae50f4e86ca24968d3328cdcf22";
+const PROVIDER_SOURCE_ROWS=Object.freeze([
+  {
+    "git_blob_sha1":"5b23824bf0a0f33b193e1cfc022fcfb5b898b022",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_delivery_runtime_integration_v1.ts"
+  },
+  {
+    "git_blob_sha1":"2deaee8ae4e0fbd909b417eef96a76012174c668",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts"
+  },
+  {
+    "git_blob_sha1":"f84ca60a37c77ae7691ec6970c59f123de4f73b7",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_delivery_submission_guard_v1.ts"
+  },
+  {
+    "git_blob_sha1":"158cbf14fa2b566632c096a22e484b651cd44f6d",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts"
+  },
+  {
+    "git_blob_sha1":"08e8849e1736d20c0737e493853732970c0f31a5",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_erc20_chain2050_broadcaster_v1.ts"
+  },
+  {
+    "git_blob_sha1":"05d9094f507ade72591f1e8c4983085c2259f949",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_erc20_chain2050_total_deadline_transport_v1.ts"
+  },
+  {
+    "git_blob_sha1":"e5651535bde060c91e988beb324aa8e5621d2857",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_erc20_delivery_dependency_bootstrap_v1.ts"
+  },
+  {
+    "git_blob_sha1":"d110159db9d20a8ce85391f4bdb154b9a6ddefde",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_erc20_delivery_dependency_injection_v1.ts"
+  },
+  {
+    "git_blob_sha1":"0999f773bdc4befb3e82676304f0d69f5cab42ef",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_erc20_production_credential_binding_evidence_v1.ts"
+  },
+  {
+    "git_blob_sha1":"28b50301609c16838903ee49e62ba91cd4660e88",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_native_chain2050_broadcaster_v1.ts"
+  },
+  {
+    "git_blob_sha1":"5fd9296d10d810b1976c159578f13cca5d1594fe",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
+  },
+  {
+    "git_blob_sha1":"00dad9a345dcbdc9d96bc0f61543f8d0db63e0ac",
+    "git_mode":"100644",
+    "path":"src/economic/buy_void_runtime_integration_v1.ts"
+  }
+]);
+const PROVIDER_SUPPORT_ROWS=Object.freeze([
+  {
+    "git_blob_sha1":"15b5c82ea36f13079a2f9e8863722f654eb3f201",
+    "git_mode":"100644",
+    "path":"package-lock.json"
+  },
+  {
+    "git_blob_sha1":"14fbdf5717b07fd4c734f5da7a8e84ed59bee93f",
+    "git_mode":"100644",
+    "path":"package.json"
+  },
+  {
+    "git_blob_sha1":"bc9473b4fd79eae50f4e86ca24968d3328cdcf22",
+    "git_mode":"100644",
+    "path":"scripts/prove_buy_void_delivery_dependency_provider_closure_v1.mjs"
+  },
+  {
+    "git_blob_sha1":"d43e7f3fa03d20159f7b92aca4c8a56e738cd2fb",
+    "git_mode":"100644",
+    "path":"tsconfig.build.json"
+  }
+]);
 const WORKFLOWS=Object.freeze([[".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml","CURRENT_PROTECTED_INTEGRATION_DISPATCH_V4","receipt"],[".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml","HISTORICAL_V1_REFUSAL_CURRENT_V2_DISPATCH_V4","historical-self-test"],[".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml","CURRENT_PROTECTED_INTEGRATION_DISPATCH_V4","receipt"],[".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml","CURRENT_PROTECTED_INTEGRATION_DISPATCH_V4","receipt"],[".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml","CURRENT_PROTECTED_INTEGRATION_DISPATCH_V4","receipt"]]);
 const ARTIFACT_PATHS=Object.freeze(["dist/economic/buy_void_auto_fulfillment_v1.js","dist/economic/buy_void_broadcast_outcome_journal_v1.js","dist/economic/buy_void_confirmed_state_journal_v1.js","dist/economic/buy_void_crash_consistent_saga_server_policy_v1.js","dist/economic/buy_void_delivery_runtime_integration_v1.js","dist/economic/buy_void_delivery_sign_broadcast_adapter_v1.js","dist/economic/buy_void_delivery_submission_guard_v1.js","dist/economic/buy_void_erc20_delivery_receipt_reconciler_v1.js","dist/economic/buy_void_erc20_execution_composition_v1.js","dist/economic/buy_void_erc20_transaction_preparation_planner_v1.js","dist/economic/buy_void_execution_attempt_journal_v1.js","dist/economic/buy_void_filesystem_bakery_lock_v1.js","dist/economic/buy_void_fulfillment_confirmation_v1.js","dist/economic/buy_void_fulfillment_journal_v1.js","dist/economic/buy_void_inventory_reservation_journal_v1.js","dist/economic/buy_void_payment_rpc_observer_v1.js","dist/economic/buy_void_pipeline_coordinator_v1.js","dist/economic/buy_void_source_chain_finality_rpc_adapter_v1.js","dist/economic/buy_void_source_finality_authenticated_composition_v3.js","dist/economic/buy_void_source_finality_authority_v2.js","dist/economic/buy_void_source_finality_execution_preflight_v1.js","dist/economic/buy_void_source_finality_generation_provenance_v6.js","dist/economic/buy_void_verified_payment_v2.js","dist/economic/buy_void_source_finality_generation_provenance_v7.js","dist/economic/buy_void_source_finality_live_process_binding_v1.js","dist/economic/buy_void_source_finality_live_process_binding_v2.js","dist/economic/buy_void_source_finality_provider_pair_binding_v1.js","dist/economic/buy_void_ethereum_public_checkout_finality_gate_v1.js"]);
 const STAT_FIELDS=Object.freeze(["dev","ino","mode","nlink","uid","gid","rdev","size","mtimeMs","ctimeMs"]);
@@ -173,6 +263,48 @@ function verifyBuiltCensus(candidate){
   assert.equal(sha(Buffer.from(canonical(artifacts),"utf8")),candidate.current_inventory_evidence.canonical_artifact_inventory_sha256);
   assert.equal(sha(Buffer.from(canonical(sources),"utf8")),candidate.current_inventory_evidence.canonical_source_inventory_sha256);
 }
+function verifyProviderIdentity(){
+  const evidence=JSON.parse(pin(PROVIDER_EVIDENCE,PROVIDER_EVIDENCE_BLOB,128*1024).toString("utf8"));
+  assert.equal(evidence.marker,"VOID_BUY_VOID_DELIVERY_DEPENDENCY_PROVIDER_CLOSURE_V1");
+  assert.equal(evidence.repository_head_sha,PROVIDER_EVIDENCE_HEAD);
+  assert.equal(evidence.repository_tree_sha,PROVIDER_EVIDENCE_TREE);
+  assert.equal(evidence.provider_closure_sha256,"3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945");
+  assert.equal(evidence.provider_static_module_closure_verified,true);
+  assert.equal(evidence.dynamic_module_loader_present,false);
+  assert.equal(PROVIDER_SOURCE_ROWS.length,12,"provider_source_manifest_count");
+  assert.equal(PROVIDER_SUPPORT_ROWS.length,4,"provider_support_manifest_count");
+  assert.deepEqual(
+    evidence.provider_source_paths,
+    PROVIDER_SOURCE_ROWS.map(row=>row.path),
+    "provider_source_path_manifest_drift",
+  );
+  const support=Object.fromEntries(PROVIDER_SUPPORT_ROWS.map(row=>[row.path,row]));
+  assert.equal(Object.keys(support).length,PROVIDER_SUPPORT_ROWS.length,"provider_support_path_duplicate");
+  assert.equal(evidence.package_json_git_blob_sha1,support["package.json"].git_blob_sha1,
+    "provider_package_json_manifest_drift");
+  assert.equal(evidence.package_lock_git_blob_sha1,support["package-lock.json"].git_blob_sha1,
+    "provider_package_lock_manifest_drift");
+  assert.equal(PROVIDER_CANDIDATE_PROOF_BLOB,support[PROVIDER_CANDIDATE_PROOF].git_blob_sha1,
+    "provider_candidate_proof_manifest_drift");
+  for(const row of [...PROVIDER_SOURCE_ROWS,...PROVIDER_SUPPORT_ROWS]){
+    assert.deepEqual(Object.keys(row).sort(),["git_blob_sha1","git_mode","path"],
+      "provider_manifest_row_shape:"+row.path);
+    assert.match(row.git_blob_sha1,/^[0-9a-f]{40}$/u,"provider_manifest_blob_invalid:"+row.path);
+    assert.ok(row.git_mode==="100644"||row.git_mode==="100755",
+      "provider_manifest_mode_invalid:"+row.path);
+    pin(row.path,row.git_blob_sha1,4*1024*1024);
+    assert.equal(treeMode(row.path),row.git_mode,"provider_manifest_mode_drift:"+row.path);
+  }
+  const identities=[evidence.server_runtime_identity,evidence.delivery_consumer_identity,evidence.delivery_adapter_identity,...evidence.provider_runtime_artifacts];
+  const seen=new Set();
+  for(const identity of identities){
+    if(seen.has(identity.path))continue; seen.add(identity.path);
+    const bytes=read(identity.path,2*1024*1024);
+    assert.equal(bytes.length,identity.bytes,"provider_artifact_bytes_drift:"+identity.path);
+    assert.equal(sha(bytes),identity.sha256,"provider_artifact_sha256_drift:"+identity.path);
+  }
+  return evidence;
+}
 function verifyPredecessorAndReader(){
   const d3=pin(DISPATCH_V3,DISPATCH_V3_BLOB,4*1024*1024).toString("utf8");
   pin(DISPATCH_V3_DOC,DISPATCH_V3_DOC_BLOB,512*1024);
@@ -242,6 +374,7 @@ function verify(){
   verifyScope();
   const candidate=verifyCandidate();
   verifyBuiltCensus(candidate);
+  const provider=verifyProviderIdentity();
   verifyPredecessorAndReader();
   verifyWorkflows();
   return Object.freeze({
@@ -270,7 +403,7 @@ function verify(){
     v4_candidate_enforcement_identity_accepted:false,
     current_built_census_identity_matches_frozen_v4:true,
     frozen_v4_census_proof_preserved:true,
-    provider_source_path_count:12,
+    provider_source_path_count:provider.provider_source_paths.length,
     provider_source_identity_preserved:true,
     provider_source_blob_manifest_bound:true,
     provider_historical_commit_object_required:false,
@@ -302,7 +435,8 @@ if(arg==="--receipt"){
     "workflow_dispatch_contracts_bound","production_tracked_file_nonblocking",
     "production_tracked_file_fifo_swap_rejected","current_v4_candidate_inventory_preserved",
     "v4_candidate_rederived_on_current_head","v4_candidate_enforcement_identity_accepted",
-    "frozen_v4_census_proof_preserved","nonprotected_economic_drift_count",
+    "frozen_v4_census_proof_preserved","provider_built_artifact_identity_preserved",
+    "nonprotected_economic_drift_count",
     "production_source_finality_authority_ready","public_presale_activation","funds_movement"
   ])console.log(key+"="+r[key]);
 }else{

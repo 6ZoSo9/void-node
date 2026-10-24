@@ -75,7 +75,6 @@ for (const [name, route] of Object.entries(routes)) {
 }
 
 const falseBoundaries = [
-  'mutation_route_enabled',
   'wallet_send_enabled',
   'money_movement_enabled',
   'buy_void_fulfillment_enabled',
@@ -91,6 +90,9 @@ for (const key of falseBoundaries) {
   if (receipt.boundary?.[key] !== false) throw new Error(`receipt boundary ${key} must be false`);
 }
 
+if (connect.boundary?.read_only !== false) throw new Error('connect pack must disclose its manual mutation step');
+if (connect.boundary?.mutation_route_enabled !== true) throw new Error('connect pack must disclose the local dial mutation route');
+if (receipt.boundary?.mutation_route_enabled !== false) throw new Error('receipt template must not enable mutation');
 if (connect.boundary?.automatic_peer_dial_enabled_by_this_pack !== false) throw new Error('connect pack must not enable automatic peer dial');
 if (receipt.boundary?.automatic_peer_dial_enabled_by_this_template !== false) throw new Error('receipt template must not enable automatic peer dial');
 if (receipt.boundary?.work_credit_claim_created !== false) throw new Error('receipt template must not create WC claim');

@@ -5,6 +5,10 @@ on:
     paths:
       - "src/node_core.ts"
       - "src/p2p/verified_peer_cache_v1.ts"
+      - "src/p2p/retired_peer_identities_v1.ts"
+      - "src/p2p/direct_upgrade_v1.ts"
+      - "scripts/prove_void_p2p_retired_peer_identity_v1.ts"
+      - "docs/security/void-p2p-retired-peer-identities-v1.md"
       - "scripts/prove_void_p2p_verified_peer_cache_reconnect_v1.ts"
       - "docs/public/void-p2p-verified-peer-cache-reconnect-v1.md"
       - ".github/workflows/void-p2p-verified-peer-cache-reconnect-v1.yml"
@@ -48,6 +52,9 @@ jobs:
 
       - name: Prove verified peer cache and reconnect
         run: npx --no-install tsx scripts/prove_void_p2p_verified_peer_cache_reconnect_v1.ts
+
+      - name: Prove source-retired peer admission and cache behavior
+        run: npx --no-install tsx scripts/prove_void_p2p_retired_peer_identity_v1.ts
 
       - name: Preserve authenticated peer identity proof
         run: npx --no-install tsx scripts/prove_void_p2p_authenticated_peer_identity_v1.ts

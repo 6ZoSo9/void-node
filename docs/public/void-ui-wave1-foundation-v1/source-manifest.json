@@ -124,10 +124,18 @@
     ],
     "authority_added": false
   },
+  "command_search_validate_destination_repair": {
+    "date": "2026-10-23",
+    "surface": "command-menu",
+    "route": "#/validate",
+    "primary_destination": true,
+    "destinations_after_repair": 8,
+    "authority_added": false
+  },
   "payload_hashes_are_source_bundle_only": true,
   "repository_hashes": {
     "public/void-app-wave1-v1/assets/css/components.css": "2dac0177de78ccf3dc140db5167e7297dd0fd6d5c276844d648f7435c11336ee",
-    "public/void-app-wave1-v1/assets/js/app.js": "85c9e43adc98250c728b02f7222e19aa1a190892683aec67e22469c483898f5b",
-    "public/void-app-wave1-v1/index.html": "d629ab00117ad6534651d66789887de2d9a0d101b7bb4b7d29eb0816acc37743"
+    "public/void-app-wave1-v1/assets/js/app.js": "0c7e5ecc4918fc8f5a9bc1a4695ab54cfe417975c01ad99317cb27c6099f521f",
+    "public/void-app-wave1-v1/index.html": "78d047f2bc61323dad16438f2fcc16daa3941c170c96c7cf67d52c8df2408f8f"
   }
 }

@@ -51,7 +51,7 @@ const NONPROTECTED_ECONOMIC_DRIFT=Object.freeze([
 const REVIEWED_RANGE_INDEX=Object.freeze({
   path:"src/index.ts",
   frozen_blob:"123ec1792a027f93d4c9030749a0e7e136a75a44",
-  current_blob:"7df1f21c730b554c414c88c550a4475234485370",
+  current_blob:"a09661797aa4295371c036be36d82995e5233269",
   mode:"100644",
 });
 

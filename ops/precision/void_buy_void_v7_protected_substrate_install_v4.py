@@ -32,7 +32,6 @@ import os
 import pathlib
 import shutil
 import stat
-import subprocess
 import tempfile
 from typing import Any
 
@@ -82,8 +81,7 @@ SELECTOR_SHA256 = "048564b0a351a5ba3b9f980962d9261fa14a49823b5075ca4794bbeefecbb
 SELECTOR_BYTES = 26680
 RUNTIME_UID = 1000
 RUNTIME_GID = 1000
-FIXED_GIT = pathlib.Path("/usr/bin/git")
-FIXED_SETPRIV = pathlib.Path("/usr/bin/setpriv")
+PR_SET_NO_NEW_PRIVS = 38
 MAX_NODES = 250000
 MAX_FILE_BYTES = 512 * 1024 * 1024
 MAX_TOTAL_BYTES = 16 * 1024 * 1024 * 1024
@@ -201,15 +199,21 @@ def require_privileged_source_custody() -> None:
         if _metadata_identity(directory.lstat()) != expected_directory:
             raise InstallError("privileged_source_directory_generation_changed_before_scandir:" + os.fspath(directory))
 
-        entries = list(os.scandir(directory))
+        entry_names: list[str] = []
+        try:
+            with os.scandir(directory) as scan:
+                for entry in scan:
+                    checked += 1
+                    if checked > MAX_NODES:
+                        raise InstallError("privileged_source_node_limit")
+                    entry_names.append(entry.name)
+        except OSError as exc:
+            raise InstallError("privileged_source_scandir_failed:" + os.fspath(directory)) from exc
         if _metadata_identity(directory.lstat()) != expected_directory:
             raise InstallError("privileged_source_directory_generation_changed_during_scandir:" + os.fspath(directory))
 
-        for entry in entries:
-            checked += 1
-            if checked > MAX_NODES:
-                raise InstallError("privileged_source_node_limit")
-            path = pathlib.Path(entry.path)
+        for entry_name in entry_names:
+            path = directory / entry_name
             st = os.lstat(path)
             if st.st_uid != 0 or st.st_gid != 0:
                 raise InstallError("privileged_source_node_owner_invalid:" + os.fspath(path))
@@ -262,35 +266,6 @@ def _metadata_identity(st: os.stat_result) -> tuple[int, int, int, int, int, int
         st.st_size, st.st_mtime_ns, st.st_ctime_ns,
     )
 
-def _trusted_tool_ancestor_snapshot(path: pathlib.Path, label: str) -> tuple[pathlib.Path, tuple[tuple[str, int, int, int, int, int, int], ...]]:
-    try:
-        resolved = path.resolve(strict=True)
-    except OSError as exc:
-        raise InstallError(label + "_tool_unavailable") from exc
-    if not resolved.is_absolute():
-        raise InstallError(label + "_tool_not_absolute")
-    current = resolved.parent
-    rows: list[tuple[str, int, int, int, int, int, int]] = []
-    audit_paths = [resolved]
-    while True:
-        st = os.lstat(current)
-        mode = stat.S_IMODE(st.st_mode)
-        if (
-            not stat.S_ISDIR(st.st_mode)
-            or stat.S_ISLNK(st.st_mode)
-            or st.st_uid != 0
-            or st.st_gid != 0
-            or mode & 0o022
-        ):
-            raise InstallError(label + "_tool_ancestor_custody_invalid:" + os.fspath(current))
-        rows.append((os.fspath(current), st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode, st.st_nlink))
-        audit_paths.append(current)
-        if current == current.parent:
-            break
-        current = current.parent
-    _runtime_uid_write_audit_builtin(audit_paths, label + "_tool")
-    return resolved, tuple(rows)
-
 def _read_tool_fd(fd: int, max_bytes: int, label: str) -> bytes:
     os.lseek(fd, 0, os.SEEK_SET)
     chunks: list[bytes] = []
@@ -305,126 +280,6 @@ def _read_tool_fd(fd: int, max_bytes: int, label: str) -> bytes:
         chunks.append(part)
     os.lseek(fd, 0, os.SEEK_SET)
     return b"".join(chunks)
-
-def _open_trusted_tool_lease(
-    path: pathlib.Path,
-    label: str,
-    max_bytes: int = 512 * 1024 * 1024,
-) -> tuple[int, pathlib.Path, tuple[int, int, int, int, int, int, int, int, int], tuple[tuple[str, int, int, int, int, int, int], ...], str]:
-    resolved, ancestors = _trusted_tool_ancestor_snapshot(path, label)
-    before = os.lstat(resolved)
-    if (
-        not stat.S_ISREG(before.st_mode)
-        or stat.S_ISLNK(before.st_mode)
-        or before.st_uid != 0
-        or before.st_gid != 0
-        or before.st_nlink != 1
-        or stat.S_IMODE(before.st_mode) & 0o022
-        or stat.S_IMODE(before.st_mode) & 0o111 == 0
-    ):
-        raise InstallError(label + "_tool_leaf_custody_invalid")
-    fd = os.open(resolved, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
-    try:
-        opened = os.fstat(fd)
-        identity = _metadata_identity(opened)
-        if identity != _metadata_identity(before):
-            raise InstallError(label + "_tool_open_generation_mismatch")
-        raw = _read_tool_fd(fd, max_bytes, label)
-        visible = os.lstat(resolved)
-        if _metadata_identity(os.fstat(fd)) != identity or _metadata_identity(visible) != identity:
-            raise InstallError(label + "_tool_generation_changed_during_hash")
-        resolved2, ancestors2 = _trusted_tool_ancestor_snapshot(resolved, label)
-        if resolved2 != resolved or ancestors2 != ancestors:
-            raise InstallError(label + "_tool_ancestor_generation_changed")
-        return fd, resolved, identity, ancestors, sha256_bytes(raw)
-    except BaseException:
-        os.close(fd)
-        raise
-
-def _revalidate_trusted_tool_lease(
-    fd: int,
-    resolved: pathlib.Path,
-    identity: tuple[int, int, int, int, int, int, int, int, int],
-    ancestors: tuple[tuple[str, int, int, int, int, int, int], ...],
-    digest: str,
-    label: str,
-    max_bytes: int = 512 * 1024 * 1024,
-) -> None:
-    if _metadata_identity(os.fstat(fd)) != identity:
-        raise InstallError(label + "_tool_retained_generation_changed")
-    visible = os.lstat(resolved)
-    if _metadata_identity(visible) != identity:
-        raise InstallError(label + "_tool_visible_generation_changed")
-    resolved2, ancestors2 = _trusted_tool_ancestor_snapshot(resolved, label)
-    if resolved2 != resolved or ancestors2 != ancestors:
-        raise InstallError(label + "_tool_ancestor_generation_changed")
-    if sha256_bytes(_read_tool_fd(fd, max_bytes, label)) != digest:
-        raise InstallError(label + "_tool_retained_sha256_changed")
-
-def _run_runtime_observer_tool(
-    tool: pathlib.Path,
-    args: list[str],
-    *,
-    input_data: bytes | None = None,
-    text: bool,
-    timeout: int,
-    env: dict[str, str],
-) -> subprocess.CompletedProcess[Any]:
-    if os.geteuid() == RUNTIME_UID and os.getegid() == RUNTIME_GID:
-        return subprocess.run(
-            [os.fspath(tool), *args],
-            input=input_data,
-            stdin=None if input_data is not None else subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=text,
-            check=False,
-            timeout=timeout,
-            env=env,
-        )
-    if os.geteuid() != 0 or os.getuid() != 0:
-        raise InstallError("repository_observer_identity_invalid")
-    setpriv_fd = tool_fd = -1
-    try:
-        setpriv_fd, setpriv_path, setpriv_identity, setpriv_ancestors, setpriv_sha = _open_trusted_tool_lease(
-            FIXED_SETPRIV, "setpriv"
-        )
-        tool_fd, tool_path, tool_identity, tool_ancestors, tool_sha = _open_trusted_tool_lease(
-            tool, "observer_tool"
-        )
-        argv = [
-            f"/proc/self/fd/{setpriv_fd}",
-            "--no-new-privs",
-            "--reuid=" + str(RUNTIME_UID),
-            "--regid=" + str(RUNTIME_GID),
-            "--clear-groups",
-            f"/proc/self/fd/{tool_fd}",
-            *args,
-        ]
-        cp = subprocess.run(
-            argv,
-            input=input_data,
-            stdin=None if input_data is not None else subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=text,
-            check=False,
-            timeout=timeout,
-            env=env,
-            pass_fds=(setpriv_fd, tool_fd),
-        )
-        _revalidate_trusted_tool_lease(
-            tool_fd, tool_path, tool_identity, tool_ancestors, tool_sha, "observer_tool"
-        )
-        _revalidate_trusted_tool_lease(
-            setpriv_fd, setpriv_path, setpriv_identity, setpriv_ancestors, setpriv_sha, "setpriv"
-        )
-        return cp
-    finally:
-        if tool_fd >= 0:
-            os.close(tool_fd)
-        if setpriv_fd >= 0:
-            os.close(setpriv_fd)
 
 def _read_metadata_file(path: pathlib.Path, label: str, max_bytes: int = 1024 * 1024) -> tuple[bytes, tuple[int, int, int, int, int, int, int, int, int]]:
     before = path.lstat()
@@ -551,48 +406,40 @@ def _direct_git_metadata_snapshot(root: pathlib.Path, label: str) -> tuple[objec
         sha256_bytes(config_raw),
     )
 
-def _git_probe_text(root: pathlib.Path, *args: str) -> str:
-    git_args = [
-        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
-        "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
-        "--no-replace-objects", "-C", os.fspath(root), *args,
-    ]
-    cp = _run_runtime_observer_tool(
-        FIXED_GIT, git_args, text=True, timeout=30, env=_git_env()
-    )
-    if cp.returncode != 0 or cp.stderr != "":
-        raise InstallError("git_provenance_probe_failed:" + (args[0] if args else "unknown"))
-    return cp.stdout.strip()
-
-def _resolve_git_reported(root: pathlib.Path, value: str, label: str) -> pathlib.Path:
-    candidate = pathlib.Path(value)
-    if not candidate.is_absolute():
-        candidate = root / candidate
-    try:
-        return candidate.resolve(strict=True)
-    except OSError as exc:
-        raise InstallError(label + "_git_reported_path_unavailable") from exc
-
-def require_git_metadata_provenance(root: pathlib.Path, label: str) -> None:
+def _direct_main_ref(root: pathlib.Path, label: str) -> str:
     before = _direct_git_metadata_snapshot(root, label)
-    expected_git_dir = (root / ".git").resolve(strict=True)
-    observed_git_dir = _resolve_git_reported(root, _git_probe_text(root, "rev-parse", "--git-dir"), label)
-    observed_common_dir = _resolve_git_reported(root, _git_probe_text(root, "rev-parse", "--git-common-dir"), label)
-    observed_top = _resolve_git_reported(root, _git_probe_text(root, "rev-parse", "--show-toplevel"), label)
-    shallow = _git_probe_text(root, "rev-parse", "--is-shallow-repository")
+    git_dir = root / ".git"
+    head_raw, head_id = _read_metadata_file(git_dir / "HEAD", label + "_git_head", 4096)
+    if head_raw != b"ref: refs/heads/main\n":
+        raise InstallError(label + "_git_head_not_main")
+    ref_path = git_dir / "refs" / "heads" / "main"
+    ref_raw, ref_id = _read_metadata_file(ref_path, label + "_git_main_ref", 4096)
+    if (
+        len(ref_raw) != 41
+        or not ref_raw.endswith(b"\n")
+        or any(ch not in b"0123456789abcdef" for ch in ref_raw[:-1])
+    ):
+        raise InstallError(label + "_git_main_ref_invalid")
+    head_raw2, head_id2 = _read_metadata_file(git_dir / "HEAD", label + "_git_head_terminal", 4096)
+    ref_raw2, ref_id2 = _read_metadata_file(ref_path, label + "_git_main_ref_terminal", 4096)
     after = _direct_git_metadata_snapshot(root, label)
-    if before != after:
-        raise InstallError(label + "_git_metadata_generation_changed")
-    if observed_git_dir != expected_git_dir:
-        raise InstallError(label + "_git_dir_not_in_tree")
-    if observed_common_dir != expected_git_dir:
-        raise InstallError(label + "_git_common_dir_not_in_tree")
-    if observed_top != root.resolve(strict=True):
-        raise InstallError(label + "_git_toplevel_mismatch")
-    if shallow != "false":
-        raise InstallError(label + "_git_shallow_forbidden")
+    if (
+        before != after
+        or head_raw2 != head_raw
+        or head_id2 != head_id
+        or ref_raw2 != ref_raw
+        or ref_id2 != ref_id
+    ):
+        raise InstallError(label + "_git_ref_generation_changed")
+    return ref_raw[:-1].decode("ascii")
 
-def _write_git_metadata_fixture(root: pathlib.Path, config: str = "[core]\nrepositoryformatversion = 0\nbare = false\n") -> None:
+def require_git_metadata_provenance(root: pathlib.Path, label: str) -> str:
+    return _direct_main_ref(root, label)
+
+def _write_git_metadata_fixture(
+    root: pathlib.Path,
+    config: str = "[core]\nrepositoryformatversion = 0\nbare = false\n",
+) -> None:
     (root / ".git" / "objects" / "info").mkdir(parents=True)
     (root / ".git" / "info").mkdir(parents=True)
     (root / ".git" / "config").write_text(config, "utf-8")
@@ -676,79 +523,32 @@ def revalidate_source_release_ancestor_custody(
 def canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("ascii")
 
-def _git_env() -> dict[str, str]:
-    return {
-        "PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LANG": "C", "LC_ALL": "C", "TZ": "UTC",
-        "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null",
-        "GIT_NO_REPLACE_OBJECTS": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0",
-        "GIT_ASKPASS": "/bin/false", "GIT_NO_LAZY_FETCH": "1", "GIT_PROTOCOL_FROM_USER": "0",
-        "GIT_ALLOW_PROTOCOL": "", "GIT_PAGER": "",
-    }
+def _direct_blob_identity(path: pathlib.Path, expected_blob: str, label: str) -> bytes:
+    raw, _identity = _read_metadata_file(path, label, MAX_FILE_BYTES)
+    if git_blob_sha1(raw) != expected_blob:
+        raise InstallError(label + "_blob_mismatch")
+    return raw
 
-def git_text(root: pathlib.Path, *args: str) -> str:
-    git_args = [
-        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
-        "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
-        "--no-replace-objects", "-C", os.fspath(root), *args,
-    ]
-    cp = _run_runtime_observer_tool(
-        FIXED_GIT, git_args, text=True, timeout=60, env=_git_env()
-    )
-    if cp.returncode != 0 or cp.stderr != "":
-        raise InstallError("git_observation_failed:" + (args[0] if args else "unknown"))
-    return cp.stdout.strip()
-
-def git_bytes(root: pathlib.Path, *args: str) -> bytes:
-    git_args = [
-        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
-        "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
-        "--no-replace-objects", "-C", os.fspath(root), *args,
-    ]
-    cp = _run_runtime_observer_tool(
-        FIXED_GIT, git_args, text=False, timeout=60, env=_git_env()
-    )
-    if cp.returncode != 0 or cp.stderr != b"":
-        raise InstallError("git_observation_failed:" + (args[0] if args else "unknown"))
-    return cp.stdout
-
-def git_is_ancestor(root: pathlib.Path, base: str, head: str) -> bool:
-    git_args = [
-        "-c", "safe.directory=" + os.fspath(root), "-c", "core.hooksPath=/dev/null",
-        "-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false", "-c", "submodule.recurse=false",
-        "--no-replace-objects", "-C", os.fspath(root), "merge-base", "--is-ancestor", base, head,
-    ]
-    cp = _run_runtime_observer_tool(
-        FIXED_GIT, git_args, text=False, timeout=20, env=_git_env()
-    )
-    if cp.returncode not in (0, 1) or cp.stdout or cp.stderr:
-        raise InstallError("git_ancestor_observation_failed")
-    return cp.returncode == 0
-
-def verify_repository(expected_head: str) -> None:
-    require_git_metadata_provenance(ROOT, "checkout")
+def verify_repository(expected_head: str, expected_tree: str) -> None:
     if len(expected_head) != 40 or any(ch not in "0123456789abcdef" for ch in expected_head):
         raise InstallError("expected_head_invalid")
-    if git_text(ROOT, "rev-parse", "--verify", "HEAD") != expected_head:
+    if len(expected_tree) != 40 or any(ch not in "0123456789abcdef" for ch in expected_tree):
+        raise InstallError("expected_tree_invalid")
+    observed_head = require_git_metadata_provenance(ROOT, "checkout")
+    if observed_head != expected_head:
         raise InstallError("checkout_head_mismatch")
-    if git_text(ROOT, "branch", "--show-current") != "main":
-        raise InstallError("checkout_branch_not_main")
-    if git_text(ROOT, "status", "--porcelain=v1", "--untracked-files=all") != "":
-        raise InstallError("checkout_not_clean")
-    if not git_is_ancestor(ROOT, PREDECESSOR_MERGE, expected_head):
-        raise InstallError("predecessor_v3_installer_merge_not_current_ancestor")
-    if git_text(ROOT, "rev-parse", PREDECESSOR_MERGE + "^{tree}") != PREDECESSOR_TREE:
-        raise InstallError("predecessor_v3_installer_merge_tree_mismatch")
+    require_worktree_matches_tree(ROOT, expected_tree, "checkout")
     for rel, blob in {
-        LOCK_REL: LOCK_BLOB, MATERIALIZER_REL: MATERIALIZER_BLOB,
-        PREDECESSOR_INSTALLER_REL: PREDECESSOR_INSTALLER_BLOB, QUALIFIER_REL: QUALIFIER_BLOB,
+        LOCK_REL: LOCK_BLOB,
+        MATERIALIZER_REL: MATERIALIZER_BLOB,
+        PREDECESSOR_INSTALLER_REL: PREDECESSOR_INSTALLER_BLOB,
+        QUALIFIER_REL: QUALIFIER_BLOB,
     }.items():
-        if git_text(ROOT, "rev-parse", "HEAD:" + rel) != blob:
-            raise InstallError("accepted_dependency_blob_mismatch:" + rel)
+        _direct_blob_identity(ROOT / rel, blob, "accepted_dependency:" + rel)
 
-def accepted_lock(expected_head: str) -> dict[str, Any]:
-    raw = git_bytes(ROOT, "show", expected_head + ":" + LOCK_REL)
-    if git_blob_sha1(raw) != LOCK_BLOB:
-        raise InstallError("accepted_lock_blob_mismatch")
+def accepted_lock(expected_head: str, expected_tree: str) -> dict[str, Any]:
+    del expected_head, expected_tree
+    raw = _direct_blob_identity(ROOT / LOCK_REL, LOCK_BLOB, "accepted_lock")
     try:
         lock = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -784,16 +584,9 @@ def verify_source_release() -> None:
     ancestors = source_release_ancestor_custody()
     if SOURCE_RELEASE.resolve() != SOURCE_RELEASE or not SOURCE_RELEASE.is_dir() or SOURCE_RELEASE.is_symlink():
         raise InstallError("source_release_path_invalid")
-    require_git_metadata_provenance(SOURCE_RELEASE, "source_release")
-    if git_text(SOURCE_RELEASE, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD:
+    if require_git_metadata_provenance(SOURCE_RELEASE, "source_release") != SOURCE_HEAD:
         raise InstallError("source_release_head_mismatch")
-    if git_text(SOURCE_RELEASE, "rev-parse", "--verify", "HEAD^{tree}") != SOURCE_TREE:
-        raise InstallError("source_release_tree_mismatch")
-    if git_text(SOURCE_RELEASE, "symbolic-ref", "--short", "-q", "HEAD") != "main":
-        raise InstallError("source_release_branch_not_main")
     require_worktree_matches_tree(SOURCE_RELEASE, SOURCE_TREE, "source_release")
-    if git_text(SOURCE_RELEASE, "status", "--porcelain=v1", "--untracked-files=all") != "":
-        raise InstallError("source_release_not_clean")
     revalidate_source_release_ancestor_custody(ancestors)
 
 def _read_regular_sha256_exact(
@@ -887,103 +680,95 @@ def _read_regular_git_blob_sha1_exact(
     finally:
         os.close(fd)
 
-def _parse_git_tree_manifest(raw: bytes, label: str) -> dict[str, tuple[str, str]]:
-    manifest: dict[str, tuple[str, str]] = {}
-    records = raw.split(b"\0")
-    if records and records[-1] == b"":
-        records.pop()
-    if len(records) > MAX_NODES:
-        raise InstallError(label + "_git_tree_node_limit")
-    for record in records:
-        try:
-            meta, raw_path = record.split(b"\t", 1)
-            mode_raw, kind_raw, oid_raw = meta.split(b" ", 2)
-            mode = mode_raw.decode("ascii")
-            kind = kind_raw.decode("ascii")
-            oid = oid_raw.decode("ascii")
-            rel = raw_path.decode("utf-8")
-        except (ValueError, UnicodeDecodeError) as exc:
-            raise InstallError(label + "_git_tree_manifest_invalid") from exc
-        if kind != "blob" or mode not in ("100644", "100755", "120000"):
-            raise InstallError(label + "_git_tree_entry_kind_forbidden:" + rel)
-        if len(oid) != 40 or any(ch not in "0123456789abcdef" for ch in oid):
-            raise InstallError(label + "_git_tree_oid_invalid:" + rel)
-        parts = rel.split("/")
-        if (
-            not rel
-            or rel.startswith("/")
-            or any(part in ("", ".", "..") for part in parts)
-            or parts[0] == ".git"
-            or rel in manifest
-        ):
-            raise InstallError(label + "_git_tree_path_invalid:" + rel)
-        manifest[rel] = (mode, oid)
-    return manifest
-
-def _verify_worktree_manifest(
-    root: pathlib.Path,
-    manifest: dict[str, tuple[str, str]],
-    label: str,
-) -> None:
-    expected_dirs: set[str] = set()
-    for rel in manifest:
-        parts = rel.split("/")
-        for index in range(1, len(parts)):
-            expected_dirs.add("/".join(parts[:index]))
-    seen: set[str] = set()
-    pending: list[tuple[pathlib.Path, str]] = [(root, "")]
+def _git_tree_oid_from_worktree(root: pathlib.Path, label: str) -> str:
     nodes = 0
-    while pending:
-        directory, prefix = pending.pop()
-        for entry in sorted(os.scandir(directory), key=lambda item: item.name):
-            if not prefix and entry.name == ".git":
-                gst = os.lstat(directory / entry.name)
+    total = 0
+    root_before = root.lstat()
+    if not stat.S_ISDIR(root_before.st_mode) or stat.S_ISLNK(root_before.st_mode):
+        raise InstallError(label + "_worktree_root_invalid")
+    root_identity = _metadata_identity(root_before)
+
+    def walk(directory: pathlib.Path, depth: int) -> str:
+        nonlocal nodes, total
+        if depth > 256:
+            raise InstallError(label + "_worktree_depth_limit")
+        before = directory.lstat()
+        if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+            raise InstallError(label + "_worktree_directory_invalid:" + os.fspath(directory))
+        directory_identity = _metadata_identity(before)
+        rows: list[tuple[bytes, bytes]] = []
+        names: list[str] = []
+        try:
+            with os.scandir(directory) as scan:
+                for entry in scan:
+                    nodes += 1
+                    if nodes > MAX_NODES:
+                        raise InstallError(label + "_worktree_node_limit")
+                    names.append(entry.name)
+        except OSError as exc:
+            raise InstallError(label + "_worktree_scandir_failed:" + os.fspath(directory)) from exc
+        for name in names:
+            if directory == root and name == ".git":
+                gst = os.lstat(directory / name)
                 if not stat.S_ISDIR(gst.st_mode) or stat.S_ISLNK(gst.st_mode):
                     raise InstallError(label + "_git_dir_generation_invalid")
                 continue
-            nodes += 1
-            if nodes > MAX_NODES:
-                raise InstallError(label + "_worktree_node_limit")
-            child = directory / entry.name
-            rel = entry.name if not prefix else prefix + "/" + entry.name
+            try:
+                raw_name = os.fsencode(name)
+                raw_name.decode("utf-8")
+            except (UnicodeEncodeError, UnicodeDecodeError) as exc:
+                raise InstallError(label + "_worktree_name_not_utf8") from exc
+            if not raw_name or b"/" in raw_name or b"\0" in raw_name:
+                raise InstallError(label + "_worktree_name_invalid")
+            child = directory / name
             st = os.lstat(child)
+            identity = _metadata_identity(st)
             if stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode):
-                if rel not in expected_dirs:
-                    raise InstallError(label + "_worktree_extra_directory:" + rel)
-                pending.append((child, rel))
-                continue
-            expected = manifest.get(rel)
-            if expected is None:
-                raise InstallError(label + "_worktree_extra_path:" + rel)
-            mode, oid = expected
-            if stat.S_ISREG(st.st_mode) and not stat.S_ISLNK(st.st_mode):
-                actual_mode = "100755" if stat.S_IMODE(st.st_mode) & stat.S_IXUSR else "100644"
-                if mode != actual_mode:
-                    raise InstallError(label + "_worktree_mode_mismatch:" + rel)
-                identity = _metadata_identity(st)
-                if _read_regular_git_blob_sha1_exact(child, identity, label + "_worktree_blob") != oid:
-                    raise InstallError(label + "_worktree_blob_mismatch:" + rel)
+                oid = walk(child, depth + 1)
+                mode = b"40000"
+                sort_key = raw_name + b"/"
+            elif stat.S_ISREG(st.st_mode) and not stat.S_ISLNK(st.st_mode):
+                if st.st_size > MAX_FILE_BYTES:
+                    raise InstallError(label + "_worktree_file_size_limit:" + name)
+                total += st.st_size
+                if total > MAX_TOTAL_BYTES:
+                    raise InstallError(label + "_worktree_total_bytes_limit")
+                oid = _read_regular_git_blob_sha1_exact(child, identity, label + "_worktree_blob")
+                mode = b"100755" if stat.S_IMODE(st.st_mode) & stat.S_IXUSR else b"100644"
+                sort_key = raw_name + b"\0"
             elif stat.S_ISLNK(st.st_mode):
-                if mode != "120000":
-                    raise InstallError(label + "_worktree_mode_mismatch:" + rel)
                 target_raw = os.fsencode(os.readlink(child))
-                if git_blob_sha1(target_raw) != oid:
-                    raise InstallError(label + "_worktree_symlink_blob_mismatch:" + rel)
+                if len(target_raw) > MAX_FILE_BYTES:
+                    raise InstallError(label + "_worktree_symlink_size_limit:" + name)
+                if _metadata_identity(child.lstat()) != identity:
+                    raise InstallError(label + "_worktree_symlink_generation_changed:" + name)
+                oid = git_blob_sha1(target_raw)
+                mode = b"120000"
+                sort_key = raw_name + b"\0"
             else:
-                raise InstallError(label + "_worktree_kind_invalid:" + rel)
-            seen.add(rel)
-    if seen != set(manifest):
-        missing = sorted(set(manifest) - seen)
-        raise InstallError(label + "_worktree_missing_path:" + (missing[0] if missing else "unknown"))
+                raise InstallError(label + "_worktree_kind_invalid:" + name)
+            rows.append((sort_key, mode + b" " + raw_name + b"\0" + bytes.fromhex(oid)))
+        if _metadata_identity(directory.lstat()) != directory_identity:
+            raise InstallError(label + "_worktree_directory_generation_changed:" + os.fspath(directory))
+        rows.sort(key=lambda item: item[0])
+        body_len = sum(len(record) for _key, record in rows)
+        h = hashlib.sha1()
+        h.update(b"tree " + str(body_len).encode("ascii") + b"\0")
+        for _key, record in rows:
+            h.update(record)
+        return h.hexdigest()
+
+    oid = walk(root, 0)
+    if _metadata_identity(root.lstat()) != root_identity:
+        raise InstallError(label + "_worktree_root_generation_changed")
+    return oid
 
 def require_worktree_matches_tree(root: pathlib.Path, expected_tree: str, label: str) -> None:
     if len(expected_tree) != 40 or any(ch not in "0123456789abcdef" for ch in expected_tree):
         raise InstallError(label + "_expected_tree_invalid")
-    manifest = _parse_git_tree_manifest(
-        git_bytes(root, "ls-tree", "-rz", "--full-tree", expected_tree),
-        label,
-    )
-    _verify_worktree_manifest(root, manifest, label)
+    actual = _git_tree_oid_from_worktree(root, label)
+    if actual != expected_tree:
+        raise InstallError(label + "_worktree_tree_oid_mismatch")
 
 def _strict_internal_symlink(path: pathlib.Path, root: pathlib.Path, label: str) -> pathlib.Path:
     try:
@@ -1048,11 +833,18 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
     # Pass 1 is metadata-only: no regular-file contents are opened or read.
     while pending:
         directory, rel = pending.pop()
-        for entry in sorted(os.scandir(directory), key=lambda e: e.name):
-            nodes += 1
-            if nodes > MAX_NODES:
-                raise InstallError("tree_node_limit")
-            child, relative = directory / entry.name, (rel / entry.name).as_posix()
+        entry_names: list[str] = []
+        try:
+            with os.scandir(directory) as scan:
+                for entry in scan:
+                    nodes += 1
+                    if nodes > MAX_NODES:
+                        raise InstallError("tree_node_limit")
+                    entry_names.append(entry.name)
+        except OSError as exc:
+            raise InstallError("tree_scandir_failed:" + os.fspath(directory)) from exc
+        for entry_name in sorted(entry_names):
+            child, relative = directory / entry_name, (rel / entry_name).as_posix()
             st = os.lstat(child)
             mode = stat.S_IMODE(st.st_mode)
             if st.st_uid != 0 or st.st_gid != 0:
@@ -1066,7 +858,7 @@ def tree_digest(root: pathlib.Path, expected_root_mode: int) -> tuple[str, int, 
                     raise InstallError("tree_directory_generation_changed_before_descent:" + relative)
                 runtime_directories.append(child)
                 records.append((child, relative, "D", mode, identity, None))
-                pending.append((child, rel / entry.name))
+                pending.append((child, rel / entry_name))
             elif stat.S_ISREG(st.st_mode):
                 if st.st_size > MAX_FILE_BYTES:
                     raise InstallError("tree_file_size_limit:" + relative)
@@ -1167,7 +959,16 @@ def exact_binary_root(root: pathlib.Path, filename: str, expected_sha: str, expe
     _require_runtime_uid_nonwritable([root], label + "_installed_root")
     if _metadata_identity(root.lstat()) != root_identity:
         raise InstallError(label + "_root_generation_changed")
-    if sorted(os.listdir(root)) != [filename]:
+    root_entries: list[str] = []
+    try:
+        with os.scandir(root) as scan:
+            for entry in scan:
+                root_entries.append(entry.name)
+                if len(root_entries) > 1:
+                    raise InstallError(label + "_root_entries_invalid")
+    except OSError as exc:
+        raise InstallError(label + "_root_scandir_failed") from exc
+    if root_entries != [filename]:
         raise InstallError(label + "_root_entries_invalid")
     path = root / filename
     fst = path.lstat()
@@ -1199,12 +1000,9 @@ def source_target_state(source_digest: tuple[str, int, int]) -> bool:
         raise InstallError("protected_source_target_metadata_invalid")
     if tree_digest(SOURCE_TARGET, PROTECTED_SOURCE_ROOT_MODE) != source_digest:
         raise InstallError("protected_source_target_generation_mismatch")
-    require_git_metadata_provenance(SOURCE_TARGET, "protected_source")
-    if git_text(SOURCE_TARGET, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD or git_text(SOURCE_TARGET, "rev-parse", "--verify", "HEAD^{tree}") != SOURCE_TREE:
-        raise InstallError("protected_source_target_git_generation_mismatch")
+    if require_git_metadata_provenance(SOURCE_TARGET, "protected_source") != SOURCE_HEAD:
+        raise InstallError("protected_source_target_head_mismatch")
     require_worktree_matches_tree(SOURCE_TARGET, SOURCE_TREE, "protected_source")
-    if git_text(SOURCE_TARGET, "symbolic-ref", "--short", "-q", "HEAD") != "main" or git_text(SOURCE_TARGET, "status", "--porcelain=v1", "--untracked-files=all") != "":
-        raise InstallError("protected_source_target_not_clean_main")
     return True
 
 def ensure_stage_roots_absent() -> None:
@@ -1212,10 +1010,10 @@ def ensure_stage_roots_absent() -> None:
         if stage.exists() or stage.is_symlink():
             raise InstallError("staging_root_preexisting:" + os.fspath(stage))
 
-def collect_plan(native_path: pathlib.Path, selector_path: pathlib.Path, expected_head: str) -> dict[str, Any]:
+def collect_plan(native_path: pathlib.Path, selector_path: pathlib.Path, expected_head: str, expected_tree: str) -> dict[str, Any]:
     install_parent_custody()
-    verify_repository(expected_head)
-    accepted_lock(expected_head)
+    verify_repository(expected_head, expected_tree)
+    accepted_lock(expected_head, expected_tree)
     source_ancestors = source_release_ancestor_custody()
     source_digest = tree_digest(SOURCE_RELEASE, SOURCE_RELEASE_ROOT_MODE)
     revalidate_source_release_ancestor_custody(source_ancestors)
@@ -1229,7 +1027,7 @@ def collect_plan(native_path: pathlib.Path, selector_path: pathlib.Path, expecte
     if not (source_exact and preentry_exact and selector_exact):
         ensure_stage_roots_absent()
     body = {
-        "schema": SCHEMA, "version": 4, "expected_head": expected_head,
+        "schema": SCHEMA, "version": 4, "expected_head": expected_head, "expected_tree": expected_tree,
         "predecessor_v3_installer_merge": PREDECESSOR_MERGE, "predecessor_v3_installer_tree": PREDECESSOR_TREE, "accepted_lock_id": LOCK_ID,
         "source_release": {"head": SOURCE_HEAD, "tree": SOURCE_TREE, "path": os.fspath(SOURCE_RELEASE),
                            "root_mode": format(SOURCE_RELEASE_ROOT_MODE, "04o"),
@@ -1297,10 +1095,18 @@ def _copy_tree(src_root: pathlib.Path, dst_root: pathlib.Path) -> None:
     count = 0; total = 0
     def recurse(src_dir: pathlib.Path, dst_dir: pathlib.Path) -> None:
         nonlocal count, total
-        for entry in sorted(os.scandir(src_dir), key=lambda e: e.name):
-            count += 1
-            if count > MAX_NODES: raise InstallError("copy_node_limit")
-            src, dst, st = src_dir / entry.name, dst_dir / entry.name, os.lstat(src_dir / entry.name)
+        entry_names: list[str] = []
+        try:
+            with os.scandir(src_dir) as scan:
+                for entry in scan:
+                    count += 1
+                    if count > MAX_NODES:
+                        raise InstallError("copy_node_limit")
+                    entry_names.append(entry.name)
+        except OSError as exc:
+            raise InstallError("copy_scandir_failed:" + os.fspath(src_dir)) from exc
+        for entry_name in sorted(entry_names):
+            src, dst, st = src_dir / entry_name, dst_dir / entry_name, os.lstat(src_dir / entry_name)
             mode = stat.S_IMODE(st.st_mode)
             if st.st_uid != 0 or st.st_gid != 0: raise InstallError("source_node_not_root_owned:" + os.fspath(src))
             if stat.S_ISDIR(st.st_mode):
@@ -1391,12 +1197,9 @@ def _publish_source(expected_digest: tuple[str, int, int]) -> None:
     verify_source_release()
     revalidate_source_release_ancestor_custody(source_ancestors)
     if tree_digest(SOURCE_STAGE, PROTECTED_SOURCE_ROOT_MODE) != expected_digest: raise InstallError("source_stage_digest_mismatch")
-    require_git_metadata_provenance(SOURCE_STAGE, "source_stage")
-    if git_text(SOURCE_STAGE, "rev-parse", "--verify", "HEAD^{commit}") != SOURCE_HEAD or git_text(SOURCE_STAGE, "rev-parse", "--verify", "HEAD^{tree}") != SOURCE_TREE:
-        raise InstallError("source_stage_git_generation_invalid")
+    if require_git_metadata_provenance(SOURCE_STAGE, "source_stage") != SOURCE_HEAD:
+        raise InstallError("source_stage_head_mismatch")
     require_worktree_matches_tree(SOURCE_STAGE, SOURCE_TREE, "source_stage")
-    if git_text(SOURCE_STAGE, "status", "--porcelain=v1", "--untracked-files=all") != "":
-        raise InstallError("source_stage_not_clean")
     _rename_noreplace(SOURCE_STAGE_NAME, SOURCE_NAME, SOURCE_STAGE, "protected_source")
     if not source_target_state(expected_digest): raise InstallError("source_postpublication_verification_failed")
 
@@ -1422,9 +1225,11 @@ def source_plan() -> None:
     print("git_metadata_provenance_required_for_all_roots=true")
     print("git_external_metadata_and_object_indirection_rejected=true")
     print("git_local_config_exact_allowlist_required=true")
-    print("git_raw_head_tree_manifest_required=true")
-    print("trusted_tool_root_descriptor_execution_required=true")
-    print("trusted_tool_ancestor_acl_custody_required=true")
+    print("git_dynamic_observer_authority_removed=true")
+    print("direct_main_ref_required=true")
+    print("direct_worktree_git_tree_oid_required=true")
+    print("trusted_launcher_expected_head_tree_pair_required=true")
+    print("dynamic_git_execution_not_authoritative=true")
     print("runtime_write_audit_external_helper_free=true")
     print("source_release_ancestor_acl_custody_required=true")
     print("source_release_ancestor_generation_revalidation_required=true")
@@ -1434,7 +1239,7 @@ def source_plan() -> None:
 def self_test() -> None:
     assert SOURCE_TARGET == pathlib.Path("/opt/void-buy-void-v7-reviewed-v1")
     assert PREENTRY_TARGET.name == PREENTRY_NAME and SELECTOR_TARGET.name == SELECTOR_NAME
-    sample = {"schema": SCHEMA, "version": 4, "expected_head": "a" * 40}
+    sample = {"schema": SCHEMA, "version": 4, "expected_head": "a" * 40, "expected_tree": "b" * 40}
     pid = PLAN_PREFIX + sha256_bytes(canonical(sample))
     assert pid.startswith(PLAN_PREFIX) and len(pid) == len(PLAN_PREFIX) + 64
     assert getattr(ctypes.CDLL(None), "renameat2", None) is not None
@@ -1527,7 +1332,7 @@ def self_test() -> None:
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[extensions]\nworktreeConfig = true\n", "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text('[remote "origin"]\npromisor = true\n', "utf-8"))
     _assert_git_metadata_fixture_rejected(lambda root: (root / ".git" / "config").write_text("[core]\nrepositoryformatversion = 0\nbare = false\nautocrlf = true\n", "utf-8"))
-    with tempfile.TemporaryDirectory(prefix="void-v7-worktree-manifest-self-test-") as td:
+    with tempfile.TemporaryDirectory(prefix="void-v7-direct-tree-self-test-") as td:
         manifest_root = pathlib.Path(td)
         (manifest_root / ".git").mkdir()
         (manifest_root / "sub").mkdir()
@@ -1538,20 +1343,27 @@ def self_test() -> None:
         os.chmod(executable, 0o755)
         link = manifest_root / "link"
         link.symlink_to("plain.txt")
-        manifest = {
-            "plain.txt": ("100644", git_blob_sha1(plain.read_bytes())),
-            "sub/run.sh": ("100755", git_blob_sha1(executable.read_bytes())),
-            "link": ("120000", git_blob_sha1(b"plain.txt")),
-        }
-        _verify_worktree_manifest(manifest_root, manifest, "self_test_manifest")
+
+        sub_record = b"100755 run.sh\0" + bytes.fromhex(git_blob_sha1(executable.read_bytes()))
+        sub_tree = hashlib.sha1(
+            b"tree " + str(len(sub_record)).encode("ascii") + b"\0" + sub_record
+        ).hexdigest()
+        root_records = [
+            (b"link\0", b"120000 link\0" + bytes.fromhex(git_blob_sha1(b"plain.txt"))),
+            (b"plain.txt\0", b"100644 plain.txt\0" + bytes.fromhex(git_blob_sha1(plain.read_bytes()))),
+            (b"sub/", b"40000 sub\0" + bytes.fromhex(sub_tree)),
+        ]
+        root_records.sort(key=lambda item: item[0])
+        root_body = b"".join(record for _key, record in root_records)
+        expected_tree = hashlib.sha1(
+            b"tree " + str(len(root_body)).encode("ascii") + b"\0" + root_body
+        ).hexdigest()
+        assert _git_tree_oid_from_worktree(manifest_root, "self_test_tree") == expected_tree
+
         ignored = manifest_root / "ignored.tmp"
         ignored.write_bytes(b"ignored-but-published")
-        try:
-            _verify_worktree_manifest(manifest_root, manifest, "self_test_manifest")
-        except InstallError:
-            pass
-        else:
-            raise AssertionError("ignored_untracked_manifest_adversary_not_rejected")
+        assert _git_tree_oid_from_worktree(manifest_root, "self_test_tree") != expected_tree
+    print("direct_worktree_git_tree_oid_fixture_green=true")
     print("git_real_in_tree_dir_required=true")
     print("git_commondir_indirection_rejected=true")
     print("git_object_alternates_rejected=true")
@@ -1564,14 +1376,17 @@ def self_test() -> None:
     print("git_core_attributesfile_rejected=true")
     print("git_filter_driver_rejected=true")
     print("git_local_config_exact_allowlist_required=true")
-    print("git_raw_head_tree_manifest_required=true")
-    print("git_ignored_untracked_rejected_by_manifest=true")
+    print("git_dynamic_observer_authority_removed=true")
+    print("direct_main_ref_required=true")
+    print("direct_worktree_git_tree_oid_required=true")
+    print("trusted_launcher_expected_head_tree_pair_required=true")
+    print("dynamic_git_execution_not_authoritative=true")
+    print("untracked_paths_change_direct_tree_oid=true")
     print("git_worktree_config_extension_rejected=true")
     print("git_promisor_partial_clone_rejected=true")
-    print("git_exact_dir_common_toplevel_required=true")
+    print("git_direct_main_ref_generation_required=true")
     print("git_metadata_provenance_required_for_all_roots=true")
-    print("trusted_tool_root_descriptor_execution_required=true")
-    print("trusted_tool_ancestor_acl_custody_required=true")
+    print("dynamic_git_root_or_runtime_exec_removed=true")
     print("runtime_write_audit_external_helper_free=true")
     print("source_release_ancestor_acl_custody_required=true")
     print("source_release_ancestor_generation_revalidation_required=true")
@@ -1580,10 +1395,10 @@ def self_test() -> None:
     print("partial_publication_truthful=true"); print("no_rollback_after_publication=true")
     print("service_mutation=false"); print("transaction=false"); print("funds_movement=false")
 
-def plan(native: pathlib.Path, selector: pathlib.Path, expected_head: str) -> None:
-    result = collect_plan(native, selector, expected_head); body, state = result["body"], result["body"]["installed_state"]
+def plan(native: pathlib.Path, selector: pathlib.Path, expected_head: str, expected_tree: str) -> None:
+    result = collect_plan(native, selector, expected_head, expected_tree); body, state = result["body"], result["body"]["installed_state"]
     print(MARKER); print("mode=plan"); print("read_only=true"); print("plan_id=" + result["plan_id"])
-    print("expected_head=" + expected_head); print("accepted_lock_id=" + LOCK_ID); print("source_tree_digest=" + body["source_release"]["tree_digest"])
+    print("expected_head=" + expected_head); print("expected_tree=" + expected_tree); print("accepted_lock_id=" + LOCK_ID); print("source_tree_digest=" + body["source_release"]["tree_digest"])
     for key in ("protected_source_exact", "native_preentry_exact", "selector_exact"): print(key + "=" + str(state[key]).lower())
     print("create_only=true"); print("resumable_exact_components=true"); print("partial_publication_possible=true")
     print("no_rollback_after_publication=true"); print("filesystem_write=false"); print("service_mutation=false")
@@ -1593,14 +1408,14 @@ def plan(native: pathlib.Path, selector: pathlib.Path, expected_head: str) -> No
     else:
         print("already_installed=false"); print("next_action=SEPARATELY_AUTHORIZE_V7_PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4")
 
-def apply(native: pathlib.Path, selector: pathlib.Path, expected_head: str, expected_plan_id: str, confirm: str) -> None:
+def apply(native: pathlib.Path, selector: pathlib.Path, expected_head: str, expected_tree: str, expected_plan_id: str, confirm: str) -> None:
     if confirm != CONFIRM_TOKEN: raise InstallError("explicit_create_only_confirmation_required")
     require_privileged_source_custody()
     if (not expected_plan_id.startswith(PLAN_PREFIX) or len(expected_plan_id) != len(PLAN_PREFIX) + 64
             or any(ch not in "0123456789abcdef" for ch in expected_plan_id[len(PLAN_PREFIX):])):
         raise InstallError("expected_plan_id_invalid")
     if os.geteuid() != 0: raise InstallError("root_required_for_apply")
-    result = collect_plan(native, selector, expected_head)
+    result = collect_plan(native, selector, expected_head, expected_tree)
     if result["plan_id"] != expected_plan_id: raise InstallError("expected_plan_id_mismatch")
     state = result["body"]["installed_state"]
     if all(state.values()):
@@ -1621,7 +1436,7 @@ def apply(native: pathlib.Path, selector: pathlib.Path, expected_head: str, expe
             try: _cleanup_stage(stage)
             except OSError: pass
         raise
-    final = collect_plan(native, selector, expected_head)
+    final = collect_plan(native, selector, expected_head, expected_tree)
     if not all(final["body"]["installed_state"].values()): raise InstallError("final_installed_state_not_exact")
     print(MARKER); print("mode=apply"); print("status=PROTECTED_SUBSTRATE_CREATE_ONLY_INSTALL_V4_GREEN")
     print("plan_id=" + expected_plan_id); print("published_components=" + ",".join(_PUBLISHED)); print("protected_install_performed=true")
@@ -1636,19 +1451,20 @@ def main() -> int:
     mode.add_argument("--self-test", action="store_true"); mode.add_argument("--source-plan", action="store_true")
     mode.add_argument("--plan", action="store_true"); mode.add_argument("--apply", action="store_true")
     parser.add_argument("--native", type=pathlib.Path); parser.add_argument("--selector", type=pathlib.Path)
-    parser.add_argument("--expected-head", default=""); parser.add_argument("--expected-plan-id", default=""); parser.add_argument("--confirm", default="")
+    parser.add_argument("--expected-head", default=""); parser.add_argument("--expected-tree", default=""); parser.add_argument("--expected-plan-id", default=""); parser.add_argument("--confirm", default="")
     args = parser.parse_args()
     if args.self_test: self_test(); return 0
     if args.source_plan: source_plan(); return 0
     if args.native is None or args.selector is None: raise InstallError("native_and_selector_candidate_paths_required")
     if not args.expected_head: raise InstallError("expected_head_required")
-    if args.plan: plan(args.native, args.selector, args.expected_head); return 0
-    apply(args.native, args.selector, args.expected_head, args.expected_plan_id, args.confirm); return 0
+    if not args.expected_tree: raise InstallError("expected_tree_required")
+    if args.plan: plan(args.native, args.selector, args.expected_head, args.expected_tree); return 0
+    apply(args.native, args.selector, args.expected_head, args.expected_tree, args.expected_plan_id, args.confirm); return 0
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (InstallError, OSError, subprocess.SubprocessError, UnicodeError) as exc:
+    except (InstallError, OSError, UnicodeError) as exc:
         print(MARKER); print("status=HOLD"); print("reason=" + str(exc)); print("published_components=" + ",".join(_PUBLISHED))
         print("partial_publication_possible=true"); print("no_rollback_after_publication=true")
         print("protected_filesystem_mutation=" + str(_WRITE_PERFORMED).lower()); print("service_mutation=false"); print("systemd_mutation=false")

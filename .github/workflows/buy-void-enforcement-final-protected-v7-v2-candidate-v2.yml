@@ -130,10 +130,10 @@ jobs:
           integration="$RUNNER_TEMP/current-protected-integration-v4-${{ matrix.node }}.json"
           node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs --self-test
           node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs --receipt > "$integration"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa"
           test "$(wc -c < ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" -eq 17392
-          test "$(sha256sum ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json | awk '{print $1}')" = "df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "245ce93ebfb53478211fab765489e88d8fa23c4a"
+          test "$(sha256sum ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json | awk '{print $1}')" = "7f9c032bb3685d0d45f439123878af0ba366bd587e29a98df3270f0f13808c96"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "f1b9d661eb3363e9bf18dbeb3610c659a54219bb"
           node --input-type=module - "$integration" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
@@ -398,15 +398,15 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$(git merge-base 0344d7dab153be75716646d5c6f5162f926f25ee HEAD)" = "0344d7dab153be75716646d5c6f5162f926f25ee"
-          test "$(git rev-parse '0344d7dab153be75716646d5c6f5162f926f25ee^{tree}')" = "0743c236a1d2788d17b9e3ae2ecde37319df0809"
+          test "$(git merge-base 1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26 HEAD)" = "1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26"
+          test "$(git rev-parse '1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26^{tree}')" = "338ff5b264dd441c8bb16bb2fb425b85d4285b89"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e0a682ea4038ca22e3a3b97da2cac29874096c46"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "245ce93ebfb53478211fab765489e88d8fa23c4a"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs)" = "f33a579e62c8201de24d5076cfcbffab66df8dae"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "5893e300a78dc4ca7729ef47f95a8e3eea2043cf"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs)" = "51a51a7f85c8068269bad0e09e3ae872c4323a58"
-          git diff --check 0344d7dab153be75716646d5c6f5162f926f25ee HEAD
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "f1b9d661eb3363e9bf18dbeb3610c659a54219bb"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs)" = "3a7401202fee374f2a7da3f5efc0d29976f9792a"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "ec00f0c552e600fff38e4998e4beb128c93b481d"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs)" = "9de04b5340f904b8886562727d5f9006876b7ec5"
+          git diff --check 1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26 HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -426,18 +426,18 @@ jobs:
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs --derive > "$out"
           cmp "$out" ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json
           test "$(wc -c < "$out")" -eq 17788
-          test "$(sha256sum "$out" | awk '{print $1}')" = "bf360784af7a6ddf908812b9c335e8e52d4410ba249c5ea1988b97d9cfd5a72c"
-          test "$(git hash-object "$out")" = "5893e300a78dc4ca7729ef47f95a8e3eea2043cf"
+          test "$(sha256sum "$out" | awk '{print $1}')" = "fbf3d5fbc1efad92c7bb5bb3fb45f686d1bddb95d4a7c34cadbd862b69318c60"
+          test "$(git hash-object "$out")" = "ec00f0c552e600fff38e4998e4beb128c93b481d"
           node --input-type=module - "$out" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
           assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V4");
           assert.equal(c.version,4);
-          assert.equal(c.current_enforcement_parent,"0344d7dab153be75716646d5c6f5162f926f25ee");
+          assert.equal(c.current_enforcement_parent,"1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26");
           assert.equal(c.current_enforcement_tracked_source_inventory_count,49);
-          assert.equal(c.current_enforcement_tracked_source_inventory_sha256,"8485ef25c236b8798bed3a67b9308ef7dcd383aedca1486f4f488d043d7efbe0");
-          assert.equal(c.candidate_enforcement_set_sha256,"ff084a754e7eb6bef08ec1b1079a17a6110b4333876f0231e46395eed63042d2");
+          assert.equal(c.current_enforcement_tracked_source_inventory_sha256,"c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d");
+          assert.equal(c.candidate_enforcement_set_sha256,"00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a");
           assert.equal(c.successor_transition.current_tool_git_blob_sha1,"e0a682ea4038ca22e3a3b97da2cac29874096c46");
           assert.equal(c.successor_transition.reviewed_protected_drift_count,1);
           assert.equal(c.candidate_enforcement_identity_accepted,false);
@@ -498,7 +498,7 @@ jobs:
           cmp candidate-v4/v4-reader-repair-candidate-22.json candidate-v4/v4-reader-repair-candidate-26.json
           cmp candidate-v4/dispatch-v4-22.json candidate-v4/dispatch-v4-24.json
           cmp candidate-v4/dispatch-v4-22.json candidate-v4/dispatch-v4-26.json
-          test "$(sha256sum candidate-v4/v4-reader-repair-candidate-22.json | awk '{print $1}')" = "bf360784af7a6ddf908812b9c335e8e52d4410ba249c5ea1988b97d9cfd5a72c"
+          test "$(sha256sum candidate-v4/v4-reader-repair-candidate-22.json | awk '{print $1}')" = "fbf3d5fbc1efad92c7bb5bb3fb45f686d1bddb95d4a7c34cadbd862b69318c60"
           echo VOID_BUY_VOID_PROTECTED_V7_V2_CANDIDATE_V4_CROSS_NODE_GREEN
           echo candidate_enforcement_identity_accepted=false
           echo funds_movement=false
