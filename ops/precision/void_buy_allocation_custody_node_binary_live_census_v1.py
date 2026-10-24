@@ -294,6 +294,7 @@ def _open_expected_ancestry() -> list[tuple[str, int, os.stat_result]]:
         if _identity(usr_before) != _identity(usr_st):
             os.close(usr_fd)
             hold("node_ancestry_usr_rebound")
+        leases.append(("/usr", usr_fd, usr_st))
         _validate_directory(
             usr_st,
             uid=0,
@@ -301,7 +302,6 @@ def _open_expected_ancestry() -> list[tuple[str, int, os.stat_result]]:
             mode=0o755,
             code="node_ancestry_usr_invalid",
         )
-        leases.append(("/usr", usr_fd, usr_st))
 
         bin_before = os.stat("bin", dir_fd=usr_fd, follow_symlinks=False)
         bin_fd = os.open("bin", _directory_flags(), dir_fd=usr_fd)
@@ -309,6 +309,7 @@ def _open_expected_ancestry() -> list[tuple[str, int, os.stat_result]]:
         if _identity(bin_before) != _identity(bin_st):
             os.close(bin_fd)
             hold("node_ancestry_bin_rebound")
+        leases.append(("/usr/bin", bin_fd, bin_st))
         _validate_directory(
             bin_st,
             uid=0,
@@ -316,7 +317,6 @@ def _open_expected_ancestry() -> list[tuple[str, int, os.stat_result]]:
             mode=0o755,
             code="node_ancestry_bin_invalid",
         )
-        leases.append(("/usr/bin", bin_fd, bin_st))
         return leases
     except BaseException:
         for _name, fd, _st in reversed(leases):
