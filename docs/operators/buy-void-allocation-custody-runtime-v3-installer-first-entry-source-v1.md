@@ -84,7 +84,7 @@ Before Python execution the source requires:
 3. supplementary groups cleared;
 4. exact installed native inode equal to `/proc/self/exe`;
 5. root-owned, root-grouped, non-group/world-writable ancestry;
-6. exact trusted-file type/owner/group/mode/link-count/length;
+6. exact trusted-file type/owner/group/mode/link-count/length, with all trusted leaf opens using shared `O_RDONLY|O_NOFOLLOW|O_NONBLOCK|O_CLOEXEC` flags so a regular-to-FIFO substitution cannot block before descriptor/type/generation rejection;
 7. in-process SHA-256 verification of policy, all four protected source files,
    Python executable and one exact pure-Python stdlib archive;
 8. native ELF admission of the Python executable as ELF64 little-endian x86-64
@@ -157,9 +157,11 @@ The proof:
 - rejects production defaults in the C source;
 - requires all compile-time binding macros;
 - creates a disposable **synthetic** binding header;
-- runs only `cc -fsyntax-only` with `-Wall -Wextra -Werror`;
+- runs `cc -fsyntax-only` with `-Wall -Wextra -Werror` for the source contract;
+- compiles the same production C source into a disposable test harness that shares `trusted_leaf_flags()`, observes a regular leaf, replaces it with a FIFO after `lstat`, and requires the subsequent production-flags open to return nonblocking and expose FIFO type for fail-closed rejection;
+- proves both the ordinary trusted-file path and installed-self path use that shared nonblocking leaf-open helper;
 - proves compilation fails when the binding header is absent;
-- emits no native binary or production candidate.
+- emits no production native binary or production candidate.
 
 No root/sudo execution is part of this generation.
 
