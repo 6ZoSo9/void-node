@@ -22,7 +22,7 @@ say "transaction_broadcast=false"
 say "funds_movement=false"
 
 test -n "$tool" && test -f "$tool" || hold "qualifier_tool_missing"
-expected_tool_blob="18d16f3528155bc118a9f1d4dcca4dc6663db40d"
+expected_tool_blob="3a9db8d007539bc605b6aa374dee6ba59ca36e1c"
 actual_tool_blob="$(git hash-object "$tool")"
 test "$actual_tool_blob" = "$expected_tool_blob" ||
   hold "qualifier_tool_blob_mismatch"
