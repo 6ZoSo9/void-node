@@ -17,7 +17,7 @@ TARGET = (
       "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_installer_candidate_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "c4138cea2d8acc2b7779c15d50a5a7479a64f62c"
+EXPECTED_SOURCE_BLOB = "5e7bc14863ea9e4ab61a982083ab552258cdd692"
 
 
 def git_blob(raw: bytes) -> str:
@@ -148,7 +148,8 @@ assert (
 source = TARGET.read_text(encoding="utf-8")
 
 for required in (
-    "apply_create_only_algorithm",
+    "_apply_create_only_internal",
+    "install_accepted_source_create_only_after_protected_first_entry",
     "_verify_root",
     "_renameat2_noreplace",
     "RENAME_NOREPLACE",
@@ -170,6 +171,9 @@ for required in (
     "direct_apply_cli",
     "protected_first_entry_required",
     "protected_installer_first_entry_verified",
+    "parameterized_internal_receipt_never_claims_protected_install",
+    "fixed_entrypoint_accepted_source_mismatch",
+    "fixed_entrypoint_internal_receipt_invalid",
     "protected_install_authorized",
     "live_privileged_census_authorized",
     "replacement_apply_authorized",
@@ -223,7 +227,7 @@ with tempfile.TemporaryDirectory(
     module._cleanup_stage = lambda *_args, **_kwargs: False
     try:
         try:
-            module.apply_create_only_algorithm(
+            module._apply_create_only_internal(
                 parent=parent,
                 install_name=module.INSTALL_NAME,
                 stage_name=module.STAGE_NAME,
@@ -263,6 +267,130 @@ root_verifier = source.split("def _verify_root(", 1)[1].split(
 assert "finally:" in root_verifier
 assert "os.close(fd)" in root_verifier
 
+
+internal_fn = source.split("def _apply_create_only_internal(", 1)[1].split(
+    "def install_accepted_source_create_only_after_protected_first_entry(", 1
+)[0]
+assert '"protected_source_installed": False' in internal_fn
+
+fixed_fn = source.split(
+    "def install_accepted_source_create_only_after_protected_first_entry()", 1
+)[1].split("def source_plan()", 1)[0]
+for exact in (
+    "accepted = verify_repository_inputs()",
+    "len(accepted) != ACCEPTED_SOURCE_BYTES",
+    "sha256(accepted) != ACCEPTED_SOURCE_SHA256",
+    "git_blob(accepted) != ACCEPTED_SOURCE_GIT_BLOB",
+    "parent=INSTALL_PARENT",
+    "install_name=INSTALL_NAME",
+    "stage_name=STAGE_NAME",
+    "source_name=SOURCE_NAME",
+    "source_raw=accepted",
+    "expected_uid=0",
+    "expected_gid=0",
+    "require_root_parent=True",
+    '"protected_source_installed": True',
+    '"fixed_destination_bound": True',
+    '"accepted_source_identity_bound": True',
+    '"root_identity_bound": True',
+):
+    assert exact in fixed_fn, exact
+
+captured = {}
+saved_getuid = module.os.getuid
+saved_geteuid = module.os.geteuid
+saved_getgid = module.os.getgid
+saved_getegid = module.os.getegid
+saved_verify = module.verify_repository_inputs
+saved_internal = module._apply_create_only_internal
+try:
+    module.os.getuid = lambda: 0
+    module.os.geteuid = lambda: 0
+    module.os.getgid = lambda: 0
+    module.os.getegid = lambda: 0
+    module.verify_repository_inputs = lambda: source_raw
+
+    def capture_internal(**kwargs):
+        captured.update(kwargs)
+        return {
+            "publication": True,
+            "publication_state": "published_verified",
+            "parent_fsync_completed": True,
+            "final_verification_completed": True,
+            "create_only": True,
+            "rename_noreplace_used": True,
+            "fixture_or_internal_publication": True,
+            "protected_source_installed": False,
+            "live_privileged_census_executed": False,
+            "replacement_apply_authorized": False,
+            "payment_acceptance": False,
+            "public_presale_activation": False,
+            "funds_movement": False,
+        }
+
+    module._apply_create_only_internal = capture_internal
+    fixed_receipt = (
+        module.install_accepted_source_create_only_after_protected_first_entry()
+    )
+finally:
+    module.os.getuid = saved_getuid
+    module.os.geteuid = saved_geteuid
+    module.os.getgid = saved_getgid
+    module.os.getegid = saved_getegid
+    module.verify_repository_inputs = saved_verify
+    module._apply_create_only_internal = saved_internal
+
+assert captured == {
+    "parent": module.INSTALL_PARENT,
+    "install_name": module.INSTALL_NAME,
+    "stage_name": module.STAGE_NAME,
+    "source_name": module.SOURCE_NAME,
+    "source_raw": source_raw,
+    "expected_uid": 0,
+    "expected_gid": 0,
+    "require_root_parent": True,
+}
+assert fixed_receipt["protected_source_installed"] is True
+assert fixed_receipt["fixture_or_internal_publication"] is False
+assert fixed_receipt["fixed_destination_bound"] is True
+assert fixed_receipt["accepted_source_identity_bound"] is True
+assert fixed_receipt["root_identity_bound"] is True
+
+with tempfile.TemporaryDirectory(
+    prefix="void-custody-procref-wrong-payload-proof-"
+) as tmp:
+    parent = Path(tmp) / "opt"
+    parent.mkdir(mode=0o755)
+    wrong = source_raw + b"\n# wrong payload\n"
+    result = module._apply_create_only_internal(
+        parent=parent,
+        install_name=module.INSTALL_NAME,
+        stage_name=module.STAGE_NAME,
+        source_name=module.SOURCE_NAME,
+        source_raw=wrong,
+        expected_uid=os.geteuid(),
+        expected_gid=os.getegid(),
+        require_root_parent=False,
+    )
+    assert result["protected_source_installed"] is False
+
+with tempfile.TemporaryDirectory(
+    prefix="void-custody-procref-wrong-destination-proof-"
+) as tmp:
+    parent = Path(tmp) / "opt"
+    parent.mkdir(mode=0o755)
+    result = module._apply_create_only_internal(
+        parent=parent,
+        install_name="wrong-install-root",
+        stage_name=".wrong-stage-root",
+        source_name="wrong-source.py",
+        source_raw=source_raw,
+        expected_uid=os.geteuid(),
+        expected_gid=os.getegid(),
+        require_root_parent=False,
+    )
+    assert result["protected_source_installed"] is False
+
 print(
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_"
     "PROTECTED_ALL_PROCESS_INSTALLER_CANDIDATE_V1_PROOF_GREEN"
@@ -272,6 +400,11 @@ print("accepted_plan_exact=true")
 print("accepted_lock_exact=true")
 print("accepted_source_exact=true")
 print("installer_algorithm_implemented=true")
+print("fixed_least_authority_install_entrypoint=true")
+print("parameterized_internal_receipt_never_claims_protected_install=true")
+print("wrong_payload_cannot_claim_protected_install=true")
+print("wrong_destination_cannot_claim_protected_install=true")
+print("fixed_entrypoint_exact_arguments_proven=true")
 print("direct_apply_cli=false")
 print("protected_first_entry_required=true")
 print("create_only=true")
