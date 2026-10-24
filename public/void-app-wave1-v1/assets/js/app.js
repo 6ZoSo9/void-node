@@ -175,7 +175,6 @@ document.addEventListener('click', (event) => {
   if (action === 'open-mobile-more') openLayer('more');
   if (action === 'open-command') openLayer('command');
   if (action === 'open-network') location.hash = '#/network';
-  if (action === 'open-account') toast('Account menu is a Wave 1 shell slot.');
   if (action === 'close-overlay') closeAll();
 });
 
