@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   VOID_BUY_VOID_PRECISION_POSTGRES_HOST_QUALIFICATION_AUTHORITY_V1,
@@ -176,6 +179,72 @@ for (const required of [
 ]) {
   assert(wrapper.includes(required), required);
 }
+for (const required of [
+  'tool_rel="tools/void-precision-buy-void-postgres-host-qualification-v1.mjs"',
+  "qualifier_tool_path_not_canonical",
+  "qualifier_tool_symlink_forbidden",
+  "qualifier_tool_realpath_not_canonical",
+  'getattr(os, "O_NOFOLLOW", 0)',
+  "qualifier_tool_snapshot_failed",
+  "qualifier_tool_path_canonical=true",
+  "qualifier_tool_snapshot_green=true",
+  '"$tsx" "$tool_snapshot"',
+]) {
+  assert(wrapper.includes(required), required);
+}
+assert.equal(
+  wrapper.includes('"$tsx" "$tool"'),
+  false,
+  "validated caller pathname must never be executed directly",
+);
+
+function gitBlobSha1(bytes) {
+  return crypto
+    .createHash("sha1")
+    .update(Buffer.from(`blob ${bytes.length}\\0`, "utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+
+const swapDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-postgres-qualifier-snapshot-proof-"),
+);
+try {
+  const sourcePath = path.join(swapDir, "qualifier-tool.mjs");
+  const reviewedPath = path.join(swapDir, "reviewed-tool.mjs");
+  const snapshotPath = path.join(swapDir, "snapshot-tool.mjs");
+  const reviewedBytes = Buffer.from("console.log('reviewed')\\n", "utf8");
+  const swappedBytes = Buffer.from("console.log('swapped')\\n", "utf8");
+  const reviewedBlob = gitBlobSha1(reviewedBytes);
+
+  fs.writeFileSync(sourcePath, reviewedBytes, { flag: "wx", mode: 0o600 });
+  const sourceFd = fs.openSync(
+    sourcePath,
+    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+  );
+  let openedBytes;
+  try {
+    openedBytes = fs.readFileSync(sourceFd);
+  } finally {
+    fs.closeSync(sourceFd);
+  }
+  assert.equal(gitBlobSha1(openedBytes), reviewedBlob);
+
+  fs.writeFileSync(snapshotPath, openedBytes, { flag: "wx", mode: 0o400 });
+  fs.renameSync(sourcePath, reviewedPath);
+  fs.writeFileSync(sourcePath, swappedBytes, { flag: "wx", mode: 0o600 });
+
+  assert.equal(gitBlobSha1(fs.readFileSync(snapshotPath)), reviewedBlob);
+  assert.notEqual(gitBlobSha1(fs.readFileSync(sourcePath)), reviewedBlob);
+  assert.equal(
+    fs.statSync(snapshotPath).mode & 0o777,
+    0o400,
+    "private snapshot mode changed",
+  );
+} finally {
+  fs.rmSync(swapDir, { recursive: true, force: true });
+}
+
 for (const forbidden of [
   "runBuyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeV1",
   "runBuyVoidPaymentKeyedDispatcherPostgresAdmittedGuardedRuntimeV1",
@@ -241,6 +310,9 @@ console.log(
 );
 console.log("dormant_gate_fail_closed_green=true");
 console.log("source_slice_blob_binding_green=true");
+console.log("qualifier_tool_canonical_path_green=true");
+console.log("qualifier_tool_private_snapshot_green=true");
+console.log("qualifier_tool_path_swap_adversary_green=true");
 console.log("host_wrapper_no_mutation_contract_green=true");
 console.log("production_factory_only_green=true");
 console.log("schema_admission_only_green=true");
