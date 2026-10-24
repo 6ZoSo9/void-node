@@ -93,6 +93,25 @@ class InstallError(RuntimeError):
     pass
 
 
+class StageGenerationUnknownError(InstallError):
+    def __init__(
+        self,
+        reason: str,
+        *,
+        stage_name: str,
+        original_failure_class: str,
+        original_failure_reason: str,
+    ) -> None:
+        super().__init__(reason)
+        self.stage_creation_succeeded = True
+        self.stage_identity_bound = False
+        self.possible_residual_stage = True
+        self.retry_requires_operator_inspection = True
+        self.stage_name = stage_name
+        self.original_failure_class = original_failure_class
+        self.original_failure_reason = original_failure_reason
+
+
 class PublishedInstallError(InstallError):
     def __init__(
         self,
@@ -433,6 +452,10 @@ def _renameat2_noreplace(
         raise InstallError("renameat2_noreplace_failed:" + str(error))
 
 
+def _stat_nofollow_at(dir_fd: int, name: str) -> os.stat_result:
+    return os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+
+
 def _cleanup_stage(
     parent_fd: int,
     *,
@@ -441,7 +464,7 @@ def _cleanup_stage(
     stage_identity: tuple[int, int] | None,
 ) -> bool:
     if stage_identity is None:
-        return True
+        return False
     try:
         visible = os.stat(stage_name, dir_fd=parent_fd, follow_symlinks=False)
     except FileNotFoundError:
@@ -487,6 +510,7 @@ def _apply_create_only_internal(
     require_root_parent: bool,
     parent_fsync_fn: Callable[[int], None] = os.fsync,
     rename_fn: Callable[[int, str, str], None] = _renameat2_noreplace,
+    stage_initial_stat_fn: Callable[[int, str], os.stat_result] = _stat_nofollow_at,
 ) -> dict[str, Any]:
     if (
         not isinstance(source_raw, bytes)
@@ -506,6 +530,7 @@ def _apply_create_only_internal(
 
     parent_fd, parent_st = _open_bound_directory(parent)
     stage_identity: tuple[int, int] | None = None
+    stage_created = False
     published = False
     parent_fsync_completed = False
     final_verification_completed = False
@@ -518,20 +543,17 @@ def _apply_create_only_internal(
             raise InstallError("staging_root_present")
 
         os.mkdir(stage_name, 0o700, dir_fd=parent_fd)
-        stage_visible_initial = os.stat(
-            stage_name,
-            dir_fd=parent_fd,
-            follow_symlinks=False,
+        stage_created = True
+        stage_visible_initial = stage_initial_stat_fn(parent_fd, stage_name)
+        stage_identity = (
+            stage_visible_initial.st_dev,
+            stage_visible_initial.st_ino,
         )
         if (
             not stat.S_ISDIR(stage_visible_initial.st_mode)
             or stat.S_ISLNK(stage_visible_initial.st_mode)
         ):
             raise InstallError("stage_initial_shape_invalid")
-        stage_identity = (
-            stage_visible_initial.st_dev,
-            stage_visible_initial.st_ino,
-        )
         stage_fd = os.open(stage_name, _directory_flags(), dir_fd=parent_fd)
         try:
             stage_st = os.fstat(stage_fd)
@@ -648,7 +670,16 @@ def _apply_create_only_internal(
         }
     except PublishedInstallError:
         raise
+    except StageGenerationUnknownError:
+        raise
     except BaseException as exc:
+        if not published and stage_created and stage_identity is None:
+            raise StageGenerationUnknownError(
+                "prepublication_stage_generation_unknown",
+                stage_name=stage_name,
+                original_failure_class=type(exc).__name__,
+                original_failure_reason=str(exc)[:300],
+            ) from exc
         if not published and stage_identity is not None:
             try:
                 cleanup_green = _cleanup_stage(
@@ -757,6 +788,8 @@ def source_plan() -> dict[str, Any]:
             "install_parent_fsync_required": True,
             "exact_post_publication_verification_required": True,
             "truthful_post_publication_failure_receipt_required": True,
+            "stage_generation_unknown_hold_required": True,
+            "retry_after_unknown_stage_requires_operator_inspection": True,
             "host_namespace_lease_provenance_still_required": True,
             "live_at_use_reverification_required": True,
         },
@@ -889,6 +922,53 @@ def self_test() -> None:
             raise InstallError("self_test_collision_created_stage")
 
     with tempfile.TemporaryDirectory(
+        prefix="void-custody-procref-installer-stage-generation-unknown-"
+    ) as tmp:
+        parent = Path(tmp) / "opt"
+        parent.mkdir(mode=0o755)
+
+        def fail_initial_stage_stat(_fd: int, _name: str) -> os.stat_result:
+            raise OSError("injected_first_post_mkdir_identity_failure")
+
+        try:
+            _apply_create_only_internal(
+                parent=parent,
+                install_name=INSTALL_NAME,
+                stage_name=STAGE_NAME,
+                source_name=SOURCE_NAME,
+                source_raw=accepted,
+                expected_uid=os.geteuid(),
+                expected_gid=os.getegid(),
+                require_root_parent=False,
+                stage_initial_stat_fn=fail_initial_stage_stat,
+            )
+        except StageGenerationUnknownError as exc:
+            if (
+                exc.stage_creation_succeeded is not True
+                or exc.stage_identity_bound is not False
+                or exc.possible_residual_stage is not True
+                or exc.retry_requires_operator_inspection is not True
+                or exc.stage_name != STAGE_NAME
+                or "injected_first_post_mkdir_identity_failure"
+                not in exc.original_failure_reason
+            ):
+                raise InstallError(
+                    "self_test_stage_generation_unknown_receipt_invalid"
+                )
+        else:
+            raise InstallError(
+                "self_test_stage_generation_unknown_not_raised"
+            )
+        if not (parent / STAGE_NAME).is_dir():
+            raise InstallError(
+                "self_test_unknown_generation_stage_not_preserved"
+            )
+        if (parent / INSTALL_NAME).exists():
+            raise InstallError(
+                "self_test_unknown_generation_target_created"
+            )
+
+    with tempfile.TemporaryDirectory(
         prefix="void-custody-procref-installer-prepublish-"
     ) as tmp:
         parent = Path(tmp) / "opt"
@@ -968,7 +1048,10 @@ def self_test() -> None:
     print("create_only=true")
     print("destination_collision_rejected=true")
     print("staging_cleanup_before_publication=true")
-    print("stage_identity_bound_immediately_after_create=true")
+    print("stage_identity_bound_on_first_successful_post_create_read=true")
+    print("stage_generation_unknown_hold=true")
+    print("possible_residual_stage_reported=true")
+    print("retry_after_unknown_stage_requires_operator_inspection=true")
     print("cleanup_failure_explicit_hold=true")
     print("forced_rename_failure_cleanup_proven=true")
     print("kernel_rename_noreplace_required=true")
