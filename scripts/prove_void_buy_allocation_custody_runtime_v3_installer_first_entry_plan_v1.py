@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_installer_first_entry_plan_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "2c328a2da41439a66c4bece8654e963bdfed612d"
+EXPECTED_SOURCE_BLOB = "87f6f9766309bfe3d0b9c74625dbc48c6aa0e16d"
 
 
 def git_blob(raw: bytes) -> str:
@@ -91,6 +91,21 @@ assert body["native_first_instruction_contract"][
 ] is True
 assert body["native_first_instruction_contract"][
     "caller_selected_destination_forbidden"
+] is True
+assert body["native_first_instruction_contract"]["exact_privileged_operation"] == (
+    "--install-accepted-protected-census-source"
+)
+assert body["native_first_instruction_contract"]["exact_confirmation_token"] == (
+    "INSTALL_ACCEPTED_VOID_CUSTODY_PROTECTED_PROCREF_SOURCE_V1_CREATE_ONLY"
+)
+assert body["native_first_instruction_contract"][
+    "exact_privileged_argv_required"
+] is True
+assert body["native_first_instruction_contract"][
+    "unknown_options_rejected_required"
+] is True
+assert body["native_first_instruction_contract"][
+    "duplicate_options_rejected_required"
 ] is True
 assert body["python_child_contract"]["python_flags_exact"] == [
     "-I", "-B", "-S", "-c"
@@ -178,6 +193,9 @@ for required in (
     "caller_selected_python_source_forbidden",
     "caller_selected_installer_path_forbidden",
     "caller_selected_destination_forbidden",
+    "exact_privileged_argv_required",
+    "unknown_options_rejected_required",
+    "duplicate_options_rejected_required",
     "closed_python_runtime_required",
     "python_runtime_identity_selected",
     "python_stdlib_import_closure_selected",
@@ -200,6 +218,7 @@ print("python_stdlib_import_closure_selected=false")
 print("caller_selected_python_source_forbidden=true")
 print("caller_selected_installer_path_forbidden=true")
 print("caller_selected_destination_forbidden=true")
+print("closed_privileged_argv_required=true")
 print("python_no_bytecode_mode_required=true")
 print("without_dash_b_bootstrap_hold=true")
 print("root_execution_of_mutable_plan_forbidden=true")
