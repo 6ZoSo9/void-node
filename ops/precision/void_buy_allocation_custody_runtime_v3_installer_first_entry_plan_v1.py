@@ -89,6 +89,11 @@ FIRST_ENTRY_POLICY = FIRST_ENTRY_ROOT / "policy-v1.conf"
 FIRST_ENTRY_SOURCE_ROOT = FIRST_ENTRY_ROOT / "source"
 FIRST_ENTRY_INSTALLER = FIRST_ENTRY_SOURCE_ROOT / INSTALLER_REL
 
+PRIVILEGED_OPERATION = "--install-accepted-protected-census-source"
+PRIVILEGED_CONFIRM = (
+    "INSTALL_ACCEPTED_VOID_CUSTODY_PROTECTED_PROCREF_SOURCE_V1_CREATE_ONLY"
+)
+
 MAX_READ = 256 * 1024
 
 
@@ -271,6 +276,11 @@ def plan_body(lock: dict[str, Any]) -> dict[str, Any]:
             "caller_selected_python_source_forbidden": True,
             "caller_selected_installer_path_forbidden": True,
             "caller_selected_destination_forbidden": True,
+            "exact_privileged_operation": PRIVILEGED_OPERATION,
+            "exact_confirmation_token": PRIVILEGED_CONFIRM,
+            "exact_privileged_argv_required": True,
+            "unknown_options_rejected_required": True,
+            "duplicate_options_rejected_required": True,
             "stdin_dev_null_required": True,
             "closed_environment_required": True,
             "supplementary_groups_cleared_required": True,
@@ -397,6 +407,7 @@ def self_test() -> None:
     print("accepted_installer_identity_bound=true")
     print("protected_snapshot_exact_four_files=true")
     print("static_native_first_instruction_required=true")
+    print("closed_privileged_argv_required=true")
     print("closed_python_runtime_required=true")
     print("python_runtime_identity_selected=false")
     print("python_stdlib_import_closure_selected=false")
