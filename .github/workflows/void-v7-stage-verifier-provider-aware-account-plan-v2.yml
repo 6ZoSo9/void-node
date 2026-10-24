@@ -43,8 +43,8 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py)" = "d88a9548ea34b8209ed7dcd53732fd25dd1371bf"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py)" = "b462696826b4f90fdf5f4938cd5467e5711addab"
           test "$(git rev-parse HEAD:ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json)" = "5881490da054360903e8ac9e9859ee58495830bb"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py)" = "0ea71c08323bcc5e4ea61f482a6efcd942277481"
-          test "$(git rev-parse HEAD:docs/security/void-v7-stage-verifier-provider-aware-account-plan-v2.md)" = "3803da6dbce8ef06fdf4a651229e9b5f42632705"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py)" = "66ebac8b57abdcefb38af5d14a0ca001ac3eea02"
+          test "$(git rev-parse HEAD:docs/security/void-v7-stage-verifier-provider-aware-account-plan-v2.md)" = "6357b866ab773c47d9018921befe5105d5468596"
           cat > /tmp/v7-account-v2-expected <<'SCOPE'
           A	.github/workflows/void-v7-stage-verifier-provider-aware-account-plan-v2.yml
           A	docs/security/void-v7-stage-verifier-provider-aware-account-plan-v2.md
@@ -61,4 +61,14 @@ jobs:
         run: |
           set -euo pipefail
           test "$(id -u)" -ne 0
-          python3 -I -B scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py
+          out="$RUNNER_TEMP/provider-aware-account-plan-v2.txt"
+          python3 -I -B scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py | tee "$out"
+          grep -Fx 'VOID_V7_STAGE_VERIFIER_PROVIDER_AWARE_ACCOUNT_PLAN_V2_PROOF_GREEN' "$out"
+          grep -Fx 'synthetic_negative_cases=76' "$out"
+          grep -Fx 'all_four_worktree_inputs_descriptor_bound=true' "$out"
+          grep -Fx 'production_reader_fifo_symlink_regressions=true' "$out"
+          grep -Fx 'phase_specific_negative_matrices=true' "$out"
+          grep -Fx 'account_group_creation=false' "$out"
+          grep -Fx 'protected_stage_apply=false' "$out"
+          grep -Fx 'presale_activation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
