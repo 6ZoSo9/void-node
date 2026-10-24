@@ -134,6 +134,23 @@ The next gate is explicitly:
 That later candidate must be independently reviewed before any root-owned host
 write is considered.
 
+## Proof source-generation binding
+
+The standalone proof authenticates the install-plan source through one retained
+descriptor generation rather than a hash-then-reopen pathname sequence. It:
+
+- opens the plan source with `O_RDONLY|O_NOFOLLOW|O_NONBLOCK|O_CLOEXEC`;
+- requires a bounded regular file and stable before/open/after generation;
+- reads the exact opened byte length plus EOF and computes the Git blob from
+  those retained bytes;
+- compiles and executes those exact verified bytes in memory without reopening
+  the source pathname.
+
+Disposable regressions require a symlink source to fail, a FIFO source to fail
+without blocking, and a pathname replacement after the verified read to keep
+executing the original retained bytes. These proof-fixture checks do not grant
+host installation or execution authority.
+
 ## Invocation
 
 Source-plan and self-test execution require isolated no-bytecode Python:
