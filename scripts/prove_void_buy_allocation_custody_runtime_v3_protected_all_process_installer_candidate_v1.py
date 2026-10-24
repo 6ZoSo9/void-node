@@ -17,7 +17,7 @@ TARGET = (
       "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_installer_candidate_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "5e7bc14863ea9e4ab61a982083ab552258cdd692"
+EXPECTED_SOURCE_BLOB = "c294dc543d04121d8dbbb27d89fe1b46010907ba"
 
 
 def git_blob(raw: bytes) -> str:
@@ -266,6 +266,9 @@ root_verifier = source.split("def _verify_root(", 1)[1].split(
 )[0]
 assert "finally:" in root_verifier
 assert "os.close(fd)" in root_verifier
+assert "source_name: str" in root_verifier
+assert "names != [source_name]" in root_verifier
+assert "_file_ok(\n            fd,\n            source_name," in root_verifier
 
 
 internal_fn = source.split("def _apply_create_only_internal(", 1)[1].split(
@@ -418,6 +421,7 @@ print("stage_directory_fsync_before_publication=true")
 print("parent_fsync_after_publication=true")
 print("exact_post_publication_verification_required=true")
 print("final_root_descriptor_close_deterministic=true")
+print("internal_final_source_name_parameterized=true")
 print("truthful_post_publication_failure_receipt=true")
 print("postpublication_failure_preserves_final_root=true")
 print("without_dash_b_bootstrap_hold=true")
