@@ -497,11 +497,31 @@ def _file_receipt(
         "nlink": st.st_nlink,
         "dev": st.st_dev,
         "ino": st.st_ino,
+        "mtime_ns": st.st_mtime_ns,
+        "ctime_ns": st.st_ctime_ns,
         "fsverity": verity,
     }
     if parse_elf:
         receipt["elf"] = _static_elf(raw)
     return receipt
+
+
+def _revalidate_file_receipt(path: Path, receipt: dict[str, Any]) -> None:
+    st = os.stat(path, follow_symlinks=False)
+    if (
+        not stat.S_ISREG(st.st_mode)
+        or stat.S_ISLNK(st.st_mode)
+        or st.st_dev != receipt["dev"]
+        or st.st_ino != receipt["ino"]
+        or st.st_uid != receipt["uid"]
+        or st.st_gid != receipt["gid"]
+        or format(stat.S_IMODE(st.st_mode), "04o") != receipt["mode"]
+        or st.st_nlink != receipt["nlink"]
+        or st.st_size != receipt["bytes"]
+        or st.st_mtime_ns != receipt["mtime_ns"]
+        or st.st_ctime_ns != receipt["ctime_ns"]
+    ):
+        hold("runtime_generation_changed_after_probe:" + path.name)
 
 
 def census() -> dict[str, Any]:
@@ -515,6 +535,8 @@ def census() -> dict[str, Any]:
     python = _file_receipt(PYTHON, 0o555, MAX_PYTHON_BYTES, parse_elf=True)
     stdlib = _file_receipt(STDLIB_ZIP, 0o444, MAX_STDLIB_BYTES, parse_elf=False)
     probe = _runtime_probe(stdlib["sha256"])
+    _revalidate_file_receipt(PYTHON, python)
+    _revalidate_file_receipt(STDLIB_ZIP, stdlib)
     verity_ready = (
         python["fsverity"].get("measured") is True
         and python["fsverity"].get("sha256_algorithm") is True
@@ -637,6 +659,7 @@ def self_test() -> None:
     print("stdlib_only_sys_path_required=true")
     print("external_module_origin_forbidden=true")
     print("fsverity_measurement_observed_not_assumed=true")
+    print("post_probe_runtime_generation_revalidated=true")
     print("runtime_identity_candidate_only=true")
     print("python_runtime_identity_selected=false")
     print("python_stdlib_import_closure_selected=false")
