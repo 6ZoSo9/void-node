@@ -1,0 +1,55 @@
+name: VOID Buy allocation custody observer nonblocking v2
+
+on:
+  pull_request:
+    paths:
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v2.mjs"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v2.mjs"
+      - "scripts/prove_buy_void_allocation_custody_observer_nonblocking_v2.mjs"
+      - "docs/architecture/buy-void-allocation-custody-observer-nonblocking-v2.md"
+      - ".github/workflows/buy-void-allocation-custody-observer-nonblocking-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact checkout
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+      - name: Build reviewed dependencies
+        run: npm run build
+      - name: Syntax
+        run: |
+          node --check tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v2.mjs
+          node --check tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v2.mjs
+          node --check scripts/prove_buy_void_allocation_custody_observer_nonblocking_v2.mjs
+      - name: Prove nonblocking transitive observer reads
+        run: |
+          sudo env "PATH=$PATH" HOME=/root node scripts/prove_buy_void_allocation_custody_observer_nonblocking_v2.mjs
+      - name: Diff hygiene
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: git diff --check "$BASE_SHA" "$HEAD_SHA"
