@@ -1,0 +1,292 @@
+name: VOID Buy custody V3 installer first-entry lock v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_installer-first-entry-lock-v2.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.yml"
+      - "native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.c"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact first-entry lock V2 successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="5ed63b70d89209201be903a5a92f9c5d760fd763"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.md'
+            $'A\tops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_installer-first-entry-lock-v2.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json)" = \
+            "36d6c4a5ff825993371f109ee86a77b601e12d07"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer-first-entry-lock-v2.py)" = \
+            "0d625053e81347f9e1f9bb11189fac88ae68846c"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.md)" = \
+            "bf8084a30f58406a02fecf08f249621f852d9070"
+
+          test "$(git rev-parse HEAD:native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.c)" = \
+            "d7693320783bcd0e3a2c4ef6c4afd86123e3688e"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py)" = \
+            "3d2fce2dba70f63dc3b8894fa3f120baf0584c3c"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.md)" = \
+            "a64253df5d88ddf5ef44ed230026d94a98f295f6"
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.yml)" = \
+            "0e267c9603906b85dc2688379400ab41cd65df8a"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json)" = \
+            "486a6f6e1e2c594e60d6f9fe3fa32b03175630ae"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile lock proof
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_installer-first-entry-lock-v2.py
+
+      - name: Authenticate hosted first-entry evidence
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EVIDENCE_PATH: ${{ runner.temp }}/first-entry-v2-hosted-evidence.json
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import urllib.request
+
+          repo = "6ZoSo9/void-node"
+          source_head = "5ed63b70d89209201be903a5a92f9c5d760fd763"
+          run_id = 40079868431
+          job_id = 120830989728
+          operator_review_id = 5638151673
+          codex_comment_id = 6382080747
+          token = os.environ["GITHUB_TOKEN"]
+          out = Path(os.environ["EVIDENCE_PATH"])
+
+          def get_json(path):
+              req = urllib.request.Request(
+                  "https://api.github.com" + path,
+                  headers={
+                      "Authorization": "Bearer " + token,
+                      "Accept": "application/vnd.github+json",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "User-Agent": "void-node-first-entry-v2-lock-evidence",
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=20) as response:
+                  assert response.status == 200, response.status
+                  return json.load(response)
+
+          run = get_json(f"/repos/{repo}/actions/runs/{run_id}")
+          assert run["id"] == run_id
+          assert run["repository"]["full_name"] == repo
+          assert run["head_sha"] == source_head
+          assert run["path"] == (
+              ".github/workflows/"
+              "buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.yml"
+          )
+          assert run["event"] == "pull_request"
+          assert run["status"] == "completed"
+          assert run["conclusion"] == "success"
+
+          job = get_json(f"/repos/{repo}/actions/jobs/{job_id}")
+          assert job["id"] == job_id
+          assert job["run_id"] == run_id
+          assert job["name"] == "prove"
+          assert job["status"] == "completed"
+          assert job["conclusion"] == "success"
+
+          review = get_json(
+              f"/repos/{repo}/pulls/3810/reviews/{operator_review_id}"
+          )
+          assert review["id"] == operator_review_id
+          assert review["commit_id"] == source_head
+          assert review["user"]["login"] == "6ZoSo9"
+          assert review["state"] == "COMMENTED"
+          assert (
+              "same-account COMMENT, not independent external approval"
+              in review["body"]
+          )
+
+          codex = get_json(
+              f"/repos/{repo}/issues/comments/{codex_comment_id}"
+          )
+          assert codex["id"] == codex_comment_id
+          assert codex["user"]["login"] == "chatgpt-codex-connector[bot]"
+          match = re.search(
+              r"<!-- codex-review-state:v1 (\{.*?\}) -->",
+              codex["body"],
+              flags=re.DOTALL,
+          )
+          assert match is not None
+          state = json.loads(match.group(1))
+          code = state["code_review"]
+          assert code["commit_sha"] == source_head
+          assert code["has_any_findings"] is False
+          assert code["has_unresolved_findings"] is False
+          assert code["status"] == "completed"
+
+          receipt = {
+              "schema": "void_buy_void_first_entry_v2_hosted_evidence_v1",
+              "repository": repo,
+              "run_id": run_id,
+              "run_head_sha": run["head_sha"],
+              "run_workflow_path": run["path"],
+              "run_event": run["event"],
+              "run_status": run["status"],
+              "run_conclusion": run["conclusion"],
+              "job_id": job_id,
+              "job_run_id": job["run_id"],
+              "job_name": job["name"],
+              "job_status": job["status"],
+              "job_conclusion": job["conclusion"],
+              "operator_review_id": operator_review_id,
+              "operator_review_commit": review["commit_id"],
+              "operator_review_author": review["user"]["login"],
+              "operator_review_state": review["state"],
+              "operator_review_independent": False,
+              "codex_comment_id": codex_comment_id,
+              "codex_comment_author": codex["user"]["login"],
+              "codex_review_commit": code["commit_sha"],
+              "codex_has_findings": code["has_any_findings"],
+              "codex_has_unresolved_findings": code["has_unresolved_findings"],
+              "codex_status": code["status"],
+              "authenticated_via_github_api": True,
+          }
+          out.write_text(
+              json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          print("VOID_BUY_VOID_FIRST_ENTRY_V2_HOSTED_EVIDENCE_AUTHENTICATED")
+          PY
+
+      - name: Prove exact first-entry V2 source lock
+        env:
+          EVIDENCE_PATH: ${{ runner.temp }}/first-entry-v2-hosted-evidence.json
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/first-entry-lock-v2-proof.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_installer-first-entry-lock-v2.py \
+            --hosted-evidence "$EVIDENCE_PATH" \
+            | tee "$out"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_INSTALLER_FIRST_ENTRY_LOCK_V2_PROOF_GREEN' "$out"
+          for marker in \
+            'lock_exact=true' \
+            'first_entry_source_exact=true' \
+            'first_entry_source_ascii_only=true' \
+            'first_entry_source_bytes=20952' \
+            'first_entry_source_sha256=d9cc46aeb3fe5d945fdadf0c0cddbc9991b51ed9c4328b4d32c45a7825248974' \
+            'hosted_metadata_authenticated=true' \
+            'focused_source_run_bound=true' \
+            'focused_source_job_bound=true' \
+            'operator_review_same_account_only=true' \
+            'independent_codex_review_bound=true' \
+            'accepted_installer_lock_v2_bound=true' \
+            'predecessor_first_entry_lineage_bound=true' \
+            'descriptor_bound_source_capture_accepted=true' \
+            'source_fifo_nonblocking_rejection_accepted=true' \
+            'captured_source_compile_binding_accepted=true' \
+            'native_publication_primitives_absent=true' \
+            'first_entry_native_source_accepted=true' \
+            'python_runtime_identity_selected=false' \
+            'first_entry_candidate_derived=false' \
+            'first_entry_candidate_accepted=false' \
+            'protected_installer_first_entry_installed=false' \
+            'protected_installer_first_entry_verified=false' \
+            'protected_install_authorized=false' \
+            'protected_source_installed=false' \
+            'live_privileged_census_authorized=false' \
+            'live_privileged_census_executed=false' \
+            'replacement_apply_authorized=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'production_gate_ready=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Validate authority boundary
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import json
+          from pathlib import Path
+
+          p=Path("ops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json")
+          v=json.loads(p.read_text(encoding="utf-8"))
+          assert v["marker"]=="VOID_BUY_VOID_CUSTODY_RUNTIME_V3_INSTALLER_FIRST_ENTRY_LOCK_V2"
+          assert v["first_entry_native_source_accepted"] is True
+          assert v["descriptor_bound_source_capture_accepted"] is True
+          assert v["source_fifo_nonblocking_rejection_accepted"] is True
+          assert v["captured_source_compile_binding_accepted"] is True
+          assert v["predecessor_lineage_bound"] is True
+          assert v["accepted_installer_lock_v2_bound"] is True
+          for key in (
+              "python_runtime_identity_selected",
+              "first_entry_candidate_derived",
+              "first_entry_candidate_accepted",
+              "protected_installer_first_entry_installed",
+              "protected_installer_first_entry_verified",
+              "protected_install_authorized",
+              "protected_source_installed",
+              "live_privileged_census_authorized",
+              "live_privileged_census_executed",
+              "service_mutation",
+              "systemd_mutation",
+              "existing_target_replaced",
+              "replacement_apply_authorized",
+              "runtime_integration",
+              "payment_acceptance",
+              "public_presale_activation",
+              "production_gate_ready",
+              "funds_movement",
+          ):
+              assert v[key] is False, key
+          PY
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
