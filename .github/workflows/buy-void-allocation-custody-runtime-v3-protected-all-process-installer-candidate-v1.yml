@@ -47,11 +47,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v1.py)" = \
-            "c294dc543d04121d8dbbb27d89fe1b46010907ba"
+            "8d45c6086d4f3f36d59f8a663e0c0596ee3fc5a3"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v1.py)" = \
-            "6ffe64d797f9db2d5a6a10122fe77e8b059f41bf"
+            "d792caf72b261a36596a5a415598f363984c8a43"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v1.md)" = \
-            "73ee33df90f72d3cdf7e409f481deb745a9ad027"
+            "1028ca1c8491adea1ff8df3d7fce4633f2764ba4"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
             "d0d500d5a4715c9319e702350a8851884b4baff8"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v6.json)" = \
@@ -93,7 +93,10 @@ jobs:
             'create_only=true' \
             'destination_collision_rejected=true' \
             'staging_cleanup_before_publication=true' \
-            'stage_identity_bound_immediately_after_create=true' \
+            'stage_identity_bound_on_first_successful_post_create_read=true' \
+            'stage_generation_unknown_hold=true' \
+            'possible_residual_stage_reported=true' \
+            'retry_after_unknown_stage_requires_operator_inspection=true' \
             'cleanup_failure_explicit_hold=true' \
             'forced_rename_failure_cleanup_proven=true' \
             'kernel_rename_noreplace_required=true' \
@@ -136,7 +139,11 @@ jobs:
             'protected_first_entry_required=true' \
             'create_only=true' \
             'destination_collision_rejected=true' \
-            'stage_identity_bound_immediately_after_create=true' \
+            'stage_identity_bound_on_first_successful_post_create_read=true' \
+            'stage_generation_unknown_hold=true' \
+            'possible_residual_stage_reported=true' \
+            'retry_after_unknown_stage_requires_operator_inspection=true' \
+            'first_post_mkdir_identity_failure_regression=true' \
             'cleanup_failure_explicit_hold=true' \
             'forced_rename_failure_cleanup_proven=true' \
             'kernel_rename_noreplace_required=true' \
@@ -178,6 +185,8 @@ jobs:
           assert value["candidate_contract"]["parameterized_internal_receipt_never_claims_protected_install"] is True
           assert value["candidate_contract"]["direct_apply_cli"] is False
           assert value["candidate_contract"]["protected_first_entry_required"] is True
+          assert value["candidate_contract"]["stage_generation_unknown_hold_required"] is True
+          assert value["candidate_contract"]["retry_after_unknown_stage_requires_operator_inspection"] is True
           assert value["authority"]["protected_install_authorized"] is False
           assert value["authority"]["protected_source_installed"] is False
           assert value["authority"]["live_privileged_census_authorized"] is False
