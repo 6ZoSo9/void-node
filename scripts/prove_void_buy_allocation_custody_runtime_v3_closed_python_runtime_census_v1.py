@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+TARGET = (
+    ROOT
+    / "ops/precision/"
+    "void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py"
+)
+EXPECTED_SOURCE_BLOB = "b2285a6a8919cfc1901161848cd4d4ea3188f81b"
+
+
+def git_blob(raw: bytes) -> str:
+    return hashlib.sha1(
+        b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw
+    ).hexdigest()
+
+
+raw = TARGET.read_bytes()
+assert git_blob(raw) == EXPECTED_SOURCE_BLOB
+
+spec = importlib.util.spec_from_file_location(
+    "void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1",
+    TARGET,
+)
+assert spec is not None and spec.loader is not None
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+assert module.MARKER == (
+    "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_CLOSED_PYTHON_RUNTIME_CENSUS_V1"
+)
+assert module.SCHEMA == (
+    "void_buy_void_custody_runtime_v3_closed_python_runtime_census_v1"
+)
+assert module.FIRST_ENTRY_LOCK_BLOB == (
+    "36d6c4a5ff825993371f109ee86a77b601e12d07"
+)
+assert module.RUNTIME_ROOT == Path("/opt/void-buy-void-v7-python-runtime-v1")
+assert module.PYTHON == Path(
+    "/opt/void-buy-void-v7-python-runtime-v1/bin/python3.12-static"
+)
+assert module.STDLIB_ZIP == Path(
+    "/opt/void-buy-void-v7-python-runtime-v1/lib/python312.zip"
+)
+
+lock = module._validate_first_entry_lock()
+assert lock["first_entry_native_source_accepted"] is True
+assert lock["python_runtime_identity_selected"] is False
+assert lock["first_entry_candidate_derived"] is False
+assert lock["protected_install_authorized"] is False
+assert lock["replacement_apply_authorized"] is False
+assert lock["funds_movement"] is False
+
+module.self_test()
+
+source = raw.decode("utf-8")
+pre_self_test = source.split("def self_test()", 1)[0]
+
+for required in (
+    "FS_IOC_MEASURE_VERITY",
+    "FS_VERITY_HASH_ALG_SHA256",
+    'RUNTIME_ROOT = Path("/opt/void-buy-void-v7-python-runtime-v1")',
+    'PYTHON = RUNTIME_BIN / "python3.12-static"',
+    'STDLIB_ZIP = RUNTIME_LIB / "python312.zip"',
+    "EXPECTED_ROOT_ENTRIES = (\"bin\", \"lib\")",
+    "EXPECTED_BIN_ENTRIES = (\"python3.12-static\",)",
+    "EXPECTED_LIB_ENTRIES = (\"python312.zip\",)",
+    "def _static_elf(",
+    "def _measure_verity(",
+    "def _runtime_probe(",
+    '"-I", "-B", "-S", "-c"',
+    "sys.path[:]=[z]",
+    "__import__('_voidfs')",
+    "external_module_origins",
+    "runtime_identity_candidate",
+    "python_runtime_identity_selected",
+    "python_stdlib_import_closure_selected",
+    "first_entry_candidate_derived",
+    "protected_runtime_accepted",
+    "protected_install_authorized",
+    "replacement_apply_authorized",
+):
+    assert required in source, required
+
+for forbidden in (
+    "os.write(",
+    "os.pwrite(",
+    "os.unlink(",
+    "os.rename(",
+    "os.replace(",
+    "os.chmod(",
+    "os.chown(",
+    "os.fchmod(",
+    "os.fchown(",
+    "shutil.",
+    "tarfile.",
+    "sudo ",
+    "systemctl",
+):
+    assert forbidden not in pre_self_test, forbidden
+
+probe = pre_self_test.split("def _runtime_probe(", 1)[1].split(
+    "def _file_receipt(", 1
+)[0]
+assert "subprocess.run(" in probe
+assert "[str(PYTHON), \"-I\", \"-B\", \"-S\", \"-c\", probe]" in probe
+assert "shell=True" not in probe
+assert "env={}" in probe
+assert "stdout=subprocess.PIPE" in probe
+assert "stderr=subprocess.PIPE" in probe
+assert "timeout=15" in probe
+
+assert "runtime_identity_candidate\": True" in source
+assert "python_runtime_identity_selected\": False" in source
+assert "python_stdlib_import_closure_selected\": False" in source
+assert "protected_runtime_accepted\": False" in source
+assert "first_entry_candidate_derived\": False" in source
+assert "protected_install_authorized\": False" in source
+assert "replacement_apply_authorized\": False" in source
+assert "production_explicit_filesystem_write\": False" in source
+assert "production_filesystem_write_free\": False" in source
+assert "production_atime_write_possible\": True" in source
+
+print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_CLOSED_PYTHON_RUNTIME_CENSUS_V1_PROOF_GREEN")
+print("exact_source_blob_asserted=true")
+print("first_entry_lock_exact=true")
+print("fixed_runtime_namespace_bound=true")
+print("closed_tree_contract_bound=true")
+print("static_elf_parser_bound=true")
+print("pt_interp_rejected=true")
+print("pt_dynamic_rejected=true")
+print("fsverity_measurement_observed_not_assumed=true")
+print("isolated_stdlib_only_probe_bound=true")
+print("voidfs_builtin_required=true")
+print("external_module_origin_forbidden=true")
+print("runtime_probe_shell_false=true")
+print("runtime_probe_environment_empty=true")
+print("host_census_not_executed_in_ci=true")
+print("runtime_identity_candidate_only=true")
+print("python_runtime_identity_selected=false")
+print("python_stdlib_import_closure_selected=false")
+print("first_entry_candidate_derived=false")
+print("protected_runtime_accepted=false")
+print("protected_install_authorized=false")
+print("replacement_apply_authorized=false")
+print("production_read_only=true")
+print("production_explicit_filesystem_write=false")
+print("production_filesystem_write_free=false")
+print("production_atime_write_possible=true")
+print("funds_movement=false")
