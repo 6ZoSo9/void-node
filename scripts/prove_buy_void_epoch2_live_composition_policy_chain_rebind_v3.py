@@ -13,7 +13,7 @@ SOURCE = (
     / "ops/precision/"
     "void_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py"
 )
-EXPECTED_SOURCE_BLOB = "6aa69d5bbfdecef0110cdd151db4c0351c08cf53"
+EXPECTED_SOURCE_BLOB = "c030a6e8e6bb8ed71c5fc045753697b1bd1412d7"
 EXPECTED_V2_BLOB = "891cce24244c62756caeba6d2bf702cc92e8a956"
 
 
@@ -43,6 +43,69 @@ assert module.IMMEDIATE_POLICY_SHA256 == (
 )
 assert module.IMMEDIATE_BACKUP_NAME.endswith("policy-predecessor-4c80887a")
 assert module.STAGE_NAME.endswith("policy-chain-rebind-4c80887.stage")
+
+# The privileged dependency loader must retain one nonblocking no-follow
+# descriptor through metadata validation, bounded read, blob hash, and final
+# pathname identity revalidation.
+with tempfile.TemporaryDirectory(
+    prefix="void-epoch2-policy-v3-bound-source-"
+) as tmp:
+    tmp_path = pathlib.Path(tmp)
+    source_path = tmp_path / "source.py"
+    source_bytes = b"print('bound-source')\n"
+    source_blob = git_blob_sha1(source_bytes)
+    source_path.write_bytes(source_bytes)
+
+    assert module._read_bound_source(source_path, source_blob) == source_bytes
+
+    symlink_path = tmp_path / "source-symlink.py"
+    symlink_path.symlink_to(source_path.name)
+    try:
+        module._read_bound_source(symlink_path, source_blob)
+    except module.RebindError as exc:
+        assert str(exc).startswith("source_open_failed:")
+    else:
+        raise AssertionError("symlink source was accepted")
+
+    fifo_path = tmp_path / "source-fifo"
+    os.mkfifo(fifo_path)
+    try:
+        module._read_bound_source(fifo_path, source_blob)
+    except module.RebindError as exc:
+        assert str(exc) == "source_metadata_invalid:" + fifo_path.name
+    else:
+        raise AssertionError("writerless FIFO source was accepted")
+
+    rebound_path = tmp_path / "source-rebound.py"
+    retained_path = tmp_path / "source-retained.py"
+    rebound_path.write_bytes(source_bytes)
+
+    original_read = module.os.read
+    swapped = {"done": False}
+
+    def replace_path_after_retained_read(fd: int, length: int) -> bytes:
+        chunk = original_read(fd, length)
+        if not swapped["done"]:
+            swapped["done"] = True
+            rebound_path.rename(retained_path)
+            os.mkfifo(rebound_path)
+        return chunk
+
+    module.os.read = replace_path_after_retained_read
+    try:
+        try:
+            module._read_bound_source(rebound_path, source_blob)
+        except module.RebindError as exc:
+            assert str(exc) == (
+                "source_path_rebound_during_read:" + rebound_path.name
+            )
+        else:
+            raise AssertionError("post-open pathname replacement was accepted")
+    finally:
+        module.os.read = original_read
+
+    assert retained_path.read_bytes() == source_bytes
+    assert stat.S_ISFIFO(rebound_path.lstat().st_mode)
 
 v2 = module._load_v2()
 v1, installer = module._load_installer(v2)
@@ -285,6 +348,10 @@ print("publication_aware_failure_receipt=true")
 print("stage_write_failure_identity_cleanup=true")
 print("stage_cleanup_replacement_protected=true")
 print("rollback_exchange_directory_fsync_order=true")
+print("bound_source_retained_descriptor=true")
+print("bound_source_symlink_rejected=true")
+print("bound_source_writerless_fifo_nonblocking_hold=true")
+print("bound_source_post_open_replacement_rejected=true")
 print("credential_access_authorized=false")
 print("signing_authorized=false")
 print("transaction_authorized=false")
