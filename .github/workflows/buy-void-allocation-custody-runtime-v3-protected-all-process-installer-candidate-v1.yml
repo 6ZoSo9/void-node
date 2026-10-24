@@ -47,9 +47,9 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v1.py)" = \
-            "5e7bc14863ea9e4ab61a982083ab552258cdd692"
+            "c294dc543d04121d8dbbb27d89fe1b46010907ba"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v1.py)" = \
-            "ad8f44abf6c3c446f4acefd0b23f496f9df1ba99"
+            "6ffe64d797f9db2d5a6a10122fe77e8b059f41bf"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v1.md)" = \
             "73ee33df90f72d3cdf7e409f481deb745a9ad027"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
@@ -145,6 +145,7 @@ jobs:
             'parent_fsync_after_publication=true' \
             'exact_post_publication_verification_required=true' \
             'final_root_descriptor_close_deterministic=true' \
+            'internal_final_source_name_parameterized=true' \
             'truthful_post_publication_failure_receipt=true' \
             'postpublication_failure_preserves_final_root=true' \
             'without_dash_b_bootstrap_hold=true' \
