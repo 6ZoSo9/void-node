@@ -141,12 +141,23 @@ considered.
 
 ## Rollback and failure truth
 
+Stage preparation is fail-atomic after this invocation wins the create-only
+`O_CREAT|O_EXCL` stage. V3 records the created stage inode immediately. If a
+later write, chmod, file fsync, exact-content verification, or parent fsync
+fails, cleanup is attempted only when the visible stage still has that exact
+device/inode identity. A replaced stage is never deleted as if it were owned by
+this invocation. The failure receipt truthfully records whether that cleanup
+was attempted and whether it completed.
+
 If failure occurs after the live exchange, V3 restores the exact
-`4c80887...` predecessor through the same atomic exchange primitive.
+`4c80887...` predecessor through the same atomic exchange primitive. The
+rollback exchange fsyncs both the protected live-policy directory and the
+staging parent before any displaced-new-policy recovery file is removed or
+rollback is declared green.
 
 If the `4c80887...` backup has already been published, rollback exchanges that
 exact backup with the live policy and removes only the displaced new policy
-after exact verification.
+after the restored live directory entry is durably persisted.
 
 If publication has occurred, the failure receipt remains publication-aware even
 when rollback returns to READY. Unproven rollback or final state is reported as
@@ -164,6 +175,9 @@ Hosted CI performs source-only checks:
 - READY/GREEN state-classifier tests with synthetic path presence;
 - interrupted V3-stage refusal;
 - publication-aware failure receipt checks;
+- forced stage-fsync failure with identity-bound incomplete-stage cleanup;
+- rollback-exchange ordering that fsyncs live and staging directories before
+  recovery cleanup;
 - exact no-authority markers.
 
 Hosted CI does not read Precision `/opt`, credentials, private keys, service
