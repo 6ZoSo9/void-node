@@ -190,8 +190,8 @@ with tempfile.TemporaryDirectory(
     )
     header.write_text(
         """
-#ifndef VOID_SYNTHETIC_BINDINGS_V1_H
-#define VOID_SYNTHETIC_BINDINGS_V1_H
+#ifndef VOID_SYNTHETIC_BINDINGS_V2_H
+#define VOID_SYNTHETIC_BINDINGS_V2_H
 #define VOID_CUSTODY_FIRST_ENTRY_BINDINGS_VERSION 2
 #define VOID_FIRST_ENTRY_BIN "/synthetic/first-entry/bin/launcher"
 #define VOID_FIRST_ENTRY_POLICY "/synthetic/first-entry/policy-v1.conf"
