@@ -15,7 +15,7 @@ Current #3715 exact identities:
 - operator document: `02fa010cd66a50c5e2858b6cced9a7e08ee295af`;
 - focused workflow: `af1a9afad2a39b96ee4022ba1b36ebf7534c818b`.
 
-The role-contract machine source is `ops/security/void_v7_v5_stage_role_separation_contract_v2.json`, Git blob `4801caaca496baeb85c7842b5b8b4b47122582ab`. The exact source proof is `scripts/prove_void_v7_v5_stage_role_separation_contract_v2.py`, Git blob `a28c8f8802c6d4f1f0c546391c1388dfa4f5ee9c`.
+The role-contract machine source is `ops/security/void_v7_v5_stage_role_separation_contract_v2.json`, Git blob `4801caaca496baeb85c7842b5b8b4b47122582ab`. The exact source proof is `scripts/prove_void_v7_v5_stage_role_separation_contract_v2.py`, Git blob `af5d78695c4752c1122cbfe9c22b12c813a813f3`.
 
 ## Current defect and required split
 
@@ -72,14 +72,14 @@ python3 -I -B scripts/prove_void_v7_v5_stage_role_separation_contract_v2.py
 
 The proof:
 
-- binds all six exact current #3715 installer/proof/doc/workflow Git objects;
+- binds all six exact current #3715 installer/proof/doc/workflow Git objects and reads the contract/source through retained `O_NOFOLLOW|O_NONBLOCK` descriptors, validating regular-file type, stable opened/terminal/visible generation and exact Git-blob bytes;
 - binds the new V2 machine contract;
 - parses the current source installer and requires the full 13-line shared-identity inventory;
 - verifies root custody before protected copy and confirms the protected copy is not dispatched inside the unprivileged child;
 - verifies private digest → verifier ACL → private verification → ACL removal/seal → final verification → no-replace publication ordering, and directly binds `RENAME_NOREPLACE` plus parent-directory `fsync` in the current publication helper;
 - requires the current three-operation shared child dispatch to remain visible so a future split cannot be falsely claimed as already implemented;
 - requires the current dynamic native ABI to remain visible as a separate HOLD;
-- evaluates **27 synthetic role-policy failures**.
+- exercises descriptor-bound FIFO/symlink substitution regressions and evaluates **27 synthetic role-policy failures**.
 
 The synthetic verifier UID/GID `123456789/123456790` are intentionally absurd proof-only values. They are not host candidates, production suggestions, system-range values, or account selection. Even the synthetic positive shape returns only `SYNTHETIC_ROLE_SHAPE_ONLY_NOT_HOST_ATTESTED`.
 
