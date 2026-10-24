@@ -43,11 +43,17 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          read -r head p1 p2 extra <<<"$(git rev-list --parents -n 1 HEAD)"
+          read -r head repair_parent extra <<<"$(git rev-list --parents -n 1 HEAD)"
           test "$head" = "$EXPECTED_HEAD"
-          test "$p1" = "94a07497a1583ec990ac0ca665604bebf570b5e7"
-          test "$p2" = "2f214e81dc867c8dc526c9c883cfd4e85f34ca44"
+          test "$repair_parent" = "c1b00b856fb996cad5d5a1d1f84c1bce27a2878c"
           test -z "${extra:-}"
+          read -r predecessor p1 p2 extra2 <<<"$(git rev-list --parents -n 1 "$repair_parent")"
+          test "$predecessor" = "$repair_parent"
+          test "$p1" = "94a07497a1583ec990ac0ca665604bebf570b5e7"
+          test "$p2" = "f504843c457403b95b4e9887a190f0677f820c31"
+          test -z "${extra2:-}"
+          expected_repair=$'.github/workflows/buy-void-protected-v4-lock-canonical-v5-composition-v2.yml\ndocs/architecture/buy-void-protected-v4-lock-canonical-v5-composition-v2.md\nscripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs'
+          test "$(git diff --name-only "$repair_parent" HEAD | sort)" = "$(printf '%s\n' "$expected_repair" | sort)"
       - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -56,8 +62,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs)" = "666c5b97276d04707bd0dced317193f83a58f371"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-protected-v4-lock-canonical-v5-composition-v2.md)" = "e414636561cd7235201cb073e339a751ea799b12"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs)" = "0f731f9932d043f6c0eaac8db6cc4eca7673f9c2"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-protected-v4-lock-canonical-v5-composition-v2.md)" = "221bd4b8d7b908b2f893e5301143600952545901"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json)" = "4de9c2185a1359d2877b17958666f91497a91179"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "ec00f0c552e600fff38e4998e4beb128c93b481d"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs)" = "15c33b8c88db7d31af96bbd50ed4940425ff7417"
@@ -65,7 +71,7 @@ jobs:
           test "$(git rev-parse HEAD:.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml)" = "bf4d059202ed62449fbc6cfe62402aaa73b22682"
           test "$(git rev-parse HEAD:ops/run-void-node-live-v1.sh)" = "bc6a17ccdf389299fb139db37e742f0b1ad9dc4e"
           test "$(git rev-parse HEAD:src/index.ts)" = "a09661797aa4295371c036be36d82995e5233269"
-          git diff --check "2f214e81dc867c8dc526c9c883cfd4e85f34ca44" HEAD
+          git diff --check "f504843c457403b95b4e9887a190f0677f820c31" HEAD
       - name: Syntax
         shell: bash
         run: |

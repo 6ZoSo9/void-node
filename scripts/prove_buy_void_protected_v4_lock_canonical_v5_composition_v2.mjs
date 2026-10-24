@@ -5,8 +5,9 @@ import fs from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const MARKER="VOID_BUY_VOID_PROTECTED_V4_LOCK_CANONICAL_V5_COMPOSITION_V2";
+const COMPOSITION_PREDECESSOR="c1b00b856fb996cad5d5a1d1f84c1bce27a2878c";
 const PRIOR_COMPOSITION_PARENT="94a07497a1583ec990ac0ca665604bebf570b5e7";
-const ACCEPTED_LOCK_PARENT="2f214e81dc867c8dc526c9c883cfd4e85f34ca44";
+const ACCEPTED_LOCK_PARENT="f504843c457403b95b4e9887a190f0677f820c31";
 const V5_SOURCE_HEAD="c6f31c19ef3def20902b2c2b735de0803b2a2ab0";
 const RANGE_INDEX_BLOB="a09661797aa4295371c036be36d82995e5233269";
 const CANDIDATE_PATH="ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json";
@@ -111,10 +112,20 @@ function absent(ref,path){
 }
 const sha256=bytes=>crypto.createHash("sha256").update(bytes).digest("hex");
 
-const parents=git(["rev-list","--parents","-n","1","HEAD"]).split(/\s+/u);
-assert.equal(parents.length,3,"composition_two_parents_required");
-assert.equal(parents[1],PRIOR_COMPOSITION_PARENT,"prior_composition_parent_mismatch");
-assert.equal(parents[2],ACCEPTED_LOCK_PARENT,"accepted_lock_parent_mismatch");
+const repairParents=git(["rev-list","--parents","-n","1","HEAD"]).split(/\s+/u);
+assert.equal(repairParents.length,2,"composition_repair_single_parent_required");
+assert.equal(repairParents[1],COMPOSITION_PREDECESSOR,"composition_repair_parent_mismatch");
+const predecessorParents=git(["rev-list","--parents","-n","1",COMPOSITION_PREDECESSOR]).split(/\s+/u);
+assert.equal(predecessorParents.length,3,"composition_predecessor_two_parents_required");
+assert.equal(predecessorParents[1],PRIOR_COMPOSITION_PARENT,"prior_composition_parent_mismatch");
+assert.equal(predecessorParents[2],ACCEPTED_LOCK_PARENT,"accepted_lock_parent_mismatch");
+const repairRows=git(["diff","--name-status",COMPOSITION_PREDECESSOR,"HEAD"])
+  .split(/\n/u).filter(Boolean).sort();
+assert.deepEqual(repairRows,[
+  "M\t.github/workflows/buy-void-protected-v4-lock-canonical-v5-composition-v2.yml",
+  "M\tdocs/architecture/buy-void-protected-v4-lock-canonical-v5-composition-v2.md",
+  "M\tscripts/prove_buy_void_protected_v4_lock_canonical_v5_composition_v2.mjs",
+].sort(),"composition_repair_scope_mismatch");
 
 assert.equal(blob("HEAD","src/index.ts"),RANGE_INDEX_BLOB);
 assert.equal(blob(ACCEPTED_LOCK_PARENT,"src/index.ts"),RANGE_INDEX_BLOB);
@@ -223,8 +234,10 @@ assert.match(
 
 const receipt=Object.freeze({
   marker:MARKER,
+  composition_predecessor:COMPOSITION_PREDECESSOR,
   prior_composition_parent:PRIOR_COMPOSITION_PARENT,
   accepted_lock_parent:ACCEPTED_LOCK_PARENT,
+  provenance_repair_scope_verified:true,
   v5_source_head:V5_SOURCE_HEAD,
   range_index_blob:RANGE_INDEX_BLOB,
   candidate_v4_blob:CANDIDATE_BLOB,

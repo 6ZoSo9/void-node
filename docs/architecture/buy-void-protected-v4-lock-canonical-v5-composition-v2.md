@@ -1,5 +1,7 @@
 # Accepted protected V4 lock + canonical producer V5 composition V2
 
+Current provenance repair: this head is a single-parent successor of immutable composition predecessor `c1b00b856fb996cad5d5a1d1f84c1bce27a2878c`. That predecessor has exact ordered parents prior composition `94a07497a1583ec990ac0ca665604bebf570b5e7` and merged V4 acceptance `f504843c457403b95b4e9887a190f0677f820c31`. Only this proof, document, and workflow may change in the repair.
+
 ## Purpose
 
 Compose the current accepted V4 source identity from #3688 with the exact
@@ -10,7 +12,7 @@ second parent.
 Current intended parents:
 
 - prior #3682 history: `94a07497a1583ec990ac0ca665604bebf570b5e7`;
-- accepted V4 source identity: `2f214e81dc867c8dc526c9c883cfd4e85f34ca44` (#3688 repaired head);
+- accepted V4 source identity: `f504843c457403b95b4e9887a190f0677f820c31` (#3688 merged acceptance);
 - canonical V5 donor: `c6f31c19ef3def20902b2c2b735de0803b2a2ab0` (#3681 reviewed V5 source).
 
 ## Accepted V4 preservation
@@ -52,6 +54,6 @@ receipt and grants no runtime cutover, service mutation, credential/signer,
 payment/presale, transaction, treasury/liquidity, or funds authority.
 
 Composition proof blob:
-`666c5b97276d04707bd0dced317193f83a58f371`.
+`0f731f9932d043f6c0eaac8db6cc4eca7673f9c2`.
 
 PROTECT THE CORE.
