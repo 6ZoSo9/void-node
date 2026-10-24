@@ -30,6 +30,8 @@ on:
       - "scripts/prove_buy_void_request_under_lock_revalidation_v3.mjs"
       - "scripts/prove_void_buy_coupled_launch_runtime_integration_current_v2.mjs"
       - "tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs"
+      - "tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs"
+      - "scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs"
       - "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts"
       - "src/economic/buy_void_epoch2_credential_source_binding_v1.ts"
       - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
@@ -52,6 +54,7 @@ on:
       - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
       - "scripts/prove_buy_void_epoch2_credential_signer_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
       - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json"
       - "ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json"
       - "tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs"
@@ -62,6 +65,7 @@ on:
       - "scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs"
       - "scripts/prove_void_buy_coupled_launch_runtime_integration_generation_dispatch_v1.mjs"
       - "scripts/prove_void_buy_coupled_launch_runtime_integration_generation_dispatch_v2.mjs"
+      - "scripts/prove_void_buy_coupled_launch_runtime_integration_generation_dispatch_v3.mjs"
       - "scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs"
       - "scripts/prove_buy_void_enforcement_artifact_attestation_v2.mjs"
       - "scripts/prove_buy_void_enforcement_artifact_attestation_v3.mjs"
@@ -136,6 +140,8 @@ on:
       - "scripts/prove_buy_void_request_under_lock_revalidation_v3.mjs"
       - "scripts/prove_void_buy_coupled_launch_runtime_integration_current_v2.mjs"
       - "tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs"
+      - "tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs"
+      - "scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs"
       - "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts"
       - "src/economic/buy_void_epoch2_credential_source_binding_v1.ts"
       - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
@@ -158,6 +164,7 @@ on:
       - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
       - "scripts/prove_buy_void_epoch2_credential_signer_v1.ts"
       - "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
       - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json"
       - "ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json"
       - "tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs"
@@ -168,6 +175,7 @@ on:
       - "scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs"
       - "scripts/prove_void_buy_coupled_launch_runtime_integration_generation_dispatch_v1.mjs"
       - "scripts/prove_void_buy_coupled_launch_runtime_integration_generation_dispatch_v2.mjs"
+      - "scripts/prove_void_buy_coupled_launch_runtime_integration_generation_dispatch_v3.mjs"
       - "scripts/prove_buy_void_enforcement_artifact_attestation_v1.mjs"
       - "scripts/prove_buy_void_enforcement_artifact_attestation_v2.mjs"
       - "scripts/prove_buy_void_enforcement_artifact_attestation_v3.mjs"
@@ -263,7 +271,7 @@ jobs:
       - name: Build exact runtime artifacts for enforcement attestation
         run: npm run build
       - name: Prove current runtime integration generation successor
-        run: node scripts/prove_void_buy_coupled_launch_runtime_integration_generation_dispatch_v2.mjs
+        run: node scripts/prove_void_buy_coupled_launch_runtime_integration_generation_dispatch_v3.mjs
       - name: Preserve exact historical inline-persistor V1 proof
         run: test "$(git hash-object scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs)" = "699dacd2d4eb21e1a1213a8d0d5d8da94717f3e7"
       - name: Prove current request persistence and privacy against disposable ledgers
