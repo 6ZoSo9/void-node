@@ -1,0 +1,244 @@
+{
+  "marker": "VOID_V7_STAGE_VERIFIER_PROVIDER_AWARE_ACCOUNT_PLAN_V2",
+  "schema": "void_v7_stage_verifier_provider_aware_account_plan_v2",
+  "lifecycle": "SOURCE_ONLY_PROVIDER_PROFILE_UNATTESTED_UID_GID_UNSELECTED",
+  "repository": "6ZoSo9/void-node",
+  "upstream": {
+    "role_separation_pr": 3804,
+    "role_separation_head": "c90f2e89ef0b90a8a8852b72ffb9bf6ba9f22a22",
+    "role_contract_path": "ops/security/void_v7_v5_stage_role_separation_contract_v2.json",
+    "role_contract_blob": "4801caaca496baeb85c7842b5b8b4b47122582ab",
+    "current_source_stage_installer_blob": "d88a9548ea34b8209ed7dcd53732fd25dd1371bf",
+    "current_receipt_stage_installer_blob": "b462696826b4f90fdf5f4938cd5467e5711addab",
+    "historical_account_plan_pr": 3754,
+    "historical_account_plan_reusable": false
+  },
+  "prior_operator_observation": {
+    "evidence_kind": "UNAUTHENTICATED_HISTORICAL_OPERATOR_REPORT",
+    "proposed_name": "void-v7-stage-verifier",
+    "proposed_user_absent_reported": true,
+    "proposed_group_absent_reported": true,
+    "operator_uid": 1000,
+    "operator_gid": 1000,
+    "custody_uids": [
+      994,
+      995
+    ],
+    "custody_gids": [
+      980,
+      981,
+      982
+    ],
+    "reported_nss_identity_routes_contain": [
+      "files",
+      "systemd",
+      "sss"
+    ],
+    "effective_provider_order_authenticated": false,
+    "provider_health_authenticated": false,
+    "live_host_attestation": false
+  },
+  "proposed_identity": {
+    "user_name": "void-v7-stage-verifier",
+    "primary_group_name": "void-v7-stage-verifier",
+    "uid": null,
+    "gid": null,
+    "numeric_identity_selected": false,
+    "account_provisioned": false,
+    "required_shell": "/usr/sbin/nologin",
+    "password_locked_required": true,
+    "create_home": false,
+    "supplementary_groups": [],
+    "custody_ipc_membership_forbidden": true,
+    "sudo_polkit_ssh_admin_authority_forbidden": true,
+    "operator_home_access_forbidden": true,
+    "wallet_signer_key_access_forbidden": true,
+    "only_future_stage_access": "temporary_exact_named_uid_read_search_acl_on_authenticated_root_owned_private_stage"
+  },
+  "provider_policy": {
+    "authenticated_current_passwd_route": null,
+    "authenticated_current_group_route": null,
+    "supported_provider_families": [
+      "files",
+      "systemd",
+      "sss"
+    ],
+    "unknown_provider_or_action_clause_policy": "HOLD",
+    "configured_provider_order_must_be_exactly_bound": true,
+    "provider_health_must_be_positive_before_absence_is_accepted": true,
+    "provider_unavailable_or_timeout_policy": "HOLD",
+    "enumeration_only_is_insufficient": true,
+    "current_provider_profile_recheck_before_each_create_operation": true,
+    "passwd_and_group_routes_may_differ": true,
+    "files_provider_required_for_local_account_creation": true,
+    "namespace_specific_name_and_numeric_negative_lookup_required": true,
+    "expected_post_group_local_binding_is_not_a_collision": true,
+    "future_provider_allocation_ranges_must_exclude_candidate": true
+  },
+  "provider_requirements": {
+    "files": [
+      "descriptor_bind_root_owned_nonwritable_nsswitch_passwd_group_shadow_gshadow_login_defs",
+      "parse_local_passwd_name_uid_and_group_name_gid_collisions",
+      "bind_system_uid_gid_ranges_from_exact_login_defs_generation",
+      "require_candidate_uid_gid_inside_bound_system_account_ranges",
+      "bind_existing_subuid_subgid_delegations_and_require_candidate_numbers_outside_all_delegated_ranges",
+      "recheck_local_file_subid_and_expected_phase_specific_entry_generation_before_each_create_operation"
+    ],
+    "systemd": [
+      "bind_running_system_manager_generation_and_nss_systemd_availability",
+      "bind_complete_systemd_userdb_service_inventory_reachable_by_nss_systemd",
+      "census_dynamic_and_transient_user_group_allocations_and_reservations",
+      "bind_dynamic_user_allocation_range_and_require_candidate_outside_or_explicitly_reserved_as_static",
+      "direct_passwd_name_uid_negative_lookup_when_configured",
+      "direct_group_name_gid_negative_lookup_when_configured_and_recheck_after_local_group_creation"
+    ],
+    "sss": [
+      "bind_sssd_provider_configuration_health_domain_and_cache_generation",
+      "bind_all_domain_min_max_and_algorithmic_id_mapping_ranges",
+      "require_candidate_uid_gid_and_name_outside_future_sss_provider_allocation_or_explicitly_reserved_for_local_identity",
+      "require_direct_passwd_name_uid_negative_lookup_when_configured_not_enumeration_only",
+      "require_direct_group_name_gid_negative_lookup_when_configured_not_enumeration_only",
+      "hold_if_domain_offline_degraded_unreachable_timeout_or_lookup_status_ambiguous"
+    ]
+  },
+  "global_numeric_authority_requirements": [
+    "exclude_root_operator_custody_runtime_and_ipc_ids",
+    "authenticate_host_initial_pid_and_user_namespace_leases",
+    "complete_procfs_all_pid_uid_gid_and_supplementary_group_census",
+    "exclude_deleted_account_live_process_credentials",
+    "census_all_live_user_namespace_uid_map_and_gid_map_ranges_and_exclude_candidate_host_ids",
+    "authenticate_complete_mounted_filesystem_authority_scope_and_mount_generation",
+    "include_tmpfs_bind_remote_and_other_mounts_where_numeric_owner_or_acl_can_confer_access",
+    "hold_on_unreadable_unsupported_or_unclassifiable_mount_scope",
+    "exclude_preexisting_uid_gid_file_ownership",
+    "exclude_preexisting_numeric_posix_access_and_default_acl_references",
+    "exclude_systemd_dynamic_user_reservations",
+    "exclude_candidate_uid_from_all_existing_subuid_delegated_ranges",
+    "exclude_candidate_gid_from_all_existing_subgid_delegated_ranges",
+    "exclude_candidate_uid_gid_from_existing_sysv_ipc_owner_creator_credentials",
+    "exclude_candidate_uid_gid_from_persistent_kernel_authority_objects_or_hold_if_not_completely_censusable",
+    "before_group_creation_require_user_and_group_names_and_uid_gid_absent_in_each_configured_namespace_provider",
+    "repeat_complete_provider_process_mount_ownership_acl_census_immediately_before_group_creation",
+    "after_group_creation_bind_exact_expected_local_files_group_name_gid_generation",
+    "bind_idmapped_mount_user_namespace_maps_and_translate_or_hold_numeric_ownership_acl_census",
+    "after_group_creation_require_group_name_gid_absent_from_all_configured_nonfiles_group_providers",
+    "before_user_creation_require_user_name_uid_absent_from_all_configured_passwd_providers",
+    "before_user_creation_require_selected_gid_has_no_non_accountdb_file_acl_process_or_service_authority",
+    "repeat_complete_provider_process_mount_ownership_acl_census_immediately_before_user_creation"
+  ],
+  "future_create_only_sequence": [
+    {
+      "order": 1,
+      "operation": "create_exact_primary_group",
+      "requires_explicit_reviewed_gid": true,
+      "modify_existing": false,
+      "implemented_here": false,
+      "postcondition": "exact_local_files_group_binding_only_no_nonfiles_collision",
+      "requires_gid_inside_bound_system_range": true,
+      "requires_no_preexisting_name_based_group_authority": true,
+      "emits_exact_create_only_group_receipt": true
+    },
+    {
+      "order": 2,
+      "operation": "create_exact_system_user",
+      "requires_explicit_reviewed_uid": true,
+      "primary_group_exact": true,
+      "locked_password": true,
+      "shell": "/usr/sbin/nologin",
+      "create_home": false,
+      "supplementary_group_count": 0,
+      "modify_existing": false,
+      "implemented_here": false,
+      "precondition": "expected_local_group_bound_user_name_uid_still_absent",
+      "requires_uid_inside_bound_system_range": true,
+      "must_not_create_subuid_or_subgid_delegation": true,
+      "requires_no_preexisting_name_based_user_authority": true,
+      "requires_exact_prior_group_receipt": true
+    }
+  ],
+  "post_create_requirements": [
+    "effective_nss_name_uid_gid_bijection_unique_across_all_configured_providers",
+    "local_account_and_group_records_exactly_match_approved_generation",
+    "password_locked_nologin_no_home",
+    "groups_exactly_primary_gid_only",
+    "no_custody_ipc_gid980",
+    "no_subuid_or_subgid_delegation_created",
+    "no_running_process_or_service_started",
+    "no_preexisting_name_based_privilege_or_scheduled_execution_authority_activated",
+    "no_preexisting_sysv_ipc_or_kernel_authority_rebound",
+    "no_live_user_namespace_mapping_rebound",
+    "no_preexisting_file_or_acl_authority_rebound",
+    "no_operator_home_custody_wallet_signer_or_admin_access",
+    "stage_verifier_still_unbound_to_installer_until_separate_manifest_review"
+  ],
+  "partial_failure_policy": {
+    "status": "HOLD_NO_AUTOMATIC_ROLLBACK",
+    "create_order_exact": true,
+    "no_usermod_or_modify_existing": true,
+    "no_unconditional_userdel_groupdel": true,
+    "preserve_partial_state_for_review": true,
+    "rollback_requires_distinct_authorization": true,
+    "rollback_requires_exact_created_generation": true,
+    "rollback_requires_no_process_files_acl_group_membership_or_service_dependency": true,
+    "never_remove_preexisting_identity": true,
+    "rollback_requires_no_name_based_authority_dependency": true
+  },
+  "required_future_host_artifact": {
+    "accepted_provider_aware_host_planner": false,
+    "authenticated_provider_profile": false,
+    "selected_uid_gid": false,
+    "accepted_account_provisioner": false,
+    "root_first_entry": false,
+    "role_separated_installer_implemented": false
+  },
+  "authority": {
+    "source_only": true,
+    "host_read_performed": false,
+    "live_host_attestation": false,
+    "provider_profile_accepted": false,
+    "stage_verifier_selected": false,
+    "numeric_uid_gid_selected": false,
+    "group_creation": false,
+    "account_creation": false,
+    "group_membership_mutation": false,
+    "acl_mutation": false,
+    "protected_stage_apply": false,
+    "systemd_mutation": false,
+    "credential_or_key_access": false,
+    "payment_acceptance": false,
+    "presale_activation": false,
+    "work_credit_or_market_activation": false,
+    "treasury_or_funds_movement": false
+  },
+  "non_nss_name_authority_requirements": [
+    "proposed_user_and_group_name_absent_from_subuid_and_subgid_delegation_entries",
+    "proposed_user_and_group_name_absent_from_systemd_sysusers_definitions",
+    "proposed_user_and_group_name_absent_from_enabled_or_startable_systemd_user_group_credentials_unless_exactly_reviewed_as_future_target",
+    "proposed_user_and_group_name_absent_from_sudoers_polkit_and_other_privilege_policy_grants",
+    "proposed_user_name_absent_from_ssh_login_allow_match_authority_and_authorized_key_roots",
+    "proposed_user_and_group_name_absent_from_cron_at_and_scheduled_execution_authority",
+    "proposed_user_and_group_name_absent_from_tmpfiles_or_other_automatic_chown_chgrp_rules",
+    "proposed_name_reference_census_generation_bound_and_repeated_before_each_creation",
+    "unknown_unreadable_or_unclassifiable_name_authority_surface_is_hold"
+  ],
+  "proof_phase_model": {
+    "phases": [
+      "BEFORE_GROUP_CREATE",
+      "BEFORE_USER_CREATE"
+    ],
+    "before_group_create": {
+      "user_name_uid_absent_required": true,
+      "group_name_gid_absent_required": true,
+      "expected_local_group_binding_must_not_exist": true
+    },
+    "before_user_create": {
+      "user_name_uid_absent_required": true,
+      "exact_expected_local_files_group_binding_required": true,
+      "group_created_by_exact_plan_receipt_required": true,
+      "nonfiles_group_name_gid_absent_required": true,
+      "selected_gid_non_accountdb_authority_absent_required": true
+    },
+    "phase_transition_requires_exact_create_only_group_receipt": true,
+    "preexisting_or_mismatched_group_never_accepted_as_transition": true
+  }
+}
