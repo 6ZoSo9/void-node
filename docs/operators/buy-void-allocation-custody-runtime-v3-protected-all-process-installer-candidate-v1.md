@@ -20,8 +20,23 @@ the command-line interface deliberately exposes only:
 There is no production `--apply` entry point.
 
 A later separately reviewed protected first-entry mechanism must authenticate
-this installer candidate itself before the mutation routine may ever be invoked
-against `/opt`.
+this installer candidate itself before the fixed mutation entrypoint may ever be
+invoked against `/opt`.
+
+The parameterized mutation engine is private/test-only. Its success receipt
+always says `protected_source_installed=false`, even when a disposable fixture
+was successfully published. It cannot mint protected-install authority for
+caller-selected bytes or paths.
+
+Only the zero-argument least-authority entrypoint
+
+`install_accepted_source_create_only_after_protected_first_entry()`
+
+may emit `protected_source_installed=true`. It internally requires root
+UID/GID identity, loads the exact accepted repository source itself, rechecks
+its bytes/SHA-256/Git-blob identity, and invokes the private engine with only
+the fixed `INSTALL_PARENT`, `INSTALL_NAME`, `STAGE_NAME`, `SOURCE_NAME`,
+UID/GID 0 and root-parent enforcement.
 
 ## Exact inputs
 
@@ -149,14 +164,24 @@ Therefore:
 ```text
 direct_apply_cli=false
 protected_first_entry_required=true
+parameterized_internal_receipt_never_claims_protected_install=true
 protected_installer_first_entry_installed=false
 protected_installer_first_entry_verified=false
 protected_install_authorized=false
 ```
 
+The focused proof additionally requires:
+- the fixed entrypoint to pass exactly the accepted source and fixed destination
+  constants to the private engine;
+- a wrong payload through the private engine to keep
+  `protected_source_installed=false`;
+- a neighboring destination through the private engine to keep
+  `protected_source_installed=false`.
+
 The next gate must accept the exact installer source identity and define a
 protected first-entry mechanism. Only after that separate gate could a future
-operator authorization consider invoking the create-only mutation routine.
+operator authorization consider invoking the fixed create-only mutation
+entrypoint.
 
 ## Hosted CI
 
