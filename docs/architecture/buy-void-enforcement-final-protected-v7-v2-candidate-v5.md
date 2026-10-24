@@ -23,7 +23,10 @@ The repaired range router is
 ## Bound composition evidence
 
 Hosted composition run `40092224628` is terminal SUCCESS on all three Node
-majors:
+majors. The parent workflow does not publish/cross-compare composition-receipt
+artifacts, so this successor records `deterministic_receipt_verified=false`;
+actual V5 candidate byte determinism is established only by this candidate
+workflow's Node 22/24/26 artifacts and cross-node comparison:
 
 - Node 22 job `120867064615`;
 - Node 24 job `120867064444`;
@@ -86,4 +89,4 @@ PROTECT THE CORE.
 
 ## Current proof identity
 
-Hardened candidate proof Git blob: `d0640059728e4e68c1c80e65841de2b192c9c57c`.
+Hardened candidate proof Git blob: `26c2fd7f0650d42d413472c6a9d6e9361c88345e`.

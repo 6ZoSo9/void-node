@@ -29,7 +29,7 @@ const HOSTED_COMPOSITION=Object.freeze({
   node24_success:true,
   node26_success:true,
   exact_head_verified:true,
-  deterministic_receipt_verified:true,
+  deterministic_receipt_verified:false,
 });
 
 const CANDIDATE_V4="ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json";

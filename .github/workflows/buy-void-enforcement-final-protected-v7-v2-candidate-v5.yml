@@ -65,8 +65,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs)" = "d0640059728e4e68c1c80e65841de2b192c9c57c"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v5.md)" = "835dc9d2e1a05e025d05518046af998d825b8376"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v5.mjs)" = "26c2fd7f0650d42d413472c6a9d6e9361c88345e"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-candidate-v5.md)" = "bdaa585fbaa741279b496e8d4359607c1d8e9683"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "ec00f0c552e600fff38e4998e4beb128c93b481d"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json)" = "4de9c2185a1359d2877b17958666f91497a91179"
           test "$(git rev-parse HEAD:ops/run-void-node-live-v1.sh)" = "bc6a17ccdf389299fb139db37e742f0b1ad9dc4e"
