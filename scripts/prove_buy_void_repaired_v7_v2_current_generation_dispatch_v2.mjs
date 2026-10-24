@@ -79,7 +79,7 @@ const V2_SOURCE_BASE="61b0f81b2112aab32e3dc16084fe2d43178ec4da";
 const V2_ACCEPTED_ADDITION_HEAD="f84d380d41e3aefd3c96b3fa956f5f7addf9f908";
 const V2_ACCEPTED_ADDITION_TREE="6d03b668ca51cc7ffa115c164955d09dc9b13e70";
 const V2_FROZEN_V1_PROOF_BLOB="4e123302d25dd0a83923032d2dc0f40c8937e77f";
-const V2_SOURCE_FILES=Object.freeze({
+const V2_ACCEPTED_SOURCE_FILES=Object.freeze({
   ".github/workflows/buy-void-verified-payment-transport-v2.yml":
     "0cc7e50febb6d289c343e188a10e63bbd22053d6",
   "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs":
@@ -89,6 +89,11 @@ const V2_SOURCE_FILES=Object.freeze({
   "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts":
     "addd7842edb7f0e851d1e589d4303c0dc6e2756f",
   ...V2_ADDED_ECONOMIC_SOURCE_BLOBS,
+});
+const V2_SOURCE_FILES=Object.freeze({
+  ...V2_ACCEPTED_SOURCE_FILES,
+  ".github/workflows/buy-void-verified-payment-transport-v2.yml":
+    "6d9c8e821ba70f28183bc2d879b95b7e2f829be1",
 });
 const NONPROTECTED_ECONOMIC_DRIFT=Object.freeze([
   ...LEGACY_NONPROTECTED_ECONOMIC_DRIFT,
@@ -381,10 +386,15 @@ function verifyV2AcceptedSourceAdditions(){
 
   assert.deepEqual(
     Object.keys(V2_HISTORICAL_SOURCE_FILES).sort(),
-    Object.keys(V2_SOURCE_FILES).sort(),
-    "v2_historical_current_source_key_set_mismatch",
+    Object.keys(V2_ACCEPTED_SOURCE_FILES).sort(),
+    "v2_historical_accepted_source_key_set_mismatch",
   );
-  const expected=Object.keys(V2_SOURCE_FILES)
+  assert.deepEqual(
+    Object.keys(V2_ACCEPTED_SOURCE_FILES).sort(),
+    Object.keys(V2_SOURCE_FILES).sort(),
+    "v2_accepted_current_source_key_set_mismatch",
+  );
+  const expected=Object.keys(V2_ACCEPTED_SOURCE_FILES)
     .map(relative=>"A\t"+relative).sort();
   const historicalActual=git([
     "diff","--name-status",V2_HISTORICAL_SOURCE_BASE,
@@ -394,16 +404,28 @@ function verifyV2AcceptedSourceAdditions(){
     historicalActual,expected,
     "v2_historical_source_addition_scope_changed",
   );
-  const currentActual=git([
+  const acceptedActual=git([
     "diff","--name-status",V2_SOURCE_BASE,V2_ACCEPTED_ADDITION_HEAD,"--",
   ]).split("\n").filter(Boolean).sort();
-  assert.deepEqual(currentActual,expected,"v2_source_addition_scope_changed");
+  assert.deepEqual(acceptedActual,expected,"v2_accepted_source_addition_scope_changed");
+
+  const currentTransitions=Object.keys(V2_SOURCE_FILES)
+    .filter(relative=>
+      V2_SOURCE_FILES[relative]!==V2_ACCEPTED_SOURCE_FILES[relative]);
+  assert.deepEqual(
+    currentTransitions,
+    [".github/workflows/buy-void-verified-payment-transport-v2.yml"],
+    "v2_current_source_transition_set_invalid",
+  );
 
   pin(SELF,V2_FROZEN_V1_PROOF_BLOB,64*1024);
-  for(const [relative,blob] of Object.entries(V2_SOURCE_FILES)){
+  for(const [relative,acceptedBlob] of Object.entries(V2_ACCEPTED_SOURCE_FILES)){
     const historicalBlob=V2_HISTORICAL_SOURCE_FILES[relative];
+    const currentBlob=V2_SOURCE_FILES[relative];
     assert.equal(typeof historicalBlob,"string",
       "v2_historical_blob_missing:"+relative);
+    assert.equal(typeof currentBlob,"string",
+      "v2_current_blob_missing:"+relative);
     assert.equal(
       git(["ls-tree",V2_HISTORICAL_SOURCE_BASE,"--",relative]),
       "",
@@ -419,19 +441,24 @@ function verifyV2AcceptedSourceAdditions(){
       "v2_new_path_not_absent_at_source_base:"+relative,
     );
     assert.equal(
-      treeBlob(V2_ACCEPTED_ADDITION_HEAD,relative),blob,
+      treeBlob(V2_ACCEPTED_ADDITION_HEAD,relative),acceptedBlob,
       "v2_accepted_head_blob_drift:"+relative,
     );
     assert.equal(
-      treeBlob("HEAD",relative),blob,
+      treeBlob("HEAD",relative),currentBlob,
       "v2_successor_head_blob_drift:"+relative,
     );
+    if(relative!==".github/workflows/buy-void-verified-payment-transport-v2.yml"){
+      assert.equal(currentBlob,acceptedBlob,
+        "v2_unreviewed_current_source_transition:"+relative);
+    }
     assert.equal(treeMode(V2_HISTORICAL_ADDITION_HEAD,relative),"100644",
       "v2_historical_source_mode_drift:"+relative);
     assert.equal(treeMode("HEAD",relative),"100644",
       "v2_added_source_mode_drift:"+relative);
-    pin(relative,blob,256*1024);
+    pin(relative,currentBlob,256*1024);
   }
+  assert.equal(Object.keys(V2_ACCEPTED_SOURCE_FILES).length,7);
   assert.equal(Object.keys(V2_SOURCE_FILES).length,7);
   assert.equal(Object.keys(V2_ADDED_ECONOMIC_SOURCE_BLOBS).length,3);
   return true;
@@ -700,6 +727,7 @@ if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   console.log("v2_source_reader_descriptor_bound=true");
   console.log("v2_source_reader_fifo_swap_rejected=true");
   console.log("v2_seven_add_only_paths_exact=true");
+  console.log("v2_current_transport_workflow_successor_bound=true");
   console.log("v2_three_new_economic_sources_pinned=true");
   console.log("v2_five_workflow_dispatches_bound=true");
   console.log("historical_v1_source_proof_preserved=true");
