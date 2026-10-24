@@ -80,7 +80,6 @@ jobs:
             'fixed_node_path_bound=true' \
             'descriptor_bound_binary_read=true' \
             'ancestor_descriptor_revalidation=true' \
-            'ancestor_validation_hold_fd_cleanup=true' \
             'exact_sha256_required=true' \
             'exact_byte_count_required=true' \
             'exact_uid_gid_mode_nlink_required=true' \
@@ -123,6 +122,7 @@ jobs:
             'fixed_node_path_bound=true' \
             'descriptor_bound_binary_read=true' \
             'ancestor_descriptor_revalidation=true' \
+            'ancestor_validation_hold_fd_cleanup=true' \
             'exact_sha256_required=true' \
             'exact_byte_count_required=true' \
             'exact_uid_gid_mode_nlink_required=true' \
