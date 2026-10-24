@@ -49,7 +49,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
             "e9eb7f539caa0a98171793801f80c62b4a187a71"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
-            "443e78db53e70544c9590a15bdd20f32a3e288a1"
+            "6313862482f9a6171e535f3b979f3add56dabcf3"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.md)" = \
             "eb05ebe03c69f2814712b82928c70a8a2c00586a"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
