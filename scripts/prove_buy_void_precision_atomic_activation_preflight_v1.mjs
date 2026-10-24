@@ -535,6 +535,57 @@ try {
   fs.rmSync(toolSwapDir, { recursive: true, force: true });
 }
 
+function extractEmbeddedSnapshotReader(source, invocationNeedle) {
+  const invocation = source.indexOf(invocationNeedle);
+  assert(invocation >= 0, "embedded snapshot reader invocation missing");
+  const marker = "<<'PY'\n";
+  const start = source.indexOf(marker, invocation);
+  assert(start >= 0, "embedded snapshot reader start missing");
+  const bodyStart = start + marker.length;
+  const end = source.indexOf("\nPY\nthen", bodyStart);
+  assert(end > bodyStart, "embedded snapshot reader end missing");
+  return source.slice(bodyStart, end);
+}
+
+const embeddedReader = extractEmbeddedSnapshotReader(
+  wrapperSource,
+  'python3 - "$tool" "$tool_snapshot" "$tool_head_blob"',
+);
+assert.equal(
+  embeddedReader.includes("\\n    os.O_RDONLY"),
+  false,
+  "embedded reader contains literal newline escapes",
+);
+assert(embeddedReader.includes('getattr(os, "O_NONBLOCK", 0)'));
+
+const embeddedReaderDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-atomic-preflight-embedded-reader-proof-"),
+);
+try {
+  const sourcePath = path.join(embeddedReaderDir, "preflight-tool.mjs");
+  const snapshotPath = path.join(embeddedReaderDir, "snapshot-tool.mjs");
+  const reviewedBytes = Buffer.from("console.log('reviewed embedded reader')\n", "utf8");
+  const expectedBlob = gitBlobSha1(reviewedBytes);
+  fs.writeFileSync(sourcePath, reviewedBytes, { flag: "wx", mode: 0o600 });
+
+  const regular = spawnSync(
+    "python3",
+    ["-I", "-B", "-", sourcePath, snapshotPath, expectedBlob],
+    {
+      input: embeddedReader,
+      encoding: "utf8",
+      timeout: 2000,
+      env: { PATH: "/usr/bin:/bin", HOME: "/nonexistent", LC_ALL: "C" },
+    },
+  );
+  assert.equal(regular.signal, null, "embedded regular-file reader timed out");
+  assert.equal(regular.status, 0, regular.stderr);
+  assert.deepEqual(fs.readFileSync(snapshotPath), reviewedBytes);
+  assert.equal(fs.statSync(snapshotPath).mode & 0o777, 0o400);
+} finally {
+  fs.rmSync(embeddedReaderDir, { recursive: true, force: true });
+}
+
 const fifoDir = fs.mkdtempSync(
   path.join(os.tmpdir(), "void-atomic-preflight-tool-fifo-proof-"),
 );
@@ -546,22 +597,21 @@ try {
   });
   assert.equal(mkfifo.status, 0, mkfifo.stderr);
 
-  const python = [
-    "import os,stat,sys",
-    "p=sys.argv[1]",
-    "flags=(os.O_RDONLY|getattr(os,'O_CLOEXEC',0)|getattr(os,'O_NOFOLLOW',0)|getattr(os,'O_NONBLOCK',0))",
-    "fd=os.open(p,flags)",
-    "st=os.fstat(fd)",
-    "os.close(fd)",
-    "raise SystemExit(17 if not stat.S_ISREG(st.st_mode) else 18)",
-  ].join(";");
-  const fifoOpen = spawnSync("python3", ["-I", "-B", "-c", python, fifoPath], {
-    encoding: "utf8",
-    timeout: 2000,
-    env: { PATH: "/usr/bin:/bin", HOME: "/nonexistent", LC_ALL: "C" },
-  });
+  const fifoSnapshot = path.join(fifoDir, "fifo-snapshot.mjs");
+  const fifoOpen = spawnSync(
+    "python3",
+    ["-I", "-B", "-", fifoPath, fifoSnapshot, "0".repeat(40)],
+    {
+      input: embeddedReader,
+      encoding: "utf8",
+      timeout: 2000,
+      env: { PATH: "/usr/bin:/bin", HOME: "/nonexistent", LC_ALL: "C" },
+    },
+  );
   assert.equal(fifoOpen.signal, null, "nonblocking FIFO probe timed out");
-  assert.equal(fifoOpen.status, 17, fifoOpen.stderr);
+  assert.notEqual(fifoOpen.status, 0, "FIFO unexpectedly accepted");
+  assert.match(fifoOpen.stderr, /preflight_tool_not_regular/u);
+  assert.equal(fs.existsSync(fifoSnapshot), false);
 } finally {
   fs.rmSync(fifoDir, { recursive: true, force: true });
 }
@@ -573,6 +623,7 @@ for (const required of [
   "preflight_tool_realpath_not_canonical",
   'getattr(os, "O_NOFOLLOW", 0)',
   'getattr(os, "O_NONBLOCK", 0)',
+  '["ops/precision/void_precision_buy_void_postgres_host_qualification_v1.sh"]="cd798a5dc74aa4f8f4bdbc1e5406ffc4dcd4851b"',
   "preflight_tool_snapshot_failed",
   "preflight_tool_path_canonical=true",
   "preflight_tool_snapshot_green=true",
@@ -780,6 +831,8 @@ console.log("preflight_tool_current_head_binding_green=true");
 console.log("preflight_tool_canonical_path_green=true");
 console.log("preflight_tool_private_snapshot_green=true");
 console.log("preflight_tool_path_swap_adversary_green=true");
+console.log("preflight_embedded_reader_regular_file_green=true");
+console.log("preflight_embedded_reader_fifo_nonblocking_green=true");
 console.log("preflight_tool_fifo_nonblocking_green=true");
 console.log("preflight_wrapper_current_head_binding_green=true");
 console.log("canonical_repository_origin_green=true");
