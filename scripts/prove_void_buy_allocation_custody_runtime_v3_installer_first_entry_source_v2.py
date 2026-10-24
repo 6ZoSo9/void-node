@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import signal
+import stat
 import subprocess
 import tempfile
 
@@ -32,9 +34,51 @@ def git_blob(raw: bytes) -> str:
     ).hexdigest()
 
 
-source_raw = TARGET.read_bytes()
+def _generation(st: os.stat_result) -> tuple[int, ...]:
+    return (
+        st.st_dev,
+        st.st_ino,
+        st.st_uid,
+        st.st_gid,
+        st.st_mode,
+        st.st_nlink,
+        st.st_size,
+        st.st_mtime_ns,
+        st.st_ctime_ns,
+    )
+
+
+def read_bound_regular(path: Path, maximum: int = 2 * 1024 * 1024) -> bytes:
+    before = os.stat(path, follow_symlinks=False)
+    assert stat.S_ISREG(before.st_mode)
+    assert not stat.S_ISLNK(before.st_mode)
+    assert 1 <= before.st_size <= maximum
+    fd = os.open(
+        path,
+        os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC,
+    )
+    try:
+        opened = os.fstat(fd)
+        assert stat.S_ISREG(opened.st_mode)
+        assert _generation(before) == _generation(opened)
+        raw = bytearray()
+        while len(raw) < opened.st_size:
+            chunk = os.read(fd, min(65536, opened.st_size - len(raw)))
+            assert chunk
+            raw.extend(chunk)
+        assert os.read(fd, 1) == b""
+        after = os.fstat(fd)
+        visible = os.stat(path, follow_symlinks=False)
+        assert _generation(opened) == _generation(after)
+        assert _generation(after) == _generation(visible)
+        return bytes(raw)
+    finally:
+        os.close(fd)
+
+
+source_raw = read_bound_regular(TARGET)
 assert git_blob(source_raw) == EXPECTED_SOURCE_BLOB
-lock_raw = LOCK.read_bytes()
+lock_raw = read_bound_regular(LOCK)
 assert git_blob(lock_raw) == EXPECTED_LOCK_BLOB
 lock = json.loads(lock_raw.decode("utf-8"))
 assert lock["marker"] == (
@@ -184,6 +228,51 @@ with tempfile.TemporaryDirectory(
     prefix="void-custody-first-entry-source-proof-"
 ) as tmp:
     tmp_path = Path(tmp)
+
+    verified_source = tmp_path / "verified-first-entry-source-v2.c"
+    verified_source.write_bytes(source_raw)
+    assert verified_source.read_bytes() == source_raw
+
+    binding_fixture = tmp_path / "source-binding"
+    binding_fixture.mkdir()
+    original_fixture = binding_fixture / "source.c"
+    replacement_fixture = binding_fixture / "replacement.c"
+    original_fixture.write_text("int void_marker_original = 1;\n", encoding="ascii")
+    replacement_fixture.write_text("int void_marker_replacement = 1;\n", encoding="ascii")
+    retained_fixture = read_bound_regular(original_fixture)
+    os.replace(replacement_fixture, original_fixture)
+    captured_fixture = binding_fixture / "captured.c"
+    captured_fixture.write_bytes(retained_fixture)
+    assert b"void_marker_original" in captured_fixture.read_bytes()
+    assert b"void_marker_replacement" not in captured_fixture.read_bytes()
+
+    symlink_fixture = binding_fixture / "symlink.c"
+    symlink_fixture.symlink_to(original_fixture)
+    try:
+        read_bound_regular(symlink_fixture)
+    except (AssertionError, OSError):
+        pass
+    else:
+        raise AssertionError("symlink native source was accepted")
+
+    fifo_fixture = binding_fixture / "source.fifo"
+    os.mkfifo(fifo_fixture, 0o600)
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    def _fifo_timeout(_signum, _frame):
+        raise TimeoutError("native source FIFO read blocked")
+    signal.signal(signal.SIGALRM, _fifo_timeout)
+    signal.alarm(2)
+    try:
+        try:
+            read_bound_regular(fifo_fixture)
+        except (AssertionError, OSError):
+            pass
+        else:
+            raise AssertionError("FIFO native source was accepted")
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous_handler)
+
     header = (
         tmp_path
         / "void_buy_allocation_custody_runtime_v3_"
@@ -240,7 +329,7 @@ with tempfile.TemporaryDirectory(
             "-fsyntax-only",
             "-I",
             str(tmp_path),
-            str(TARGET),
+            str(verified_source),
         ],
         cwd="/",
         stdin=subprocess.DEVNULL,
@@ -260,7 +349,7 @@ with tempfile.TemporaryDirectory(
             "-fsyntax-only",
             "-I",
             str(tmp_path / "missing"),
-            str(TARGET),
+            str(verified_source),
         ],
         cwd="/",
         stdin=subprocess.DEVNULL,
@@ -290,7 +379,7 @@ with tempfile.TemporaryDirectory(
     )
 
     harness = tmp_path / "fifo-open-harness.c"
-    target_literal = str(TARGET).replace("\\", "\\\\").replace('"', '\\"')
+    target_literal = str(verified_source).replace("\\", "\\\\").replace('"', '\\"')
     harness.write_text(
         "#define main void_first_entry_original_main\n"
         f'#include "{target_literal}"\n'
@@ -340,6 +429,12 @@ with tempfile.TemporaryDirectory(
 
 print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_INSTALLER_FIRST_ENTRY_SOURCE_V2_PROOF_GREEN")
 print("exact_source_blob_asserted=true")
+print("descriptor_bound_native_source_read=true")
+print("descriptor_bound_lock_read=true")
+print("compiler_consumes_verified_source_copy=true")
+print("source_symlink_rejected=true")
+print("source_fifo_nonblocking_rejected=true")
+print("post_hash_path_swap_compiles_verified_bytes=true")
 print("predecessor_first_entry_head=" + PREDECESSOR_FIRST_ENTRY_HEAD)
 print("predecessor_first_entry_blob=" + PREDECESSOR_FIRST_ENTRY_BLOB)
 print("accepted_installer_lock_v2_exact=true")
