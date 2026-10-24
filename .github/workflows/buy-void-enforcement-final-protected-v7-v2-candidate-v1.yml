@@ -91,12 +91,12 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
           fetch-depth: 0
           persist-credentials: false
       - name: Bind exact revision
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"

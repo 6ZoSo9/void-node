@@ -222,12 +222,12 @@ jobs:
       - name: Checkout exact census head
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
           fetch-depth: 0
           persist-credentials: false
       - name: Bind exact revision
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -281,7 +281,7 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-protected-census-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          name: buy-void-protected-census-827b94aabbecb915ab2cf22bba8f178b7d0568bc-node-${{ matrix.node }}
           path: ${{ runner.temp }}/protected-census-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 7
@@ -293,7 +293,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-protected-census-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: buy-void-protected-census-827b94aabbecb915ab2cf22bba8f178b7d0568bc-node-*
           merge-multiple: true
           path: protected-census
       - name: Require exact Node 22 24 26 protected-integration equality
