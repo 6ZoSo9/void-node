@@ -19,7 +19,7 @@ whose 49-row inventory differs from V3 at exactly one reviewed path:
 - V4 candidate JSON SHA-256: `fbf3d5fbc1efad92c7bb5bb3fb45f686d1bddb95d4a7c34cadbd862b69318c60`
 - V4 inventory SHA-256: `c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d`
 - V4 enforcement-set SHA-256: `00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a`
-- Dispatch V4 proof: `0f1f37fa5d7cc67bc469a6d98eba42558d4f6a27`
+- Dispatch V4 proof: `9de04b5340f904b8886562727d5f9006876b7ec5`
 - Provider source/support manifests and every frozen provider runtime artifact are reauthenticated on current HEAD before `provider_built_artifact_identity_preserved=true` is emitted.
 
 The candidate remains unaccepted. `candidate_enforcement_identity_accepted`,

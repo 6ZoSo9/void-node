@@ -305,8 +305,6 @@ function verifyProviderIdentity(){
   }
   return evidence;
 }
-function verifyEconomicDrift(candidate){
-  assert.match(PROTECTED_PARENT,/^[0-9a-f]{40}$/u,"protected_parent_identity_invalid");
 function verifyPredecessorAndReader(){
   const d3=pin(DISPATCH_V3,DISPATCH_V3_BLOB,4*1024*1024).toString("utf8");
   pin(DISPATCH_V3_DOC,DISPATCH_V3_DOC_BLOB,512*1024);
