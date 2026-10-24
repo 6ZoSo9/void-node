@@ -47,11 +47,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v1.py)" = \
-            "3b4c7023f7a98bb877cd613f207660994d827959"
+            "c4138cea2d8acc2b7779c15d50a5a7479a64f62c"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v1.py)" = \
-            "bfb507fcfb0da27248c19df2a2fdb53af8b1ea2a"
+            "25b9861e77230d047ffe1fbfb70ab01241e5019e"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v1.md)" = \
-            "c8e60b13c5725abebc6ba178c8cf21291a52de76"
+            "e241bdba4ef37b7fae96479f4b5f2729b7bffb42"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
             "d0d500d5a4715c9319e702350a8851884b4baff8"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v6.json)" = \
@@ -89,6 +89,8 @@ jobs:
             'create_only=true' \
             'destination_collision_rejected=true' \
             'staging_cleanup_before_publication=true' \
+            'stage_identity_bound_immediately_after_create=true' \
+            'cleanup_failure_explicit_hold=true' \
             'forced_rename_failure_cleanup_proven=true' \
             'kernel_rename_noreplace_required=true' \
             'source_fsync_required=true' \
@@ -125,6 +127,8 @@ jobs:
             'protected_first_entry_required=true' \
             'create_only=true' \
             'destination_collision_rejected=true' \
+            'stage_identity_bound_immediately_after_create=true' \
+            'cleanup_failure_explicit_hold=true' \
             'forced_rename_failure_cleanup_proven=true' \
             'kernel_rename_noreplace_required=true' \
             'source_fsync_before_publication=true' \
