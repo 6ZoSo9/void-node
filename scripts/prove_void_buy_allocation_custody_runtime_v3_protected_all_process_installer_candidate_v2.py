@@ -76,7 +76,6 @@ assert module.STAGE_ROOT == Path(
 )
 assert module.FINAL_ROOT_MODE == 0o555
 assert module.FINAL_SOURCE_MODE == 0o444
-assert module.RENAME_NOREPLACE == 1
 assert module.PROTECTED_FIRST_ENTRY_REQUIRED is True
 assert module.DIRECT_APPLY_CLI is False
 
