@@ -509,15 +509,17 @@ static void verify_dynload_directory_closure(void) {
   int fd;
   size_t seen = 0;
   char sentinel[PATH_MAX];
+  int sentinel_length;
 
+  sentinel_length = snprintf(
+    sentinel,
+    sizeof(sentinel),
+    "%s/.void-closure-sentinel",
+    VOID_PYTHON_DYNLOAD_PATH
+  );
   if (
-    snprintf(
-      sentinel,
-      sizeof(sentinel),
-      "%s/.void-closure-sentinel",
-      VOID_PYTHON_DYNLOAD_PATH
-    ) < 0 ||
-    strlen(sentinel) >= sizeof(sentinel)
+    sentinel_length < 0 ||
+    (size_t)sentinel_length >= sizeof(sentinel)
   ) {
     die("dynload_sentinel_path_invalid");
   }
@@ -571,17 +573,17 @@ static void verify_dynload_directory_closure(void) {
     if (strchr(entry->d_name, '/') != NULL) {
       die("dynload_entry_name_invalid");
     }
-    if (
-      snprintf(
+    {
+      int full_length = snprintf(
         full,
         sizeof(full),
         "%s/%s",
         VOID_PYTHON_DYNLOAD_PATH,
         entry->d_name
-      ) < 0 ||
-      strlen(full) >= sizeof(full)
-    ) {
-      die("dynload_entry_path_invalid");
+      );
+      if (full_length < 0 || (size_t)full_length >= sizeof(full)) {
+        die("dynload_entry_path_invalid");
+      }
     }
     if (!path_is_direct_child_of(full, VOID_PYTHON_DYNLOAD_PATH)) {
       die("dynload_entry_not_direct_child");
