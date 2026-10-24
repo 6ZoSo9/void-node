@@ -45,9 +45,9 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py)" = \
-            "a40f60ff9d11e9a9bc8f215ebef539d759cc0e83"
+            "1dc88905c55efafaca9431fd5d6372a9bf664d44"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py)" = \
-            "1c4d9e1344c8140abccccd29fad3be592f28e623"
+            "08ef853927c69cd1702ac48dbd31dec7d3725814"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-closed-python-runtime-census-v1.md)" = \
             "cb7de3330158f01e28c0225b072461f53b2fc50a"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json)" = \
@@ -119,6 +119,7 @@ jobs:
             'post_probe_same_path_replacement_rejected=true' \
             'isolated_stdlib_only_probe_bound=true' \
             'sys_path_closed_before_stdlib_imports=true' \
+            'path_closed_json_binding_used=true' \
             'voidfs_builtin_required=true' \
             'voidfs_builtin_loader_identity_required=true' \
             'external_module_origin_forbidden=true' \
