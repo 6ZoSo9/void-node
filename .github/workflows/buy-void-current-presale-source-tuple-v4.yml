@@ -13,6 +13,7 @@ on:
       - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts"
       - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v5.ts"
       - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v7.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v3.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts"
       - "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v5.ts"
@@ -65,7 +66,8 @@ jobs:
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts)" = "959e19e2cfc76616385a47556335e4ba8e094e44"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts)" = "10a6dad27b08c3b21ccc2d0940451f770438e89e"
           test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "d1320be22fe55af24017b84f0655fbcde82dbee9"
-          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts)" = "539e500ef2421125385c801f1a5dcd5c11b1994c"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts)" = "1ef5cd61a338cf726ddec59cea24932846d8d1fb"
+          test "$(git hash-object scripts/prove_buy_void_operator_verified_allocation_dispatch_v7.ts)" = "6eb05ddde297f951a738345b4f42c674f07d740c"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v5.ts)" = "b7a2bef595f43775d7b788e7efbc3fffa4e20f86"
           test "$(git hash-object scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v4.ts)" = "8e5b81f29cc80dd68bfe8d60b56e2c28031ce957"
           test "$(git hash-object scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v4.mjs)" = "3f91404c8f5b6897b0781455564b4ec26b480c03"
@@ -126,6 +128,7 @@ jobs:
           for spec in \
             "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts|reviewed handoff source blob mismatch:src/economic/buy_void_verified_payment_capacity_admission_v1.ts" \
             "scripts/prove_buy_void_operator_verified_allocation_dispatch_v5.ts|payment/allocation writer source generation drift" \
+            "scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts|payment/allocation writer source generation drift" \
             "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts|reviewed source changed:src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
           do
             proof="${spec%%|*}"
@@ -147,13 +150,14 @@ jobs:
           node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs > crash-${{ matrix.node }}.json
           echo current_positive_begin=first_original_v5
           node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v5.ts > handoff-${{ matrix.node }}.txt
-          echo current_positive_begin=dispatcher_v6
-          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts > dispatch-${{ matrix.node }}.txt
+          echo current_positive_begin=dispatcher_v7
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v7.ts > dispatch-${{ matrix.node }}.txt
           echo current_positive_begin=dual_rail_v4
           node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v4.ts > dualrail-${{ matrix.node }}.txt
           grep -Fq 'VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V6' crash-${{ matrix.node }}.json
           grep -Fxq 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V5_GREEN' handoff-${{ matrix.node }}.txt
-          grep -Fxq 'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V6_GREEN' dispatch-${{ matrix.node }}.txt
+          grep -Fxq 'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V7_GREEN' dispatch-${{ matrix.node }}.txt
+          grep -Fxq 'frozen_dispatcher_v6_proof_unchanged=true' dispatch-${{ matrix.node }}.txt
           grep -Fxq 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V4_GREEN' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'both_native_usdc_rails_admitted=2' dualrail-${{ matrix.node }}.txt
           grep -Fxq 'reviewed_replay_source_blob=b451bcd895986dadaf6e53954671062068316ccf' dualrail-${{ matrix.node }}.txt
