@@ -47,9 +47,9 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v1.py)" = \
-            "f3ab484e76519f33557835428274541b2946ea42"
+            "9dd33f38fe4c89a5d2beacbc535380346eaea83b"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v1.py)" = \
-            "899e7da3dc88fb33834aa68616270af9fba2a6e4"
+            "9b6552be11dd48b40e2c6445b1336fc8634be713"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v1.md)" = \
             "af5d3dd79050ef47de01a5d02e05656c6ee9540c"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
@@ -92,7 +92,7 @@ jobs:
             'protected_first_entry_required=true' \
             'create_only=true' \
             'destination_collision_rejected=true' \
-            'staging_cleanup_before_publication=true' \
+            'bound_stage_cleanup_before_publication=true' \
             'stage_identity_bound_on_first_successful_post_create_read=true' \
             'stage_generation_unknown_hold=true' \
             'possible_residual_stage_reported=true' \
@@ -139,6 +139,7 @@ jobs:
             'protected_first_entry_required=true' \
             'create_only=true' \
             'destination_collision_rejected=true' \
+            'bound_stage_cleanup_before_publication=true' \
             'stage_identity_bound_on_first_successful_post_create_read=true' \
             'stage_generation_unknown_hold=true' \
             'possible_residual_stage_reported=true' \
