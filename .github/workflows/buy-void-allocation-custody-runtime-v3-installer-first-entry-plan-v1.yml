@@ -45,11 +45,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_installer_first_entry_plan_v1.py)" = \
-            "2c328a2da41439a66c4bece8654e963bdfed612d"
+            "87f6f9766309bfe3d0b9c74625dbc48c6aa0e16d"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_plan_v1.py)" = \
-            "72b5274bfba65fa8bc415b06df92f78e255da369"
+            "fde7840c7a520f275fc933de5ef0866314af87f5"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-plan-v1.md)" = \
-            "d71ea07672df9f1cea38a4598e50d30603419b63"
+            "2c410d92697860afc1106e46c18514d0e78656c5"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json)" = \
             "a1e1f4887787b408d313e73360966f93a63b2b58"
 
@@ -78,6 +78,7 @@ jobs:
             'accepted_installer_identity_bound=true' \
             'protected_snapshot_exact_four_files=true' \
             'static_native_first_instruction_required=true' \
+            'closed_privileged_argv_required=true' \
             'closed_python_runtime_required=true' \
             'python_runtime_identity_selected=false' \
             'python_stdlib_import_closure_selected=false' \
@@ -115,6 +116,7 @@ jobs:
             'caller_selected_python_source_forbidden=true' \
             'caller_selected_installer_path_forbidden=true' \
             'caller_selected_destination_forbidden=true' \
+            'closed_privileged_argv_required=true' \
             'python_no_bytecode_mode_required=true' \
             'without_dash_b_bootstrap_hold=true' \
             'root_execution_of_mutable_plan_forbidden=true' \
