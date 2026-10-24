@@ -64,7 +64,7 @@ Git blob: d7693320783bcd0e3a2c4ef6c4afd86123e3688e
 
 standalone proof:
 scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py
-Git blob: 2a7358c2130ed0c111f55bfc740b166adbaf3fe2
+Git blob: d640403d01643cff452fc95090a4c426fb3627e5
 ```
 
 ## V2 binding surface
