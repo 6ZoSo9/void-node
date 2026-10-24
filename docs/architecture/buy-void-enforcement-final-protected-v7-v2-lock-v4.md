@@ -45,6 +45,15 @@ That predecessor deliberately records:
 This successor is therefore the **separate promotion boundary**. It does not
 rewrite the evidence lock or silently reinterpret its false acceptance value.
 
+## Fail-closed derivation boundary
+
+The accepted-lock proof does not treat `--derive` as a pure serializer. Before
+emitting accepted-lock bytes, standalone derivation executes the same exact
+branch, fail-closed #3683 evidence-lock, descriptor-reader, and V4 candidate
+verification used by the normal proof path. A copied proof with no repository
+or predecessor evidence must exit nonzero and emit no accepted JSON. The
+self-test exercises that negative case explicitly.
+
 ## Protected transition
 
 Historical V3 provenance remains immutable:
@@ -86,6 +95,6 @@ Accepted-lock JSON blob:
 `4de9c2185a1359d2877b17958666f91497a91179`.
 
 Accepted-lock proof blob:
-`b16b4f45a77934e06efa09d56cb9b0750c34a6b4`.
+`15c33b8c88db7d31af96bbd50ed4940425ff7417`.
 
 PROTECT THE CORE.

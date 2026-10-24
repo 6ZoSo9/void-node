@@ -106,9 +106,28 @@ function candidate(){
   assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V4");assert.equal(c.version,4);assert.equal(c.current_enforcement_parent,"1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26");assert.equal(c.current_enforcement_tracked_source_inventory_count,49);assert.equal(c.current_enforcement_tracked_source_inventory_sha256,"c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d");assert.equal(c.candidate_enforcement_set_sha256,CANDIDATE_SET);assert.equal(c.successor_transition?.predecessor_tool_git_blob_sha1,"3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0");assert.equal(c.successor_transition?.current_tool_git_blob_sha1,"e0a682ea4038ca22e3a3b97da2cac29874096c46");assert.equal(c.successor_transition?.reviewed_protected_drift_count,1);assert.equal(c.candidate_enforcement_identity_accepted,false);assert.equal(c.production_source_finality_authority_ready,false);assert.equal(c.public_presale_activation,false);assert.equal(c.funds_movement,false);return c;
 }
 function expectedBytes(){return Buffer.from(JSON.stringify(EXPECTED_LOCK,null,2)+"\n");}
-function verify(){verifyBranch();proveReader();evidenceLock();candidate();const bytes=read(LOCK,128*1024);assert.ok(bytes.equals(expectedBytes()),"lock_bytes");assert.equal(gitBlob(bytes),LOCK_BLOB);const value=JSON.parse(bytes);assert.equal(value.candidate_enforcement_identity_accepted,true);assert.equal(value.deployed_artifact_generation_verified,false);assert.equal(value.runtime_mount_authority,false);assert.equal(value.production_source_finality_authority_ready,false);assert.equal(value.public_presale_activation,false);assert.equal(value.funds_movement,false);return value;}
+function verifyPrerequisites(){verifyBranch();proveReader();evidenceLock();candidate();}
+function proveStandaloneDeriveFailClosed(){
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-v4-lock-standalone-"));
+  try{
+    const scripts=path.join(temp,"scripts");fs.mkdirSync(scripts,{recursive:true});
+    const copy=path.join(scripts,path.basename(SELF));
+    fs.copyFileSync(path.join(ROOT,SELF),copy);
+    const r=spawnSync(process.execPath,[copy,"--derive"],{
+      cwd:temp,encoding:"utf8",stdio:["ignore","pipe","pipe"],timeout:30000,maxBuffer:8*1024*1024,
+      env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C",TZ:"UTC",
+        NODE_ENV:"test",GIT_CONFIG_NOSYSTEM:"1",GIT_CONFIG_GLOBAL:"/dev/null",
+        GIT_CONFIG_SYSTEM:"/dev/null",GIT_NO_REPLACE_OBJECTS:"1",GIT_OPTIONAL_LOCKS:"0",
+        GIT_TERMINAL_PROMPT:"0"}
+    });
+    assert.equal(r.error,undefined,String(r.error||""));
+    assert.notEqual(r.status,0,"standalone_derive_must_fail_closed");
+    assert.equal(String(r.stdout||"").trim(),"","standalone_derive_emitted_accepted_bytes");
+  }finally{fs.rmSync(temp,{recursive:true,force:true});}
+}
+function verify(){verifyPrerequisites();const bytes=read(LOCK,128*1024);assert.ok(bytes.equals(expectedBytes()),"lock_bytes");assert.equal(gitBlob(bytes),LOCK_BLOB);const value=JSON.parse(bytes);assert.equal(value.candidate_enforcement_identity_accepted,true);assert.equal(value.deployed_artifact_generation_verified,false);assert.equal(value.runtime_mount_authority,false);assert.equal(value.production_source_finality_authority_ready,false);assert.equal(value.public_presale_activation,false);assert.equal(value.funds_movement,false);return value;}
 const args=process.argv.slice(2);
-if(args.length===1&&args[0]==="--derive")process.stdout.write(expectedBytes());
+if(args.length===1&&args[0]==="--derive"){verifyPrerequisites();process.stdout.write(expectedBytes());}
 else if(args.length===1&&args[0]==="--reader-self-test"){proveReader();console.log("VOID_BUY_VOID_V4_LOCK_READER_SELF_TEST_GREEN");}
-else if(args.length===0||(args.length===1&&args[0]==="--self-test")){const value=verify();console.log("VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V4_GREEN");console.log("candidate_enforcement_identity_accepted="+value.candidate_enforcement_identity_accepted);console.log("production_source_finality_authority_ready=false");console.log("public_presale_activation=false");console.log("funds_movement=false");}
+else if(args.length===0||(args.length===1&&args[0]==="--self-test")){const value=verify();proveStandaloneDeriveFailClosed();console.log("VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V4_GREEN");console.log("standalone_derive_requires_predecessor_evidence=true");console.log("candidate_enforcement_identity_accepted="+value.candidate_enforcement_identity_accepted);console.log("production_source_finality_authority_ready=false");console.log("public_presale_activation=false");console.log("funds_movement=false");}
 else throw new Error("usage: "+SELF+" [--derive|--reader-self-test|--self-test]");

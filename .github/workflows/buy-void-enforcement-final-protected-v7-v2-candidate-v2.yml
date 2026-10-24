@@ -565,8 +565,8 @@ jobs:
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json)" = "c9e50cebb0735981f946a1afbc4de6d692ced347"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs)" = "025e2905e0a9d56cde7a2954f4c47ff4b33d0c37"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json)" = "4de9c2185a1359d2877b17958666f91497a91179"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs)" = "b16b4f45a77934e06efa09d56cb9b0750c34a6b4"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4.md)" = "827206f7f10c4ec9f3aa423c84a4430a628aaad7"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs)" = "15c33b8c88db7d31af96bbd50ed4940425ff7417"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4.md)" = "2ef2554fdc0cba8f194c74b2f7c53bf1377e3814"
           for node in 22 24 26; do
             test -s "$EVIDENCE/v4-reader-repair-candidate-$node.json"
             test -s "$EVIDENCE/dispatch-v4-$node.json"
@@ -599,7 +599,9 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs --reader-self-test
-          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs --self-test
+          self_test_log="$RUNNER_TEMP/v4-lock-self-test.log"
+          node scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs --self-test | tee "$self_test_log"
+          grep -Fx 'standalone_derive_requires_predecessor_evidence=true' "$self_test_log"
       - name: Re-derive exact V4 lock
         run: |
           set -euo pipefail
