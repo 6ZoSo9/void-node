@@ -75,6 +75,9 @@ source links:       exactly 1
 ```
 
 These values are planning data. They are not evidence that the path exists.
+The plan has therefore **selected** the exact future target
+(`install_target_selected=true`) while keeping installation and execution
+authority false.
 
 ## Create-only publication contract
 
@@ -165,7 +168,7 @@ live_privileged_census_authorized=false
 live_privileged_census_executed=false
 service_mutation=false
 systemd_mutation=false
-install_target_selected=false
+install_target_selected=true
 existing_target_replaced=false
 replacement_apply_authorized=false
 runtime_integration=false
