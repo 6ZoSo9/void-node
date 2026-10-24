@@ -11,7 +11,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "8df14f86f45134a51d9b9be7161f8282735847c5"
+EXPECTED_SOURCE_BLOB = "eedb2c69c59537972a39cb3fafb2a55e999f3181"
 
 
 def git_blob(raw: bytes) -> str:
@@ -76,6 +76,7 @@ for required in (
     '"-I", "-B", "-S", "-c"',
     "sys.path[:]=[z]",
     "__import__('_voidfs')",
+    "voidfs_loader_builtin",
     "external_module_origins",
     "runtime_identity_candidate",
     "python_runtime_identity_selected",
@@ -141,6 +142,7 @@ print("fsverity_measurement_observed_not_assumed=true")
 print("isolated_stdlib_only_probe_bound=true")
 print("sys_path_closed_before_stdlib_imports=true")
 print("voidfs_builtin_required=true")
+print("voidfs_builtin_loader_identity_required=true")
 print("external_module_origin_forbidden=true")
 print("runtime_probe_shell_false=true")
 print("runtime_probe_environment_empty=true")
