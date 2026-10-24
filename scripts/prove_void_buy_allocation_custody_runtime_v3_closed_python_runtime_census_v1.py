@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "1dc88905c55efafaca9431fd5d6372a9bf664d44"
+EXPECTED_SOURCE_BLOB = "8914d9e8031377e3bcda4770194024e2f6fed2fd"
 
 
 def git_blob(raw: bytes) -> str:
@@ -116,6 +116,75 @@ with tempfile.TemporaryDirectory(
     else:
         raise AssertionError("post_probe_same_path_replacement_accepted")
 
+    probe_python = Path(tmp) / "probe-python"
+    probe_python.write_bytes(b"synthetic-python")
+    probe_python.chmod(0o555)
+    probe_st = probe_python.stat()
+    probe_receipt = {
+        "dev": probe_st.st_dev,
+        "ino": probe_st.st_ino,
+        "uid": probe_st.st_uid,
+        "gid": probe_st.st_gid,
+        "mode": format(module.stat.S_IMODE(probe_st.st_mode), "04o"),
+        "nlink": probe_st.st_nlink,
+        "bytes": probe_st.st_size,
+        "mtime_ns": probe_st.st_mtime_ns,
+        "ctime_ns": probe_st.st_ctime_ns,
+    }
+    fake_stdlib = Path(tmp) / "python312.zip"
+    captured: dict[str, object] = {}
+    original_python = module.PYTHON
+    original_stdlib = module.STDLIB_ZIP
+    original_run = module.subprocess.run
+
+    class _FixtureCompleted:
+        returncode = 0
+        stderr = ""
+
+        def __init__(self, stdout: str):
+            self.stdout = stdout
+
+    def fake_run(argv, **kwargs):
+        executable = kwargs.get("executable")
+        passed = kwargs.get("pass_fds")
+        assert isinstance(executable, str)
+        assert isinstance(passed, tuple) and len(passed) == 1
+        retained_fd = passed[0]
+        assert executable == "/proc/self/fd/" + str(retained_fd)
+        retained_st = os.fstat(retained_fd)
+        assert (retained_st.st_dev, retained_st.st_ino) == (
+            probe_st.st_dev,
+            probe_st.st_ino,
+        )
+        assert argv[0] == str(probe_python)
+        assert kwargs.get("env") == {}
+        assert kwargs.get("close_fds") is True
+        captured["retained_fd"] = retained_fd
+        payload = {
+            "version": "3.12.15",
+            "path": [str(fake_stdlib)],
+            "voidfs_builtin": True,
+            "voidfs_origin": "built-in",
+            "voidfs_loader_builtin": True,
+            "voidfs_surface": ["rename_noreplace"],
+            "external_module_origins": [],
+            "stdlib_sha256": "11" * 32,
+        }
+        return _FixtureCompleted(module.json.dumps(payload))
+
+    module.PYTHON = probe_python
+    module.STDLIB_ZIP = fake_stdlib
+    module.subprocess.run = fake_run
+    try:
+        probe_result = module._runtime_probe("11" * 32, probe_receipt)
+    finally:
+        module.PYTHON = original_python
+        module.STDLIB_ZIP = original_stdlib
+        module.subprocess.run = original_run
+
+    assert probe_result["retained_python_descriptor_exec"] is True
+    assert isinstance(captured.get("retained_fd"), int)
+
 source = raw.decode("utf-8")
 pre_self_test = source.split("def self_test()", 1)[0]
 
@@ -136,6 +205,10 @@ for required in (
     "_revalidate_file_receipt(PYTHON, python)",
     "_revalidate_file_receipt(STDLIB_ZIP, stdlib)",
     "def _runtime_probe(",
+    "executable=executable",
+    "pass_fds=(python_fd,)",
+    "close_fds=True",
+    "retained_python_descriptor_exec",
     '"-I", "-B", "-S", "-c"',
     "sys.path[:]=[z]",
     "__import__('_voidfs')",
@@ -180,6 +253,10 @@ probe = pre_self_test.split("def _runtime_probe(", 1)[1].split(
     "def _file_receipt(", 1
 )[0]
 assert "subprocess.run(" in probe
+assert 'executable = "/proc/self/fd/" + str(python_fd)' in probe
+assert "executable=executable" in probe
+assert "pass_fds=(python_fd,)" in probe
+assert "close_fds=True" in probe
 assert '"import sys;"' in probe
 assert '"import json,sys;"' not in probe
 assert '"import argparse,hashlib,importlib.machinery,importlib.util,json as j,"' in probe
@@ -235,6 +312,8 @@ print("voidfs_builtin_loader_identity_required=true")
 print("external_module_origin_forbidden=true")
 print("runtime_probe_shell_false=true")
 print("runtime_probe_environment_empty=true")
+print("retained_python_descriptor_exec_bound=true")
+print("canonical_python_argv0_preserved=true")
 print("host_census_not_executed_in_ci=true")
 print("runtime_identity_candidate_only=true")
 print("python_runtime_identity_selected=false")
