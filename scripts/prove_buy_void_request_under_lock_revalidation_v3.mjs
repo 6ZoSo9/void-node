@@ -13,7 +13,7 @@ import { persistBuyVoidPublicRequestUnderLaunchLockV1 } from "../dist/economic/b
 const NEW_SOURCE="src/index.ts";
 const OLD_COMMIT="b3681475d8c8aee346db2f2feee6b5e9953ef9c1";
 const OLD_BLOB="1fde828c97175560f98ab070af33eefc595f8002";
-const NEW_BLOB="7df1f21c730b554c414c88c550a4475234485370";
+const NEW_BLOB="a09661797aa4295371c036be36d82995e5233269";
 const FROZEN_REQUEST_LOCK_PROOF_V1_GIT_BLOB="26bb9725b4a4639bff4b3ce4375aeb9e827830be";
 const FROZEN_REQUEST_LOCK_PROOF_V2_GIT_BLOB="94d4ef0544264a4ec23b2def7b4d31066f709310";
 function gitBlob(bytes){
@@ -2283,7 +2283,7 @@ console.log("operator_immutable_nested_payment_instructions_tojson_guard=true");
 console.log("VOID_BUY_VOID_REQUEST_LOCK_REVALIDATION_SOURCE_V3_GREEN");
 console.log("frozen_request_lock_v1_proof_unchanged=true");
 console.log("frozen_request_lock_v2_proof_unchanged=true");
-console.log("reviewed_index_source_blob=7df1f21c730b554c414c88c550a4475234485370");
+console.log("reviewed_index_source_blob=a09661797aa4295371c036be36d82995e5233269");
 console.log("negative_predecessor_duplicate_append_observed=true");
 console.log("current_concurrent_same_intent_exactly_one_append=true");
 console.log("expired_launch_lease_after_history_read_holds=true");

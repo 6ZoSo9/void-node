@@ -37,7 +37,6 @@ jobs:
       - name: Bind exact atomic-upgrade source generation
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
@@ -45,14 +44,25 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
 
           case "$EVENT_NAME" in
-            pull_request) base="$PR_BASE" ;;
-            push) base="$PUSH_BEFORE" ;;
-            workflow_dispatch) base="$(git rev-parse "$EXPECTED_HEAD^1")" ;;
-            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+            pull_request)
+              base="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
+              ;;
+            workflow_dispatch)
+              base="$(git rev-parse "$EXPECTED_HEAD^1")"
+              ;;
+            push)
+              base="$PUSH_BEFORE"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
           esac
           test -n "$base"
           test "$base" != 0000000000000000000000000000000000000000
+          test "$base" != "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+          echo "source_base=$base"
 
           expected="$RUNNER_TEMP/expected-scope.txt"
           actual="$RUNNER_TEMP/actual-scope.txt"
@@ -65,9 +75,9 @@ jobs:
           git diff --no-renames --name-only "$base" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
 
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 3fe1158a0fdf19fa4307c2a8122314b75ee36345
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = ca96e713cbe91d69161b04dd1508137a69b37cd3
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.md)" = a561fd445067f94e4c8d246dd683383eade07a81
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = 0c3f06b307d7b8733ff93a4211bea736aa54f003
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py)" = d43fc0a79954aceabb6bcb6ff25afefbe270c353
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-dormant-first-entry-protected-bootstrap-atomic-upgrade-v1.md)" = fb8973847ed721d4518269e5858e3f8d8c41e9fb
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_install_bootstrap_install_v6.py)" = 438b69e3c0da8549b77f7bdeaa7ed35e7d07ef84
           test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73
@@ -100,6 +110,7 @@ jobs:
             'atomic_root_exchange_required=true' \
             'predecessor_retention_required=true' \
             'automatic_rollback_required=true' \
+            'rename_outcome_reconciliation_required=true' \
             'bootstrap_execution=false' \
             'inner_installer_execution=false' \
             'service_mutation=false' \
@@ -119,6 +130,7 @@ jobs:
             'atomic_root_exchange_required=true' \
             'predecessor_retention_required=true' \
             'automatic_rollback_required=true' \
+            'rename_outcome_reconciliation_required=true' \
             'bootstrap_execution=false' \
             'inner_installer_execution=false' \
             'service_mutation=false' \
@@ -140,6 +152,18 @@ jobs:
             'predecessor_retention_exercised=true' \
             'post_exchange_failure_rollback_exercised=true' \
             'publication_truth_monotonic=true' \
+            'rename_outcome_layout_reconciled=true' \
+            'interrupt_after_exchange_reconciled=true' \
+            'interrupt_after_retention_reconciled=true' \
+            'pending_sigint_after_exchange_reconciled=true' \
+            'post_return_exchange_interrupt_rollback_exercised=true' \
+            'pending_sigint_after_retention_reconciled=true' \
+            'successful_exchange_reverted_layout_publication_aware=true' \
+            'successful_exchange_reverted_layout_prepublication_cleanup=false' \
+            'post_return_reverted_layout_interrupt_publication_aware=true' \
+            'layout_inspection_failure_publication_aware=true' \
+            'signal_mask_restored_after_layout_failure=true' \
+            'inspection_failure_automatic_retry_false=true' \
             'foreign_stage_cleanup_refused=true' \
             'bootstrap_execution=false' \
             'inner_installer_execution=false' \

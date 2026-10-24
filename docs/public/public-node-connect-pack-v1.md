@@ -14,7 +14,7 @@ It helps an operator:
 
 - read public bootstrap metadata
 - identify a bootstrap peer
-- dial a peer with `/p2p/dial`
+- ask a local node you administer to dial a peer with `/p2p/dial`
 - verify `/health`
 - verify `/p2p/peers`
 - understand what evidence to share if the connection worked
@@ -27,7 +27,7 @@ This is not staking.
 
 This is not Work Credit earning.
 
-This is not wallet send, token movement, buy VOID fulfillment, WC settlement, or any mutation authority.
+The manual `/p2p/dial` POST starts an outgoing connection attempt and may update local peer state. This is not wallet send, token movement, buy VOID fulfillment, WC settlement, or authority for any other mutation.
 
 This is not a public internet mesh claim.
 
@@ -47,7 +47,9 @@ This is not a public internet mesh claim.
 
 3. Dial the peer from the local node:
 
-       curl -fsS -X POST -H 'content-type: application/json' --data '{"addr":"<PEER_HOST>:<PEER_P2P_PORT>"}' http://127.0.0.1:4100/p2p/dial | jq .
+       curl --fail-with-body --silent --show-error -X POST -H 'content-type: application/json' --data '{"addr":"<PEER_HOST>:<PEER_P2P_PORT>"}' http://127.0.0.1:4100/p2p/dial | jq .
+
+   Run this only against a local node you administer. `{"ok":true,"dialing":"..."}` means the node accepted the request; it does not prove that the peer connected. `{"ok":false,"error":"..."}` explains a rejection. Correct the address or local node problem before retrying; do not retry blindly.
 
 4. Verify local health:
 
@@ -72,8 +74,8 @@ Do not share private keys, seed phrases, wallet secrets, machine secrets, `.env`
 
 ## Boundary
 
-This pack is public-safe guidance only.
+This pack is public-safe operator guidance. Its manual dial step uses the existing local peer-state mutation route; the pack does not itself enable automatic dialing.
 
-It does not enable automatic peer dialing, mutation routes, wallet send, money movement, buy VOID fulfillment, WC settlement, validator mutation/admission, public WC self-serve earning, or a public internet mesh claim.
+It does not enable wallet send, money movement, buy VOID fulfillment, WC settlement, validator mutation/admission, public WC self-serve earning, or a public internet mesh claim.
 
 Expected green marker: `VOID_PUBLIC_NODE_CONNECT_PACK_V1_GREEN`

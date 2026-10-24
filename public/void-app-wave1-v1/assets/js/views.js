@@ -149,7 +149,7 @@ function walletView() {
         <div class="hero-content">
           <span class="status-chip status-chip--info" data-wallet-state-chip>No account loaded</span>
           <h2 id="wallet-context-title">Load an account ID</h2>
-          <p data-wallet-message>Enter an account ID to load read-only context.</p>
+          <p data-wallet-message role="status" aria-live="polite" aria-atomic="true">Enter an account ID to load read-only context.</p>
           <form class="wallet-account-form" data-wallet-account-form>
             <div class="form-field wallet-account-field">
               <label for="wallet-account-id">Account ID</label>
@@ -270,7 +270,7 @@ function earnView() {
           <div class="hero-content">
             <span class="status-chip status-chip--info" data-earn-state-chip>No account loaded</span>
             <h2 id="earn-context-title">Load a participant account</h2>
-            <p data-earn-message>Enter a participant account ID to inspect earning state.</p>
+            <p data-earn-message role="status" aria-live="polite" aria-atomic="true">Enter a participant account ID to inspect earning state.</p>
 
             <form class="earn-account-form" data-earn-account-form>
               <div class="form-field earn-account-field">

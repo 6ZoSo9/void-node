@@ -27,6 +27,10 @@ on:
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4.md"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.md"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.yml"
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v3.md"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json"
@@ -74,6 +78,10 @@ on:
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4.md"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.md"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.yml"
       - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs"
       - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v3.md"
       - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json"
@@ -110,12 +118,12 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: 895c2bf320defbbca5fba6792e2a75126b2c4d76
+          ref: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
           fetch-depth: 0
           persist-credentials: false
       - name: Bind exact revision
         env:
-          EXPECTED_HEAD: 895c2bf320defbbca5fba6792e2a75126b2c4d76
+          EXPECTED_HEAD: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -136,10 +144,10 @@ jobs:
           integration="$RUNNER_TEMP/current-protected-integration-v4-${{ matrix.node }}.json"
           node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs --self-test
           node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs --receipt > "$integration"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa"
           test "$(wc -c < ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" -eq 17392
-          test "$(sha256sum ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json | awk '{print $1}')" = "df3b5b74e0d1cd0f3198d8f0a5190d392518480804155ad848cd43b6eae6cbf6"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "245ce93ebfb53478211fab765489e88d8fa23c4a"
+          test "$(sha256sum ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json | awk '{print $1}')" = "7f9c032bb3685d0d45f439123878af0ba366bd587e29a98df3270f0f13808c96"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "f1b9d661eb3363e9bf18dbeb3610c659a54219bb"
           node --input-type=module - "$integration" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
@@ -199,7 +207,7 @@ jobs:
           mv "$out.normalized" "$out"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-current-v4-dispatch-895c2bf320defbbca5fba6792e2a75126b2c4d76-node-${{ matrix.node }}
+          name: buy-void-current-v4-dispatch-827b94aabbecb915ab2cf22bba8f178b7d0568bc-node-${{ matrix.node }}
           path: |
             ${{ runner.temp }}/current-protected-integration-v4-${{ matrix.node }}.json
             ${{ runner.temp }}/deployment-v3-reader-hold-${{ matrix.node }}.log
@@ -207,8 +215,8 @@ jobs:
           retention-days: 7
       - name: Diff hygiene
         env:
-          BASE: 0344d7dab153be75716646d5c6f5162f926f25ee
-          HEAD: 895c2bf320defbbca5fba6792e2a75126b2c4d76
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
         run: |
           set -euo pipefail
           if [ -z "$BASE" ] || [[ "$BASE" =~ ^0+$ ]]; then BASE="$HEAD^"; fi
@@ -221,7 +229,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-current-v4-dispatch-895c2bf320defbbca5fba6792e2a75126b2c4d76-node-*
+          pattern: buy-void-current-v4-dispatch-827b94aabbecb915ab2cf22bba8f178b7d0568bc-node-*
           merge-multiple: true
           path: current-v3
       - name: Require Node 22 24 26 equality
@@ -395,24 +403,24 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: 895c2bf320defbbca5fba6792e2a75126b2c4d76
+          ref: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
           fetch-depth: 0
           persist-credentials: false
       - name: Bind exact V4 candidate generation
         env:
-          EXPECTED_HEAD: 895c2bf320defbbca5fba6792e2a75126b2c4d76
+          EXPECTED_HEAD: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$(git merge-base 0344d7dab153be75716646d5c6f5162f926f25ee HEAD)" = "0344d7dab153be75716646d5c6f5162f926f25ee"
-          test "$(git rev-parse '0344d7dab153be75716646d5c6f5162f926f25ee^{tree}')" = "0743c236a1d2788d17b9e3ae2ecde37319df0809"
+          test "$(git merge-base 1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26 HEAD)" = "1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26"
+          test "$(git rev-parse '1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26^{tree}')" = "338ff5b264dd441c8bb16bb2fb425b85d4285b89"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e0a682ea4038ca22e3a3b97da2cac29874096c46"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "245ce93ebfb53478211fab765489e88d8fa23c4a"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs)" = "f33a579e62c8201de24d5076cfcbffab66df8dae"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "5893e300a78dc4ca7729ef47f95a8e3eea2043cf"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs)" = "51a51a7f85c8068269bad0e09e3ae872c4323a58"
-          git diff --check 0344d7dab153be75716646d5c6f5162f926f25ee HEAD
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "f1b9d661eb3363e9bf18dbeb3610c659a54219bb"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs)" = "3a7401202fee374f2a7da3f5efc0d29976f9792a"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "ec00f0c552e600fff38e4998e4beb128c93b481d"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs)" = "9de04b5340f904b8886562727d5f9006876b7ec5"
+          git diff --check 1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26 HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -432,18 +440,18 @@ jobs:
           node scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs --derive > "$out"
           cmp "$out" ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json
           test "$(wc -c < "$out")" -eq 17788
-          test "$(sha256sum "$out" | awk '{print $1}')" = "bf360784af7a6ddf908812b9c335e8e52d4410ba249c5ea1988b97d9cfd5a72c"
-          test "$(git hash-object "$out")" = "5893e300a78dc4ca7729ef47f95a8e3eea2043cf"
+          test "$(sha256sum "$out" | awk '{print $1}')" = "fbf3d5fbc1efad92c7bb5bb3fb45f686d1bddb95d4a7c34cadbd862b69318c60"
+          test "$(git hash-object "$out")" = "ec00f0c552e600fff38e4998e4beb128c93b481d"
           node --input-type=module - "$out" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
           assert.equal(c.marker,"VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V4");
           assert.equal(c.version,4);
-          assert.equal(c.current_enforcement_parent,"0344d7dab153be75716646d5c6f5162f926f25ee");
+          assert.equal(c.current_enforcement_parent,"1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26");
           assert.equal(c.current_enforcement_tracked_source_inventory_count,49);
-          assert.equal(c.current_enforcement_tracked_source_inventory_sha256,"8485ef25c236b8798bed3a67b9308ef7dcd383aedca1486f4f488d043d7efbe0");
-          assert.equal(c.candidate_enforcement_set_sha256,"ff084a754e7eb6bef08ec1b1079a17a6110b4333876f0231e46395eed63042d2");
+          assert.equal(c.current_enforcement_tracked_source_inventory_sha256,"c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d");
+          assert.equal(c.candidate_enforcement_set_sha256,"00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a");
           assert.equal(c.successor_transition.current_tool_git_blob_sha1,"e0a682ea4038ca22e3a3b97da2cac29874096c46");
           assert.equal(c.successor_transition.reviewed_protected_drift_count,1);
           assert.equal(c.candidate_enforcement_identity_accepted,false);
@@ -476,7 +484,7 @@ jobs:
           NODE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-protected-v7-v2-candidate-v4-895c2bf320defbbca5fba6792e2a75126b2c4d76-node-${{ matrix.node }}
+          name: buy-void-protected-v7-v2-candidate-v4-827b94aabbecb915ab2cf22bba8f178b7d0568bc-node-${{ matrix.node }}
           path: |
             ${{ runner.temp }}/v4-reader-repair-candidate-${{ matrix.node }}.json
             ${{ runner.temp }}/dispatch-v4-${{ matrix.node }}.json
@@ -490,7 +498,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-protected-v7-v2-candidate-v4-895c2bf320defbbca5fba6792e2a75126b2c4d76-node-*
+          pattern: buy-void-protected-v7-v2-candidate-v4-827b94aabbecb915ab2cf22bba8f178b7d0568bc-node-*
           merge-multiple: true
           path: candidate-v4
       - name: Require V4 Node 22 24 26 equality
@@ -504,12 +512,10 @@ jobs:
           cmp candidate-v4/v4-reader-repair-candidate-22.json candidate-v4/v4-reader-repair-candidate-26.json
           cmp candidate-v4/dispatch-v4-22.json candidate-v4/dispatch-v4-24.json
           cmp candidate-v4/dispatch-v4-22.json candidate-v4/dispatch-v4-26.json
-          test "$(sha256sum candidate-v4/v4-reader-repair-candidate-22.json | awk '{print $1}')" = "bf360784af7a6ddf908812b9c335e8e52d4410ba249c5ea1988b97d9cfd5a72c"
+          test "$(sha256sum candidate-v4/v4-reader-repair-candidate-22.json | awk '{print $1}')" = "fbf3d5fbc1efad92c7bb5bb3fb45f686d1bddb95d4a7c34cadbd862b69318c60"
           echo VOID_BUY_VOID_PROTECTED_V7_V2_CANDIDATE_V4_CROSS_NODE_GREEN
           echo candidate_enforcement_identity_accepted=false
           echo funds_movement=false
-
-
 
   lock-v4-source-proof:
     needs: [cross-node-v4-reader-repair, current-v4-dispatch-cross-node]
@@ -523,40 +529,44 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-protected-v7-v2-candidate-v4-895c2bf320defbbca5fba6792e2a75126b2c4d76-node-*
+          pattern: buy-void-protected-v7-v2-candidate-v4-827b94aabbecb915ab2cf22bba8f178b7d0568bc-node-*
           merge-multiple: true
           path: ${{ runner.temp }}/candidate-v4
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: 24
-      - name: Bind exact V4 acceptance generation
+      - name: Bind exact V4 acceptance successor
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          CANDIDATE_HEAD=895c2bf320defbbca5fba6792e2a75126b2c4d76
+          CANDIDATE_HEAD=827b94aabbecb915ab2cf22bba8f178b7d0568bc
+          EVIDENCE_LOCK_HEAD=df847b817b9e8a839ffe008bbfa6a87f10e2ccd9
           EVIDENCE="$RUNNER_TEMP/candidate-v4"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$CANDIDATE_HEAD" "$EXPECTED_HEAD")" = "$CANDIDATE_HEAD"
+          test "$(git merge-base "$EVIDENCE_LOCK_HEAD" "$EXPECTED_HEAD")" = "$EVIDENCE_LOCK_HEAD"
           cat > "$RUNNER_TEMP/expected-v4-lock-delta" <<'EOF'
           M	.github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml
+          M	.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml
           M	.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml
           M	.github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml
-          M	.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml
           M	.github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml
           A	docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4.md
           A	ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json
           A	scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs
           EOF
-          git diff --name-status "$CANDIDATE_HEAD" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual-v4-lock-delta"
+          git diff --name-status "$EVIDENCE_LOCK_HEAD" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual-v4-lock-delta"
           sort "$RUNNER_TEMP/expected-v4-lock-delta" > "$RUNNER_TEMP/expected-v4-lock-delta.sorted"
           diff -u "$RUNNER_TEMP/expected-v4-lock-delta.sorted" "$RUNNER_TEMP/actual-v4-lock-delta"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "5893e300a78dc4ca7729ef47f95a8e3eea2043cf"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs)" = "f33a579e62c8201de24d5076cfcbffab66df8dae"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs)" = "51a51a7f85c8068269bad0e09e3ae872c4323a58"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json)" = "854b9e39772e1e930c63b71e1099509df0f2dbf8"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs)" = "040414e96906043e2a01995bf2cbd259a7dbd58f"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4.md)" = "3f8774841ea347b817b1a232e85e1cb0751d0416"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json)" = "ec00f0c552e600fff38e4998e4beb128c93b481d"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs)" = "3a7401202fee374f2a7da3f5efc0d29976f9792a"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs)" = "9de04b5340f904b8886562727d5f9006876b7ec5"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json)" = "c9e50cebb0735981f946a1afbc4de6d692ced347"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4_reader_repair_v1.mjs)" = "025e2905e0a9d56cde7a2954f4c47ff4b33d0c37"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4.json)" = "4de9c2185a1359d2877b17958666f91497a91179"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v4.mjs)" = "b16b4f45a77934e06efa09d56cb9b0750c34a6b4"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-lock-v4.md)" = "827206f7f10c4ec9f3aa423c84a4430a628aaad7"
           for node in 22 24 26; do
             test -s "$EVIDENCE/v4-reader-repair-candidate-$node.json"
             test -s "$EVIDENCE/dispatch-v4-$node.json"
@@ -566,9 +576,24 @@ jobs:
           cmp "$EVIDENCE/v4-reader-repair-candidate-22.json" "$EVIDENCE/v4-reader-repair-candidate-26.json"
           cmp "$EVIDENCE/dispatch-v4-22.json" "$EVIDENCE/dispatch-v4-24.json"
           cmp "$EVIDENCE/dispatch-v4-22.json" "$EVIDENCE/dispatch-v4-26.json"
-          test "$(sha256sum "$EVIDENCE/v4-reader-repair-candidate-22.json" | awk '{print $1}')" = "bf360784af7a6ddf908812b9c335e8e52d4410ba249c5ea1988b97d9cfd5a72c"
-          test "$(sha256sum "$EVIDENCE/dispatch-v4-22.json" | awk '{print $1}')" = "cdf9c1daf864deaf49d909412fe4960e8af7af16dc9fa609282caae19f5efe4e"
-          git diff --check "$CANDIDATE_HEAD" "$EXPECTED_HEAD" --
+          test "$(sha256sum "$EVIDENCE/v4-reader-repair-candidate-22.json" | awk '{print $1}')" = "fbf3d5fbc1efad92c7bb5bb3fb45f686d1bddb95d4a7c34cadbd862b69318c60"
+          test "$(sha256sum "$EVIDENCE/dispatch-v4-22.json" | awk '{print $1}')" = "f174c630b119f4083e7f4431f59ad50581a01be28cfdde5733174fe5994ea382"
+          node --input-type=module - <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const e=JSON.parse(fs.readFileSync("ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v4-reader-repair-v1.json","utf8"));
+          assert.equal(e.candidate_identity_lock_evidence_verified,true);
+          assert.equal(e.candidate_enforcement_identity_accepted,false);
+          assert.equal(e.independent_review_complete,false);
+          assert.equal(e.candidate_acceptance_lifecycle_ready,false);
+          assert.equal(e.downstream_candidate_v5_derivation_ready,false);
+          assert.equal(e.deployed_artifact_generation_verified,false);
+          assert.equal(e.runtime_mount_authority,false);
+          assert.equal(e.production_source_finality_authority_ready,false);
+          assert.equal(e.public_presale_activation,false);
+          assert.equal(e.funds_movement,false);
+          NODE
+          git diff --check "$EVIDENCE_LOCK_HEAD" "$EXPECTED_HEAD" --
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Prove V4 acceptance lock
         run: |

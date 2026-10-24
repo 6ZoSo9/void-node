@@ -1,0 +1,48 @@
+name: VOID V7 full-history protected replica root launcher v2
+
+on:
+  pull_request:
+    paths:
+      - 'ops/precision/void_v7_full_history_protected_replica_root_launcher_v2.c'
+      - 'scripts/prove_void_v7_full_history_protected_replica_root_launcher_v2.py'
+      - 'docs/operators/void-v7-full-history-protected-replica-root-launcher-v2.md'
+      - '.github/workflows/void-v7-full-history-protected-replica-root-launcher-v2.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replica-closed-tree-launcher-v2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source generation and four-file scope
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_root_launcher_v2.c)" = "19b89e92df6f640c017cb9f544ddbf094d69f6eb"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_root_launcher_v2.py)" = "be8012e94c1d5d8f51b0162eb009ef16d6e81aaf"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-root-launcher-v2.md)" = "f2cc2da4cb0c69b33b4728d1c857a8a2ace4e2cd"
+          git merge-base --is-ancestor "7ce37b04a45e835d260a8741b0f90827c7fc7a26" HEAD
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cat > /tmp/expected <<'EOF'
+          A	.github/workflows/void-v7-full-history-protected-replica-root-launcher-v2.yml
+          A	docs/operators/void-v7-full-history-protected-replica-root-launcher-v2.md
+          A	ops/precision/void_v7_full_history_protected_replica_root_launcher_v2.c
+          A	scripts/prove_void_v7_full_history_protected_replica_root_launcher_v2.py
+          EOF
+            git diff --name-status "${{ github.event.pull_request.base.sha }}" HEAD -- | sort > /tmp/actual
+            sort /tmp/expected > /tmp/expected.sorted
+            diff -u /tmp/expected.sorted /tmp/actual
+          fi
+          git diff --check
+
+      - name: Focused proof
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_void_v7_full_history_protected_replica_root_launcher_v2.py

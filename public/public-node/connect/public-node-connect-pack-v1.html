@@ -12,6 +12,7 @@
     pre { white-space:pre-wrap; background:#020617; padding:12px; border-radius:12px; border:1px solid #1e293b; }
     .warn { color:#fbbf24; }
     a { color:#93c5fd; }
+    a:focus-visible { outline:3px solid #f8fafc; outline-offset:4px; }
   </style>
 </head>
 <body>
@@ -31,11 +32,16 @@
 
   <div class="card">
     <h2>Dial a peer</h2>
-    <pre>curl -fsS -X POST -H 'content-type: application/json' --data '{"addr":"&lt;PEER_HOST&gt;:&lt;PEER_P2P_PORT&gt;"}' http://127.0.0.1:4100/p2p/dial | jq .</pre>
+    <p><strong>Before you dial:</strong> Run this only against a local node you administer. Replace the placeholders with a peer address from reviewed bootstrap metadata.</p>
+    <p class="warn"><strong>Side effect:</strong> This POST asks the local node to start an outgoing connection and may update its local peer state.</p>
+    <pre>curl --fail-with-body --silent --show-error -X POST -H 'content-type: application/json' --data '{"addr":"&lt;PEER_HOST&gt;:&lt;PEER_P2P_PORT&gt;"}' http://127.0.0.1:4100/p2p/dial | jq .</pre>
+    <p><strong>Accepted attempt:</strong> <code>{"ok":true,"dialing":"..."}</code> means the node accepted the dial request. It does not prove that the peer connected.</p>
+    <p><strong>Rejected attempt:</strong> <code>{"ok":false,"error":"..."}</code> reports why the request was rejected. Do not retry blindly; correct the address or local node problem first.</p>
   </div>
 
   <div class="card">
     <h2>Verify</h2>
+    <p>Check local health, then confirm the peer appears connected in the peer snapshot:</p>
     <pre>curl -fsS http://127.0.0.1:4100/health | jq .
 curl -fsS http://127.0.0.1:4100/p2p/peers | jq .</pre>
   </div>

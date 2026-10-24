@@ -1,0 +1,71 @@
+name: VOID V7 full-history protected replica root launcher v1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/precision/void_v7_full_history_protected_replica_root_launcher_v1.c'
+      - 'scripts/prove_void_v7_full_history_protected_replica_root_launcher_v1.py'
+      - 'docs/operators/void-v7-full-history-protected-replica-root-launcher-v1.md'
+      - '.github/workflows/void-v7-full-history-protected-replica-root-launcher-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_BASE: 767a094260cae4cefe15bac2a7b3fc0cbe936787
+
+jobs:
+  replica-root-launcher-source-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source scope and dependencies
+        run: |
+          set -euo pipefail
+
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_root_launcher_v1.c)" = "5dbfbb6af8451d55967e367f09f8896d72d30807"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_full_history_protected_replica_root_launcher_v1.py)" = "a99e6735f66d9d4ca6390d958da6600edf45fc02"
+          test "$(git rev-parse HEAD:docs/operators/void-v7-full-history-protected-replica-root-launcher-v1.md)" = "d459234405eb5bb49559f00cb436f6bf42b0656f"
+
+          test "$(git rev-parse HEAD:ops/precision/void_v7_full_history_protected_replica_install_v1.py)" = "a4d5762fe0e1c41b0919b8abb827123e556552ca"
+          git merge-base --is-ancestor "$SOURCE_BASE" HEAD
+
+          cat > /tmp/expected <<'EOF'
+          A	.github/workflows/void-v7-full-history-protected-replica-root-launcher-v1.yml
+          A	docs/operators/void-v7-full-history-protected-replica-root-launcher-v1.md
+          A	ops/precision/void_v7_full_history_protected_replica_root_launcher_v1.c
+          A	scripts/prove_void_v7_full_history_protected_replica_root_launcher_v1.py
+          EOF
+          git diff --name-status "$SOURCE_BASE" HEAD -- | LC_ALL=C sort > /tmp/actual
+          LC_ALL=C sort /tmp/expected > /tmp/expected.sorted
+          diff -u /tmp/expected.sorted /tmp/actual
+          git diff --check "$SOURCE_BASE" HEAD --
+
+      - name: Syntax and static launcher proof
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/prove_void_v7_full_history_protected_replica_root_launcher_v1.py")
+          raw = path.read_bytes()
+          compile(raw, str(path), "exec", dont_inherit=True, optimize=0)
+          PY
+          python3 -I -B             scripts/prove_void_v7_full_history_protected_replica_root_launcher_v1.py             | tee "$RUNNER_TEMP/replica-root-launcher-proof.log"
+
+          grep -Fx 'VOID_V7_FULL_HISTORY_PROTECTED_REPLICA_ROOT_LAUNCHER_V1_PROOF_GREEN' "$RUNNER_TEMP/replica-root-launcher-proof.log"
+          grep -Fx 'two_builds_byte_identical=true' "$RUNNER_TEMP/replica-root-launcher-proof.log"
+          grep -Fx 'elf64_x86_64_et_exec=true' "$RUNNER_TEMP/replica-root-launcher-proof.log"
+          grep -Fx 'pt_interp_absent=true' "$RUNNER_TEMP/replica-root-launcher-proof.log"
+          grep -Fx 'pt_dynamic_absent=true' "$RUNNER_TEMP/replica-root-launcher-proof.log"
+          grep -Fx 'replica_expected_head_tree_bound=true' "$RUNNER_TEMP/replica-root-launcher-proof.log"
+          grep -Fx 'fsverity_sha256_kernel_seal_required=true' "$RUNNER_TEMP/replica-root-launcher-proof.log"
+          grep -Fx 'protected_replica_install_performed=false' "$RUNNER_TEMP/replica-root-launcher-proof.log"
+          grep -Fx 'live_release_mutation=false' "$RUNNER_TEMP/replica-root-launcher-proof.log"
+          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/replica-root-launcher-proof.log"

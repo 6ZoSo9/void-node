@@ -2,7 +2,7 @@
 
 Status: **unaccepted source candidate; no deployment, runtime, presale, or funds authority**.
 
-This candidate is derived from Draft PR #3661 exact head `0344d7dab153be75716646d5c6f5162f926f25ee` and
+This candidate is derived from Draft PR #3661 exact head `1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26` and
 replaces the stale V3 deployment-reader inventory row with the reviewed
 descriptor-bound production reader.
 
@@ -16,17 +16,17 @@ descriptor-bound production reader.
 
 ## Candidate identities
 
-- V4 proof Git blob: `f33a579e62c8201de24d5076cfcbffab66df8dae`
-- V4 candidate Git blob: `5893e300a78dc4ca7729ef47f95a8e3eea2043cf`
-- V4 candidate SHA-256: `bf360784af7a6ddf908812b9c335e8e52d4410ba249c5ea1988b97d9cfd5a72c`
-- V4 protected inventory SHA-256: `8485ef25c236b8798bed3a67b9308ef7dcd383aedca1486f4f488d043d7efbe0`
-- V4 enforcement-set SHA-256: `ff084a754e7eb6bef08ec1b1079a17a6110b4333876f0231e46395eed63042d2`
+- V4 proof Git blob: `3a7401202fee374f2a7da3f5efc0d29976f9792a`
+- V4 candidate Git blob: `ec00f0c552e600fff38e4998e4beb128c93b481d`
+- V4 candidate SHA-256: `fbf3d5fbc1efad92c7bb5bb3fb45f686d1bddb95d4a7c34cadbd862b69318c60`
+- V4 protected inventory SHA-256: `c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d`
+- V4 enforcement-set SHA-256: `00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a`
 
 The proof reads every protected source through a bounded
 `O_RDONLY|O_NOFOLLOW|O_NONBLOCK` descriptor and directly exercises replacement,
 symlink, FIFO-substitution, post-open growth, and oversize cases.
 
-The V3 candidate `79998af4763b6afca84ffe4e8d14d9a6ff535dfd` and V3 lock `245ce93ebfb53478211fab765489e88d8fa23c4a` remain
+The V3 candidate `40c7d21e0f22bc2ffe079f80360af342f4d8a6aa` and V3 lock `f1b9d661eb3363e9bf18dbeb3610c659a54219bb` remain
 byte-for-byte preserved. V4 is not accepted by this lane. A separate hosted
 evidence review and V4 acceptance-lock successor are required before the
 deployment planner may return `PLAN_GREEN` for the repaired reader generation.

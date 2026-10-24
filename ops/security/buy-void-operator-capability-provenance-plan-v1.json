@@ -1,0 +1,63 @@
+{
+  "authority": {
+    "credential_generated": false,
+    "credential_installed": false,
+    "credential_read": false,
+    "funds_movement": false,
+    "mounted_operator_route_verified": false,
+    "operator_principal_authenticated": false,
+    "payment_acceptance": false,
+    "presale_activation": false,
+    "service_mutation": false,
+    "signing": false,
+    "source_plan_only": true,
+    "transaction_broadcast": false
+  },
+  "base_head": "1c7ea1484537ec3259f1833b68fbcb64b130744b",
+  "base_tree": "fad8a97255783832962174bb2d439fc64af8ecc8",
+  "current_observations": {
+    "credential_file_group_world_permissions_forbidden": true,
+    "credential_file_max_bytes": 256,
+    "credential_file_single_link_required": true,
+    "credential_file_symlink_forbidden": true,
+    "credential_id": "buy-void-operator-capability-v1",
+    "credentials_directory_environment_required": true,
+    "credentials_directory_group_world_writable_forbidden": true,
+    "current_service_installer_loadcredential_present": false,
+    "descriptor_relative_open_required": true,
+    "directory_and_file_generation_revalidation_required": true,
+    "repository_loadcredential_provisioning_present": false,
+    "token_max_base64url_chars": 128,
+    "token_min_base64url_chars": 43,
+    "token_prefix": "voidbvo1."
+  },
+  "future_requirements": [
+    "csprng_32_byte_token_generation_required",
+    "exact_43_char_base64url_payload_required_for_new_generation",
+    "raw_token_never_stored_in_git_required",
+    "raw_token_never_logged_or_receipted_required",
+    "operator_private_source_path_outside_repository_required",
+    "source_file_canonical_regular_single_link_private_mode_required",
+    "systemd_loadcredential_or_equivalent_closed_credential_namespace_required",
+    "exact_credential_id_required",
+    "credentials_directory_service_generation_bound_required",
+    "installed_credential_file_sha256_bound_without_raw_bytes_required",
+    "installed_credential_file_metadata_and_ancestry_bound_required",
+    "live_process_credentials_directory_identity_bound_required",
+    "old_credential_generation_rejected_after_rotation_required",
+    "rotation_requires_new_deployed_service_generation_and_restart_evidence",
+    "revocation_holds_operator_mutation_until_new_generation_accepted",
+    "credential_generation_bound_to_operator_principal_authentication_plan",
+    "service_hardening_no_new_privileges_and_empty_capability_sets_separate_gate"
+  ],
+  "plan_id": "voidbvcred1_accffa0b50b6b682716f3cc943ff5207d6565e71ad0f631718fa1677afbc322e",
+  "repository": "6ZoSo9/void-node",
+  "schema": "void_buy_void_operator_capability_provenance_plan_v1",
+  "source_bindings": {
+    "docs/operators/buy-void-user-runtime-custody-hardening-v1.md": "dd52fd68e413fdb03ec5cbe13b95599ac9c3de67",
+    "ops/install-void-node-live-user-service-v1.sh": "4b8f67cf3ce6f5011c33289558773547760abf44",
+    "scripts/prove_buy_void_operator_local_intent_v1.ts": "b62351d9e48ab1c9654b6368eb0e412305f0b899",
+    "src/economic/buy_void_operator_local_intent_v1.ts": "7d1ced8dacb50fd7c7b708fd6587ed7930332bb3"
+  },
+  "status": "HOLD"
+}
