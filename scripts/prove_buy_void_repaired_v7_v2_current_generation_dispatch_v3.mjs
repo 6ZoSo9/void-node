@@ -804,7 +804,7 @@ function verify(){
   verifyRestackScope();
   verifyV2AcceptedSourceAdditions();
   const frozen=verifyFrozenEvidence();
-  const protected=verifyProtectedCurrentIdentity(frozen.candidate);
+  const protectedState=verifyProtectedCurrentIdentity(frozen.candidate);
   verifyReviewedProtectedSuccessors();
   verifyBuiltCensusIdentity(frozen.candidate);
   const provider=verifyProviderIdentity();
@@ -818,11 +818,11 @@ function verify(){
     restack_base:RESTACK_BASE,
     accepted_restack_head:RESTACK_HEAD,
     protected_parent:PROTECTED_PARENT,
-    protected_path_count:protected.paths.length,
+    protected_path_count:protectedState.paths.length,
     frozen_protected_inventory_preserved:true,
     protected_path_identity_preserved:false,
-    unchanged_protected_path_count:protected.unchanged_count,
-    reviewed_protected_successor_count:protected.successor_count,
+    unchanged_protected_path_count:protectedState.unchanged_count,
+    reviewed_protected_successor_count:protectedState.successor_count,
     current_protected_successor_binding_verified:true,
     current_router_v6_successor_verified:true,
     canonical_producer_v5_successor_verified:true,
