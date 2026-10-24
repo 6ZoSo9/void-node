@@ -12,7 +12,7 @@ Current exact role/stager identities:
 - source-stage installer: Git blob `d88a9548ea34b8209ed7dcd53732fd25dd1371bf`;
 - receipt-stage installer: Git blob `b462696826b4f90fdf5f4938cd5467e5711addab`.
 
-This plan's exact machine source is `ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json`, Git blob `6b8057f000b85876aa986dd58dc324b5377dd568`. The exact source proof is `scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py`, Git blob `056bb10ad630cd0935519b72568a13a17e4a0014`.
+This plan's exact machine source is `ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json`, Git blob `dc68696a60a226ea774b95c9c9f0a38201769957`. The exact source proof is `scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py`, Git blob `28544d49d244eaca8d4d9a872f7e68d56bed7d4c`.
 
 ## Why historical #3754 is not enough
 
@@ -21,6 +21,8 @@ Historical #3754 created a source-only account plan on the closed #3748 branch. 
 The operator later reported Precision identity routes containing `files`, `systemd`, and `sss`. That report is historical operator input, **not authenticated current host evidence**, but it proves the old files-only assumption cannot be promoted as current authority.
 
 V2 therefore binds no current `passwd` or `group` route and selects no numeric IDs. A future authenticated host planner must first identify the exact effective provider order and action policy and prove provider-specific absence across every configured provider.
+
+`passwd` and `group` routes may legitimately differ; V2 binds them separately. Because the future identity is created in local account files, `files` must be present in both effective routes or the plan HOLDs.
 
 ## Proposed identity — name only
 
@@ -91,6 +93,8 @@ A separately reviewed provisioner may eventually:
 
 No existing identity may be modified or reused.
 
+After the future group-create step, the selected group is expected to exist **exactly once in the bound local-files provider**. Before user creation, that exact local group binding must be re-authenticated, the same group name/GID must remain absent from every configured non-`files` group provider, the user name/UID must remain absent from every configured passwd provider, and complete process/mount/ownership/ACL evidence must be repeated. The expected local group is therefore not misclassified as a collision.
+
 Partial creation is HOLD. No automatic `usermod`, `userdel`, or `groupdel` is allowed. Rollback requires separate authorization and exact proof that the created generation owns no files/ACLs, has no live processes, group members, services, or other dependents, and was not preexisting.
 
 After provisioning, effective NSS must resolve a unique name↔UID/GID mapping across the entire configured provider stack. Account creation alone still does **not** authorize V5 staging.
@@ -103,7 +107,7 @@ Run under a nonroot account on this exact branch:
 python3 -I -B scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py
 ```
 
-The proof pins this plan, current #3804 role contract, and both current #3715 installers. Its plan/role JSON reads use retained `O_NOFOLLOW|O_NONBLOCK` descriptors with exact regular-file size/EOF, visible-generation and Git-blob checks, plus disposable FIFO/symlink substitution regressions. It verifies all authority fields remain false and evaluates **41 synthetic fail-closed cases**, including provider-profile/order errors, unknown providers, provider health/collision ambiguity, SSS enumeration-only evidence, systemd DynamicUser gaps, live-process collisions, mount/ownership/ACL reuse, stale recensus, login/group/admin authority, and recovery errors.
+The proof pins this plan, current #3804 role contract, and both current #3715 installers. Its plan/role JSON reads use retained `O_NOFOLLOW|O_NONBLOCK` descriptors with exact regular-file size/EOF, visible-generation and Git-blob checks, plus disposable FIFO/symlink substitution regressions. It verifies all authority fields remain false and evaluates **47 synthetic fail-closed cases**, including provider-profile/order errors, unknown providers, provider health/collision ambiguity, SSS enumeration-only evidence, systemd DynamicUser gaps, live-process collisions, mount/ownership/ACL reuse, stale recensus, login/group/admin authority, and recovery errors.
 
 The fake `123456789/123456790` values are deliberately absurd proof-only numbers. Even the synthetic fully satisfied case returns only `SHAPE_ONLY_PROVIDER_AWARE_NOT_HOST_ATTESTED`.
 
