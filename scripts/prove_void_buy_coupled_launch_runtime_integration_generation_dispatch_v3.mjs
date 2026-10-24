@@ -21,14 +21,18 @@ const HISTORICAL_DISPATCH_V2 =
   "scripts/prove_void_buy_coupled_launch_runtime_integration_generation_dispatch_v2.mjs";
 const HISTORICAL_DISPATCH_V2_BLOB =
   "7bc37b4ffcc2d3071bfcedfbeccc734161033b08";
-const HISTORICAL_RUNTIME =
+const HISTORICAL_RUNTIME_V1 =
   "scripts/prove_void_buy_coupled_launch_runtime_integration_v1.mjs";
-const HISTORICAL_RUNTIME_BLOB =
+const HISTORICAL_RUNTIME_V1_BLOB =
   "699dacd2d4eb21e1a1213a8d0d5d8da94717f3e7";
-const CURRENT_RUNTIME =
+const HISTORICAL_RUNTIME_V2 =
   "scripts/prove_void_buy_coupled_launch_runtime_integration_current_v2.mjs";
+const HISTORICAL_RUNTIME_V2_BLOB =
+  "59357584271c3effaaefb725d630593163b7a9e2";
+const CURRENT_RUNTIME =
+  "scripts/prove_void_buy_coupled_launch_runtime_integration_current_v3.mjs";
 const CURRENT_RUNTIME_BLOB =
-  "8b942c99209cafc6f00425720b8aa5c58d247dd3";
+  "eaa2b160077e620c414d08da63062ef82dc50483";
 const EPOCH2_SOURCE_V3 =
   "tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs";
 const EPOCH2_SOURCE_V3_BLOB =
@@ -50,7 +54,8 @@ for (const [relative, expected] of [
   [BAKERY, CURRENT_BAKERY_BLOB],
   [HISTORICAL_DISPATCH_V1, HISTORICAL_DISPATCH_V1_BLOB],
   [HISTORICAL_DISPATCH_V2, HISTORICAL_DISPATCH_V2_BLOB],
-  [HISTORICAL_RUNTIME, HISTORICAL_RUNTIME_BLOB],
+  [HISTORICAL_RUNTIME_V1, HISTORICAL_RUNTIME_V1_BLOB],
+  [HISTORICAL_RUNTIME_V2, HISTORICAL_RUNTIME_V2_BLOB],
   [CURRENT_RUNTIME, CURRENT_RUNTIME_BLOB],
   [EPOCH2_SOURCE_V3, EPOCH2_SOURCE_V3_BLOB],
   [EPOCH2_SOURCE_V3_PROOF, EPOCH2_SOURCE_V3_PROOF_BLOB],
@@ -81,7 +86,7 @@ assert.equal(
     "\nstderr:\n" + stderr,
 );
 for (const marker of [
-  "VOID_BUY_COUPLED_LAUNCH_RUNTIME_INTEGRATION_CURRENT_V2_GREEN",
+  "VOID_BUY_COUPLED_LAUNCH_RUNTIME_INTEGRATION_CURRENT_V3_GREEN",
   "generation_transition_publication_uses_same_lock=true",
   "historical_enforcement_v5_current_package_hold=true",
   "current_epoch2_source_tuple_v3_qualified=true",
@@ -97,7 +102,8 @@ console.log("current_bakery_git_blob_sha1=" + CURRENT_BAKERY_BLOB);
 console.log("historical_dispatch_v1_preserved=true");
 console.log("historical_dispatch_v2_preserved=true");
 console.log("historical_runtime_v1_preserved=true");
-console.log("current_epoch2_runtime_v2_successor_blob_bound=true");
+console.log("historical_runtime_current_v2_preserved=true");
+console.log("current_epoch2_runtime_v3_successor_blob_bound=true");
 console.log("current_epoch2_source_v3_blob_bound=true");
 console.log("current_epoch2_source_v3_proof_blob_bound=true");
 console.log("historical_enforcement_v5_expected_hold=true");
