@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -12,7 +13,7 @@ TARGET = (
     / "native/"
     "void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v1.c"
 )
-EXPECTED_SOURCE_BLOB = "1bbe19704a3d1f89b8fe1bfc3759e202ba85594c"
+EXPECTED_SOURCE_BLOB = "666c6f102b9301f1a98b064d987568651e94fced"
 PLAN = (
     ROOT
     / "ops/precision/"
@@ -123,6 +124,10 @@ for required in (
     "PT_INTERP",
     "PT_DYNAMIC",
     "PT_LOAD",
+    "trusted_leaf_flags",
+    "O_NONBLOCK",
+    "fd = open(path, trusted_leaf_flags());",
+    "path_fd = open(VOID_FIRST_ENTRY_BIN, trusted_leaf_flags());",
     "open_verified_regular(",
     "VOID_INSTALLER_SHA256_HEX",
     "VOID_PYTHON_SHA256_HEX",
@@ -240,6 +245,82 @@ with tempfile.TemporaryDirectory(
     )
     assert compile_ok.returncode == 0, compile_ok.stderr
 
+    # Compile the real production source into a disposable harness and exercise
+    # the exact trusted_leaf_flags() helper in the lstat->open race window.
+    # The harness observes a regular leaf, swaps it to a FIFO, then performs
+    # the production open. Without O_NONBLOCK this would wait for a writer.
+    harness = tmp_path / "trusted-leaf-fifo-harness.c"
+    harness.write_text(
+        f"""
+#define main void_first_entry_original_main
+#include "{TARGET.as_posix()}"
+#undef main
+
+int main(int argc, char **argv) {{
+  struct stat before, opened;
+  int fd;
+  int flags;
+
+  if (argc != 2) return 2;
+  if (lstat(argv[1], &before) != 0 || !S_ISREG(before.st_mode)) return 3;
+  if (unlink(argv[1]) != 0) return 4;
+  if (mkfifo(argv[1], 0600) != 0) return 5;
+
+  flags = trusted_leaf_flags();
+  if ((flags & O_NONBLOCK) == 0) return 6;
+  if ((flags & O_NOFOLLOW) == 0) return 7;
+  if ((flags & O_ACCMODE) != O_RDONLY) return 8;
+
+  fd = open(argv[1], flags);
+  if (fd < 0) return 9;
+  if (fstat(fd, &opened) != 0) return 10;
+  if (!S_ISFIFO(opened.st_mode)) return 11;
+  if (close(fd) != 0) return 12;
+  return 0;
+}}
+""".lstrip(),
+        encoding="ascii",
+    )
+    harness_bin = tmp_path / "trusted-leaf-fifo-harness"
+    compile_harness = subprocess.run(
+        [
+            "cc",
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-I",
+            str(tmp_path),
+            str(harness),
+            "-o",
+            str(harness_bin),
+        ],
+        cwd="/",
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=20,
+        env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+    )
+    assert compile_harness.returncode == 0, compile_harness.stderr
+
+    race_leaf = tmp_path / "trusted-leaf-race-target"
+    race_leaf.write_bytes(b"regular-before-swap\n")
+    fifo_race = subprocess.run(
+        [str(harness_bin), str(race_leaf)],
+        cwd="/",
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=3,
+        env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+    )
+    assert fifo_race.returncode == 0, fifo_race
+
     missing_header = subprocess.run(
         [
             "cc",
@@ -277,6 +358,9 @@ print("supplementary_groups_cleared_source_bound=true")
 print("self_exe_generation_source_bound=true")
 print("root_owned_nonwritable_ancestry_source_bound=true")
 print("native_sha256_file_verification_source_bound=true")
+print("trusted_leaf_nonblocking_flags_source_bound=true")
+print("trusted_leaf_shared_with_self_path=true")
+print("trusted_file_swap_after_lstat_fifo_nonblocking=true")
 print("stdlib_archive_exact_identity_source_bound=true")
 print("python_sys_path_stdlib_zip_only=true")
 print("dynamic_extension_namespace_absent=true")
