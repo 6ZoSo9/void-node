@@ -51,9 +51,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py)" = "c030a6e8e6bb8ed71c5fc045753697b1bd1412d7"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py)" = "eae9ab982db728e3f8b855d5927f75928e4f5925"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-policy-chain-rebind-v3.md)" = "d2eb399895b93f8233a940d7cf63fde8641f0696"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py)" = "010b72364c45c9fdb14b42c5868c2fc70eb2accb"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py)" = "f7f4bf162e557018d75c983189a0cecc0ae1cd91"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-policy-chain-rebind-v3.md)" = "4c5d735c42c926ea3c66836834b3f2dff8c5acf7"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py)" = "891cce24244c62756caeba6d2bf702cc92e8a956"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_head_rebind_v1.py)" = "37ab46ca5b77a642d84ad18c61388c30f4d63881"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
@@ -120,6 +120,7 @@ jobs:
           grep -Fx 'bound_source_symlink_rejected=true' "$out"
           grep -Fx 'bound_source_writerless_fifo_nonblocking_hold=true' "$out"
           grep -Fx 'bound_source_post_open_replacement_rejected=true' "$out"
+          grep -Fx 'transitive_dependencies_use_bound_reader=true' "$out"
           grep -Fx 'credential_access_authorized=false' "$out"
           grep -Fx 'transaction_authorized=false' "$out"
           grep -Fx 'funds_movement_authorized=false' "$out"
