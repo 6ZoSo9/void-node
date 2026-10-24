@@ -175,8 +175,8 @@ jobs:
           result=$?
           set -e
           test "$result" -ne 0
-          grep -Fq "unexpected_post_census_economic_drift" "$RUNNER_TEMP/historical-v1.stderr"
-          echo "historical_v1_proof_still_refuses_new_generation=true"
+          grep -Fq "protected_blob_drift:ops/run-void-node-live-v1.sh" "$RUNNER_TEMP/historical-v1.stderr"
+          echo "historical_v1_proof_refuses_current_protected_successor=true"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
