@@ -1,0 +1,159 @@
+name: VOID Buy custody Node binary live census v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_allocation_custody_node_binary_live_census_v1.py"
+      - "scripts/prove_void_buy_allocation_custody_node_binary_live_census_v1.py"
+      - "docs/operators/buy-void-allocation-custody-node-binary-live-census-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-node-binary-live-census-v1.yml"
+      - "tools/void-buy-allocation-custody-node-binary-profile-v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact live-census successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="15579b71d71f96ab330f63313123cdf239926be0"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-node-binary-live-census-v1.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-node-binary-live-census-v1.md'
+            $'A\tops/precision/void_buy_allocation_custody_node_binary_live_census_v1.py'
+            $'A\tscripts/prove_void_buy_allocation_custody_node_binary_live_census_v1.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_node_binary_live_census_v1.py)" = \
+            "4255a8154b6817283f7eded7c79896124ee97d25"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_node_binary_live_census_v1.py)" = \
+            "5c7a2453906318478c1208654214b9d788b125d9"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-node-binary-live-census-v1.md)" = \
+            "00c9a01affb0a34c0754b57ad2d03c2daf3df8d9"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-node-binary-profile-v1.mjs)" = \
+            "4d4d656bddf40de6f215be7b4b6e7cec62098036"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile Python sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            ops/precision/void_buy_allocation_custody_node_binary_live_census_v1.py
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_node_binary_live_census_v1.py
+
+      - name: Self-test without host census
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/custody-node-live-selftest.txt"
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_node_binary_live_census_v1.py \
+            --self-test | tee "$out"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_NODE_BINARY_LIVE_CENSUS_V1_SELF_TEST_GREEN' "$out"
+          for marker in \
+            'profile_source_exact=true' \
+            'fixed_node_path_bound=true' \
+            'descriptor_bound_binary_read=true' \
+            'ancestor_descriptor_revalidation=true' \
+            'exact_sha256_required=true' \
+            'exact_byte_count_required=true' \
+            'exact_uid_gid_mode_nlink_required=true' \
+            'elf_magic_required=true' \
+            'symlink_leaf_rejected=true' \
+            'wrong_hash_rejected=true' \
+            'root_execution_forbidden=true' \
+            'node_binary_execution_performed=false' \
+            'version_command_executed=false' \
+            'live_node_binary_identity_match_candidate_only=true' \
+            'node_binary_identity_verified=false' \
+            'source_execution_protected=false' \
+            'live_at_use_reverification_required=true' \
+            'production_census_read_only=true' \
+            'production_census_explicit_filesystem_write=false' \
+            'production_census_filesystem_write_free=false' \
+            'production_census_atime_write_possible=true' \
+            'replacement_apply_authorized=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'production_gate_ready=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/custody-node-live-proof.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_node_binary_live_census_v1.py \
+            | tee "$out"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_NODE_BINARY_LIVE_CENSUS_V1_PROOF_GREEN' "$out"
+          for marker in \
+            'exact_source_blob_asserted=true' \
+            'profile_source_exact=true' \
+            'profile_expected_identity_bound=true' \
+            'fixed_node_path_bound=true' \
+            'descriptor_bound_binary_read=true' \
+            'ancestor_descriptor_revalidation=true' \
+            'ancestor_validation_hold_fd_cleanup=true' \
+            'exact_sha256_required=true' \
+            'exact_byte_count_required=true' \
+            'exact_uid_gid_mode_nlink_required=true' \
+            'elf_magic_required=true' \
+            'root_execution_forbidden=true' \
+            'without_dash_b_bootstrap_hold=true' \
+            'node_binary_execution_performed=false' \
+            'version_command_executed=false' \
+            'live_node_binary_identity_match_candidate_only=true' \
+            'node_binary_identity_verified=false' \
+            'source_execution_protected=false' \
+            'operator_evidence_authenticated=false' \
+            'live_at_use_reverification_required=true' \
+            'host_census_not_executed_in_ci=true' \
+            'production_census_read_only=true' \
+            'production_census_explicit_filesystem_write=false' \
+            'production_census_filesystem_write_free=false' \
+            'production_census_atime_write_possible=true' \
+            'test_fixture_filesystem_write=true' \
+            'replacement_apply_authorized=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'production_gate_ready=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check

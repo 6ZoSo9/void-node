@@ -1,0 +1,91 @@
+name: Buy VOID V7 fs-verity capability census v1
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/buy-void-v7-fsverity-capability-census-v1.yml'
+      - 'docs/operators/buy-void-v7-fsverity-capability-census-v1.md'
+      - 'ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py'
+      - 'scripts/prove_buy_void_v7_fsverity_capability_census_v1.py'
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/buy-void-v7-fsverity-capability-census-v1.yml'
+      - 'docs/operators/buy-void-v7-fsverity-capability-census-v1.md'
+      - 'ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py'
+      - 'scripts/prove_buy_void_v7_fsverity_capability_census_v1.py'
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            SOURCE_BASE="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
+            test -n "$SOURCE_BASE"
+            echo "source_base=$SOURCE_BASE"
+            cat > "$RUNNER_TEMP/expected-delta" <<'EOF'
+          M	.github/workflows/buy-void-v7-fsverity-capability-census-v1.yml
+          M	docs/operators/buy-void-v7-fsverity-capability-census-v1.md
+          M	ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py
+          M	scripts/prove_buy_void_v7_fsverity_capability_census_v1.py
+          EOF
+            git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual-delta"
+            sort "$RUNNER_TEMP/expected-delta" > "$RUNNER_TEMP/expected-delta.sorted"
+            diff -u "$RUNNER_TEMP/expected-delta.sorted" "$RUNNER_TEMP/actual-delta"
+            git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
+          else
+            git diff --check "$EXPECTED_HEAD^" "$EXPECTED_HEAD" --
+          fi
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py)" = "60a86dc3f8cbb73511de51f5e82209f78babb9f1"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_fsverity_capability_census_v1.py)" = "7236eb68008715812162a7dc1c57c242c46c0759"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-fsverity-capability-census-v1.md)" = "81c65532bf36f233640fbb20ac59ccde6c1b0cdc"
+
+      - name: Python syntax
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -B - <<'PY'
+          from pathlib import Path
+          for rel in (
+              "ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py",
+              "scripts/prove_buy_void_v7_fsverity_capability_census_v1.py",
+          ):
+              compile(Path(rel).read_bytes(), rel, "exec", dont_inherit=True, optimize=0)
+          PY
+
+      - name: Census self-test
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -B             ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py             --self-test
+
+      - name: Inert plan
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -B             ops/precision/void_buy_void_v7_fsverity_capability_census_v1.py             --plan           | tee "$RUNNER_TEMP/plan.log"
+          grep -Fx 'read_only=true' "$RUNNER_TEMP/plan.log"
+          grep -Fx 'filesystem_write=false' "$RUNNER_TEMP/plan.log"
+          grep -Fx 'sudo_required=false' "$RUNNER_TEMP/plan.log"
+          grep -Fx 'root_execution_forbidden=true' "$RUNNER_TEMP/plan.log"
+          grep -Fx 'fsverity_enablement=false' "$RUNNER_TEMP/plan.log"
+          grep -Fx 'protected_v4_apply=false' "$RUNNER_TEMP/plan.log"
+
+      - name: Source proof
+        run: |
+          set -euo pipefail
+          /usr/bin/python3 -I -B             scripts/prove_buy_void_v7_fsverity_capability_census_v1.py

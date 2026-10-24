@@ -81,7 +81,6 @@ mustFalse(peer.boundary, [
 
 mustFalse(runbook.boundary, [
   'automatic_peer_dial_enabled_by_this_runbook',
-  'mutation_route_enabled',
   'wallet_send_enabled',
   'money_movement_enabled',
   'buy_void_fulfillment_enabled',
@@ -91,6 +90,12 @@ mustFalse(runbook.boundary, [
   'public_wc_self_serve_earning_enabled',
   'public_internet_mesh_claim'
 ], 'runbook.boundary');
+
+ok(runbook.boundary?.read_only === false, 'runbook must not claim manual dial is read-only');
+ok(runbook.boundary?.mutation_route_enabled === true, 'runbook must disclose manual dial mutation route');
+ok(runbook.operator_commands?.manual_dial?.includes('curl --fail-with-body --silent --show-error'), 'runbook dial must preserve rejection body');
+ok(runbook.operator_commands?.verify_peers?.includes('/p2p/peers'), 'runbook peer verification route mismatch');
+ok(runbook.dial_outcomes?.accepted_response?.includes('does not prove'), 'runbook accepted response overclaims connection progress');
 
 for (const [name, idx] of Object.entries({ root, runtime })) {
   ok(idx.links?.local_multibox_runtime_peer_rejoin_card === peerJson, `${name} peer json link mismatch`);
