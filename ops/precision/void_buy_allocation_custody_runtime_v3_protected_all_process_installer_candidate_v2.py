@@ -25,6 +25,8 @@ if (
 
 import argparse
 import hashlib
+import importlib.machinery
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -475,7 +477,13 @@ def _verify_root(
 
 def _validate_voidfs_module(module: Any) -> Callable[[int, str, str], None]:
     spec = getattr(module, "__spec__", None)
-    if spec is None or getattr(spec, "origin", None) != "built-in":
+    if (
+        spec is None
+        or getattr(spec, "origin", None) != "built-in"
+        or getattr(spec, "loader", None) is not importlib.machinery.BuiltinImporter
+        or getattr(module, "__loader__", None)
+        is not importlib.machinery.BuiltinImporter
+    ):
         raise InstallError("voidfs_module_not_builtin")
     public = sorted(
         name for name in dir(module)
@@ -490,12 +498,31 @@ def _validate_voidfs_module(module: Any) -> Callable[[int, str, str], None]:
 
 
 def _require_builtin_voidfs() -> Callable[[int, str, str], None]:
+    if "_voidfs" in _bootstrap_sys.modules:
+        raise InstallError("voidfs_preloaded_module_forbidden")
     if "_voidfs" not in _bootstrap_sys.builtin_module_names:
         raise InstallError("voidfs_builtin_module_required")
+
+    spec = importlib.machinery.BuiltinImporter.find_spec("_voidfs")
+    if (
+        spec is None
+        or spec.loader is not importlib.machinery.BuiltinImporter
+        or spec.origin != "built-in"
+    ):
+        raise InstallError("voidfs_builtin_spec_invalid")
+
     try:
-        module = __import__("_voidfs")
-    except ImportError as exc:
+        module = importlib.util.module_from_spec(spec)
+        if "_voidfs" in _bootstrap_sys.modules:
+            raise InstallError("voidfs_import_cache_side_effect_forbidden")
+        spec.loader.exec_module(module)
+        if "_voidfs" in _bootstrap_sys.modules:
+            raise InstallError("voidfs_import_cache_side_effect_forbidden")
+    except InstallError:
+        raise
+    except Exception as exc:
         raise InstallError("voidfs_builtin_import_failed") from exc
+
     return _validate_voidfs_module(module)
 
 
@@ -919,10 +946,12 @@ def _fixture_rename_noreplace(
 
 class _FixtureBuiltinSpec:
     origin = "built-in"
+    loader = importlib.machinery.BuiltinImporter
 
 
 class _FixtureVoidfs:
     __spec__ = _FixtureBuiltinSpec()
+    __loader__ = importlib.machinery.BuiltinImporter
 
     @staticmethod
     def rename_noreplace(
@@ -934,7 +963,23 @@ class _FixtureVoidfs:
 
 
 class _FixtureBadOriginVoidfs(_FixtureVoidfs):
-    __spec__ = type("_BadSpec", (), {"origin": "file"})()
+    __spec__ = type(
+        "_BadSpec",
+        (),
+        {
+            "origin": "file",
+            "loader": importlib.machinery.BuiltinImporter,
+        },
+    )()
+
+
+class _FixtureBadLoaderVoidfs(_FixtureVoidfs):
+    __spec__ = type(
+        "_BadLoaderSpec",
+        (),
+        {"origin": "built-in", "loader": object()},
+    )()
+    __loader__ = object()
 
 
 class _FixtureExpandedVoidfs(_FixtureVoidfs):
@@ -945,13 +990,47 @@ def self_test() -> None:
     accepted = verify_repository_inputs()
     if _validate_voidfs_module(_FixtureVoidfs()) is not _FixtureVoidfs.rename_noreplace:
         raise InstallError("self_test_voidfs_contract_validator_invalid")
-    for bad in (_FixtureBadOriginVoidfs(), _FixtureExpandedVoidfs()):
+    for bad in (
+        _FixtureBadOriginVoidfs(),
+        _FixtureBadLoaderVoidfs(),
+        _FixtureExpandedVoidfs(),
+    ):
         try:
             _validate_voidfs_module(bad)
         except InstallError:
             pass
         else:
             raise InstallError("self_test_voidfs_bad_contract_accepted")
+
+    cache_sentinel = object()
+    prior_voidfs = _bootstrap_sys.modules.get("_voidfs", cache_sentinel)
+    _bootstrap_sys.modules["_voidfs"] = _FixtureVoidfs()
+    try:
+        try:
+            _require_builtin_voidfs()
+        except InstallError as exc:
+            if "voidfs_preloaded_module_forbidden" not in str(exc):
+                raise
+        else:
+            raise InstallError("self_test_voidfs_preloaded_shadow_accepted")
+    finally:
+        if prior_voidfs is cache_sentinel:
+            _bootstrap_sys.modules.pop("_voidfs", None)
+        else:
+            _bootstrap_sys.modules["_voidfs"] = prior_voidfs
+
+    self_source = Path(__file__).read_text(encoding="utf-8")
+    production_bridge = self_source.split(
+        "def _voidfs_rename_noreplace(", 1
+    )[1].split("def _stat_nofollow_at", 1)[0]
+    if "os.rename(" in production_bridge or "_fixture_rename_noreplace" in production_bridge:
+        raise InstallError("self_test_production_voidfs_fallback_present")
+
+    fixed_entry = self_source.split(
+        "def install_accepted_source_create_only_after_protected_first_entry()", 1
+    )[1].split("def source_plan()", 1)[0]
+    if "rename_fn=" in fixed_entry or "_fixture_rename_noreplace" in fixed_entry:
+        raise InstallError("self_test_fixed_entrypoint_bridge_override_present")
 
     with tempfile.TemporaryDirectory(
         prefix="void-custody-procref-installer-candidate-"
@@ -1198,10 +1277,14 @@ def self_test() -> None:
     print("kernel_rename_noreplace_required=true")
     print("builtin_voidfs_required=true")
     print("voidfs_contract_validator_tested=true")
+    print("voidfs_builtin_loader_verified=true")
+    print("voidfs_preloaded_cache_rejected=true")
     print("ctypes_forbidden=true")
     print("dynamic_symbol_lookup_forbidden=true")
     print("libc_symbol_lookup_fallback=false")
     print("same_parent_fd_publication_required=true")
+    print("production_voidfs_bridge_no_os_rename_fallback=true")
+    print("fixed_entrypoint_no_bridge_override=true")
     print("source_fsync_required=true")
     print("stage_directory_fsync_required=true")
     print("install_parent_fsync_required=true")
