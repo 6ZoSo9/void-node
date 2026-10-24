@@ -4,11 +4,15 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
+import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_REL = "ops/security/void_v7_v5_stage_role_separation_contract_v2.json"
@@ -57,20 +61,77 @@ def git(*args: str) -> str:
     return p.stdout.strip()
 
 
-def read_exact(rel: str, maximum: int) -> bytes:
-    path = ROOT / rel
-    assert path.is_file() and not path.is_symlink(), "source_kind_invalid:" + rel
-    before = path.stat()
-    assert before.st_size <= maximum, "source_oversize:" + rel
-    with path.open("rb") as f:
-        data = f.read(maximum + 1)
-        opened = os.fstat(f.fileno())
-    after = path.stat()
-    assert len(data) <= maximum, "source_oversize:" + rel
-    fields = lambda st: (st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode,
-                         st.st_nlink, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
-    assert fields(before) == fields(opened) == fields(after), "source_generation_drift:" + rel
-    return data
+def git_blob_id(data: bytes) -> str:
+    header = ("blob " + str(len(data)) + "\0").encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()
+
+
+def read_exact_path(path: Path, maximum: int, expected_blob: str | None = None) -> bytes:
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+    fd = os.open(path, flags)
+    try:
+        opened = os.fstat(fd)
+        assert stat.S_ISREG(opened.st_mode), "source_not_regular:" + os.fspath(path)
+        assert 0 <= opened.st_size <= maximum, "source_oversize:" + os.fspath(path)
+        data = bytearray()
+        while len(data) < opened.st_size:
+            chunk = os.read(fd, min(65536, opened.st_size - len(data)))
+            assert chunk, "source_unexpected_eof:" + os.fspath(path)
+            data.extend(chunk)
+        assert os.read(fd, 1) == b"", "source_grew_during_read:" + os.fspath(path)
+        terminal = os.fstat(fd)
+        visible = os.lstat(path)
+        assert stat.S_ISREG(visible.st_mode), "source_visible_not_regular:" + os.fspath(path)
+        fields = lambda st: (
+            st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode,
+            st.st_nlink, st.st_size, st.st_mtime_ns, st.st_ctime_ns,
+        )
+        assert fields(opened) == fields(terminal) == fields(visible), (
+            "source_generation_drift:" + os.fspath(path)
+        )
+        result = bytes(data)
+        if expected_blob is not None:
+            assert git_blob_id(result) == expected_blob, (
+                "source_blob_mismatch:" + os.fspath(path)
+            )
+        return result
+    finally:
+        os.close(fd)
+
+
+def read_exact(rel: str, maximum: int, expected_blob: str) -> bytes:
+    return read_exact_path(ROOT / rel, maximum, expected_blob)
+
+
+def self_test_descriptor_bound_reads() -> None:
+    with tempfile.TemporaryDirectory(prefix="void-v7-role-v2-read-") as temp:
+        root = Path(temp)
+        good = root / "good"
+        payload = b"role-v2-descriptor-bound\n"
+        good.write_bytes(payload)
+        assert read_exact_path(good, 4096, git_blob_id(payload)) == payload
+
+        fifo = root / "victim"
+        fifo.write_bytes(b"prior-regular")
+        fifo.unlink()
+        os.mkfifo(fifo, 0o600)
+        started = time.monotonic()
+        try:
+            read_exact_path(fifo, 4096)
+        except (AssertionError, OSError):
+            pass
+        else:
+            raise AssertionError("fifo_substitution_accepted")
+        assert time.monotonic() - started < 2.0, "fifo_substitution_blocked"
+
+        symlink = root / "symlink"
+        symlink.symlink_to(good)
+        try:
+            read_exact_path(symlink, 4096)
+        except (AssertionError, OSError):
+            pass
+        else:
+            raise AssertionError("symlink_substitution_accepted")
 
 
 def unique_object(items):
@@ -150,8 +211,10 @@ for rel, blob in (
 ):
     exact_blob(rel, blob)
 
+self_test_descriptor_bound_reads()
+
 contract = json.loads(
-    read_exact(CONTRACT_REL, 32768).decode("utf-8", "strict"),
+    read_exact(CONTRACT_REL, 32768, CONTRACT_BLOB).decode("utf-8", "strict"),
     object_pairs_hook=unique_object,
 )
 assert contract["marker"] == "VOID_V7_V5_STAGE_ROLE_SEPARATION_CONTRACT_V2"
@@ -234,7 +297,7 @@ for key, value in authority.items():
     if key != "source_contract_only":
         assert value is False, "unexpected_authority:" + key
 
-source = read_exact(SOURCE_REL, 256000).decode("utf-8", "strict")
+source = read_exact(SOURCE_REL, 256000, SOURCE_BLOB).decode("utf-8", "strict")
 tree = ast.parse(source, filename=SOURCE_REL)
 lines = source.splitlines()
 sites = contract["site_plan"]
@@ -360,6 +423,8 @@ print("current_receipt_installer_blob=" + RECEIPT_BLOB)
 print("current_identity_lines=13")
 print("root_only_protected_copy=GREEN")
 print("rename_noreplace_and_parent_fsync_bound=true")
+print("descriptor_bound_nonblocking_exact_reads=true")
+print("fifo_symlink_read_regressions=GREEN")
 print("candidate_owner_uid_gid=1000:1000")
 print("stage_verifier_identity=UNSELECTED")
 print("historical_3754_account_plan_reusable=false")
