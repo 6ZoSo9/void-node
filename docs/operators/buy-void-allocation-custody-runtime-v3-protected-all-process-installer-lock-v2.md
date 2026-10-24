@@ -59,13 +59,36 @@ historical V1 installer lock:
 a1e1f4887787b408d313e73360966f93a63b2b58
 ```
 
-Hosted evidence:
+Hosted evidence is accepted only after authenticated GitHub API metadata validation:
 
 ```text
 focused run: 40073107466
 focused job: 120810613302
-exact-head review: 5637294073
+same-account qualification review: 5637294073
+independent Codex review-state comment: 6381355558
+reviewed head: 0eb7d49b10681ee7b29298ca325902671121ef5a
 ```
+
+The same-account qualification review is explicitly **not** independent
+approval. The lock workflow separately authenticates the Codex review-state
+comment authored by `chatgpt-codex-connector[bot]` and requires its
+machine-readable code-review state to bind the exact installer head with
+`has_any_findings=false`, `has_unresolved_findings=false`, and
+`status=completed`.
+
+Before the lock proof may emit hosted-evidence markers, the workflow uses its
+read-only GitHub token to authenticate the exact repository/run/workflow/head,
+successful focused job membership, same-account review commit, and independent
+Codex review state. It writes only those non-secret verified fields into a
+runner-temporary receipt; the token is never written to the receipt or logs.
+
+## Hosted evidence boundary
+
+Numeric run/job/comment IDs by themselves are not acceptance evidence. The
+source lock requires a separately generated authenticated receipt proving that
+the referenced hosted objects actually belong to the exact installer
+generation and completed successfully. If GitHub metadata cannot be read or any
+field disagrees, the lock proof HOLDs before reporting source acceptance.
 
 ## Accepted V2 source properties
 
