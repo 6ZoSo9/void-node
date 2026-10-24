@@ -120,7 +120,9 @@ jobs:
           assert.equal(c.funds_movement,false);
           assert.equal(i.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
           assert.equal(i.protected_path_count,49);
-          assert.equal(i.protected_path_identity_preserved,true);
+          assert.equal(i.protected_path_identity_preserved,false);
+          assert.equal(i.protected_range_router_drift_classified,true);
+          assert.equal(i.current_protected_source_generation_accepted,false);
           assert.equal(i.current_built_census_identity_matches_frozen_v4,true);
           assert.equal(i.provider_source_identity_preserved,true);
           assert.equal(i.frozen_candidate_rederived_on_current_head,false);
