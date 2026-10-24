@@ -12,7 +12,7 @@ Current exact role/stager identities:
 - source-stage installer: Git blob `d88a9548ea34b8209ed7dcd53732fd25dd1371bf`;
 - receipt-stage installer: Git blob `b462696826b4f90fdf5f4938cd5467e5711addab`.
 
-This plan's exact machine source is `ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json`, Git blob `6b8057f000b85876aa986dd58dc324b5377dd568`. The exact source proof is `scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py`, Git blob `6c4292deb8436ba5eda67a35240ae9d3ae9a5171`.
+This plan's exact machine source is `ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json`, Git blob `6b8057f000b85876aa986dd58dc324b5377dd568`. The exact source proof is `scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py`, Git blob `056bb10ad630cd0935519b72568a13a17e4a0014`.
 
 ## Why historical #3754 is not enough
 
@@ -103,7 +103,7 @@ Run under a nonroot account on this exact branch:
 python3 -I -B scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py
 ```
 
-The proof pins this plan, current #3804 role contract, and both current #3715 installers. It verifies all authority fields remain false and evaluates **41 synthetic fail-closed cases**, including provider-profile/order errors, unknown providers, provider health/collision ambiguity, SSS enumeration-only evidence, systemd DynamicUser gaps, live-process collisions, mount/ownership/ACL reuse, stale recensus, login/group/admin authority, and recovery errors.
+The proof pins this plan, current #3804 role contract, and both current #3715 installers. Its plan/role JSON reads use retained `O_NOFOLLOW|O_NONBLOCK` descriptors with exact regular-file size/EOF, visible-generation and Git-blob checks, plus disposable FIFO/symlink substitution regressions. It verifies all authority fields remain false and evaluates **41 synthetic fail-closed cases**, including provider-profile/order errors, unknown providers, provider health/collision ambiguity, SSS enumeration-only evidence, systemd DynamicUser gaps, live-process collisions, mount/ownership/ACL reuse, stale recensus, login/group/admin authority, and recovery errors.
 
 The fake `123456789/123456790` values are deliberately absurd proof-only numbers. Even the synthetic fully satisfied case returns only `SHAPE_ONLY_PROVIDER_AWARE_NOT_HOST_ATTESTED`.
 
