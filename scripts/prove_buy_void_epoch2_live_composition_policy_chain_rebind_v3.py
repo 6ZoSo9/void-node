@@ -13,7 +13,7 @@ SOURCE = (
     / "ops/precision/"
     "void_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py"
 )
-EXPECTED_SOURCE_BLOB = "2e3f5919e919fc798a686b1c61b5b720abb008b7"
+EXPECTED_SOURCE_BLOB = "6aa69d5bbfdecef0110cdd151db4c0351c08cf53"
 EXPECTED_V2_BLOB = "891cce24244c62756caeba6d2bf702cc92e8a956"
 
 
@@ -198,6 +198,31 @@ with tempfile.TemporaryDirectory(
 
     assert not (tmp_path / module.STAGE_NAME).exists()
 
+# A path replacement after ownership capture must never be deleted as ours.
+with tempfile.TemporaryDirectory(
+    prefix="void-epoch2-policy-v3-stage-replacement-"
+) as tmp:
+    tmp_path = pathlib.Path(tmp)
+    stage_path = tmp_path / module.STAGE_NAME
+    owned_path = tmp_path / "owned-stage"
+    stage_path.write_bytes(b"owned-stage")
+    stage_identity = module._inode_identity(stage_path.stat())
+    stage_path.rename(owned_path)
+    stage_path.write_bytes(b"replacement-stage")
+    opt_fd = os.open(tmp, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        try:
+            module._remove_owned_stage(opt_fd, stage_identity)
+        except module.RebindError as exc:
+            assert str(exc) == "stage_cleanup_identity_changed"
+        else:
+            raise AssertionError("replacement stage was deleted as owned")
+    finally:
+        os.close(opt_fd)
+
+    assert stage_path.read_bytes() == b"replacement-stage"
+    assert owned_path.read_bytes() == b"owned-stage"
+
 # Rollback exchange must durably publish the restored live name before cleanup.
 with tempfile.TemporaryDirectory(
     prefix="void-epoch2-policy-v3-rollback-fsync-"
@@ -258,6 +283,7 @@ print("green_state_requires_retained_4c80887_policy=true")
 print("interrupted_v3_stage_holds=true")
 print("publication_aware_failure_receipt=true")
 print("stage_write_failure_identity_cleanup=true")
+print("stage_cleanup_replacement_protected=true")
 print("rollback_exchange_directory_fsync_order=true")
 print("credential_access_authorized=false")
 print("signing_authorized=false")
