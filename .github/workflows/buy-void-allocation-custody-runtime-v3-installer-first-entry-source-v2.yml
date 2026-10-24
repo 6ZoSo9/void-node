@@ -1,0 +1,144 @@
+name: VOID Buy custody V3 installer first-entry source v2
+
+on:
+  pull_request:
+    paths:
+      - "native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.c"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V2 first-entry successor and V1 predecessor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="3ad8c6f87fc9edfbffe196c42cf3aea99fdc9797"
+          PREDECESSOR_BRANCH="ren/custody-runtime-v3-installer-first-entry-source-v1-20261023"
+          PREDECESSOR_HEAD="86e2e5c92f87a74985e4f96617b4d013c252e237"
+          PREDECESSOR_BLOB="1bbe19704a3d1f89b8fe1bfc3759e202ba85594c"
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          git fetch --no-tags origin "$PREDECESSOR_BRANCH:refs/remotes/origin/$PREDECESSOR_BRANCH"
+          PREDECESSOR_TIP="$(git rev-parse "refs/remotes/origin/$PREDECESSOR_BRANCH")"
+          test -n "$PREDECESSOR_TIP"
+          git merge-base --is-ancestor "$PREDECESSOR_HEAD" "$PREDECESSOR_TIP"
+          echo "predecessor_tip=$PREDECESSOR_TIP"
+          test "$(git rev-parse "$PREDECESSOR_HEAD:native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v1.c")" = "$PREDECESSOR_BLOB"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.md'
+            $'A\tnative/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.c'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.c)" = "d7693320783bcd0e3a2c4ef6c4afd86123e3688e"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py)" = "3d2fce2dba70f63dc3b8894fa3f120baf0584c3c"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.md)" = "a64253df5d88ddf5ef44ed230026d94a98f295f6"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json)" = "486a6f6e1e2c594e60d6f9fe3fa32b03175630ae"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py
+
+      - name: Prove V2 source contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/first-entry-source-v2-proof.txt"
+          python3 -I -B scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py | tee "$out"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_INSTALLER_FIRST_ENTRY_SOURCE_V2_PROOF_GREEN' "$out"
+
+          markers=(
+            'exact_source_blob_asserted=true'
+            'descriptor_bound_source_read=true'
+            'source_symlink_rejected=true'
+            'source_fifo_nonblocking_rejected=true'
+            'captured_source_compile_bound=true'
+            'post_hash_path_swap_regression=true'
+            'predecessor_first_entry_head=86e2e5c92f87a74985e4f96617b4d013c252e237'
+            'predecessor_first_entry_blob=1bbe19704a3d1f89b8fe1bfc3759e202ba85594c'
+            'accepted_installer_lock_v2_exact=true'
+            'production_identity_defaults_absent=true'
+            'compile_time_binding_header_required=true'
+            'synthetic_binding_syntax_compile_green=true'
+            'missing_binding_header_compile_hold=true'
+            'exact_privileged_argv_source_bound=true'
+            'closed_environment_source_bound=true'
+            'supplementary_groups_cleared_source_bound=true'
+            'self_exe_generation_source_bound=true'
+            'root_owned_nonwritable_ancestry_source_bound=true'
+            'native_sha256_file_verification_source_bound=true'
+            'stdlib_archive_exact_identity_source_bound=true'
+            'python_sys_path_stdlib_zip_only=true'
+            'dynamic_extension_namespace_absent=true'
+            'static_python_elf64_x86_64_required=true'
+            'static_python_pt_interp_forbidden=true'
+            'static_python_pt_dynamic_forbidden=true'
+            'static_python_pt_load_required=true'
+            'retained_installer_fd_source_bound=true'
+            'retained_python_fd_source_bound=true'
+            'stdin_dev_null_source_bound=true'
+            'untrusted_fd_close_range_source_bound=true'
+            'python_fexecve_source_bound=true'
+            'python_flags_i_b_s_c_source_bound=true'
+            'fixed_installer_entrypoint_source_bound=true'
+            'trusted_leaf_open_nonblocking_bound=true'
+            'installed_self_leaf_open_nonblocking_bound=true'
+            'live_fifo_substitution_nonblocking_regression=true'
+            'native_filesystem_publication_primitive_absent=true'
+            'first_entry_native_source_authored=true'
+            'python_runtime_identity_selected=false'
+            'python_stdlib_import_closure_selected=false'
+            'first_entry_candidate_derived=false'
+            'first_entry_candidate_accepted=false'
+            'protected_installer_first_entry_installed=false'
+            'protected_install_authorized=false'
+            'protected_source_installed=false'
+            'live_privileged_census_authorized=false'
+            'replacement_apply_authorized=false'
+            'runtime_integration=false'
+            'payment_acceptance=false'
+            'public_presale_activation=false'
+            'production_gate_ready=false'
+            'funds_movement=false'
+          )
+          for marker in "${markers[@]}"; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
