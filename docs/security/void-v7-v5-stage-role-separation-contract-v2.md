@@ -15,7 +15,7 @@ Current #3715 exact identities:
 - operator document: `02fa010cd66a50c5e2858b6cced9a7e08ee295af`;
 - focused workflow: `af1a9afad2a39b96ee4022ba1b36ebf7534c818b`.
 
-The role-contract machine source is `ops/security/void_v7_v5_stage_role_separation_contract_v2.json`, Git blob `4801caaca496baeb85c7842b5b8b4b47122582ab`. The exact source proof is `scripts/prove_void_v7_v5_stage_role_separation_contract_v2.py`, Git blob `c654c185b6fd59dbc28f46279257b3f13d8f4f20`.
+The role-contract machine source is `ops/security/void_v7_v5_stage_role_separation_contract_v2.json`, Git blob `4801caaca496baeb85c7842b5b8b4b47122582ab`. The exact source proof is `scripts/prove_void_v7_v5_stage_role_separation_contract_v2.py`, Git blob `a28c8f8802c6d4f1f0c546391c1388dfa4f5ee9c`.
 
 ## Current defect and required split
 
@@ -76,7 +76,7 @@ The proof:
 - binds the new V2 machine contract;
 - parses the current source installer and requires the full 13-line shared-identity inventory;
 - verifies root custody before protected copy and confirms the protected copy is not dispatched inside the unprivileged child;
-- verifies private digest → verifier ACL → private verification → ACL removal/seal → final verification → no-replace publication ordering;
+- verifies private digest → verifier ACL → private verification → ACL removal/seal → final verification → no-replace publication ordering, and directly binds `RENAME_NOREPLACE` plus parent-directory `fsync` in the current publication helper;
 - requires the current three-operation shared child dispatch to remain visible so a future split cannot be falsely claimed as already implemented;
 - requires the current dynamic native ABI to remain visible as a separate HOLD;
 - evaluates **27 synthetic role-policy failures**.
