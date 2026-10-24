@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json"
-      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected-all-process-installer-lock-v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_lock_v1.py"
       - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.md"
       - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.yml"
       - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v1.py"
@@ -43,14 +43,14 @@ jobs:
             $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.yml'
             $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.md'
             $'A\tops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json'
-            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected-all-process-installer-lock-v1.py'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_lock_v1.py'
           )
           mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json)" = \
             "a1e1f4887787b408d313e73360966f93a63b2b58"
-          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected-all-process-installer-lock-v1.py)" = \
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_lock_v1.py)" = \
             "534b0bd4b49200e02f358afef69d49142b545c33"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.md)" = \
             "391f9adcd3795a473c2f65c85aa801356f1c5135"
@@ -73,14 +73,14 @@ jobs:
         run: |
           set -euo pipefail
           PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
-            scripts/prove_void_buy_allocation_custody_runtime_v3_protected-all-process-installer-lock-v1.py
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_lock_v1.py
 
       - name: Prove exact installer source lock
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/protected-procref-installer-lock-proof.txt"
           python3 -I -B \
-            scripts/prove_void_buy_allocation_custody_runtime_v3_protected-all-process-installer-lock-v1.py \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_lock_v1.py \
             | tee "$out"
 
           grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_INSTALLER_LOCK_V1_PROOF_GREEN' "$out"
