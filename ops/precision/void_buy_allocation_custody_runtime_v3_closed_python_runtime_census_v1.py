@@ -376,7 +376,7 @@ def _measure_verity(path: Path) -> dict[str, Any]:
 
 def _runtime_probe(stdlib_sha256: str) -> dict[str, Any]:
     probe = (
-        "import json,sys;"
+        "import sys;"
         "z=" + repr(str(STDLIB_ZIP)) + ";"
         "sys.path[:]=[z];"
         "import argparse,hashlib,importlib.machinery,importlib.util,json as j,"
