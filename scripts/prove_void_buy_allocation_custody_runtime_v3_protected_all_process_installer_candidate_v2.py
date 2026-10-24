@@ -17,7 +17,7 @@ TARGET = (
       "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_installer_candidate_v2.py"
 )
-EXPECTED_SOURCE_BLOB = "6fc600431e122d587661f2413b07d4a540cdc0c9"
+EXPECTED_SOURCE_BLOB = "bd8728be0b59bce3db0f559d0ebd01692f9a5844"
 
 
 def git_blob(raw: bytes) -> str:
@@ -121,6 +121,22 @@ assert plan["authority"]["public_presale_activation"] is False
 assert plan["authority"]["funds_movement"] is False
 
 module.self_test()
+
+shadow_sentinel = object()
+prior_voidfs = module._bootstrap_sys.modules.get("_voidfs", shadow_sentinel)
+module._bootstrap_sys.modules["_voidfs"] = module._FixtureVoidfs()
+try:
+    try:
+        module._require_builtin_voidfs()
+    except module.InstallError as exc:
+        assert "voidfs_preloaded_module_forbidden" in str(exc), str(exc)
+    else:
+        raise AssertionError("preloaded sys.modules voidfs shadow was accepted")
+finally:
+    if prior_voidfs is shadow_sentinel:
+        module._bootstrap_sys.modules.pop("_voidfs", None)
+    else:
+        module._bootstrap_sys.modules["_voidfs"] = prior_voidfs
 
 with tempfile.TemporaryDirectory(
     prefix="void-custody-installer-v2-fifo-read-proof-"
@@ -235,6 +251,9 @@ for required in (
     "_bridge_errno",
     "_voidfs_rename_noreplace",
     "voidfs_builtin_module_required",
+    "voidfs_preloaded_module_forbidden",
+    "voidfs_builtin_spec_invalid",
+    "voidfs_import_cache_side_effect_forbidden",
     "voidfs_module_not_builtin",
     "voidfs_public_surface_invalid",
     "rename_noreplace_bridge_contract_failure",
@@ -296,8 +315,16 @@ assert (
     "rename_fn: Callable[[int, str, str], None] = "
     "_voidfs_rename_noreplace"
 ) in source
+assert '"_voidfs" in _bootstrap_sys.modules' in source
 assert '"_voidfs" not in _bootstrap_sys.builtin_module_names' in source
+assert 'importlib.machinery.BuiltinImporter.find_spec("_voidfs")' in source
+assert "importlib.util.module_from_spec(spec)" in source
+assert "spec.loader.exec_module(module)" in source
 assert 'getattr(spec, "origin", None) != "built-in"' in source
+assert (
+    'getattr(spec, "loader", None) is not importlib.machinery.BuiltinImporter'
+    in source
+)
 assert 'public != ["rename_noreplace"]' in source
 
 production_bridge = source.split(
@@ -577,6 +604,9 @@ print("forced_rename_failure_cleanup_proven=true")
 print("kernel_rename_noreplace_required=true")
 print("builtin_voidfs_required=true")
 print("voidfs_contract_validator_tested=true")
+print("voidfs_builtin_loader_verified=true")
+print("voidfs_preloaded_cache_rejected=true")
+print("sys_modules_shadow_regression=true")
 print("ctypes_forbidden=true")
 print("dynamic_symbol_lookup_forbidden=true")
 print("libc_symbol_lookup_fallback=false")
