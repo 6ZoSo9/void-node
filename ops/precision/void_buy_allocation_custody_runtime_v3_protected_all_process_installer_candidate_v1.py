@@ -1047,7 +1047,7 @@ def self_test() -> None:
     print("protected_first_entry_required=true")
     print("create_only=true")
     print("destination_collision_rejected=true")
-    print("staging_cleanup_before_publication=true")
+    print("bound_stage_cleanup_before_publication=true")
     print("stage_identity_bound_on_first_successful_post_create_read=true")
     print("stage_generation_unknown_hold=true")
     print("possible_residual_stage_reported=true")
