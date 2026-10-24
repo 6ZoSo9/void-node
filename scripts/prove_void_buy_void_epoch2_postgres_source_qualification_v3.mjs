@@ -64,6 +64,27 @@ for (const [name, mutate, expected] of [
     "activation_candidate_not_dormant",
   ],
   [
+    "clear_source_candidate_only",
+    value => {
+      value.authority.source_candidate_only = false;
+    },
+    "activation_candidate_authority_expanded",
+  ],
+  [
+    "authorize_host_mutation",
+    value => {
+      value.authority.host_mutation = true;
+    },
+    "activation_candidate_authority_expanded",
+  ],
+  [
+    "extend_authority_schema",
+    value => {
+      value.authority.unreviewed = false;
+    },
+    "activation_candidate_authority_expanded",
+  ],
+  [
     "authorize_activation",
     value => {
       value.authority.activation_authorized = true;
@@ -168,7 +189,7 @@ console.log("historical_v2_live_verifier_reexecuted=false");
 console.log("current_activation_candidate_source_requalified=true");
 console.log("current_source_blob_count=28");
 console.log("dormant_gate_adversaries_held=2");
-console.log("authority_expansion_adversaries_held=4");
+console.log("authority_expansion_adversaries_held=7");
 console.log("schema_adversaries_held=1");
 console.log("activation_authorized=false");
 console.log("runtime_gate_mutation=false");
