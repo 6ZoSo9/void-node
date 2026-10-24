@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "f2921df59419d20a69058a7963cec118ef78d4c6"
+EXPECTED_SOURCE_BLOB = "a40f60ff9d11e9a9bc8f215ebef539d759cc0e83"
 
 
 def git_blob(raw: bytes) -> str:
@@ -93,6 +93,29 @@ with tempfile.TemporaryDirectory(
     assert observed_verity["measured"] is True
     assert observed_verity["sha256_algorithm"] is True
 
+    receipt = {
+        "dev": observed_st.st_dev,
+        "ino": observed_st.st_ino,
+        "uid": observed_st.st_uid,
+        "gid": observed_st.st_gid,
+        "mode": format(module.stat.S_IMODE(observed_st.st_mode), "04o"),
+        "nlink": observed_st.st_nlink,
+        "bytes": observed_st.st_size,
+        "mtime_ns": observed_st.st_mtime_ns,
+        "ctime_ns": observed_st.st_ctime_ns,
+    }
+    module._revalidate_file_receipt(sample, receipt)
+
+    replacement = Path(tmp) / "replacement"
+    replacement.write_bytes(b"runtime-bytes")
+    os.replace(replacement, sample)
+    try:
+        module._revalidate_file_receipt(sample, receipt)
+    except module.CensusHold as exc:
+        assert "runtime_generation_changed_after_probe" in str(exc), exc
+    else:
+        raise AssertionError("post_probe_same_path_replacement_accepted")
+
 source = raw.decode("utf-8")
 pre_self_test = source.split("def self_test()", 1)[0]
 
@@ -109,6 +132,9 @@ for required in (
     "def _measure_verity_fd(",
     "def _read_runtime_file(",
     "_measure_verity_fd(fd)",
+    "def _revalidate_file_receipt(",
+    "_revalidate_file_receipt(PYTHON, python)",
+    "_revalidate_file_receipt(STDLIB_ZIP, stdlib)",
     "def _runtime_probe(",
     '"-I", "-B", "-S", "-c"',
     "sys.path[:]=[z]",
@@ -175,6 +201,17 @@ assert "production_explicit_filesystem_write\": False" in source
 assert "production_filesystem_write_free\": False" in source
 assert "production_atime_write_possible\": True" in source
 
+census_block = pre_self_test.split("def census()", 1)[1]
+assert census_block.index("probe = _runtime_probe(stdlib[\"sha256\"])") < census_block.index(
+    "_revalidate_file_receipt(PYTHON, python)"
+)
+assert census_block.index("_revalidate_file_receipt(PYTHON, python)") < census_block.index(
+    "_revalidate_file_receipt(STDLIB_ZIP, stdlib)"
+)
+assert census_block.index("_revalidate_file_receipt(STDLIB_ZIP, stdlib)") < census_block.index(
+    "verity_ready = ("
+)
+
 print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_CLOSED_PYTHON_RUNTIME_CENSUS_V1_PROOF_GREEN")
 print("exact_source_blob_asserted=true")
 print("first_entry_lock_exact=true")
@@ -185,6 +222,8 @@ print("pt_interp_rejected=true")
 print("pt_dynamic_rejected=true")
 print("fsverity_measurement_observed_not_assumed=true")
 print("runtime_hash_and_verity_same_descriptor=true")
+print("post_probe_runtime_generation_revalidated=true")
+print("post_probe_same_path_replacement_rejected=true")
 print("isolated_stdlib_only_probe_bound=true")
 print("sys_path_closed_before_stdlib_imports=true")
 print("voidfs_builtin_required=true")
