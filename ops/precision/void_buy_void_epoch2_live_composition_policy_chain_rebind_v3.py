@@ -157,24 +157,55 @@ def _read_bound_source(path: pathlib.Path, expected_blob: str) -> bytes:
         os.close(fd)
 
 
-def _load_v2() -> types.ModuleType:
-    raw = _read_bound_source(V2_SOURCE, V2_BLOB)
-    module = types.ModuleType(
-        "void_buy_void_epoch2_live_composition_policy_chain_rebind_v2"
-    )
-    module.__file__ = str(V2_SOURCE)
+def _load_bound_module(
+    path: pathlib.Path,
+    expected_blob: str,
+    module_name: str,
+) -> types.ModuleType:
+    raw = _read_bound_source(path, expected_blob)
+    module = types.ModuleType(module_name)
+    module.__file__ = str(path)
     module.__package__ = ""
     exec(
-        compile(raw, str(V2_SOURCE), "exec", dont_inherit=True, optimize=0),
+        compile(raw, str(path), "exec", dont_inherit=True, optimize=0),
         module.__dict__,
     )
     return module
 
 
+def _load_v2() -> types.ModuleType:
+    return _load_bound_module(
+        V2_SOURCE,
+        V2_BLOB,
+        "void_buy_void_epoch2_live_composition_policy_chain_rebind_v2",
+    )
+
+
 def _load_installer(v2: types.ModuleType) -> tuple[types.ModuleType, Any]:
     try:
-        v1 = v2._load_v1()
-        installer = v2._load_installer(v1)
+        v1_source = ROOT / str(v2.V1_REL)
+        if pathlib.Path(v2.V1_SOURCE) != v1_source:
+            raise RebindError("v2_v1_source_path_binding_mismatch")
+
+        v1 = _load_bound_module(
+            v1_source,
+            str(v2.V1_BLOB),
+            "void_buy_void_epoch2_live_composition_policy_head_rebind_v1",
+        )
+
+        installer_source = ROOT / str(v2.INSTALLER_REL)
+        if pathlib.Path(v1.INSTALLER_SOURCE) != installer_source:
+            raise RebindError("v1_installer_source_path_binding_mismatch")
+        if str(v1.INSTALLER_SOURCE_GIT_BLOB_SHA1) != str(v2.INSTALLER_BLOB):
+            raise RebindError("v1_installer_blob_binding_mismatch")
+
+        installer = _load_bound_module(
+            installer_source,
+            str(v2.INSTALLER_BLOB),
+            "void_buy_void_epoch2_live_composition_native_protected_install_v5",
+        )
+    except RebindError:
+        raise
     except BaseException as exc:
         raise RebindError("verified_dependency_load_failed") from exc
     return v1, installer
