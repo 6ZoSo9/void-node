@@ -46,11 +46,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v1.c)" = \
-            "20738b97075080d8458abe2fb6b88bb3a18d6e77"
+            "e4c6e77190844ca750b16d0375189371fdd15642"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v1.py)" = \
-            "e77985d021cf4c424255695cbb1e6da4f4342cf7"
+            "2691442cb9c26838e4380cb9045f0e90dcc6c53b"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v1.md)" = \
-            "276d31987838fc886df49130a6397752a75acb9f"
+            "8c3a7b3d2b159dde46eb934b53af7e2960602ff6"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_installer_first_entry_plan_v1.py)" = \
             "87f6f9766309bfe3d0b9c74625dbc48c6aa0e16d"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json)" = \
@@ -88,7 +88,11 @@ jobs:
             'self_exe_generation_source_bound=true' \
             'root_owned_nonwritable_ancestry_source_bound=true' \
             'native_sha256_file_verification_source_bound=true' \
+            'stdlib_archive_exact_identity_source_bound=true' \
             'runtime_closure_table_source_bound=true' \
+            'runtime_rows_direct_dynload_children_required=true' \
+            'closed_dynload_namespace_source_bound=true' \
+            'unlisted_dynload_entries_rejected_source_bound=true' \
             'retained_installer_fd_source_bound=true' \
             'retained_python_fd_source_bound=true' \
             'stdin_dev_null_source_bound=true' \
