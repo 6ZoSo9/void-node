@@ -39,26 +39,43 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          test "$PR_BASE" = "4499b99a8a7fda883e1f55b11cf8b7ba2939f6b0"
-          git merge-base --is-ancestor "$PR_BASE" HEAD
-          actual="$RUNNER_TEMP/actual-paths"
+          test "${{ github.event.pull_request.base.ref }}" = "main"
+
+          HISTORICAL_BASE="4499b99a8a7fda883e1f55b11cf8b7ba2939f6b0"
+          HISTORICAL_HEAD="ea20cb6bf7420692315df71623ffb38ed1810fcf"
+          git merge-base --is-ancestor "$HISTORICAL_BASE" "$HISTORICAL_HEAD"
+          git merge-base --is-ancestor "$HISTORICAL_HEAD" "$EXPECTED_HEAD"
+
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          SOURCE_BASE="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
+          test -n "$SOURCE_BASE"
+          git merge-base --is-ancestor "$SOURCE_BASE" "$EXPECTED_HEAD"
+          echo "source_base=$SOURCE_BASE"
+
           expected="$RUNNER_TEMP/expected-paths"
-          git diff --name-only "$PR_BASE" HEAD -- | sort > "$actual"
           printf '%s\n' \
             '.github/workflows/buy-void-presale-allocation-custody-host-evidence-port-v2.yml' \
             'docs/operators/buy-void-presale-allocation-custody-host-evidence-port-v2.md' \
             'ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v2.ts' \
             'scripts/prove_buy_void_presale_allocation_custody_host_evidence_port_v2.ts' \
             'tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs' | sort > "$expected"
+
+          historical="$RUNNER_TEMP/historical-paths"
+          git diff --name-only "$HISTORICAL_BASE" "$HISTORICAL_HEAD" -- | sort > "$historical"
+          diff -u "$expected" "$historical"
+          test "$(git diff --name-only --diff-filter=A "$HISTORICAL_BASE" "$HISTORICAL_HEAD" | wc -l)" -eq 5
+
+          actual="$RUNNER_TEMP/actual-paths"
+          git diff --name-only "$SOURCE_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
           diff -u "$expected" "$actual"
-          test "$(git diff --name-only --diff-filter=A "$PR_BASE" HEAD | wc -l)" -eq 5
+          test "$(git diff --name-only --diff-filter=A "$SOURCE_BASE" "$EXPECTED_HEAD" | wc -l)" -eq 5
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v2.ts)" = "74de6857867180c5ababdcecdd6239a8a29e68d2"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_port_v2.ts)" = "291e18b49c1e0c8cc3d261052a867833e4d26527"
           test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-port-v2.md)" = "8a322624d3f1da07596fab13ffcee7bd30da33f0"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = "eef7c4e1db7401ba82fda96aa1e8da40c1981b7d"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v2.mjs)" = "fba97c9c9213048bd7e93e58fe1318f2fb572b10"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v2.mjs)" = "b6aa9cec490d44e44b3d255ada27edbf53cbd5f5"
-          git diff --check "$PR_BASE" HEAD --
+          git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Install locked dependencies without install-time scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
