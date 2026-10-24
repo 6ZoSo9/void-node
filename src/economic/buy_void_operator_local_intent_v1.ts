@@ -96,11 +96,14 @@ function readOperatorCapabilityV1():
 
   const noFollow = fs.constants.O_NOFOLLOW;
   const directoryFlag = fs.constants.O_DIRECTORY;
+  const nonBlock = fs.constants.O_NONBLOCK;
   if (
     typeof noFollow !== "number" ||
     noFollow <= 0 ||
     typeof directoryFlag !== "number" ||
-    directoryFlag <= 0
+    directoryFlag <= 0 ||
+    typeof nonBlock !== "number" ||
+    nonBlock <= 0
   ) {
     return { ok: false };
   }
@@ -153,9 +156,11 @@ function readOperatorCapabilityV1():
       return { ok: false };
     }
 
+    // O_NOFOLLOW alone does not stop a regular-file -> FIFO swap from
+    // blocking here before fstat() can reject the substituted leaf.
     credentialFd = fs.openSync(
       credentialPath,
-      fs.constants.O_RDONLY | noFollow,
+      fs.constants.O_RDONLY | noFollow | nonBlock,
     );
     const before = fs.fstatSync(credentialFd);
     if (
