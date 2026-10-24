@@ -135,7 +135,8 @@
       "implemented_here": false,
       "postcondition": "exact_local_files_group_binding_only_no_nonfiles_collision",
       "requires_gid_inside_bound_system_range": true,
-      "requires_no_preexisting_name_based_group_authority": true
+      "requires_no_preexisting_name_based_group_authority": true,
+      "emits_exact_create_only_group_receipt": true
     },
     {
       "order": 2,
@@ -151,7 +152,8 @@
       "precondition": "expected_local_group_bound_user_name_uid_still_absent",
       "requires_uid_inside_bound_system_range": true,
       "must_not_create_subuid_or_subgid_delegation": true,
-      "requires_no_preexisting_name_based_user_authority": true
+      "requires_no_preexisting_name_based_user_authority": true,
+      "requires_exact_prior_group_receipt": true
     }
   ],
   "post_create_requirements": [
@@ -218,5 +220,25 @@
     "proposed_user_and_group_name_absent_from_tmpfiles_or_other_automatic_chown_chgrp_rules",
     "proposed_name_reference_census_generation_bound_and_repeated_before_each_creation",
     "unknown_unreadable_or_unclassifiable_name_authority_surface_is_hold"
-  ]
+  ],
+  "proof_phase_model": {
+    "phases": [
+      "BEFORE_GROUP_CREATE",
+      "BEFORE_USER_CREATE"
+    ],
+    "before_group_create": {
+      "user_name_uid_absent_required": true,
+      "group_name_gid_absent_required": true,
+      "expected_local_group_binding_must_not_exist": true
+    },
+    "before_user_create": {
+      "user_name_uid_absent_required": true,
+      "exact_expected_local_files_group_binding_required": true,
+      "group_created_by_exact_plan_receipt_required": true,
+      "nonfiles_group_name_gid_absent_required": true,
+      "selected_gid_non_accountdb_authority_absent_required": true
+    },
+    "phase_transition_requires_exact_create_only_group_receipt": true,
+    "preexisting_or_mismatched_group_never_accepted_as_transition": true
+  }
 }
