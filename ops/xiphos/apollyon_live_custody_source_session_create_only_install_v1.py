@@ -1,6 +1,26 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
+
+def _require_isolated_python() -> None:
+    # Before imports from the checkout or ambient interpreter search path.
+    flags = sys.flags
+    if not (
+        flags.isolated == 1
+        and flags.ignore_environment == 1
+        and flags.no_user_site == 1
+        and flags.dont_write_bytecode == 1
+        and getattr(flags, "safe_path", 0) == 1
+    ):
+        sys.stderr.write("HOLD=python_runtime_not_isolated\n")
+        sys.stderr.write("service_start=false\n")
+        sys.stderr.write("training_execution=false\n")
+        sys.stderr.write("funds_movement=false\n")
+        raise SystemExit(2)
+
+_require_isolated_python()
+
 import argparse
 import base64
 import grp
@@ -13,7 +33,6 @@ import shutil
 import socket
 import stat
 import subprocess
-import sys
 import tempfile
 from typing import Any
 
@@ -27,7 +46,7 @@ CUSTODY_GROUP="voidapollyoncustody"
 IPC_GROUP="voidapollyonipc"
 
 MANIFEST_REL="ops/xiphos/apollyon-custody-deployment-manifest-v1.json"
-MANIFEST_BLOB="7de6b518ec67f3c7588f65929fadaa85716ceef5"
+MANIFEST_BLOB="2495dae4f20a9a224ed8be972748d45f3e066340"
 UNIT_REL="ops/xiphos/void-apollyon-authorization-custody-v1.service"
 UNIT_BLOB="30b7b7c62b6b7834ae91db1eb37df05286ca5764"
 TARGET_REL="ops/xiphos/void-apollyon-authorization-custody-v1.target"
@@ -38,8 +57,8 @@ POLKIT_REL="ops/xiphos/00-void-apollyon-training-custody-deny-v1.rules"
 POLKIT_BLOB="9d9e6890a35b6ae3bdc8e7a2f97abc61cff5360f"
 TMPFILES_REL="ops/xiphos/void-apollyon-custody-v1.tmpfiles.conf"
 TMPFILES_BLOB="5d3443c03821b403d52d10629571374325dc5598"
-LIVE_LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
-LIVE_LAUNCHER_BLOB="b96f99d6c513405e6f8b87b8f5c3fb1b1cbbf9c7"
+LIVE_LAUNCHER_REL="ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
+LIVE_LAUNCHER_BLOB="352bd36f2b07091140b990de4170f708eb11fee6"
 PREENTRY_SOURCE_REL="ops/xiphos/apollyon_live_custody_source_session_preentry_v2.c"
 PREENTRY_SOURCE_BLOB="1d0d9893939d1a457970b3b1f16dae06e7fef067"
 LIFECYCLE_REL="ops/xiphos/apollyon_custody_stale_socket_cleanup_v1.py"

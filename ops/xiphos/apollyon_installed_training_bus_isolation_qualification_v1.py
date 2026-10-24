@@ -250,84 +250,8 @@ def observe_live_generation(mainpid: int) -> dict[str, Any]:
     }
 
 def live_qualify() -> dict[str, Any]:
-    if socket.gethostname().casefold() != TARGET_HOST.casefold():
-        hold("wrong_host")
-    if os.geteuid() != 0:
-        hold("root_required")
-    materials = verify_installed_materials()
-    uid, gid = account_ids()
-    if service_property("LoadState") != "loaded":
-        hold("unit_not_loaded")
-    if service_property("ActiveState") == "active":
-        hold("service_already_active")
-    enabled = run_systemctl("is-enabled", UNIT, check=False).stdout.strip()
-    if enabled == "enabled":
-        hold("service_unexpectedly_enabled")
+    hold("standalone_live_qualify_retired_use_v2")
 
-    started = False
-    mainpid = 0
-    live: dict[str, Any] = {}
-    try:
-        run_systemctl("start", UNIT)
-        started = True
-        deadline = time.monotonic() + 5.0
-        while time.monotonic() < deadline:
-            raw_pid = service_property("MainPID")
-            try:
-                candidate = int(raw_pid)
-            except ValueError:
-                candidate = 0
-            if candidate > 0:
-                exe_link = Path(f"/proc/{candidate}/exe")
-                try:
-                    exe = os.path.realpath(exe_link)
-                except OSError:
-                    exe = ""
-                if exe == os.fspath(ENTRYPOINT_PATH):
-                    mainpid = candidate
-                    break
-            time.sleep(0.05)
-        if mainpid <= 0:
-            hold("reviewed_entrypoint_exec_transition_unproven")
-
-        observed = observe_live_generation(mainpid)
-        live = observed["live"]
-    finally:
-        if started:
-            run_systemctl("stop", UNIT, check=False)
-
-    if service_property("ActiveState") == "active":
-        hold("service_failed_to_stop")
-    if run_systemctl("is-enabled", UNIT, check=False).stdout.strip() == "enabled":
-        hold("service_became_enabled")
-
-    material = {
-        "marker": MARKER,
-        "version": 1,
-        "status": "installed_training_bus_isolation_qualified",
-        "target_host": TARGET_HOST,
-        "materials": materials,
-        "live": live,
-        "installed_unit_identity_proven": True,
-        "installed_preentry_binary_identity_proven": True,
-        "installed_training_entrypoint_identity_proven": True,
-        "live_systemd_enforcement_proven": True,
-        "inherited_system_bus_descriptor_absence_proven": True,
-        "absolute_runtime_service_control_denial_proven": True,
-        "canonical_installed_qualification_complete": True,
-        "service_action_performed": True,
-        "service_enabled": False,
-        "service_active_after_qualification": False,
-        "training_execution": False,
-        "attempt_claim": False,
-        "candidate_weight_mutation": False,
-        "next_gate": "apollyon_candidate_training_preclaim_v2",
-        "authority": AUTHORITY,
-    }
-    return {
-        **material,
-        "qualification_id": "apollyon_training_isolation_live_v1:" + sha256(canonical(material).encode("utf-8")),
-    }
 
 def self_test() -> None:
     sample = "Name:\ttest\nUid:\t997\t997\t997\t997\nGid:\t984\t984\t984\t984\nNoNewPrivs:\t1\nCapInh:\t0000000000000000\n"
@@ -338,11 +262,18 @@ def self_test() -> None:
     assert AUTHORITY["attempt_claim"] is False
     assert AUTHORITY["service_enable"] is False
     assert AUTHORITY["existing_live_pid_observation_supported"] is True
+    try:
+        live_qualify()
+    except Hold as exc:
+        assert str(exc) == "standalone_live_qualify_retired_use_v2"
+    else:
+        raise AssertionError("retired standalone live qualifier accepted")
     stat_fixture = "123 (entry v1) S " + " ".join(str(i) for i in range(1, 40))
     assert process_start_time_ticks_from_text(stat_fixture) == 19
     print(MARKER + "_SELF_TEST=GREEN")
     print("source_only_by_import=true")
-    print("live_service_action_requires_explicit_flag=true")
+    print("live_service_action_requires_explicit_flag=false")
+    print("standalone_live_qualify_retired=true")
     print("training_execution=false")
     print("attempt_claim=false")
     print("funds_movement=false")

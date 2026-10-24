@@ -20,9 +20,10 @@ This gate closes that wire-level ambiguity before
 
 The closure declares and the proof re-hashes these exact dependencies:
 
-- #3276 accepted repaired candidate head `c83ca7aa7324d040fe0a2fecddeebd7b04689148`;
-- #3276 candidate blob `87019ae1245a2054407dd47835b0b7a891d4d9a2`;
-- #3233 store-contract blob `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`;
+- current service-source candidate head `ecb7d92cbc7db0c78f7707894dcd4c409bd29433`;
+- current service-source candidate blob `7654ddb2d5875d1aa42e8f41398afb727ba3832d`;
+- current store-contract head `9475035552881f34658a7c8f3a6b336199fda159`;
+- current store-contract blob `bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc`;
 - V1 canonicalizer blob `f97fafb0148527ae3a954e2752faef8c7fc9e88e`.
 
 A downstream implementation must bind this complete protocol dependency closure, not only the envelope file.
@@ -109,12 +110,15 @@ Next gate after source/CI acceptance:
 
 PROTECT THE CORE.
 
-## Current merged source dependency
+## Current source dependency
 
-The accepted #3276 service-source candidate is reviewed at `c83ca7aa7324d040fe0a2fecddeebd7b04689148`,
-with exact source Git blob `87019ae1245a2054407dd47835b0b7a891d4d9a2`; it is preserved as the second
-parent of canonical merge `a5f3668b422715cae203af5f3c46fd5e11b44bde`.
-The rebind updates only source dependency identity, not request marker/version,
+The current service-source candidate is the exact source blob
+`7654ddb2d5875d1aa42e8f41398afb727ba3832d` at commit
+`ecb7d92cbc7db0c78f7707894dcd4c409bd29433`. Its parent store-contract
+identity is the coherent pair `9475035552881f34658a7c8f3a6b336199fda159` /
+`bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc`.
+
+The rebind updates only dependency identity, not request marker/version,
 canonical six-key wire schema, UTF-8-plus-LF framing, or publish SHA-256 logic.
 No protected origin, Xiphos/host read, socket/service action, claim publication,
 training admission, signing, transaction or funds authority follows.

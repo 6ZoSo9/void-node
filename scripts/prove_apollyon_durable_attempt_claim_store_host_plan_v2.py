@@ -16,7 +16,7 @@ WORKFLOW=ROOT/".github/workflows/apollyon-durable-attempt-claim-store-host-plan-
 CANONICALIZER=ROOT/"tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs"
 TERMINAL_RECEIPT=ROOT/"tools/apollyon-live-source-session-terminal-receipt-v2.mjs"
 SESSION_BINDING=ROOT/"tools/apollyon-live-custody-service-source-session-binding-v2.mjs"
-EXPECTED_PLANNER_BLOB_SHA1="ae8acfe7bb737930a67705dd562dcfe9f796bc42"
+EXPECTED_PLANNER_BLOB_SHA1="9e2a716e43e4a9815f9e8f2c67c0d3e322f8b64d"
 EXPECTED_STORE_POLICY_ID=(
     "apollyon_claim_store_policy_v2:"
     "e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"
@@ -32,18 +32,18 @@ source=PLAN.read_text(encoding="utf-8")
 ast.parse(source)
 
 assert git_blob(PLAN.read_bytes())==EXPECTED_PLANNER_BLOB_SHA1
-assert git_blob(CONTRACT.read_bytes())=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
+assert git_blob(CONTRACT.read_bytes())=="bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc"
 assert git_blob(CANONICALIZER.read_bytes())=="f97fafb0148527ae3a954e2752faef8c7fc9e88e"
-assert git_blob(TERMINAL_RECEIPT.read_bytes())=="e27f0ebb968f4611bfc069670325c3f5e6df1c65"
-assert git_blob(SESSION_BINDING.read_bytes())=="981935515e08634be96446e58922c16be56d33ad"
+assert git_blob(TERMINAL_RECEIPT.read_bytes())=="974a383f4904b6b223a2143d5f7a19322f3d1f66"
+assert git_blob(SESSION_BINDING.read_bytes())=="5ee36c89275c29b008094ad030b8664ed9d7b60b"
 assert source.index("import sys")<source.index("_require_isolated_python_startup()")<source.index("import argparse")
 assert 'flags.isolated!=1' in source
 assert 'flags.ignore_environment!=1' in source
 assert 'flags.no_user_site!=1' in source
 assert 'flags.dont_write_bytecode!=1' in source
 assert 'getattr(flags,"safe_path",0)!=1' in source
-assert 'PARENT_HEAD="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"' in source
-assert 'PARENT_CONTRACT_BLOB_SHA1="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"' in source
+assert 'PARENT_HEAD="9475035552881f34658a7c8f3a6b336199fda159"' in source
+assert 'PARENT_CONTRACT_BLOB_SHA1="bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc"' in source
 assert '"e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137"' in source
 assert '"store_policy_id":PARENT_STORE_POLICY_ID' in source
 
@@ -441,10 +441,10 @@ CURRENT_HEAD=head_run.stdout.strip()
 assert len(CURRENT_HEAD)==40 and all(ch in "0123456789abcdef" for ch in CURRENT_HEAD)
 source_generation=module.verify_source_generation(CURRENT_HEAD)
 assert source_generation["source_head"]==CURRENT_HEAD
-assert source_generation["parent_head"]=="fe7e1ad9b78a24b77a1657067e4d08f7c56a7731"
+assert source_generation["parent_head"]=="9475035552881f34658a7c8f3a6b336199fda159"
 assert source_generation["parent_head_ancestor"] is True
 assert source_generation["planner_git_blob_sha1"]==EXPECTED_PLANNER_BLOB_SHA1
-assert source_generation["parent_contract_git_blob_sha1"]=="6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe"
+assert source_generation["parent_contract_git_blob_sha1"]=="bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc"
 assert source_generation["source_generation_authenticated"] is True
 assert source_generation["isolated_python_startup_proven"] is True
 assert source_generation["reviewed_source_head_external_lease_required"] is True
@@ -661,7 +661,7 @@ for line in (
 
 negative=subprocess.run(
     ["python3","-I","-B",str(PLAN),"--run","--expected-parent-head",
-     "fe7e1ad9b78a24b77a1657067e4d08f7c56a7731",
+     "9475035552881f34658a7c8f3a6b336199fda159",
      "--expected-source-head",CURRENT_HEAD,
      "--expected-host-pid-namespace-dev-ino","1:1",
      "--expected-host-user-namespace-dev-ino","1:1"],

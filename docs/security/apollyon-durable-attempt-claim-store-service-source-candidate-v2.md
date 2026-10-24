@@ -12,10 +12,10 @@ It does not implement the claim service, publisher, systemd unit, AF_UNIX listen
 
 ## Exact parents
 
-- accepted store-contract head: `fe7e1ad9b78a24b77a1657067e4d08f7c56a7731`
-- accepted store-contract blob: `6e3e5a80b3f481f98aced9b33e3f2ec66ec96bbe`
-- accepted host-plan head: `e7077f96e212b3b6f25e824e67f57c80bd560b97`
-- accepted planner blob: `ae8acfe7bb737930a67705dd562dcfe9f796bc42`
+- accepted store-contract head: `9475035552881f34658a7c8f3a6b336199fda159`
+- accepted store-contract blob: `bd5572a99ffe0f2cfa43b7d680bbd5077771c6bc`
+- accepted host-plan head: `30edd98609877c15be44d26b46916cf8c5d1f174`
+- accepted planner blob: `9e2a716e43e4a9815f9e8f2c67c0d3e322f8b64d`
 - stable store policy:
   `apollyon_claim_store_policy_v2:e7591d97e95ba4af17097fc89e1e2db612275c84715872153e1ae0a278c01137`
 
@@ -118,11 +118,11 @@ PROTECT THE CORE.
 
 ## Current reviewed host-plan generation
 
-The service candidate now pins the accepted #3265 reviewed planner source at
-`e7077f96e212b3b6f25e824e67f57c80bd560b97` with exact Git blob `ae8acfe7bb737930a67705dd562dcfe9f796bc42`.
-This is the reviewed head preserved as a parent of merged main
-`e70bbb004d58cde6517ed17568e2925a2627c29f`, not an uncontrolled
-caller-selected planner generation. The parent host plan excludes stale
+The service candidate pins the reviewed planner source at
+`30edd98609877c15be44d26b46916cf8c5d1f174` with exact Git blob
+`9e2a716e43e4a9815f9e8f2c67c0d3e322f8b64d`. The host-plan proof binds
+that source head and blob as one exact generation; no provenance claim is made
+through an unrelated historical merge parent. The parent host plan excludes stale
 numeric UID/GID process collisions, verifies host PID and user namespace leases,
 and traverses raw Git commit-object ancestry breadth-first under its unchanged
 4,096-object cap. Numeric identities remain unprovisioned, and a new live

@@ -24,11 +24,50 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - name: Bind exact V1 retirement generation
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          base="$BASE"
+          if [ -z "$base" ]; then
+            base="$(git rev-parse HEAD^)"
+          fi
+          git merge-base --is-ancestor "$base" "$HEAD"
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py)" = \
+            1fdb495aafa136119d50f41410b015930d9fc90d
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_installed_training_bus_isolation_qualification_v1.py)" = \
+            0621f8a918f5eb2f60681d62344d0db94394bd34
+
       - name: Syntax and inert proof
         run: |
           set -euo pipefail
-          python3 -m py_compile             ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py             scripts/prove_apollyon_installed_training_bus_isolation_qualification_v1.py
-          python3 -I -B scripts/prove_apollyon_installed_training_bus_isolation_qualification_v1.py
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py",
+              "scripts/prove_apollyon_installed_training_bus_isolation_qualification_v1.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          PY
+          out="$RUNNER_TEMP/apollyon-v1-retirement.log"
+          python3 -I -B scripts/prove_apollyon_installed_training_bus_isolation_qualification_v1.py | tee "$out"
+          for marker in \
+            'VOID_APOLLYON_INSTALLED_TRAINING_BUS_ISOLATION_QUALIFICATION_V1_PROOF_GREEN' \
+            'standalone_live_qualify_retired=true' \
+            'observe_live_generation_ast_unchanged=true' \
+            'receipt_canonicalizer_ast_unchanged=true' \
+            'installed_material_observer_ast_unchanged=true' \
+            'existing_live_pid_observation_supported=true' \
+            'same_process_composition_possible=true' \
+            'training_execution=false' \
+            'attempt_claim=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
 
       - name: Diff hygiene
@@ -38,5 +77,9 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$HEAD"
-          git merge-base --is-ancestor "$BASE" "$HEAD"
-          git diff --check "$BASE" "$HEAD"
+          base="$BASE"
+          if [ -z "$base" ]; then
+            base="$(git rev-parse HEAD^)"
+          fi
+          git merge-base --is-ancestor "$base" "$HEAD"
+          git diff --check "$base" "$HEAD"

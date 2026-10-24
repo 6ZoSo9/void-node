@@ -23,7 +23,7 @@ for(const [relative,expected] of Object.entries({
   "tools/apollyon-designated-host-custody-live-qualification-v2.mjs":
     "435e23d26fa32405e36d5dad17b033ea4ec910e0",
   "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py":
-    "0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7",
+    "1fdb495aafa136119d50f41410b015930d9fc90d",
 })){
   assert.equal(gitBlob(fs.readFileSync(path.join(ROOT,relative))),expected,relative);
 }

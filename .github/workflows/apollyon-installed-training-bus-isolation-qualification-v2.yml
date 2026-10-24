@@ -1,0 +1,331 @@
+name: Apollyon installed training bus isolation qualification v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py"
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
+      - "ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py"
+      - "ops/xiphos/apollyon-live-custody-reviewed-root-v2-upgrade-v1.json"
+      - "ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
+      - "tools/apollyon-live-custody-source-session-runner-v2.mjs"
+      - "scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py"
+      - "docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md"
+      - ".github/workflows/apollyon-installed-training-bus-isolation-qualification-v2.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py"
+      - "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
+      - "ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py"
+      - "ops/xiphos/apollyon-live-custody-reviewed-root-v2-upgrade-v1.json"
+      - "ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
+      - "tools/apollyon-live-custody-source-session-runner-v2.mjs"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py"
+      - "tools/apollyon-live-custody-source-session-runner-v2.mjs"
+      - "scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py"
+      - "docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md"
+      - ".github/workflows/apollyon-installed-training-bus-isolation-qualification-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Bind additive V2 scope and V1 dependency
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          v1_blob=1fdb495aafa136119d50f41410b015930d9fc90d
+
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v1.py)" = "$v1_blob"
+
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
+            b57457435cc691ce576ef090e67ba323af254929
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py)" = \
+            34b93d610fdaf3d75b769c2d676be5533c5a517d
+          test "$(git rev-parse HEAD:docs/security/apollyon-installed-training-bus-isolation-qualification-v2.md)" = \
+            ae94e99e3c93095a450c1659fbf3e6cf5495d1a4
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py)" = \
+            352bd36f2b07091140b990de4170f708eb11fee6
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_launcher_v2.py)" = \
+            820f7151c0f83280b7457f841cee14c3b0c274b6
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_reviewed_root_v2_upgrade_v1.py)" = \
+            95b2f64562e995611807aac7f9b8b044775f203b
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon-live-custody-reviewed-root-v2-upgrade-v1.json)" = \
+            e78f1709c81775b881ab8f54291bd470ff9e1353
+          test "$(git rev-parse HEAD:ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py)" = \
+            87fa30d10d8d18716cd37ee2d375f0a1d094bdcf
+          test "$(git rev-parse HEAD:tools/apollyon-live-custody-source-session-runner-v2.mjs)" = \
+            8c2c92055ab05c074653cee971e095934b5cb85c
+
+          if [ "$EVENT_NAME" = pull_request ]; then
+            base="$PR_BASE"
+            test -n "$base"
+            git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+          elif [ "$EVENT_NAME" = push ]; then
+            base="$PUSH_BEFORE"
+            test -n "$base"
+            test "$base" != 0000000000000000000000000000000000000000
+            git merge-base --is-ancestor "$base" "$EXPECTED_HEAD"
+          elif [ "$EVENT_NAME" = workflow_dispatch ]; then
+            base="$(git rev-parse HEAD^)"
+          else
+            echo "unsupported_event=$EVENT_NAME" >&2
+            exit 1
+          fi
+
+          git diff --check "$base" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Verify real self-test retirement output
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/apollyon-training-isolation-shutdown-v2-self-test.log"
+          timeout 20s python3 -I -B ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py --self-test | tee "$out"
+          SELF_TEST_OUTPUT="$out" python3 -I -B - <<'PYCODE'
+          import os
+          from pathlib import Path
+
+          expected = [
+              "VOID_APOLLYON_INSTALLED_TRAINING_BUS_ISOLATION_QUALIFICATION_V2_SELF_TEST_GREEN",
+              "v1_source_blob_bound=true",
+              "standalone_live_qualify_retired=true",
+              "standalone_service_start_stop_required=false",
+              "service_process_action=false",
+              "service_start_stop=false",
+              "launcher_live_activation_retired=true",
+              "no_reviewed_training_service_activator=true",
+              "v1_observe_live_pid_receipt_unchanged=true",
+              "training_execution=false",
+              "attempt_claim=false",
+              "funds_movement=false",
+          ]
+
+          def require_contract(lines):
+              if lines != expected:
+                  raise ValueError("self_test_retirement_output_contract_mismatch")
+
+          actual = Path(os.environ["SELF_TEST_OUTPUT"]).read_text("utf-8").splitlines()
+          require_contract(actual)
+          stale = "lock_aware_launcher_sole_reviewed_lifecycle_owner=true"
+          invalid_outputs = (
+              actual + [stale],
+              [stale if line == "no_reviewed_training_service_activator=true" else line for line in actual],
+              [line for line in actual if line != "launcher_live_activation_retired=true"],
+              actual + ["no_reviewed_training_service_activator=true"],
+          )
+          for invalid in invalid_outputs:
+              try:
+                  require_contract(invalid)
+              except ValueError:
+                  continue
+              raise AssertionError("contradictory_missing_or_duplicate_marker_accepted")
+          print("qualifier_self_test_retirement_contract_proven=true")
+          print("stale_lifecycle_owner_marker_rejected=true")
+          print("missing_retirement_marker_rejected=true")
+          print("duplicate_retirement_marker_rejected=true")
+          PYCODE
+
+      - name: Prove bounded descriptor source reads
+        run: |
+          set -euo pipefail
+          timeout 30s python3 -I -B - <<'PYREADER'
+          import errno
+          import os
+          from pathlib import Path
+          import tempfile
+          import types
+
+          source_path = Path('ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py').resolve()
+          mod = types.ModuleType('apollyon_source_reader_regression')
+          mod.__file__ = str(source_path)
+          exec(compile(source_path.read_bytes(), str(source_path), 'exec'), mod.__dict__)
+          original = b'# deterministic source fixture\n'
+          mod.V1_BLOB = mod.git_blob(original)
+
+          class RacingPath:
+              def __init__(self, path, swap):
+                  self.path, self.swap, self.calls = path, swap, 0
+              def __fspath__(self):
+                  return os.fspath(self.path)
+              def lstat(self):
+                  before = self.path.lstat()
+                  self.calls += 1
+                  if self.calls == 1:
+                      self.swap()
+                  return before
+
+          class FixtureRoot:
+              def __init__(self, path):
+                  self.path = path
+              def __truediv__(self, _relative):
+                  return self.path
+
+          with tempfile.TemporaryDirectory(prefix='apollyon-source-reader-regression-') as td:
+              root = Path(td)
+              source = root / 'source.py'
+              target = root / 'target.py'
+              target.write_bytes(original)
+              original_open, original_pread, original_close = os.open, os.pread, os.close
+              for case in ('stable', 'symlink', 'fifo', 'oversize', 'same_bytes_inode', 'growth', 'short_read', 'read_error', 'path_loss', 'close_error'):
+                  if source.exists() or source.is_symlink():
+                      source.unlink()
+                  source.write_bytes(original)
+                  opened, closed, reads = [], [], []
+                  def swap():
+                      if case not in ('symlink', 'fifo', 'oversize', 'same_bytes_inode'):
+                          return
+                      replacement = root / 'replacement'
+                      if case == 'symlink':
+                          replacement.symlink_to(target)
+                      elif case == 'fifo':
+                          os.mkfifo(replacement)
+                      else:
+                          replacement.write_bytes(b'x' * (mod.MAX_SOURCE_BYTES + 1) if case == 'oversize' else original)
+                      os.replace(replacement, source)
+                  mod.ROOT = FixtureRoot(RacingPath(source, swap))
+                  def tracking_open(path, flags, *args, **kwargs):
+                      required = os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+                      if flags & required != required:
+                          raise AssertionError('source_open_flags_incomplete')
+                      fd = original_open(path, flags, *args, **kwargs)
+                      opened.append(fd)
+                      return fd
+                  def tracking_read(fd, count, offset):
+                      reads.append((count, offset))
+                      if (count, offset) not in ((len(original), 0), (1, len(original))):
+                          raise AssertionError('source_read_exceeds_authenticated_bound')
+                      if case == 'read_error':
+                          raise OSError(errno.EIO, 'fixture read error')
+                      raw = original_pread(fd, count, offset)
+                      if offset == 0:
+                          if case == 'growth':
+                              with source.open('ab') as stream:
+                                  stream.write(b'x' * (mod.MAX_SOURCE_BYTES + 1))
+                          elif case == 'short_read':
+                              return raw[:-1]
+                          elif case == 'path_loss':
+                              source.unlink()
+                      return raw
+                  def tracking_close(fd):
+                      closed.append(fd)
+                      result = original_close(fd)
+                      if case == 'close_error':
+                          raise OSError(errno.EIO, 'fixture close error after actual close')
+                      return result
+                  try:
+                      os.open, os.pread, os.close = tracking_open, tracking_read, tracking_close
+                      try:
+                          result = mod._stable_source('source.py')
+                      except mod.Hold:
+                          if case == 'stable':
+                              raise
+                      else:
+                          if case != 'stable' or result != original:
+                              raise AssertionError('source_race_accepted:' + case)
+                  finally:
+                      os.open, os.pread, os.close = original_open, original_pread, original_close
+                  if closed != opened:
+                      raise AssertionError('source_descriptor_not_closed_once:' + case)
+                  for fd in opened:
+                      try:
+                          os.fstat(fd)
+                      except OSError as exc:
+                          if exc.errno != errno.EBADF:
+                              raise
+                      else:
+                          raise AssertionError('source_descriptor_leaked:' + case)
+                  if case in ('symlink', 'fifo', 'oversize', 'same_bytes_inode') and reads:
+                      raise AssertionError('replacement_source_read_before_rejection:' + case)
+                  if case == 'stable' and reads != [(len(original), 0), (1, len(original))]:
+                      raise AssertionError('bounded_source_and_eof_probe_missing')
+                  print('source_reader_' + case + '_proven=true')
+          print('source_reader_descriptor_cleanup_proven=true')
+          print('source_reader_bounded_nofollow_nonblocking_proven=true')
+          print('host_service_action=false')
+          print('training_execution=false')
+          PYREADER
+
+      - name: Prove retired standalone and launcher lifecycle
+        run: |
+          set -euo pipefail
+
+          node --check tools/apollyon-live-custody-source-session-runner-v2.mjs
+
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for relative in (
+              "ops/xiphos/apollyon_installed_training_bus_isolation_qualification_v2.py",
+              "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py",
+              "scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py",
+          ):
+              compile(Path(relative).read_text("utf-8"), relative, "exec", dont_inherit=True)
+          print("VOID_APOLLYON_INSTALLED_TRAINING_BUS_ISOLATION_QUALIFICATION_V2_SYNTAX_GREEN")
+          PY
+
+          out="$RUNNER_TEMP/apollyon-training-isolation-shutdown-v2.log"
+          python3 -I -B scripts/prove_apollyon_installed_training_bus_isolation_qualification_v2.py | tee "$out"
+
+          for marker in \
+            'VOID_APOLLYON_INSTALLED_TRAINING_BUS_ISOLATION_QUALIFICATION_V2_PROOF_GREEN' \
+            'v1_source_blob_bound=true' \
+            'missing_v1_dependency_hold=true' \
+            'standalone_v2_live_qualify_retired=true' \
+            'standalone_v2_service_action=false' \
+            'standalone_v2_systemctl_start_absent=true' \
+            'standalone_v2_systemctl_stop_absent=true' \
+            'standalone_v2_lifecycle_lock_not_acquired=true' \
+            'standalone_v2_foreign_generation_stop_race_eliminated=true' \
+            'retired_live_authority_service_action_false=true' \
+            'retired_live_cli_hold_contract=true' \
+            'launcher_live_activation_retired=true' \
+            'launcher_service_action=false' \
+            'launcher_lifecycle_lock_not_acquired=true' \
+            'launcher_private_closure_not_materialized=true' \
+            'launcher_runner_spawn_absent=true' \
+            'launcher_systemd_action_absent=true' \
+            'launcher_foreign_generation_stop_race_eliminated=true' \
+            'launcher_pre_spawn_signal_window_eliminated=true' \
+            'launcher_retired_authority_receipt_verified=true' \
+            'launcher_retired_cli_hold_contract=true' \
+            'no_reviewed_training_service_activator=true' \
+            'replacement_stable_lifecycle_lock_inode=true' \
+            'root_only_lifecycle_lock_inode=true' \
+            'unprivileged_lifecycle_lock_open_rejected=true' \
+            'unit_file_replacement_does_not_split_lock=true' \
+            'accepted_runner_blob_unchanged=true' \
+            'legacy_launcher_source_unchanged=true' \
+            'canonical_installer_selects_retired_launcher=true' \
+            'canonical_upgrade_retires_prior_current_launcher=true' \
+            'canonical_upgrade_post_swap_quiescence_bound=true' \
+            'v1_observe_live_pid_receipt_unchanged=true' \
+            'training_execution=false' \
+            'attempt_claim=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"

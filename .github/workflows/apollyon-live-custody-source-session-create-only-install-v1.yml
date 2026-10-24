@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
       - "ops/xiphos/apollyon-node-runtime-custody-v1.json"
       - "ops/xiphos/apollyon_node_runtime_create_only_install_v1.py"
       - "scripts/prove_apollyon_live_custody_source_session_create_only_install_v1.py"
@@ -19,6 +20,7 @@ on:
     branches: [main]
     paths:
       - "ops/xiphos/apollyon_live_custody_source_session_create_only_install_v1.py"
+      - "ops/xiphos/apollyon_live_custody_source_session_launcher_lifecycle_lock_v1.py"
       - "ops/xiphos/apollyon-node-runtime-custody-v1.json"
       - "ops/xiphos/apollyon_node_runtime_create_only_install_v1.py"
       - "scripts/prove_apollyon_live_custody_source_session_create_only_install_v1.py"
@@ -49,7 +51,9 @@ jobs:
       - name: Prove create-only installer
         run: |
           set -euo pipefail
-          python3 -I -B scripts/prove_apollyon_live_custody_source_session_create_only_install_v1.py
+          python3 -I -B scripts/prove_apollyon_live_custody_source_session_create_only_install_v1.py | tee "$RUNNER_TEMP/apollyon-create-only-proof.log"
+          grep -Fx 'isolated_python_preimport_guard=true' "$RUNNER_TEMP/apollyon-create-only-proof.log"
+          grep -Fx 'nonisolated_checkout_module_not_executed=true' "$RUNNER_TEMP/apollyon-create-only-proof.log"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Diff hygiene
         env:

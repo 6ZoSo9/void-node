@@ -42,7 +42,7 @@ export const VOID_APOLLYON_CANDIDATE_TRAINING_ATTEMPT_CLAIM_CONTRACT_AUTHORITY_V
     funds_movement:false,
   });
 
-const PRECLAIM_V2_BLOB_SHA1="33a7f0d51d7ce1ab6e7ee48e4e205c0b639cca82";
+const PRECLAIM_V2_BLOB_SHA1="d062fe9d8f70f731e157c8d9f835d3f936ac5d59";
 const V1_CANONICALIZER_BLOB_SHA1="f97fafb0148527ae3a954e2752faef8c7fc9e88e";
 const HASH64=/^[0-9a-f]{64}$/u;
 const GIT40=/^[0-9a-f]{40}$/u;
@@ -116,7 +116,7 @@ function validatePreclaim(value){
     value.target_host!=="Xiphos"||
     value.current_v2_policy_blob_sha1!=="db5493a513a42780865e7194580eec3b770dc8e1"||
     value.current_v2_live_qualifier_blob_sha1!=="435e23d26fa32405e36d5dad17b033ea4ec910e0"||
-    value.installed_isolation_qualifier_blob_sha1!=="0f9263ddfb2bc6974e77c2d4eb0f1ee93fed52e7"||
+    value.installed_isolation_qualifier_blob_sha1!=="1fdb495aafa136119d50f41410b015930d9fc90d"||
     !PRECLAIM_ID.test(value.preclaim_id)||
     !LIVE_V2_ID.test(value.current_v2_live_qualification_id)||
     !ISOLATION_ID.test(value.installed_isolation_qualification_id)||
