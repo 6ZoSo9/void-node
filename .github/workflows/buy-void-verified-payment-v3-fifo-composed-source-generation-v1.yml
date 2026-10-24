@@ -65,8 +65,8 @@ jobs:
       - name: Bind exact V3 composition
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          ACCEPTED_PARENT: 084b9a657be7cc074dfd954d37651d8b00d47153
-          ACCEPTED_PARENT_TREE: d5fa53943f709108716065220493da97d4880023
+          ACCEPTED_PARENT: 29057c25f06fcb214853bc612ea7606211778f81
+          ACCEPTED_PARENT_TREE: 3f3f9b834e0cfeeafb636502330d2c48d526287e
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -109,7 +109,7 @@ jobs:
           test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "d1320be22fe55af24017b84f0655fbcde82dbee9"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_capacity_fifo_nonblocking_v2.ts)" = "1b3d72c2eda967f5cd84d929cd80c62508cce16e"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs)" = "796cad42e6413a1894eef8dc0466848377176645"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "baea6a3ab04ac478a4f9737d61ec1257c2fc064d"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "28f76da047016eb42b7a2a538a9743621ac74379"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v3_trigger_closure_v1.mjs)" = "095461babc377187e06ed7dd514cf963b7576633"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - name: Build exact composition
@@ -150,6 +150,7 @@ jobs:
           grep -Fx 'historical_v2_candidate_enforcement_identity_accepted=true' "$out"
           grep -Fx 'candidate_enforcement_identity_accepted=false' "$out"
           grep -Fx 'protected_path_identity_preserved=false' "$out"
+          grep -Fx 'protected_canonical_producer_launcher_drift_classified=true' "$out"
           grep -Fx 'protected_range_router_drift_classified=true' "$out"
           grep -Fx 'current_protected_source_generation_accepted=false' "$out"
           node --input-type=module - "$receipt" <<'NODE'
@@ -168,7 +169,12 @@ jobs:
           assert.equal(p.historical_v2_candidate_enforcement_identity_accepted,true);
           assert.equal(p.candidate_enforcement_identity_accepted,false);
           assert.equal(p.protected_path_identity_preserved,false);
+          assert.equal(p.protected_canonical_producer_launcher_drift_classified,true);
           assert.equal(p.protected_range_router_drift_classified,true);
+          assert.deepEqual(
+            p.protected_current_generation_drift.map(row=>row.path),
+            ["ops/run-void-node-live-v1.sh","src/index.ts"],
+          );
           assert.equal(p.current_protected_source_generation_accepted,false);
           assert.equal(p.verified_payment_v2_route_mounted,false);
           assert.equal(p.payment_allocation_custody_authority,false);

@@ -131,6 +131,9 @@ const LOCK_BLOB="589845615654da8b688764377b34296267ac0063";
 const CENSUS_ID="voidbefv7c4_9c8fa20632d3cfb431c0d13229153d19f076613720c7402e5374eab1f833401d";
 const CENSUS_SHA256="c9d910cd461b87c6b4722ada7505ceffe9a8d3c266387f3d9bbebddaf8f586f8";
 const PROTECTED_INVENTORY="224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2";
+const PROTECTED_CANONICAL_PRODUCER_PATH="ops/run-void-node-live-v1.sh";
+const PROTECTED_CANONICAL_PRODUCER_PREDECESSOR_BLOB="6fb040de128ce0df16e848d61ea5f4acb62794da";
+const PROTECTED_CANONICAL_PRODUCER_SOURCE_BLOB="bc6a17ccdf389299fb139db37e742f0b1ad9dc4e";
 const PROTECTED_RANGE_ROUTER_PATH="src/index.ts";
 const PROTECTED_RANGE_ROUTER_PREDECESSOR_BLOB="123ec1792a027f93d4c9030749a0e7e136a75a44";
 const PROTECTED_RANGE_ROUTER_SOURCE_BLOB="a09661797aa4295371c036be36d82995e5233269";
@@ -564,6 +567,21 @@ function verifyProtectedCurrentIdentity(candidate){
   for(const row of rows){
     const currentBlob=treeBlob("HEAD",row.path);
     const currentMode=treeMode("HEAD",row.path);
+    if(row.path===PROTECTED_CANONICAL_PRODUCER_PATH){
+      assert.equal(row.git_blob_sha1,PROTECTED_CANONICAL_PRODUCER_PREDECESSOR_BLOB,
+        "protected_canonical_producer_predecessor_drift");
+      assert.equal(currentBlob,PROTECTED_CANONICAL_PRODUCER_SOURCE_BLOB,
+        "protected_canonical_producer_source_drift");
+      assert.equal(currentMode,row.git_mode,
+        "protected_canonical_producer_mode_drift");
+      protectedDrift.push({
+        path:row.path,
+        from_git_blob_sha1:row.git_blob_sha1,
+        to_git_blob_sha1:currentBlob,
+        git_mode:currentMode,
+      });
+      continue;
+    }
     if(row.path===PROTECTED_RANGE_ROUTER_PATH){
       assert.equal(row.git_blob_sha1,PROTECTED_RANGE_ROUTER_PREDECESSOR_BLOB,
         "protected_range_router_predecessor_drift");
@@ -585,6 +603,11 @@ function verifyProtectedCurrentIdentity(candidate){
   assert.deepEqual(
     protectedDrift,
     [{
+      path:PROTECTED_CANONICAL_PRODUCER_PATH,
+      from_git_blob_sha1:PROTECTED_CANONICAL_PRODUCER_PREDECESSOR_BLOB,
+      to_git_blob_sha1:PROTECTED_CANONICAL_PRODUCER_SOURCE_BLOB,
+      git_mode:"100755",
+    },{
       path:PROTECTED_RANGE_ROUTER_PATH,
       from_git_blob_sha1:PROTECTED_RANGE_ROUTER_PREDECESSOR_BLOB,
       to_git_blob_sha1:PROTECTED_RANGE_ROUTER_SOURCE_BLOB,
@@ -739,16 +762,16 @@ function verifyV2PredecessorRefusal(){
   assert.notEqual(result.status,0,"v2_predecessor_unexpectedly_accepted_fifo_generation");
   const output=String(result.stdout||"")+"\n"+String(result.stderr||"");
   assert.ok(
-    output.includes("protected_blob_drift:"+PROTECTED_RANGE_ROUTER_PATH),
+    output.includes("protected_blob_drift:"+PROTECTED_CANONICAL_PRODUCER_PATH),
     "v2_predecessor_refusal_reason_changed",
   );
   assert.ok(
-    output.includes(PROTECTED_RANGE_ROUTER_PREDECESSOR_BLOB),
-    "v2_predecessor_refusal_old_router_missing",
+    output.includes(PROTECTED_CANONICAL_PRODUCER_PREDECESSOR_BLOB),
+    "v2_predecessor_refusal_old_launcher_missing",
   );
   assert.ok(
-    output.includes(PROTECTED_RANGE_ROUTER_SOURCE_BLOB),
-    "v2_predecessor_refusal_new_router_missing",
+    output.includes(PROTECTED_CANONICAL_PRODUCER_SOURCE_BLOB),
+    "v2_predecessor_refusal_new_launcher_missing",
   );
   return true;
 }
@@ -773,6 +796,7 @@ function verify(){
     protected_parent:PROTECTED_PARENT,
     protected_path_count:protectedState.paths.length,
     protected_path_identity_preserved:false,
+    protected_canonical_producer_launcher_drift_classified:true,
     protected_range_router_drift_classified:true,
     protected_current_generation_drift:protectedState.protectedDrift,
     current_protected_source_generation_accepted:false,
@@ -841,6 +865,7 @@ if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   console.log("verified_payment_v2_route_mounted=false");
   console.log("independent_source_acceptance_complete=false");
   console.log("protected_path_identity_preserved="+receipt.protected_path_identity_preserved);
+  console.log("protected_canonical_producer_launcher_drift_classified="+receipt.protected_canonical_producer_launcher_drift_classified);
   console.log("protected_range_router_drift_classified="+receipt.protected_range_router_drift_classified);
   console.log("current_protected_source_generation_accepted="+receipt.current_protected_source_generation_accepted);
   console.log("protected_path_count="+receipt.protected_path_count);

@@ -1,18 +1,19 @@
 # Current-main V3 reconciliation — October 23, 2026
 
-This document's current authoritative generation is the direct-current-main V3 source candidate on `main@084b9a657be7cc074dfd954d37651d8b00d47153`.
+This document's current authoritative generation is the direct-current-main V3 source candidate on `main@29057c25f06fcb214853bc612ea7606211778f81`.
 
 Exact current properties:
 
 - scope: exactly 27 paths relative to that main generation;
 - landed V2 source-acceptance carrier: `652197dc8df36f0f2004d50c6bbf95369790e2d1`;
-- range-enabled mounted router: `src/index.ts` Git blob `a09661797aa4295371c036be36d82995e5233269`;
+- canonical-producer V5 launcher: `ops/run-void-node-live-v1.sh` Git blob `bc6a17ccdf389299fb139db37e742f0b1ad9dc4e`, historical V2 predecessor `6fb040de128ce0df16e848d61ea5f4acb62794da`;
+- range-enabled mounted router: `src/index.ts` Git blob `a09661797aa4295371c036be36d82995e5233269`, historical V2 predecessor `123ec1792a027f93d4c9030749a0e7e136a75a44`;
 - FIFO-safe verified-payment capacity writer: Git blob `d1320be22fe55af24017b84f0655fbcde82dbee9`;
 - range-only dispatcher V6 remains immutable at `1ef5cd61a338cf726ddec59cea24932846d8d1fb`;
 - combined dispatcher V7 source proof is a new successor and must bind the range router plus FIFO-safe writer without rewriting V6;
 - current-presale V3 is historical refusal; V4 is the source-only combined successor;
-- the V2 source-acceptance workflow is historical refusal under the V3 writer transition;
-- the current protected-source generation is **not accepted by this PR**. In particular, the open V5 protected candidate carries hardened deployment-receipt installer blob `f2d5288d...`, while current main still carries historical blob `3de6e4bd...`. This PR must not silently treat that V5 lock as current-main authority.
+- the V2 source-acceptance workflow is historical refusal under the current protected generation; its first frozen-row refusal is now the canonical-producer V5 launcher, before the later range-router drift;
+- the current protected-source generation is **not accepted by this PR**. Relative to frozen V2 evidence, the current protected drift set includes the canonical-producer V5 launcher and the range router. Both are classified source-generation changes, not acceptance authority.
 
 Therefore all of these remain false:
 
