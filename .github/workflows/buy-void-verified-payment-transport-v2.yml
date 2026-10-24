@@ -40,6 +40,8 @@ jobs:
           set -euo pipefail
           HISTORICAL_BASE="1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"
           HISTORICAL_HEAD="0628d81259fed779ea3bb6c4d067b66b19a3e577"
+          SOURCE_ACCEPTANCE_HEAD="52ae2fed1464157848c95fdccf10f23802f85ed6"
+          SOURCE_ACCEPTANCE_TREE="ceae3ee1ea428d09376be71ec473d1c1b96af620"
 
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$BASE_REF" = "main"
@@ -48,6 +50,8 @@ jobs:
           echo "source_base=$SOURCE_BASE"
           git merge-base --is-ancestor "$SOURCE_BASE" "$EXPECTED_HEAD"
           git merge-base --is-ancestor "$HISTORICAL_HEAD" "$EXPECTED_HEAD"
+          git merge-base --is-ancestor "$SOURCE_ACCEPTANCE_HEAD" "$EXPECTED_HEAD"
+          test "$(git rev-parse "$SOURCE_ACCEPTANCE_HEAD^{tree}")" = "$SOURCE_ACCEPTANCE_TREE"
 
           # Preserve the original seven ADD-only generation exactly.
           test "$(git merge-base "$HISTORICAL_BASE" "$HISTORICAL_HEAD")" = "$HISTORICAL_BASE"
@@ -59,9 +63,32 @@ jobs:
           git diff --name-status "$HISTORICAL_BASE" "$HISTORICAL_HEAD" --             | sort > "$RUNNER_TEMP/historical"
           diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/historical"
 
-          # Current-main composition must expose the same seven ADD-only paths.
-          git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" --             | sort > "$RUNNER_TEMP/current"
-          diff -u "$RUNNER_TEMP/expected" "$RUNNER_TEMP/current"
+          # The combined direct-main head intentionally includes the accepted
+          # nine-path V2 source-acceptance/protected-dispatch successor on top
+          # of the historical seven-path transport generation. Validate that
+          # 16-path composition exactly rather than misclassifying it as drift.
+          printf '%b\n' \
+            'M\t.github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml' \
+            'M\t.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml' \
+            'M\t.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml' \
+            'M\t.github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml' \
+            'M\t.github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml' \
+            'A\t.github/workflows/buy-void-verified-payment-transport-v2.yml' \
+            'A\t.github/workflows/buy-void-verified-payment-v2-source-generation-acceptance-v1.yml' \
+            'A\tdocs/architecture/buy-void-verified-payment-v2-source-generation-acceptance-v1.md' \
+            'A\tscripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs' \
+            'A\tscripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs' \
+            'A\tscripts/prove_buy_void_verified_payment_transport_v2.ts' \
+            'A\tscripts/prove_buy_void_verified_payment_v2_allocation_stage.ts' \
+            'A\tscripts/prove_buy_void_verified_payment_v2_trigger_closure_v1.mjs' \
+            'A\tsrc/economic/buy_void_v2_custody_inspect_bridge_v1.mjs' \
+            'A\tsrc/economic/buy_void_verified_payment_transport_v2.ts' \
+            'A\tsrc/economic/buy_void_verified_payment_v2_allocation_stage.ts' \
+            | sort > "$RUNNER_TEMP/current-expected"
+
+          git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" -- \
+            | sort > "$RUNNER_TEMP/current"
+          diff -u "$RUNNER_TEMP/current-expected" "$RUNNER_TEMP/current"
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs)" =             "b87945fb2d7df4af4740fc28ae467f8f660361e3"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_transport_v2.ts)" =             "2714988acfbcded3d4779ef79a141cd3e39b1426"
