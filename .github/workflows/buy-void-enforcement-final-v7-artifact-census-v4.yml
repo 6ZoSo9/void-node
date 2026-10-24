@@ -7,14 +7,19 @@ on:
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs"
+      - "runtime/canonical-producer-self-http-guard-v5.cjs"
+      - "ops/run-void-node-live-v1.sh"
+      - "src/index.ts"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v4.md"
       - "ops/precision/**"
       - "ops/security/**"
-      - "ops/run-void-node-live-v1.sh"
       - "runtime/**"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
       - "src/economic/**"
-      - "src/index.ts"
       - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "package.json"
@@ -28,14 +33,19 @@ on:
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v4.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs"
+      - "runtime/canonical-producer-self-http-guard-v5.cjs"
+      - "ops/run-void-node-live-v1.sh"
+      - "src/index.ts"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v4.md"
       - "ops/precision/**"
       - "ops/security/**"
-      - "ops/run-void-node-live-v1.sh"
       - "runtime/**"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
       - "src/economic/**"
-      - "src/index.ts"
       - "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs"
       - "tools/void-reviewed-node-package-runtime-v1.mjs"
       - "package.json"
@@ -72,21 +82,27 @@ jobs:
       - name: Verify frozen V4 census against current protected integration
         run: |
           set -euo pipefail
-          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"
-          echo "V2_ACCEPTANCE_SPLIT_ASSERTION_V1"
+          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V3"
+          echo "V3_PROTECTED_SUCCESSOR_ASSERTION_V1"
           out="$RUNNER_TEMP/final-v7-v2-census-v4-node-${{ matrix.node }}.json"
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --receipt > "$out"
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --self-test
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --receipt > "$out"
           node --input-type=module - "$out" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(c.schema,"void_buy_void_repaired_v7_v2_current_generation_dispatch_v2");
-          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2");
+          assert.equal(c.schema,"void_buy_void_repaired_v7_v2_current_generation_dispatch_v3");
+          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
           assert.equal(c.historical_v2_candidate_enforcement_identity_accepted,true);
           assert.equal(c.candidate_enforcement_identity_accepted,false);
           assert.equal(c.protected_path_count,49);
-          assert.equal(c.protected_path_identity_preserved,true);
+          assert.equal(c.frozen_protected_inventory_preserved,true);
+          assert.equal(c.protected_path_identity_preserved,false);
+          assert.equal(c.unchanged_protected_path_count,47);
+          assert.equal(c.reviewed_protected_successor_count,2);
+          assert.equal(c.current_protected_successor_binding_verified,true);
+          assert.equal(c.current_router_v6_successor_verified,true);
+          assert.equal(c.canonical_producer_v5_successor_verified,true);
           assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
           assert.equal(c.frozen_v4_census_proof_preserved,true);
           assert.equal(c.nonprotected_economic_drift_count,6);
@@ -124,11 +140,17 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync("census/final-v7-v2-census-v4-node-22.json","utf8"));
-          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2");
+          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
           assert.equal(c.historical_v2_candidate_enforcement_identity_accepted,true);
           assert.equal(c.candidate_enforcement_identity_accepted,false);
           assert.equal(c.protected_path_count,49);
-          assert.equal(c.protected_path_identity_preserved,true);
+          assert.equal(c.frozen_protected_inventory_preserved,true);
+          assert.equal(c.protected_path_identity_preserved,false);
+          assert.equal(c.unchanged_protected_path_count,47);
+          assert.equal(c.reviewed_protected_successor_count,2);
+          assert.equal(c.current_protected_successor_binding_verified,true);
+          assert.equal(c.current_router_v6_successor_verified,true);
+          assert.equal(c.canonical_producer_v5_successor_verified,true);
           assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
           console.log("VOID_BUY_VOID_FROZEN_V4_CURRENT_INTEGRATION_CROSS_NODE_GREEN");
           console.log("protected_path_count="+c.protected_path_count);
