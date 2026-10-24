@@ -45,9 +45,9 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_node_binary_live_census_v1.py)" = \
-            "666ff8cce5da8882ab0d1e5cdf759960be402e9f"
+            "4255a8154b6817283f7eded7c79896124ee97d25"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_node_binary_live_census_v1.py)" = \
-            "9048f19a9573d5256d23c67198dea29a33b29879"
+            "0d2b494e8b567878b901c10899282d6c5dec7f6d"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-node-binary-live-census-v1.md)" = \
             "00c9a01affb0a34c0754b57ad2d03c2daf3df8d9"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-node-binary-profile-v1.mjs)" = \
@@ -80,6 +80,7 @@ jobs:
             'fixed_node_path_bound=true' \
             'descriptor_bound_binary_read=true' \
             'ancestor_descriptor_revalidation=true' \
+            'ancestor_validation_hold_fd_cleanup=true' \
             'exact_sha256_required=true' \
             'exact_byte_count_required=true' \
             'exact_uid_gid_mode_nlink_required=true' \
