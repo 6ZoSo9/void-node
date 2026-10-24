@@ -1,0 +1,223 @@
+name: Buy VOID presale source freeze candidate v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-source-freeze-candidate-v2.yml"
+      - "docs/architecture/buy-void-presale-source-freeze-candidate-v2.md"
+      - "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
+      - "scripts/prove_buy_void_presale_source_freeze_candidate_v2.py"
+      - ".github/workflows/buy-void-current-presale-source-tuple-v3.yml"
+      - "README.md"
+      - "docs/architecture/buy-void-dual-rail-server-policy-v1.md"
+      - "docs/operators/wc-void-coupled-launch-regeneration-census-v2.md"
+      - ".github/workflows/buy-void-runtime-integration-v1.yml"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/buy-void-presale-source-freeze-candidate-v2.yml"
+      - "docs/architecture/buy-void-presale-source-freeze-candidate-v2.md"
+      - "ops/security/buy-void-presale-source-freeze-candidate-v2.json"
+      - "scripts/prove_buy_void_presale_source_freeze_candidate_v2.py"
+      - ".github/workflows/buy-void-current-presale-source-tuple-v3.yml"
+      - "README.md"
+      - "docs/architecture/buy-void-dual-rail-server-policy-v1.md"
+      - "docs/operators/wc-void-coupled-launch-regeneration-census-v2.md"
+      - ".github/workflows/buy-void-runtime-integration-v1.yml"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json"
+      - "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json"
+      - "package.json"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FREEZE_ANCHOR: 05614762b1b4638e05e539fd7d20cbf670e1570b
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V2 freeze generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          MANUAL_BASE: 0ada7fde0d90c3946b10693f4621cbd690bfcde6
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          case "$EVENT_NAME" in
+            pull_request) SCOPE_BASE="$PR_BASE" ;;
+            push) SCOPE_BASE="$PUSH_BEFORE" ;;
+            workflow_dispatch) SCOPE_BASE="$MANUAL_BASE" ;;
+            *) echo "unsupported_event=$EVENT_NAME" >&2; exit 1 ;;
+          esac
+          test "$SCOPE_BASE" != 0000000000000000000000000000000000000000
+          git merge-base --is-ancestor "$SCOPE_BASE" "$EXPECTED_HEAD"
+          printf 'VOID_PRESALE_FREEZE_SCOPE_BASE=%s\n' "$SCOPE_BASE" >> "$GITHUB_ENV"
+          test "$(git rev-parse "$FREEZE_ANCHOR^{tree}")" = 4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e
+          git merge-base --is-ancestor "$FREEZE_ANCHOR" "$EXPECTED_HEAD"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-source-freeze-candidate-v2.yml' \
+            'docs/architecture/buy-void-presale-source-freeze-candidate-v2.md' \
+            'ops/security/buy-void-presale-source-freeze-candidate-v2.json' \
+            'scripts/prove_buy_void_presale_source_freeze_candidate_v2.py' \
+            | sort > "$expected"
+          git diff --name-only "$SCOPE_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-presale-source-freeze-candidate-v2.json)" = ca9c42e2d3ab4c50ac54badadb9efde6180ad241
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_source_freeze_candidate_v2.py)" = 884fa63bf5c2386e6a01beea6265f6d7b9d48a72
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-presale-source-freeze-candidate-v2.md)" = e0862b321d7af50ea1ca06d9c4eb45a462b42446
+
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-current-presale-source-tuple-v3.yml)" = e7d73fb5cea73164909c99c5d8585acd48822155
+          test "$(git rev-parse HEAD:README.md)" = 6b52c555eb7d93b9ea6652d50aa946f6a319d7de
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-dual-rail-server-policy-v1.md)" = a8c2300f7f2b1296790bf496e02a997f7126310f
+          test "$(git rev-parse HEAD:docs/operators/wc-void-coupled-launch-regeneration-census-v2.md)" = 0a0479fe6f22d3b09458749a31a63f90a510ce5a
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-runtime-integration-v1.yml)" = 780e4ecaf826cf1cc620d67a3c733470db48d714
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json)" = 589845615654da8b688764377b34296267ac0063
+          test "$(git rev-parse HEAD:ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json)" = f2ce1364dd776bfbf1aa1ef59ce999cb46037b73
+          test "$(git rev-parse HEAD:package.json)" = 14fbdf5717b07fd4c734f5da7a8e84ed59bee93f
+          test "$(git rev-parse HEAD:package-lock.json)" = 15b5c82ea36f13079a2f9e8863722f654eb3f201
+
+          git diff --check "$SCOPE_BASE" "$EXPECTED_HEAD"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Prove fixed source freeze
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_presale_source_freeze_candidate_v2.py"
+          out="$RUNNER_TEMP/freeze-v2.log"
+          python3 -I -B "$proof" --self-test | tee "$out"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_CANDIDATE_V2_GREEN' \
+            'read_only=true' \
+            'source_snapshot_fixed=true' \
+            'freeze_id=voidbuypresalefreeze2_32bd552dc92df07fd391ee3571f92e5efd80cbb50bd79bc4b8952484511db7f1' \
+            'auto_adopt_new_main_commits=false' \
+            'later_main_changes_require_separate_review=true' \
+            'current_presale_tuple_v3_bound=true' \
+            'current_presale_tuple_cross_node_reexecution_required=true' \
+            'presale_payment_asset=native_usdc' \
+            'presale_source_chains=ethereum_mainnet_1,base_mainnet_8453' \
+            'presale_pool_void=10000000' \
+            'presale_rate_void_per_usdc=2' \
+            'wc_void_launch_coupled_to_presale=true' \
+            'btc_void_post_presale=true' \
+            'legacy_btc_coupled_field_payment_asset_authority=false' \
+            'historical_enforcement_v2_accepted=true' \
+            'current_source_enforcement_successor_required=true' \
+            'epoch2_repaired_v6_bootstrap_bound=true' \
+            'source_freeze_accepted=false' \
+            'host_install_qualified=false' \
+            'customer_payment_acceptance_authorized=false' \
+            'public_presale_activation=false' \
+            'wc_void_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Refuse apply mode
+        run: |
+          set -euo pipefail
+          proof="scripts/prove_buy_void_presale_source_freeze_candidate_v2.py"
+          set +e
+          python3 -I -B "$proof" --apply >"$RUNNER_TEMP/apply.out" 2>"$RUNNER_TEMP/apply.err"
+          status=$?
+          set -e
+          test "$status" -ne 0
+          grep -Fq 'unsupported_mode' "$RUNNER_TEMP/apply.err"
+
+  tuple:
+    name: reexecute frozen tuple / node ${{ matrix.node }}
+    needs: source-proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build and reexecute current tuple
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+
+          evidence="$RUNNER_TEMP/presale-freeze-v2"
+          mkdir -p "$evidence"
+          node scripts/prove_buy_void_payment_allocation_hypothetical_crash_matrix_v6.mjs > "$evidence/crash-${{ matrix.node }}.json"
+          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v4.ts > "$evidence/handoff-${{ matrix.node }}.txt"
+          node --import tsx scripts/prove_buy_void_operator_verified_allocation_dispatch_v5.ts > "$evidence/dispatch-${{ matrix.node }}.txt"
+          node --import tsx scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v3.ts > "$evidence/dualrail-${{ matrix.node }}.txt"
+
+          grep -Fq 'VOID_BUY_VOID_PAYMENT_ALLOCATION_HYPOTHETICAL_CRASH_MATRIX_V6' "$evidence/crash-${{ matrix.node }}.json"
+          grep -Fxq 'VOID_BUY_VOID_VERIFIED_ALLOCATION_HANDOFF_FIRST_ORIGINAL_V4_GREEN' "$evidence/handoff-${{ matrix.node }}.txt"
+          grep -Fxq 'VOID_BUY_VOID_OPERATOR_ALLOCATION_DISPATCH_SOURCE_CANDIDATE_V5_GREEN' "$evidence/dispatch-${{ matrix.node }}.txt"
+          grep -Fxq 'VOID_BUY_VOID_FIRST_ORIGINAL_DUAL_RAIL_REAL_HANDOFF_V3_GREEN' "$evidence/dualrail-${{ matrix.node }}.txt"
+          grep -Fxq 'production_gate_ready=false' "$evidence/handoff-${{ matrix.node }}.txt"
+          grep -Fxq 'mounted_verified_allocation_dispatch=false' "$evidence/dispatch-${{ matrix.node }}.txt"
+          grep -Fxq 'actual_live_provider_finality_verified=false' "$evidence/dualrail-${{ matrix.node }}.txt"
+          grep -Fxq 'funds_movement=false' "$evidence/dualrail-${{ matrix.node }}.txt"
+
+          git diff --check
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: presale-freeze-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/presale-freeze-v2
+          if-no-files-found: error
+          retention-days: 3
+
+  cross-node:
+    needs: tuple
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: presale-freeze-v2-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          path: evidence
+          merge-multiple: true
+      - name: Require cross-node byte identity
+        run: |
+          set -euo pipefail
+          for kind in crash handoff dispatch dualrail; do
+            ext=json
+            test "$kind" = crash || ext=txt
+            cmp "evidence/$kind-22.$ext" "evidence/$kind-24.$ext"
+            cmp "evidence/$kind-22.$ext" "evidence/$kind-26.$ext"
+          done
+          echo VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_CANDIDATE_V2_CROSS_NODE_GREEN
+          echo source_freeze_accepted=false
+          echo current_enforcement_successor_required=true
+          echo public_presale_activation=false
+          echo funds_movement=false

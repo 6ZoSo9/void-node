@@ -1,0 +1,65 @@
+{
+  "schema": "void_buy_void_presale_source_freeze_candidate_v2",
+  "marker": "VOID_BUY_VOID_PRESALE_SOURCE_FREEZE_CANDIDATE_V2",
+  "version": 2,
+  "repository": "6ZoSo9/void-node",
+  "purpose": "fixed_current_main_source_candidate_for_review_not_release_authority",
+  "source_snapshot": {
+    "commit": "05614762b1b4638e05e539fd7d20cbf670e1570b",
+    "tree": "4ade3faff2c3fd8e73f7ab8bf3ce0685e0d0d30e",
+    "exact_source_snapshot_fixed": true,
+    "auto_adopt_new_main_commits": false,
+    "later_main_changes_require_separate_review": true
+  },
+  "current_presale_tuple_v3": {
+    "workflow_path": ".github/workflows/buy-void-current-presale-source-tuple-v3.yml",
+    "workflow_git_blob_sha1": "e7d73fb5cea73164909c99c5d8585acd48822155",
+    "runtime_integration_workflow_path": ".github/workflows/buy-void-runtime-integration-v1.yml",
+    "runtime_integration_workflow_git_blob_sha1": "780e4ecaf826cf1cc620d67a3c733470db48d714",
+    "package_json_git_blob_sha1": "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f",
+    "package_lock_git_blob_sha1": "15b5c82ea36f13079a2f9e8863722f654eb3f201",
+    "cross_node_reexecution_required": true,
+    "production_gate_ready": false
+  },
+  "canonical_historical_enforcement_v2": {
+    "accepted_lock_path": "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json",
+    "accepted_lock_git_blob_sha1": "589845615654da8b688764377b34296267ac0063",
+    "candidate_enforcement_set_sha256": "05d7648032223f74a05d89200ef23a76a5265ef2a3a26e52c7f51ce3b33bc852",
+    "protected_inventory_canonical_sha256": "224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2",
+    "complete_executable_closure_verified": true,
+    "candidate_enforcement_identity_accepted": true,
+    "current_source_enforcement_successor_required": true,
+    "production_source_finality_authority_ready": false,
+    "public_presale_activation": false,
+    "funds_movement": false
+  },
+  "epoch2_repaired_v6_bootstrap": {
+    "accepted_lock_path": "ops/security/buy-void-epoch2-dormant-first-entry-bootstrap-v6-candidate-lock-v1.json",
+    "accepted_lock_git_blob_sha1": "f2ce1364dd776bfbf1aa1ef59ce999cb46037b73",
+    "lock_id": "voidbuye2dormantbootstraplock3_4d87f4ce1f97883012a8695c86b85bee5b8b54ae2b6ade1dd761cc23ad5d9396",
+    "candidate_id": "voidbuye2dormantbootstrapcand3_1ae4aa35f0796047443851a79351415dc3288aa5a902b6307d365117e70423f2",
+    "bootstrap_binary_sha256": "618c2c9e3bf49715d844b08fa0787340b8b84ecea0bf9ae350f889ee6deac52c",
+    "candidate_accepted": true,
+    "source_generation_identity_accepted": true,
+    "protected_install_authorized": false,
+    "live_execution_authorized": false,
+    "funds_movement_authorized": false
+  },
+  "release_gate": {
+    "source_freeze_candidate": true,
+    "source_freeze_accepted": false,
+    "current_enforcement_successor_required": true,
+    "host_install_qualified": false,
+    "live_runtime_evidence_qualified": false,
+    "customer_payment_acceptance_authorized": false,
+    "btc_void_presale_and_wc_void_pool_coupled": true,
+    "public_presale_activation": false,
+    "wc_void_activation": false,
+    "wallet_or_signing_authority": false,
+    "transaction_submission_authorized": false,
+    "treasury_or_liquidity_action_authorized": false,
+    "funds_movement": false,
+    "production_host_evidence_authority": false
+  },
+  "freeze_id": "voidbuypresalefreeze2_32bd552dc92df07fd391ee3571f92e5efd80cbb50bd79bc4b8952484511db7f1"
+}
