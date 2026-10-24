@@ -1,3 +1,38 @@
+# Current-main V3 reconciliation — October 23, 2026
+
+This document's current authoritative generation is the direct-current-main V3 source candidate on `main@084b9a657be7cc074dfd954d37651d8b00d47153`.
+
+Exact current properties:
+
+- scope: exactly 27 paths relative to that main generation;
+- landed V2 source-acceptance carrier: `652197dc8df36f0f2004d50c6bbf95369790e2d1`;
+- range-enabled mounted router: `src/index.ts` Git blob `a09661797aa4295371c036be36d82995e5233269`;
+- FIFO-safe verified-payment capacity writer: Git blob `d1320be22fe55af24017b84f0655fbcde82dbee9`;
+- range-only dispatcher V6 remains immutable at `1ef5cd61a338cf726ddec59cea24932846d8d1fb`;
+- combined dispatcher V7 source proof is a new successor and must bind the range router plus FIFO-safe writer without rewriting V6;
+- current-presale V3 is historical refusal; V4 is the source-only combined successor;
+- the V2 source-acceptance workflow is historical refusal under the V3 writer transition;
+- the current protected-source generation is **not accepted by this PR**. In particular, the open V5 protected candidate carries hardened deployment-receipt installer blob `f2d5288d...`, while current main still carries historical blob `3de6e4bd...`. This PR must not silently treat that V5 lock as current-main authority.
+
+Therefore all of these remain false:
+
+```text
+candidate_enforcement_identity_accepted=false
+successor_runtime_generation_accepted=false
+verified_payment_v2_route_mounted=false
+payment_allocation_custody_authority=false
+source_finality_authentication_verified=false
+payment_acceptance=false
+public_presale_activation=false
+funds_movement=false
+```
+
+The historical section below records the original #3698-parent V3 derivation and remains provenance only.
+
+PROTECT THE CORE.
+
+---
+
 # Buy VOID V3 composed source generation: verified-payment V2 + FIFO-safe capacity
 
 Status: **Draft / source and hosted CI only**.
