@@ -81,7 +81,7 @@ def main():
     print("inherited_count=17")
     print("adapted_count=4")
     print("adapted_workflow_blob=3d1f8cc8a0d377063c9dd3ca3509648d3a859ec5")
-    print("candidate_content_admitted=true")
+    print("candidate_objects_match_manifest=true")
     print("protected_host_install=false")
     print("payment_acceptance=false")
     print("public_presale_activation=false")
