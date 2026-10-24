@@ -1,0 +1,182 @@
+name: VOID Buy custody V3 protected installer first-entry plan v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_installer_first_entry_plan_v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_installer_first_entry_plan_v1.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-installer-first-entry-plan-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-installer-first-entry-plan-v1.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact first-entry-plan successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="329134210c56930e684b2ffdffb45a7ee55fbfb9"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-protected-installer-first-entry-plan-v1.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-protected-installer-first-entry-plan-v1.md'
+            $'A\tops/precision/void_buy_allocation_custody_runtime_v3_protected_installer_first_entry_plan_v1.py'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected_installer_first_entry_plan_v1.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_installer_first_entry_plan_v1.py)" = \
+            "b92dd8ffb9cb35c5e8c362ea52d76abdd41c5969"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_installer_first_entry_plan_v1.py)" = \
+            "aed600ea67f164d873c17342a6fab345a93bcb53"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-installer-first-entry-plan-v1.md)" = \
+            "b9facd37d897b4d7a67aba716dbf2e508e9cb0d9"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json)" = \
+            "a1e1f4887787b408d313e73360966f93a63b2b58"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile source and proof
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_installer_first_entry_plan_v1.py
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_installer_first_entry_plan_v1.py
+
+      - name: Self-test inert first-entry plan
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/protected-installer-first-entry-plan-selftest.txt"
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_installer_first_entry_plan_v1.py \
+            --self-test | tee "$out"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_INSTALLER_FIRST_ENTRY_PLAN_V1_SELF_TEST_GREEN' "$out"
+          for marker in \
+            'accepted_installer_lock_exact=true' \
+            'accepted_installer_identity_exact=true' \
+            'first_privileged_instruction_static_native_required=true' \
+            'mutable_checkout_python_first_instruction_forbidden=true' \
+            'sealed_installer_memfd_required=true' \
+            'python_descriptor_bound_exec_required=true' \
+            'python_isolated_no_site_no_bytecode_required=true' \
+            'fixed_bridge_compiled_into_native_policy_required=true' \
+            'synthetic_installer_filename_bound=true' \
+            'installer_repository_inputs_reverified_at_use_required=true' \
+            'first_entry_install_target_selected=true' \
+            'native_first_entry_source_derived=false' \
+            'native_first_entry_binary_derived=false' \
+            'native_first_entry_binary_accepted=false' \
+            'native_first_entry_binary_installed=false' \
+            'native_first_entry_binary_verified=false' \
+            'first_entry_execution_authorized=false' \
+            'protected_install_authorized=false' \
+            'protected_source_installed=false' \
+            'live_privileged_census_authorized=false' \
+            'replacement_apply_authorized=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'production_gate_ready=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove first-entry plan boundary
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/protected-installer-first-entry-plan-proof.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_installer_first_entry_plan_v1.py \
+            | tee "$proof"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_INSTALLER_FIRST_ENTRY_PLAN_V1_PROOF_GREEN' "$proof"
+          for marker in \
+            'exact_source_blob_asserted=true' \
+            'accepted_installer_lock_exact=true' \
+            'accepted_installer_identity_exact=true' \
+            'deterministic_plan_id_proven=true' \
+            'root_source_plan_execution_rejected=true' \
+            'without_dash_b_bootstrap_hold=true' \
+            'apply_mode_absent=true' \
+            'first_privileged_instruction_static_native_required=true' \
+            'mutable_checkout_python_first_instruction_forbidden=true' \
+            'sealed_installer_memfd_required=true' \
+            'python_descriptor_bound_exec_required=true' \
+            'python_isolated_no_site_no_bytecode_required=true' \
+            'fixed_bridge_compiled_into_native_policy_required=true' \
+            'synthetic_installer_filename_bound=true' \
+            'installer_repository_inputs_reverified_at_use_required=true' \
+            'first_entry_install_target_selected=true' \
+            'native_first_entry_source_derived=false' \
+            'native_first_entry_binary_derived=false' \
+            'native_first_entry_binary_accepted=false' \
+            'native_first_entry_binary_installed=false' \
+            'native_first_entry_binary_verified=false' \
+            'first_entry_execution_authorized=false' \
+            'protected_install_authorized=false' \
+            'protected_source_installed=false' \
+            'live_privileged_census_authorized=false' \
+            'replacement_apply_authorized=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'production_gate_ready=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Validate inert emitted plan
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/protected-installer-first-entry-plan.json"
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_runtime_v3_protected_installer_first_entry_plan_v1.py \
+            --plan > "$plan"
+
+          python3 -I -B - "$plan" <<'PY'
+          import json, pathlib, sys
+          v=json.loads(pathlib.Path(sys.argv[1]).read_text())
+          c=v["first_entry_contract"]
+          a=v["authority"]
+          assert c["mechanism_selected"]=="STATIC_NATIVE_PREENTRY_SEALED_MEMFD_FIXED_PYTHON_V1"
+          assert c["first_privileged_instruction_static_native_required"] is True
+          assert c["sealed_installer_memfd_required"] is True
+          assert c["python_generation_selected"] is False
+          assert c["protected_install_invocation_authorized"] is False
+          assert a["candidate_installer_source_accepted"] is True
+          assert a["first_entry_install_target_selected"] is True
+          assert a["native_first_entry_binary_installed"] is False
+          assert a["first_entry_execution_authorized"] is False
+          assert a["protected_install_authorized"] is False
+          assert a["live_privileged_census_authorized"] is False
+          assert a["replacement_apply_authorized"] is False
+          assert a["funds_movement"] is False
+          PY
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
