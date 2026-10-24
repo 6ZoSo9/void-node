@@ -54,7 +54,12 @@ import stat
 import sys
 
 src, dst, expected = sys.argv[1:]
-flags = (\n    os.O_RDONLY\n    | getattr(os, "O_CLOEXEC", 0)\n    | getattr(os, "O_NOFOLLOW", 0)\n    | getattr(os, "O_NONBLOCK", 0)\n)
+flags = (
+    os.O_RDONLY
+    | getattr(os, "O_CLOEXEC", 0)
+    | getattr(os, "O_NOFOLLOW", 0)
+    | getattr(os, "O_NONBLOCK", 0)
+)
 fd = os.open(src, flags)
 try:
     st = os.fstat(fd)
