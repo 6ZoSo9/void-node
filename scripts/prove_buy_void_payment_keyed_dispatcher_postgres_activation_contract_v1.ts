@@ -546,7 +546,7 @@ assert.equal(
 );
 assert.equal(
   candidate.reviewed_inherited_source_main_commit,
-  "eef17f65a8bd495d581df3b91d9a411a5402cde8",
+  "5fc5cf3c42aae1454ba67c604484cc8ed25f1701",
 );
 assert.equal(
   candidate.candidate_source_review_base_commit,
