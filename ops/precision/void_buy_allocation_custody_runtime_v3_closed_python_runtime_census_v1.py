@@ -411,7 +411,10 @@ def _read_runtime_file(
         os.close(fd)
 
 
-def _runtime_probe(stdlib_sha256: str) -> dict[str, Any]:
+def _runtime_probe(
+    stdlib_sha256: str,
+    python_receipt: dict[str, Any],
+) -> dict[str, Any]:
     probe = (
         "import sys;"
         "z=" + repr(str(STDLIB_ZIP)) + ";"
@@ -433,17 +436,36 @@ def _runtime_probe(stdlib_sha256: str) -> dict[str, Any]:
         "'external_module_origins':v,'stdlib_sha256':" + repr(stdlib_sha256) + "};"
         "\nprint(j.dumps(out,sort_keys=True,separators=(',',':')))"
     )
-    completed = subprocess.run(
-        [str(PYTHON), "-I", "-B", "-S", "-c", probe],
-        cwd="/",
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        check=False,
-        timeout=15,
-        env={},
-    )
+    _revalidate_file_receipt(PYTHON, python_receipt)
+    python_fd = os.open(PYTHON, _leaf_flags())
+    try:
+        opened = os.fstat(python_fd)
+        if not _stat_matches_receipt(opened, python_receipt):
+            hold("runtime_probe_python_generation_mismatch")
+        executable = "/proc/self/fd/" + str(python_fd)
+        completed = subprocess.run(
+            [str(PYTHON), "-I", "-B", "-S", "-c", probe],
+            executable=executable,
+            pass_fds=(python_fd,),
+            close_fds=True,
+            cwd="/",
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=15,
+            env={},
+        )
+        after = os.fstat(python_fd)
+        visible = os.stat(PYTHON, follow_symlinks=False)
+        if (
+            not _stat_matches_receipt(after, python_receipt)
+            or not _stat_matches_receipt(visible, python_receipt)
+        ):
+            hold("runtime_probe_python_generation_changed")
+    finally:
+        os.close(python_fd)
     if (
         len(completed.stdout.encode("utf-8")) > MAX_PROBE_OUTPUT
         or len(completed.stderr.encode("utf-8")) > MAX_PROBE_OUTPUT
@@ -469,6 +491,7 @@ def _runtime_probe(stdlib_sha256: str) -> dict[str, Any]:
     version = result.get("version")
     if not isinstance(version, str) or not version.startswith("3.12."):
         hold("runtime_python_version_invalid")
+    result["retained_python_descriptor_exec"] = True
     return result
 
 
@@ -506,21 +529,28 @@ def _file_receipt(
     return receipt
 
 
+def _stat_matches_receipt(
+    st: os.stat_result,
+    receipt: dict[str, Any],
+) -> bool:
+    return (
+        stat.S_ISREG(st.st_mode)
+        and not stat.S_ISLNK(st.st_mode)
+        and st.st_dev == receipt["dev"]
+        and st.st_ino == receipt["ino"]
+        and st.st_uid == receipt["uid"]
+        and st.st_gid == receipt["gid"]
+        and format(stat.S_IMODE(st.st_mode), "04o") == receipt["mode"]
+        and st.st_nlink == receipt["nlink"]
+        and st.st_size == receipt["bytes"]
+        and st.st_mtime_ns == receipt["mtime_ns"]
+        and st.st_ctime_ns == receipt["ctime_ns"]
+    )
+
+
 def _revalidate_file_receipt(path: Path, receipt: dict[str, Any]) -> None:
     st = os.stat(path, follow_symlinks=False)
-    if (
-        not stat.S_ISREG(st.st_mode)
-        or stat.S_ISLNK(st.st_mode)
-        or st.st_dev != receipt["dev"]
-        or st.st_ino != receipt["ino"]
-        or st.st_uid != receipt["uid"]
-        or st.st_gid != receipt["gid"]
-        or format(stat.S_IMODE(st.st_mode), "04o") != receipt["mode"]
-        or st.st_nlink != receipt["nlink"]
-        or st.st_size != receipt["bytes"]
-        or st.st_mtime_ns != receipt["mtime_ns"]
-        or st.st_ctime_ns != receipt["ctime_ns"]
-    ):
+    if not _stat_matches_receipt(st, receipt):
         hold("runtime_generation_changed_after_probe:" + path.name)
 
 
@@ -534,7 +564,7 @@ def census() -> dict[str, Any]:
     lib_dir = _exact_dir(RUNTIME_LIB, EXPECTED_LIB_ENTRIES, 0o555)
     python = _file_receipt(PYTHON, 0o555, MAX_PYTHON_BYTES, parse_elf=True)
     stdlib = _file_receipt(STDLIB_ZIP, 0o444, MAX_STDLIB_BYTES, parse_elf=False)
-    probe = _runtime_probe(stdlib["sha256"])
+    probe = _runtime_probe(stdlib["sha256"], python)
     _revalidate_file_receipt(PYTHON, python)
     _revalidate_file_receipt(STDLIB_ZIP, stdlib)
     verity_ready = (
@@ -658,6 +688,7 @@ def self_test() -> None:
     print("voidfs_builtin_required=true")
     print("stdlib_only_sys_path_required=true")
     print("external_module_origin_forbidden=true")
+    print("retained_python_descriptor_exec_required=true")
     print("fsverity_measurement_observed_not_assumed=true")
     print("post_probe_runtime_generation_revalidated=true")
     print("runtime_identity_candidate_only=true")
