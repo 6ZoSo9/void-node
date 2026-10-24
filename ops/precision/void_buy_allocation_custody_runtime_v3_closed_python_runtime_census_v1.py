@@ -338,38 +338,75 @@ def _static_elf(raw: bytes) -> dict[str, Any]:
     }
 
 
-def _measure_verity(path: Path) -> dict[str, Any]:
+def _measure_verity_fd(fd: int) -> dict[str, Any]:
+    buf = bytearray(4 + 64)
+    struct.pack_into("<H", buf, 2, 64)
+    try:
+        fcntl.ioctl(fd, FS_IOC_MEASURE_VERITY, buf, True)
+    except OSError as exc:
+        if exc.errno in (
+            errno.ENODATA,
+            errno.ENOTTY,
+            errno.EOPNOTSUPP,
+            errno.ENOTSUP,
+        ):
+            return {
+                "measured": False,
+                "errno": errno.errorcode.get(exc.errno, str(exc.errno)),
+                "algorithm": None,
+                "digest_hex": None,
+            }
+        raise
+    algorithm, size = struct.unpack_from("<HH", buf, 0)
+    if size < 1 or size > 64:
+        hold("fsverity_digest_size_invalid")
+    digest = bytes(buf[4:4 + size]).hex()
+    return {
+        "measured": True,
+        "errno": None,
+        "algorithm": algorithm,
+        "digest_hex": digest,
+        "sha256_algorithm": algorithm == FS_VERITY_HASH_ALG_SHA256,
+    }
+
+
+def _read_runtime_file(
+    path: Path,
+    maximum: int,
+) -> tuple[bytes, os.stat_result, dict[str, Any]]:
+    before = os.stat(path, follow_symlinks=False)
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_size < 1
+        or before.st_size > maximum
+    ):
+        hold("runtime_regular_shape_invalid:" + path.name)
     fd = os.open(path, _leaf_flags())
     try:
-        buf = bytearray(4 + 64)
-        struct.pack_into("<H", buf, 2, 64)
-        try:
-            fcntl.ioctl(fd, FS_IOC_MEASURE_VERITY, buf, True)
-        except OSError as exc:
-            if exc.errno in (
-                errno.ENODATA,
-                errno.ENOTTY,
-                errno.EOPNOTSUPP,
-                errno.ENOTSUP,
-            ):
-                return {
-                    "measured": False,
-                    "errno": errno.errorcode.get(exc.errno, str(exc.errno)),
-                    "algorithm": None,
-                    "digest_hex": None,
-                }
-            raise
-        algorithm, size = struct.unpack_from("<HH", buf, 0)
-        if size < 1 or size > 64:
-            hold("fsverity_digest_size_invalid")
-        digest = bytes(buf[4:4 + size]).hex()
-        return {
-            "measured": True,
-            "errno": None,
-            "algorithm": algorithm,
-            "digest_hex": digest,
-            "sha256_algorithm": algorithm == FS_VERITY_HASH_ALG_SHA256,
-        }
+        opened = os.fstat(fd)
+        if _generation(before) != _generation(opened):
+            hold("runtime_regular_rebound:" + path.name)
+        raw = bytearray()
+        while len(raw) <= maximum:
+            remaining = maximum + 1 - len(raw)
+            chunk = os.read(fd, min(65536, remaining))
+            if not chunk:
+                break
+            raw.extend(chunk)
+        if len(raw) > maximum:
+            hold("runtime_regular_read_limit:" + path.name)
+        if len(raw) != opened.st_size:
+            hold("runtime_regular_size_changed:" + path.name)
+        verity = _measure_verity_fd(fd)
+        after = os.fstat(fd)
+        visible = os.stat(path, follow_symlinks=False)
+        if (
+            _generation(opened) != _generation(after)
+            or _generation(after) != _generation(visible)
+        ):
+            hold("runtime_regular_generation_changed:" + path.name)
+        return bytes(raw), after, verity
     finally:
         os.close(fd)
 
@@ -442,7 +479,7 @@ def _file_receipt(
     *,
     parse_elf: bool,
 ) -> dict[str, Any]:
-    raw, st = _read_bound_regular(path, maximum)
+    raw, st, verity = _read_runtime_file(path, maximum)
     if (
         st.st_uid != 0
         or st.st_gid != 0
@@ -460,7 +497,7 @@ def _file_receipt(
         "nlink": st.st_nlink,
         "dev": st.st_dev,
         "ino": st.st_ino,
-        "fsverity": _measure_verity(path),
+        "fsverity": verity,
     }
     if parse_elf:
         receipt["elf"] = _static_elf(raw)
