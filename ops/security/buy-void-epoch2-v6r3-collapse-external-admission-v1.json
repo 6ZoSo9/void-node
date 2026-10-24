@@ -1,0 +1,232 @@
+{
+  "schema": "void_buy_void_epoch2_v6r3_collapse_external_admission_v1",
+  "version": 1,
+  "target_branch": "ren/epoch2-v6r3-stack-collapse-current-main-v1-20261020",
+  "historical_leaf": "41380839014d202421643d252288bd89985a1191",
+  "path_count": 21,
+  "inherited_count": 17,
+  "adapted_count": 4,
+  "entries": [
+    {
+      "path": ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.yml",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "3d1f8cc8a0d377063c9dd3ca3509648d3a859ec5",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "68c31dc09ba810b58e5be4346be2c28aad3a67ea",
+      "role": "adapted_workflow"
+    },
+    {
+      "path": ".github/workflows/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.yml",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "402267212f3280e54c204a124ccb26c332821f97",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "402267212f3280e54c204a124ccb26c332821f97",
+      "role": "inherited"
+    },
+    {
+      "path": ".github/workflows/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.yml",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "51005c2fbc903d7a4d9fee91b19a031e96c5ca49",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "51005c2fbc903d7a4d9fee91b19a031e96c5ca49",
+      "role": "inherited"
+    },
+    {
+      "path": ".github/workflows/buy-void-epoch2-live-composition-runner-policy-candidate-v6r3.yml",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "eacf6ee3c203e65a412ef057a5fe6fc2104fa682",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "eacf6ee3c203e65a412ef057a5fe6fc2104fa682",
+      "role": "inherited"
+    },
+    {
+      "path": ".github/workflows/buy-void-epoch2-live-composition-runner-policy-upgrade-plan-v6r3.yml",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "a8ad2b14f968e11a2ab8abe4d8c12aea96e16d3c",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "a8ad2b14f968e11a2ab8abe4d8c12aea96e16d3c",
+      "role": "inherited"
+    },
+    {
+      "path": "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.md",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "839a166286ccc2b22383edb5c94220c7e0f3df16",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "dd21593a9e4e3086c08fb22f55ffd1727fa8569e",
+      "role": "adapted_doc"
+    },
+    {
+      "path": "docs/operators/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.md",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "59be9c1f78cc9c82e4ba120b54034f8bec3f0c28",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "59be9c1f78cc9c82e4ba120b54034f8bec3f0c28",
+      "role": "inherited"
+    },
+    {
+      "path": "docs/operators/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.md",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "f4787b654e981eb761087c1f7e634d489e72dff3",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "f4787b654e981eb761087c1f7e634d489e72dff3",
+      "role": "inherited"
+    },
+    {
+      "path": "docs/operators/buy-void-epoch2-live-composition-runner-policy-candidate-v6r3.md",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "3c564082ebe882b26b5af95493174d5d9facdff9",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "3c564082ebe882b26b5af95493174d5d9facdff9",
+      "role": "inherited"
+    },
+    {
+      "path": "docs/operators/buy-void-epoch2-live-composition-runner-policy-upgrade-plan-v6r3.md",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "c4f7dc4e30802aa5e60878241f40300f454d40ac",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "c4f7dc4e30802aa5e60878241f40300f454d40ac",
+      "role": "inherited"
+    },
+    {
+      "path": "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "340a0cf0eec589a44f20d44143e353ea25250973",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "340a0cf0eec589a44f20d44143e353ea25250973",
+      "role": "inherited"
+    },
+    {
+      "path": "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "e5920575541001bff00abf894f0d62869d8f2452",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "704f3726600690605303d9083976225f4913b446",
+      "role": "adapted_native"
+    },
+    {
+      "path": "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "d2d648b144d3b406ff845a597fa4b9f54167b6bc",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "d2d648b144d3b406ff845a597fa4b9f54167b6bc",
+      "role": "inherited"
+    },
+    {
+      "path": "ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "daedec8934ae0488c26650920497b1a08b117a25",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "daedec8934ae0488c26650920497b1a08b117a25",
+      "role": "inherited"
+    },
+    {
+      "path": "ops/precision/void_buy_void_epoch2_live_composition_runner_policy_upgrade_plan_v6r3.py",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "596265d01d762bc3ecbcb7683e8fb4b5d50ce691",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "596265d01d762bc3ecbcb7683e8fb4b5d50ce691",
+      "role": "inherited"
+    },
+    {
+      "path": "ops/security/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.json",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "1201d727080b999a253d9223aee8d961f204c2db",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "1201d727080b999a253d9223aee8d961f204c2db",
+      "role": "inherited"
+    },
+    {
+      "path": "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "63c7a41d6e6e40e109fb5baaba5539754d0d87b2",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "3321e8a0cf05ab2272951b34aef8185fef3caf0d",
+      "role": "adapted_proof"
+    },
+    {
+      "path": "scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "8ea5167e9ece28c9b8a633fc95a2ea054ecbc2df",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "8ea5167e9ece28c9b8a633fc95a2ea054ecbc2df",
+      "role": "inherited"
+    },
+    {
+      "path": "scripts/prove_buy_void_epoch2_live_composition_runner_policy_candidate_lock_v6r3.py",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "4858012bff5f178033801f37e2283c427806bb13",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "4858012bff5f178033801f37e2283c427806bb13",
+      "role": "inherited"
+    },
+    {
+      "path": "scripts/prove_buy_void_epoch2_live_composition_runner_policy_candidate_v6r3.py",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "184cf2e0fef7c72377b0c5ff26ca268cf6a0735e",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "184cf2e0fef7c72377b0c5ff26ca268cf6a0735e",
+      "role": "inherited"
+    },
+    {
+      "path": "scripts/prove_buy_void_epoch2_live_composition_runner_policy_upgrade_plan_v6r3.py",
+      "mode": "100644",
+      "type": "blob",
+      "blob": "d7809e43f546d8fd37aa84968c9449417364365e",
+      "historical_mode": "100644",
+      "historical_type": "blob",
+      "historical_blob": "d7809e43f546d8fd37aa84968c9449417364365e",
+      "role": "inherited"
+    }
+  ],
+  "authority": {
+    "protected_host_install": false,
+    "service_mutation": false,
+    "credential_access": false,
+    "signing": false,
+    "transaction": false,
+    "payment_acceptance": false,
+    "public_presale_activation": false,
+    "wc_void_market_activation": false,
+    "funds_movement": false
+  }
+}
