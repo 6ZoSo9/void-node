@@ -1,0 +1,292 @@
+name: VOID Buy custody V3 protected all-process installer lock v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_lock_v2.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.yml"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.yml"
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py"
+      - "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact installer-lock V2 successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="0eb7d49b10681ee7b29298ca325902671121ef5a"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.md'
+            $'A\tops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_lock_v2.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json)" = \
+            "486a6f6e1e2c594e60d6f9fe3fa32b03175630ae"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_lock_v2.py)" = \
+            "efe5c6663b55c502b612850ffc6946528e92977d"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.md)" = \
+            "7ca604367d509e5ff937855ccaabeba3cd77868c"
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
+            "bd8728be0b59bce3db0f559d0ebd01692f9a5844"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
+            "a8c3847b34da4fa05a50f741625b2171a1e34548"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.md)" = \
+            "ba1609aa65e7ef8dfaa8326f9c6a3c589528af6d"
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.yml)" = \
+            "80efb530a09c89b81a23c639309f0aee6633ab90"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
+            "0fef4e6f76738dd474ea775985b1facdd922bb54"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json)" = \
+            "a1e1f4887787b408d313e73360966f93a63b2b58"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile lock proof
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_lock_v2.py
+
+      - name: Authenticate hosted installer evidence
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EVIDENCE_PATH: ${{ runner.temp }}/installer-v2-hosted-evidence.json
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import urllib.request
+
+          repo = "6ZoSo9/void-node"
+          installer_head = "0eb7d49b10681ee7b29298ca325902671121ef5a"
+          run_id = 40073107466
+          job_id = 120810613302
+          operator_review_id = 5637294073
+          codex_comment_id = 6381355558
+          token = os.environ["GITHUB_TOKEN"]
+          out = Path(os.environ["EVIDENCE_PATH"])
+
+          def get_json(path):
+              req = urllib.request.Request(
+                  "https://api.github.com" + path,
+                  headers={
+                      "Authorization": "Bearer " + token,
+                      "Accept": "application/vnd.github+json",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "User-Agent": "void-node-installer-v2-lock-evidence",
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=20) as response:
+                  assert response.status == 200, response.status
+                  return json.load(response)
+
+          run = get_json(f"/repos/{repo}/actions/runs/{run_id}")
+          assert run["id"] == run_id
+          assert run["repository"]["full_name"] == repo
+          assert run["head_sha"] == installer_head
+          assert run["path"] == (
+              ".github/workflows/"
+              "buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.yml"
+          )
+          assert run["event"] == "pull_request"
+          assert run["status"] == "completed"
+          assert run["conclusion"] == "success"
+
+          job = get_json(f"/repos/{repo}/actions/jobs/{job_id}")
+          assert job["id"] == job_id
+          assert job["run_id"] == run_id
+          assert job["name"] == "prove"
+          assert job["status"] == "completed"
+          assert job["conclusion"] == "success"
+
+          review = get_json(
+              f"/repos/{repo}/pulls/3808/reviews/{operator_review_id}"
+          )
+          assert review["id"] == operator_review_id
+          assert review["commit_id"] == installer_head
+          assert review["user"]["login"] == "6ZoSo9"
+          assert review["state"] == "COMMENTED"
+          assert "same-account COMMENT, not independent external approval" in review["body"]
+
+          codex = get_json(
+              f"/repos/{repo}/issues/comments/{codex_comment_id}"
+          )
+          assert codex["id"] == codex_comment_id
+          assert codex["user"]["login"] == "chatgpt-codex-connector[bot]"
+          match = re.search(
+              r"<!-- codex-review-state:v1 (\{.*?\}) -->",
+              codex["body"],
+              flags=re.DOTALL,
+          )
+          assert match is not None
+          state = json.loads(match.group(1))
+          code = state["code_review"]
+          assert code["commit_sha"] == installer_head
+          assert code["has_any_findings"] is False
+          assert code["has_unresolved_findings"] is False
+          assert code["status"] == "completed"
+
+          receipt = {
+              "schema": "void_buy_void_installer_v2_hosted_evidence_v1",
+              "repository": repo,
+              "run_id": run_id,
+              "run_head_sha": run["head_sha"],
+              "run_workflow_path": run["path"],
+              "run_event": run["event"],
+              "run_status": run["status"],
+              "run_conclusion": run["conclusion"],
+              "job_id": job_id,
+              "job_run_id": job["run_id"],
+              "job_name": job["name"],
+              "job_status": job["status"],
+              "job_conclusion": job["conclusion"],
+              "operator_review_id": operator_review_id,
+              "operator_review_commit": review["commit_id"],
+              "operator_review_author": review["user"]["login"],
+              "operator_review_state": review["state"],
+              "operator_review_independent": False,
+              "codex_comment_id": codex_comment_id,
+              "codex_comment_author": codex["user"]["login"],
+              "codex_review_commit": code["commit_sha"],
+              "codex_has_findings": code["has_any_findings"],
+              "codex_has_unresolved_findings": code["has_unresolved_findings"],
+              "codex_status": code["status"],
+              "authenticated_via_github_api": True,
+          }
+          out.write_text(
+              json.dumps(receipt, sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          print("VOID_BUY_VOID_INSTALLER_V2_HOSTED_EVIDENCE_AUTHENTICATED")
+          PY
+
+      - name: Prove exact installer V2 source lock
+        env:
+          EVIDENCE_PATH: ${{ runner.temp }}/installer-v2-hosted-evidence.json
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/protected-procref-installer-lock-v2-proof.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_lock_v2.py \
+            --hosted-evidence "$EVIDENCE_PATH" \
+            | tee "$out"
+
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_INSTALLER_LOCK_V2_PROOF_GREEN' "$out"
+          for marker in \
+            'lock_exact=true' \
+            'installer_source_exact=true' \
+            'installer_source_ascii_only=true' \
+            'installer_source_bytes=46939' \
+            'installer_source_sha256=75934d38e5b89eed904be7738c82de6cd586ac11afc28e075cc44a4e7fb9d715' \
+            'hosted_metadata_authenticated=true' \
+            'hosted_installer_run_bound=true' \
+            'hosted_installer_job_bound=true' \
+            'operator_review_same_account_only=true' \
+            'independent_codex_review_bound=true' \
+            'exact_head_review_bound=true' \
+            'predecessor_lock_bound=true' \
+            'fixed_least_authority_entrypoint_bound=true' \
+            'direct_apply_cli_absent=true' \
+            'ctypes_free_builtin_voidfs_boundary_bound=true' \
+            'voidfs_preloaded_cache_rejection_bound=true' \
+            'sys_modules_shadow_regression_hosted=true' \
+            'repository_input_fifo_nonblocking_bound=true' \
+            'ordinary_rename_fallback_absent=true' \
+            'fixed_entrypoint_bridge_override_absent=true' \
+            'stage_generation_unknown_hold_bound=true' \
+            'possible_residual_stage_boundary_bound=true' \
+            'install_target_selected=true' \
+            'candidate_installer_source_accepted=true' \
+            'protected_installer_first_entry_installed=false' \
+            'protected_installer_first_entry_verified=false' \
+            'protected_install_authorized=false' \
+            'protected_source_installed=false' \
+            'live_privileged_census_authorized=false' \
+            'live_privileged_census_executed=false' \
+            'replacement_apply_authorized=false' \
+            'runtime_integration=false' \
+            'payment_acceptance=false' \
+            'public_presale_activation=false' \
+            'production_gate_ready=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Validate V2 lock authority boundary
+        run: |
+          set -euo pipefail
+          python3 -I -B - <<'PY'
+          import json
+          from pathlib import Path
+
+          p=Path("ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json")
+          v=json.loads(p.read_text(encoding="utf-8"))
+          assert v["marker"]=="VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_INSTALLER_LOCK_V2"
+          assert v["candidate_installer_source_accepted"] is True
+          assert v["ctypes_free_builtin_voidfs_boundary_accepted"] is True
+          assert v["voidfs_preloaded_cache_rejection_accepted"] is True
+          assert v["repository_input_fifo_nonblocking_accepted"] is True
+          assert v["install_target_selected"] is True
+          for key in (
+              "protected_installer_first_entry_installed",
+              "protected_installer_first_entry_verified",
+              "protected_install_authorized",
+              "protected_source_installed",
+              "live_privileged_census_authorized",
+              "live_privileged_census_executed",
+              "service_mutation",
+              "systemd_mutation",
+              "existing_target_replaced",
+              "replacement_apply_authorized",
+              "runtime_integration",
+              "payment_acceptance",
+              "public_presale_activation",
+              "production_gate_ready",
+              "funds_movement",
+          ):
+              assert v[key] is False, key
+          PY
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
