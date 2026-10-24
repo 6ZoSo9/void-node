@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - "ops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json"
-      - "scripts/prove_void_buy_allocation_custody_runtime_v3_installer-first-entry-lock-v2.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_lock_v2.py"
       - "docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.md"
       - ".github/workflows/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.yml"
       - "native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.c"
@@ -46,14 +46,14 @@ jobs:
             $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.yml'
             $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.md'
             $'A\tops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json'
-            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_installer-first-entry-lock-v2.py'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_lock_v2.py'
           )
           mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json)" = \
             "36d6c4a5ff825993371f109ee86a77b601e12d07"
-          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer-first-entry-lock-v2.py)" = \
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_lock_v2.py)" = \
             "0d625053e81347f9e1f9bb11189fac88ae68846c"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.md)" = \
             "bf8084a30f58406a02fecf08f249621f852d9070"
@@ -76,7 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
-            scripts/prove_void_buy_allocation_custody_runtime_v3_installer-first-entry-lock-v2.py
+            scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_lock_v2.py
 
       - name: Authenticate hosted first-entry evidence
         shell: bash
@@ -205,7 +205,7 @@ jobs:
           set -euo pipefail
           out="$RUNNER_TEMP/first-entry-lock-v2-proof.txt"
           python3 -I -B \
-            scripts/prove_void_buy_allocation_custody_runtime_v3_installer-first-entry-lock-v2.py \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_lock_v2.py \
             --hosted-evidence "$EVIDENCE_PATH" \
             | tee "$out"
 
