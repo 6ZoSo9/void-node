@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -185,6 +186,7 @@ for (const required of [
   "qualifier_tool_symlink_forbidden",
   "qualifier_tool_realpath_not_canonical",
   'getattr(os, "O_NOFOLLOW", 0)',
+  'getattr(os, "O_NONBLOCK", 0)',
   "qualifier_tool_snapshot_failed",
   "qualifier_tool_path_canonical=true",
   "qualifier_tool_snapshot_green=true",
@@ -243,6 +245,37 @@ try {
   );
 } finally {
   fs.rmSync(swapDir, { recursive: true, force: true });
+}
+
+const fifoDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-postgres-qualifier-fifo-proof-"),
+);
+try {
+  const fifoPath = path.join(fifoDir, "qualifier-tool.fifo");
+  const mkfifo = spawnSync("/usr/bin/mkfifo", [fifoPath], {
+    encoding: "utf8",
+    timeout: 2000,
+  });
+  assert.equal(mkfifo.status, 0, mkfifo.stderr);
+
+  const python = [
+    "import os,stat,sys",
+    "p=sys.argv[1]",
+    "flags=(os.O_RDONLY|getattr(os,'O_CLOEXEC',0)|getattr(os,'O_NOFOLLOW',0)|getattr(os,'O_NONBLOCK',0))",
+    "fd=os.open(p,flags)",
+    "st=os.fstat(fd)",
+    "os.close(fd)",
+    "raise SystemExit(17 if not stat.S_ISREG(st.st_mode) else 18)",
+  ].join(";");
+  const fifoOpen = spawnSync("python3", ["-I", "-B", "-c", python, fifoPath], {
+    encoding: "utf8",
+    timeout: 2000,
+    env: { PATH: "/usr/bin:/bin", HOME: "/nonexistent", LC_ALL: "C" },
+  });
+  assert.equal(fifoOpen.signal, null, "nonblocking FIFO probe timed out");
+  assert.equal(fifoOpen.status, 17, fifoOpen.stderr);
+} finally {
+  fs.rmSync(fifoDir, { recursive: true, force: true });
 }
 
 for (const forbidden of [
@@ -313,6 +346,7 @@ console.log("source_slice_blob_binding_green=true");
 console.log("qualifier_tool_canonical_path_green=true");
 console.log("qualifier_tool_private_snapshot_green=true");
 console.log("qualifier_tool_path_swap_adversary_green=true");
+console.log("qualifier_tool_fifo_nonblocking_green=true");
 console.log("host_wrapper_no_mutation_contract_green=true");
 console.log("production_factory_only_green=true");
 console.log("schema_admission_only_green=true");
