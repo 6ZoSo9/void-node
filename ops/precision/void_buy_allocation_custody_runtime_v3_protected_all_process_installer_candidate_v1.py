@@ -462,6 +462,7 @@ def _cleanup_stage(
         names = sorted(os.listdir(stage_fd))
         if names not in ([], [source_name]):
             return False
+        os.fchmod(stage_fd, 0o700)
         if names == [source_name]:
             entry = os.stat(
                 source_name,
@@ -471,7 +472,6 @@ def _cleanup_stage(
             if not stat.S_ISREG(entry.st_mode) or stat.S_ISLNK(entry.st_mode):
                 return False
             os.unlink(source_name, dir_fd=stage_fd)
-        os.fchmod(stage_fd, 0o700)
     finally:
         os.close(stage_fd)
     os.rmdir(stage_name, dir_fd=parent_fd)
@@ -773,6 +773,37 @@ def self_test() -> None:
             raise InstallError("self_test_collision_created_stage")
 
     with tempfile.TemporaryDirectory(
+        prefix="void-custody-procref-installer-prepublish-"
+    ) as tmp:
+        parent = Path(tmp) / "opt"
+        parent.mkdir(mode=0o755)
+
+        def fail_rename(_fd: int, _source: str, _target: str) -> None:
+            raise InstallError("injected_rename_failure")
+
+        try:
+            apply_create_only_algorithm(
+                parent=parent,
+                install_name=INSTALL_NAME,
+                stage_name=STAGE_NAME,
+                source_name=SOURCE_NAME,
+                source_raw=accepted,
+                expected_uid=os.geteuid(),
+                expected_gid=os.getegid(),
+                require_root_parent=False,
+                rename_fn=fail_rename,
+            )
+        except InstallError as exc:
+            if "injected_rename_failure" not in str(exc):
+                raise
+        else:
+            raise InstallError("self_test_rename_failure_not_raised")
+        if (parent / STAGE_NAME).exists():
+            raise InstallError("self_test_prepublication_stage_not_cleaned")
+        if (parent / INSTALL_NAME).exists():
+            raise InstallError("self_test_prepublication_target_created")
+
+    with tempfile.TemporaryDirectory(
         prefix="void-custody-procref-installer-postpublish-"
     ) as tmp:
         parent = Path(tmp) / "opt"
@@ -817,6 +848,7 @@ def self_test() -> None:
     print("create_only=true")
     print("destination_collision_rejected=true")
     print("staging_cleanup_before_publication=true")
+    print("forced_rename_failure_cleanup_proven=true")
     print("kernel_rename_noreplace_required=true")
     print("source_fsync_required=true")
     print("stage_directory_fsync_required=true")
