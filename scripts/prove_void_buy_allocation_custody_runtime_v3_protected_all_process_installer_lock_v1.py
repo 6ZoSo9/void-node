@@ -176,7 +176,7 @@ for required in (
     "expected_gid=0",
     "require_root_parent=True",
     "class StageGenerationUnknownError(InstallError)",
-    '"possible_residual_stage":',
+    "self.possible_residual_stage = True",
     '"stage_generation_unknown_hold_required": True',
     '"retry_after_unknown_stage_requires_operator_inspection": True',
     '"protected_install_authorized": False',
