@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -73,7 +74,15 @@ def execute_verified_source(raw: bytes, path: Path, name: str) -> types.ModuleTy
     module = types.ModuleType(name)
     module.__file__ = str(path)
     module.__package__ = ""
-    exec(code, module.__dict__)
+    prior = sys.modules.get(name)
+    sys.modules[name] = module
+    try:
+        exec(code, module.__dict__)
+    finally:
+        if prior is None:
+            sys.modules.pop(name, None)
+        else:
+            sys.modules[name] = prior
     return module
 
 
@@ -85,6 +94,52 @@ module = execute_verified_source(
     TARGET,
     "void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1",
 )
+
+with tempfile.TemporaryDirectory(
+    prefix="void-custody-procref-install-plan-source-binding-"
+) as source_tmp:
+    fixture_root = Path(source_tmp)
+    original = fixture_root / "plan.py"
+    replacement = fixture_root / "replacement.py"
+    original.write_text("SOURCE_MARKER='ORIGINAL'\n", encoding="utf-8")
+    replacement.write_text("SOURCE_MARKER='REPLACEMENT'\n", encoding="utf-8")
+
+    fixture_raw = read_bound_source(original)
+    assert b"ORIGINAL" in fixture_raw
+    os.replace(replacement, original)
+    fixture_module = execute_verified_source(
+        fixture_raw,
+        original,
+        "void_install_plan_verified_source_swap_fixture",
+    )
+    assert fixture_module.SOURCE_MARKER == "ORIGINAL"
+
+    symlink = fixture_root / "symlink.py"
+    symlink.symlink_to(original)
+    try:
+        read_bound_source(symlink)
+    except (AssertionError, OSError):
+        pass
+    else:
+        raise AssertionError("symlink source was accepted")
+
+    fifo = fixture_root / "source.fifo"
+    os.mkfifo(fifo, 0o600)
+    previous_handler = signal.getsignal(signal.SIGALRM)
+    def _fifo_timeout(_signum, _frame):
+        raise TimeoutError("fifo source read blocked")
+    signal.signal(signal.SIGALRM, _fifo_timeout)
+    signal.alarm(2)
+    try:
+        try:
+            read_bound_source(fifo)
+        except (AssertionError, OSError):
+            pass
+        else:
+            raise AssertionError("FIFO source was accepted")
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, previous_handler)
 
 assert module.MARKER == (
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_INSTALL_PLAN_V1"
@@ -291,6 +346,11 @@ for required in (
 
 print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_INSTALL_PLAN_V1_PROOF_GREEN")
 print("exact_source_blob_asserted=true")
+print("descriptor_bound_source_read=true")
+print("verified_bytes_executed_without_path_reopen=true")
+print("source_symlink_rejected=true")
+print("source_fifo_nonblocking_rejected=true")
+print("post_hash_path_swap_executes_verified_bytes=true")
 print("accepted_lock_exact=true")
 print("accepted_source_exact=true")
 print("fixed_protected_install_path_bound=true")
