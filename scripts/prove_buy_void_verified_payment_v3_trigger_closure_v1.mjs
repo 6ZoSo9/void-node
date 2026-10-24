@@ -24,7 +24,7 @@ const CONSUMERS=Object.freeze([
 const COMPATIBILITY=Object.freeze([
   "scripts/prove_buy_void_canonical_caller_request_v2.ts",
   "scripts/prove_buy_void_legacy_operator_status_exact_identity_v2.ts",
-  "scripts/prove_buy_void_operator_verified_allocation_dispatch_v6.ts",
+  "scripts/prove_buy_void_operator_verified_allocation_dispatch_v7.ts",
   "scripts/prove_buy_void_verified_payment_allocation_handoff_dual_rail_v4.ts",
   "scripts/prove_buy_void_verified_payment_allocation_handoff_first_original_v5.ts",
   "scripts/prove_void_buy_request_root_runtime_topology_census_v3.py",
