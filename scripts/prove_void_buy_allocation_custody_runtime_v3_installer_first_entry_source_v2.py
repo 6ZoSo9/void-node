@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
 from pathlib import Path
+import signal
+import stat
 import subprocess
 import tempfile
 
@@ -23,7 +26,8 @@ LOCK = (
     "buy-void-allocation-custody-runtime-v3-"
     "protected-all-process-installer-lock-v2.json"
 )
-EXPECTED_LOCK_BLOB = "f9372da99d8ab9b3d5f7fddc6d8de0de605576f0"
+EXPECTED_LOCK_BLOB = "486a6f6e1e2c594e60d6f9fe3fa32b03175630ae"
+MAX_PROOF_INPUT_BYTES = 2 * 1024 * 1024
 
 
 def git_blob(raw: bytes) -> str:
@@ -32,9 +36,63 @@ def git_blob(raw: bytes) -> str:
     ).hexdigest()
 
 
-source_raw = TARGET.read_bytes()
+def _generation(st: os.stat_result) -> tuple[int, ...]:
+    return (
+        st.st_dev,
+        st.st_ino,
+        st.st_uid,
+        st.st_gid,
+        st.st_mode,
+        st.st_nlink,
+        st.st_size,
+        st.st_mtime_ns,
+        st.st_ctime_ns,
+    )
+
+
+def read_descriptor_bound_regular(path: Path, maximum: int) -> bytes:
+    before = os.stat(path, follow_symlinks=False)
+    flags = (
+        os.O_RDONLY
+        | os.O_NOFOLLOW
+        | os.O_NONBLOCK
+        | getattr(os, "O_CLOEXEC", 0)
+    )
+    fd = os.open(path, flags)
+    try:
+        opened = os.fstat(fd)
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or stat.S_ISLNK(before.st_mode)
+            or not stat.S_ISREG(opened.st_mode)
+            or opened.st_size < 1
+            or opened.st_size > maximum
+            or _generation(before) != _generation(opened)
+        ):
+            raise AssertionError("proof_input_not_stable_regular")
+        raw = bytearray()
+        while len(raw) < opened.st_size:
+            chunk = os.read(fd, min(65536, opened.st_size - len(raw)))
+            if not chunk:
+                raise AssertionError("proof_input_short_read")
+            raw.extend(chunk)
+        if os.read(fd, 1):
+            raise AssertionError("proof_input_grew")
+        after = os.fstat(fd)
+        visible = os.stat(path, follow_symlinks=False)
+        if (
+            _generation(opened) != _generation(after)
+            or _generation(after) != _generation(visible)
+        ):
+            raise AssertionError("proof_input_generation_changed")
+        return bytes(raw)
+    finally:
+        os.close(fd)
+
+
+source_raw = read_descriptor_bound_regular(TARGET, MAX_PROOF_INPUT_BYTES)
 assert git_blob(source_raw) == EXPECTED_SOURCE_BLOB
-lock_raw = LOCK.read_bytes()
+lock_raw = read_descriptor_bound_regular(LOCK, MAX_PROOF_INPUT_BYTES)
 assert git_blob(lock_raw) == EXPECTED_LOCK_BLOB
 lock = json.loads(lock_raw.decode("utf-8"))
 assert lock["marker"] == (
@@ -230,6 +288,58 @@ with tempfile.TemporaryDirectory(
         encoding="ascii",
     )
 
+    captured_source = tmp_path / "verified-first-entry-source-v2.c"
+    captured_source.write_bytes(source_raw)
+
+    missing_dir = tmp_path / "missing"
+    missing_dir.mkdir(mode=0o700)
+    missing_source = missing_dir / "verified-first-entry-source-v2.c"
+    missing_source.write_bytes(source_raw)
+
+    symlink_source = tmp_path / "source-symlink.c"
+    symlink_source.symlink_to(captured_source.name)
+    try:
+        read_descriptor_bound_regular(symlink_source, MAX_PROOF_INPUT_BYTES)
+    except OSError as exc:
+        assert exc.errno == errno.ELOOP, exc
+    else:
+        raise AssertionError("proof_source_symlink_accepted")
+
+    fifo_source = tmp_path / "source-fifo.c"
+    os.mkfifo(fifo_source, 0o600)
+    old_handler = signal.getsignal(signal.SIGALRM)
+
+    def _fifo_timeout(_signum, _frame):
+        raise TimeoutError("proof_source_fifo_blocked")
+
+    signal.signal(signal.SIGALRM, _fifo_timeout)
+    signal.alarm(2)
+    try:
+        try:
+            read_descriptor_bound_regular(fifo_source, MAX_PROOF_INPUT_BYTES)
+        except AssertionError as exc:
+            assert "proof_input_not_stable_regular" in str(exc), exc
+        else:
+            raise AssertionError("proof_source_fifo_accepted")
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+
+    swap_candidate = tmp_path / "swap-candidate.c"
+    swap_candidate.write_bytes(source_raw)
+    retained_swap_raw = read_descriptor_bound_regular(
+        swap_candidate,
+        MAX_PROOF_INPUT_BYTES,
+    )
+    swap_replacement = tmp_path / "swap-replacement.c"
+    swap_replacement.write_text(
+        '#error "PATH_REPLACEMENT_MUST_NOT_COMPILE"\n',
+        encoding="ascii",
+    )
+    os.replace(swap_replacement, swap_candidate)
+    swap_captured = tmp_path / "swap-captured.c"
+    swap_captured.write_bytes(retained_swap_raw)
+
     compile_ok = subprocess.run(
         [
             "cc",
@@ -240,7 +350,7 @@ with tempfile.TemporaryDirectory(
             "-fsyntax-only",
             "-I",
             str(tmp_path),
-            str(TARGET),
+            str(captured_source),
         ],
         cwd="/",
         stdin=subprocess.DEVNULL,
@@ -259,8 +369,8 @@ with tempfile.TemporaryDirectory(
             "-std=c11",
             "-fsyntax-only",
             "-I",
-            str(tmp_path / "missing"),
-            str(TARGET),
+            str(missing_dir),
+            str(missing_source),
         ],
         cwd="/",
         stdin=subprocess.DEVNULL,
@@ -271,10 +381,53 @@ with tempfile.TemporaryDirectory(
         timeout=20,
         env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
     )
-    # The quoted include searches the source directory first, where no binding
-    # header exists, then the deliberately missing include directory.
+    # This captured copy lives in a directory without the binding header.
     assert missing_header.returncode != 0
     assert "installer_first_entry_bindings_v2.h" in missing_header.stderr
+
+    swap_captured_compile = subprocess.run(
+        [
+            "cc",
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-fsyntax-only",
+            "-I",
+            str(tmp_path),
+            str(swap_captured),
+        ],
+        cwd="/",
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=20,
+        env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+    )
+    assert swap_captured_compile.returncode == 0, swap_captured_compile.stderr
+
+    swap_reopened_compile = subprocess.run(
+        [
+            "cc",
+            "-std=c11",
+            "-fsyntax-only",
+            "-I",
+            str(tmp_path),
+            str(swap_candidate),
+        ],
+        cwd="/",
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=20,
+        env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+    )
+    assert swap_reopened_compile.returncode != 0
+    assert "PATH_REPLACEMENT_MUST_NOT_COMPILE" in swap_reopened_compile.stderr
 
     assert source.count("open_leaf_nofollow_nonblocking(") == 3
     trusted_open = source.split("static int open_verified_regular(", 1)[1].split(
@@ -290,7 +443,7 @@ with tempfile.TemporaryDirectory(
     )
 
     harness = tmp_path / "fifo-open-harness.c"
-    target_literal = str(TARGET).replace("\\", "\\\\").replace('"', '\\"')
+    target_literal = str(captured_source).replace("\\", "\\\\").replace('"', '\\"')
     harness.write_text(
         "#define main void_first_entry_original_main\n"
         f'#include "{target_literal}"\n'
@@ -340,6 +493,11 @@ with tempfile.TemporaryDirectory(
 
 print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_INSTALLER_FIRST_ENTRY_SOURCE_V2_PROOF_GREEN")
 print("exact_source_blob_asserted=true")
+print("descriptor_bound_source_read=true")
+print("source_symlink_rejected=true")
+print("source_fifo_nonblocking_rejected=true")
+print("captured_source_compile_bound=true")
+print("post_hash_path_swap_regression=true")
 print("predecessor_first_entry_head=" + PREDECESSOR_FIRST_ENTRY_HEAD)
 print("predecessor_first_entry_blob=" + PREDECESSOR_FIRST_ENTRY_BLOB)
 print("accepted_installer_lock_v2_exact=true")
