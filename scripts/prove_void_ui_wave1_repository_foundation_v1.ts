@@ -233,6 +233,40 @@ for (const route of destinations) {
   }
 }
 
+const accountControlWalletLink =
+  '<a class="account-control" href="#/wallet" aria-label="Open Wallet to select an account">';
+if (!html.includes(accountControlWalletLink)) {
+  fail("account control must truthfully navigate to Wallet");
+}
+for (const forbidden of [
+  'data-action="open-account"',
+  'aria-label="Open account menu"',
+]) {
+  if (html.includes(forbidden)) {
+    fail(`unavailable account-menu affordance remains: ${forbidden}`);
+  }
+}
+for (const forbidden of [
+  "if (action === 'open-account')",
+  "Account menu is a Wave 1 shell slot.",
+]) {
+  if (appJs.includes(forbidden)) {
+    fail(`unavailable account-menu behavior remains: ${forbidden}`);
+  }
+}
+const accountNavigationRepair =
+  sourceManifest.account_control_wallet_navigation_repair;
+if (
+  accountNavigationRepair?.date !== "2026-10-23" ||
+  accountNavigationRepair?.surface !== "global-header" ||
+  accountNavigationRepair?.destination !== "#/wallet" ||
+  accountNavigationRepair?.account_menu_available !== false ||
+  accountNavigationRepair?.wallet_navigation_available !== true ||
+  accountNavigationRepair?.authority_added !== false
+) {
+  fail("account control Wallet-navigation repair manifest is invalid");
+}
+
 const combined = [
   html,
   appJs,
