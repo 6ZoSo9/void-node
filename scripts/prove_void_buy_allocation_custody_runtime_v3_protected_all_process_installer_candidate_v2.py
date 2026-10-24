@@ -15,9 +15,9 @@ TARGET = (
     ROOT
     / "ops/precision/"
       "void_buy_allocation_custody_runtime_v3_"
-      "protected_all_process_installer_candidate_v1.py"
+      "protected_all_process_installer_candidate_v2.py"
 )
-EXPECTED_SOURCE_BLOB = "e9eb7f539caa0a98171793801f80c62b4a187a71"
+EXPECTED_SOURCE_BLOB = "6fc600431e122d587661f2413b07d4a540cdc0c9"
 
 
 def git_blob(raw: bytes) -> str:
@@ -41,7 +41,7 @@ assert module.MARKER == (
 )
 assert module.SCHEMA == (
     "void_buy_void_custody_runtime_v3_"
-    "protected_all_process_installer_candidate_v1"
+    "protected_all_process_installer_candidate_v2"
 )
 assert module.PLAN_GIT_BLOB == (
     "0fef4e6f76738dd474ea775985b1facdd922bb54"
@@ -122,6 +122,58 @@ assert plan["authority"]["funds_movement"] is False
 
 module.self_test()
 
+with tempfile.TemporaryDirectory(
+    prefix="void-custody-installer-v2-fifo-read-proof-"
+) as tmp:
+    parent = Path(tmp)
+    leaf = parent / "bound-input"
+    backup = parent / "bound-input.original"
+    leaf.write_bytes(b"fixture-input\n")
+
+    saved_open = module.os.open
+    swapped = {"done": False}
+
+    def fifo_swap_open(path, flags, mode=0o777, *, dir_fd=None):
+        if (
+            path == "bound-input"
+            and dir_fd is not None
+            and not swapped["done"]
+            and (flags & getattr(os, "O_DIRECTORY", 0)) == 0
+        ):
+            assert flags & os.O_NOFOLLOW
+            assert flags & os.O_NONBLOCK
+            swapped["done"] = True
+            leaf.rename(backup)
+            os.mkfifo(leaf)
+            try:
+                fd = saved_open(path, flags, mode, dir_fd=dir_fd)
+            finally:
+                if leaf.exists():
+                    leaf.unlink()
+                if backup.exists():
+                    backup.rename(leaf)
+            return fd
+        return saved_open(path, flags, mode, dir_fd=dir_fd)
+
+    module.os.open = fifo_swap_open
+    try:
+        try:
+            module._read_bound_regular(leaf, 1024)
+        except module.InstallError as exc:
+            assert "source_file_rebound" in str(exc), str(exc)
+        else:
+            raise AssertionError("FIFO substitution was accepted")
+    finally:
+        module.os.open = saved_open
+        if leaf.exists() and not leaf.is_file():
+            leaf.unlink()
+        if backup.exists():
+            if leaf.exists():
+                leaf.unlink()
+            backup.rename(leaf)
+
+    assert swapped["done"] is True
+
 cmd = [sys.executable, "-I", "-B", str(TARGET)]
 
 source_plan = subprocess.run(
@@ -198,6 +250,7 @@ for required in (
     "os.O_CREAT",
     "os.O_EXCL",
     "os.O_NOFOLLOW",
+    "os.O_NONBLOCK",
     "os.fsync(file_fd)",
     "os.fsync(stage_fd)",
     "parent_fsync_fn(parent_fd)",
@@ -539,6 +592,7 @@ print("internal_final_source_name_parameterized=true")
 print("truthful_post_publication_failure_receipt=true")
 print("postpublication_failure_preserves_final_root=true")
 print("hosted_postpublication_fixture_bridge_explicit=true")
+print("repository_input_fifo_substitution_nonblocking_rejected=true")
 print("without_dash_b_bootstrap_hold=true")
 print("protected_install_authorized=false")
 print("protected_source_installed=false")
