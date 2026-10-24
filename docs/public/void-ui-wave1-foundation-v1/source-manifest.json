@@ -135,7 +135,15 @@
   "payload_hashes_are_source_bundle_only": true,
   "repository_hashes": {
     "public/void-app-wave1-v1/assets/css/components.css": "2dac0177de78ccf3dc140db5167e7297dd0fd6d5c276844d648f7435c11336ee",
-    "public/void-app-wave1-v1/assets/js/app.js": "0c7e5ecc4918fc8f5a9bc1a4695ab54cfe417975c01ad99317cb27c6099f521f",
-    "public/void-app-wave1-v1/index.html": "78d047f2bc61323dad16438f2fcc16daa3941c170c96c7cf67d52c8df2408f8f"
+    "public/void-app-wave1-v1/assets/js/app.js": "2f61a48f273ef7271e84673f2180c52050904768679594432b4b2b991a7151ed",
+    "public/void-app-wave1-v1/index.html": "fd512dc7ed4a565c9a6ce5a9b7bab1bf26b9da6b995b987d7a4004d180cca830"
+  },
+  "account_control_wallet_navigation_repair": {
+    "date": "2026-10-23",
+    "surface": "global-header",
+    "destination": "#/wallet",
+    "account_menu_available": false,
+    "wallet_navigation_available": true,
+    "authority_added": false
   }
 }
