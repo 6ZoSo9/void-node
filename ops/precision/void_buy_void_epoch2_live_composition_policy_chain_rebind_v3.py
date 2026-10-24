@@ -91,31 +91,70 @@ def _same_stat(a: os.stat_result, b: os.stat_result) -> bool:
 
 
 def _read_bound_source(path: pathlib.Path, expected_blob: str) -> bytes:
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
     try:
-        before = path.lstat()
+        fd = os.open(path, flags)
     except OSError as exc:
-        raise RebindError("source_lstat_failed:" + path.name) from exc
-    if (
-        not stat.S_ISREG(before.st_mode)
-        or stat.S_ISLNK(before.st_mode)
-        or before.st_nlink != 1
-        or before.st_size <= 0
-        or before.st_size > MAX_SOURCE_BYTES
-    ):
-        raise RebindError("source_metadata_invalid:" + path.name)
+        raise RebindError("source_open_failed:" + path.name) from exc
+
     try:
-        raw = path.read_bytes()
-    except OSError as exc:
-        raise RebindError("source_read_failed:" + path.name) from exc
-    try:
-        after = path.lstat()
-    except OSError as exc:
-        raise RebindError("source_relstat_failed:" + path.name) from exc
-    if not _same_stat(before, after):
-        raise RebindError("source_changed_during_read:" + path.name)
-    if git_blob_sha1(raw) != expected_blob:
-        raise RebindError("source_git_blob_mismatch:" + path.name)
-    return raw
+        try:
+            opened_before = os.fstat(fd)
+        except OSError as exc:
+            raise RebindError("source_fstat_failed:" + path.name) from exc
+
+        if (
+            not stat.S_ISREG(opened_before.st_mode)
+            or stat.S_ISLNK(opened_before.st_mode)
+            or opened_before.st_nlink != 1
+            or opened_before.st_size <= 0
+            or opened_before.st_size > MAX_SOURCE_BYTES
+        ):
+            raise RebindError("source_metadata_invalid:" + path.name)
+
+        chunks: list[bytes] = []
+        remaining = opened_before.st_size
+        while remaining:
+            try:
+                chunk = os.read(fd, min(remaining, 1024 * 1024))
+            except BlockingIOError as exc:
+                raise RebindError("source_nonblocking_read_blocked:" + path.name) from exc
+            except OSError as exc:
+                raise RebindError("source_read_failed:" + path.name) from exc
+            if not chunk:
+                raise RebindError("source_short_read:" + path.name)
+            chunks.append(chunk)
+            remaining -= len(chunk)
+
+        try:
+            extra = os.read(fd, 1)
+        except BlockingIOError:
+            extra = b""
+        except OSError as exc:
+            raise RebindError("source_growth_check_failed:" + path.name) from exc
+        if extra:
+            raise RebindError("source_grew_during_read:" + path.name)
+
+        try:
+            opened_after = os.fstat(fd)
+        except OSError as exc:
+            raise RebindError("source_refstat_failed:" + path.name) from exc
+        if not _same_stat(opened_before, opened_after):
+            raise RebindError("source_descriptor_changed_during_read:" + path.name)
+
+        try:
+            visible_after = path.lstat()
+        except OSError as exc:
+            raise RebindError("source_relstat_failed:" + path.name) from exc
+        if not _same_stat(opened_after, visible_after):
+            raise RebindError("source_path_rebound_during_read:" + path.name)
+
+        raw = b"".join(chunks)
+        if git_blob_sha1(raw) != expected_blob:
+            raise RebindError("source_git_blob_mismatch:" + path.name)
+        return raw
+    finally:
+        os.close(fd)
 
 
 def _load_v2() -> types.ModuleType:
