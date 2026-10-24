@@ -1,0 +1,206 @@
+{
+  "marker": "VOID_V7_V5_STAGE_ROLE_SEPARATION_CONTRACT_V2",
+  "schema": "void_v7_v5_stage_role_separation_contract_v2",
+  "lifecycle": "SOURCE_ONLY_CURRENT_3715_STAGE_VERIFIER_UNSELECTED",
+  "repository": "6ZoSo9/void-node",
+  "source_generation": {
+    "exact_parent_pr": 3715,
+    "exact_parent_head": "ea2193709dab86ea3eb3c2235d08e8a6858a23c6",
+    "source_installer_path": "ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py",
+    "source_installer_blob": "d88a9548ea34b8209ed7dcd53732fd25dd1371bf",
+    "receipt_installer_path": "ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py",
+    "receipt_installer_blob": "b462696826b4f90fdf5f4938cd5467e5711addab",
+    "source_proof_blob": "5b8e98eec6712efd4846a564f689161fb054338f",
+    "receipt_proof_blob": "7d968740c9e0c787c57bd493e5c51f5ed385eed1",
+    "installer_doc_blob": "02fa010cd66a50c5e2858b6cced9a7e08ee295af",
+    "installer_workflow_blob": "af1a9afad2a39b96ee4022ba1b36ebf7534c818b",
+    "current_installer_uses_shared_runtime_uid_gid": true,
+    "source_implementation_untouched": true,
+    "receipt_implementation_untouched": true
+  },
+  "candidate_owner": {
+    "uid": 1000,
+    "gid": 1000,
+    "ownership": "operator-owned",
+    "required_candidate_root_mode": "0700",
+    "required_operations": [
+      "collect_plan",
+      "verify_candidate"
+    ],
+    "candidate_metadata_must_remain_1000_1000": true,
+    "protected_copy_execution_allowed": false,
+    "private_stage_named_acl_allowed": false
+  },
+  "root_copier": {
+    "uid": 0,
+    "gid": 0,
+    "required_precondition": "_require_privileged_source_custody",
+    "protected_mutation_operations": [
+      "_copy_candidate_to_stage",
+      "_prepare_private_stage_for_runtime_verification",
+      "_seal_verified_stage_for_publication",
+      "_rename_noreplace"
+    ],
+    "verifies_candidate_owner_metadata": true,
+    "private_stage_owner_uid": 0,
+    "private_stage_owner_gid": 0,
+    "private_stage_digest_before_any_verifier_acl": true,
+    "all_temporary_verifier_acl_removed_before_publication": true,
+    "atomic_no_replace_publication": true,
+    "parent_fsync_required": true
+  },
+  "stage_verifier": {
+    "status": "UNSELECTED",
+    "account_name": null,
+    "uid": null,
+    "gid": null,
+    "numeric_identity_selected": false,
+    "required_shell": "/usr/sbin/nologin",
+    "required_supplementary_groups": [],
+    "custody_ipc_gid_forbidden": 980,
+    "reserved_uids": [
+      0,
+      994,
+      995,
+      1000
+    ],
+    "reserved_gids": [
+      0,
+      980,
+      981,
+      982,
+      1000
+    ],
+    "private_stage_acl": "named_user_read_search_only",
+    "private_stage_write_allowed": false,
+    "candidate_owner_acl_alias_forbidden": true,
+    "required_private_operation": "verify_stage_private",
+    "final_stage_operation": "verify_stage",
+    "final_stage_identity_policy": "EXPLICIT_REVIEW_REQUIRED"
+  },
+  "child_dispatch_rebind": {
+    "current_shared_dispatch_function": "_runtime_uid_child_call",
+    "current_shared_drop_function": "_drop_runtime_child_privileges",
+    "current_operations": [
+      "collect_plan",
+      "verify_stage_private",
+      "verify_stage"
+    ],
+    "future_collect_plan_identity": "candidate_owner",
+    "future_verify_stage_private_identity": "stage_verifier",
+    "future_verify_stage_identity": "EXPLICIT_REVIEW_REQUIRED",
+    "split_required_before_host_apply": true
+  },
+  "identity_selection_dependency": {
+    "status": "HOLD_PROVIDER_AWARE_ACCOUNT_PLAN_REQUIRED",
+    "historical_plan_pr": 3754,
+    "historical_plan_head": "843759e6bdccc77f722eb0a365d93e1213e4a5cf",
+    "historical_plan_reuse_for_current_source_forbidden": true,
+    "historical_plan_numeric_identity_selected": false,
+    "historical_plan_files_only_nss_assumption_not_portable": true,
+    "provider_aware_current_generation_plan_accepted": false,
+    "numeric_uid_gid_selected": false,
+    "account_provisioned": false
+  },
+  "site_plan": [
+    {
+      "line": 57,
+      "fragment": "RUNTIME_UID = 1000",
+      "future_role": "split_declarations"
+    },
+    {
+      "line": 58,
+      "fragment": "RUNTIME_GID = 1000",
+      "future_role": "split_declarations"
+    },
+    {
+      "line": 148,
+      "fragment": "(ACL_USER, runtime_perm, RUNTIME_UID)",
+      "future_role": "stage_verifier_acl"
+    },
+    {
+      "line": 1644,
+      "fragment": "st.st_uid != RUNTIME_UID",
+      "future_role": "candidate_owner"
+    },
+    {
+      "line": 1645,
+      "fragment": "st.st_gid != RUNTIME_GID",
+      "future_role": "candidate_owner"
+    },
+    {
+      "line": 1650,
+      "fragment": "CANDIDATE, RUNTIME_UID, RUNTIME_GID, 0o700",
+      "future_role": "candidate_owner"
+    },
+    {
+      "line": 1877,
+      "fragment": "os.setgid(RUNTIME_GID)",
+      "future_role": "operation_scoped_child"
+    },
+    {
+      "line": 1878,
+      "fragment": "os.setuid(RUNTIME_UID)",
+      "future_role": "operation_scoped_child"
+    },
+    {
+      "line": 1880,
+      "fragment": "os.getresuid() != (RUNTIME_UID, RUNTIME_UID, RUNTIME_UID)",
+      "future_role": "operation_scoped_child"
+    },
+    {
+      "line": 1881,
+      "fragment": "os.getresgid() != (RUNTIME_GID, RUNTIME_GID, RUNTIME_GID)",
+      "future_role": "operation_scoped_child"
+    },
+    {
+      "line": 2576,
+      "fragment": "candidate_before.st_uid != RUNTIME_UID",
+      "future_role": "candidate_owner"
+    },
+    {
+      "line": 2577,
+      "fragment": "candidate_before.st_gid != RUNTIME_GID",
+      "future_role": "candidate_owner"
+    },
+    {
+      "line": 2925,
+      "fragment": "(ACL_USER, 0o5, RUNTIME_UID)",
+      "future_role": "stage_verifier_acl_fixture"
+    }
+  ],
+  "required_next_versioned_implementation": [
+    "separate_candidate_owner_and_stage_verifier_constants",
+    "parameterize_named_private_stage_acl_with_exact_selected_verifier_uid",
+    "dispatch_collect_plan_only_under_candidate_owner_identity",
+    "dispatch_verify_stage_private_only_under_stage_verifier_identity",
+    "assign_verify_stage_identity_under_explicit_reviewed_policy",
+    "preserve_root_only_protected_copy_acl_mutation_and_no_replace_publication",
+    "preserve_setgroups_empty_and_exact_saved_uid_gid_checks_per_child",
+    "preserve_no_new_privs_and_zero_inheritable_permitted_effective_ambient_caps",
+    "define_and_verify_capability_bounding_set_policy",
+    "replace_dynamic_ctypes_native_operations_with_reviewed_static_native_bridges",
+    "require_post_exec_nondumpable_and_same_uid_ptrace_policy",
+    "bind_static_python_and_stdlib_exact_sealed_fd_first_entry",
+    "derive_provider_aware_account_selection_plan_for_current_generation",
+    "fresh_independent_security_review_and_exact_ci_before_any_host_action"
+  ],
+  "authority": {
+    "source_contract_only": true,
+    "role_separation_implemented": false,
+    "stage_verifier_selected": false,
+    "account_provisioned": false,
+    "provider_aware_account_plan_accepted": false,
+    "root_execution": false,
+    "protected_stage_apply": false,
+    "acl_mutation": false,
+    "launcher_manifest_runtime_acceptance": false,
+    "service_mutation": false,
+    "credential_access": false,
+    "signing": false,
+    "payment_acceptance": false,
+    "presale_activation": false,
+    "work_credit_market_activation": false,
+    "funds_movement": false
+  }
+}
