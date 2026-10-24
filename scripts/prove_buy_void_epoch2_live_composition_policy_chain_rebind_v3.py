@@ -14,7 +14,7 @@ SOURCE = (
     / "ops/precision/"
     "void_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py"
 )
-EXPECTED_SOURCE_BLOB = "c030a6e8e6bb8ed71c5fc045753697b1bd1412d7"
+EXPECTED_SOURCE_BLOB = "010b72364c45c9fdb14b42c5868c2fc70eb2accb"
 EXPECTED_V2_BLOB = "891cce24244c62756caeba6d2bf702cc92e8a956"
 
 
@@ -97,9 +97,10 @@ with tempfile.TemporaryDirectory(
         try:
             module._read_bound_source(rebound_path, source_blob)
         except module.RebindError as exc:
-            assert str(exc) == (
-                "source_path_rebound_during_read:" + rebound_path.name
-            )
+            assert str(exc) in {
+                "source_descriptor_changed_during_read:" + rebound_path.name,
+                "source_path_rebound_during_read:" + rebound_path.name,
+            }
         else:
             raise AssertionError("post-open pathname replacement was accepted")
     finally:
@@ -108,8 +109,31 @@ with tempfile.TemporaryDirectory(
     assert retained_path.read_bytes() == source_bytes
     assert stat.S_ISFIFO(rebound_path.lstat().st_mode)
 
-v2 = module._load_v2()
-v1, installer = module._load_installer(v2)
+bound_reads: list[tuple[pathlib.Path, str]] = []
+original_bound_reader = module._read_bound_source
+
+def record_bound_dependency(path: pathlib.Path, expected_blob: str) -> bytes:
+    bound_reads.append((pathlib.Path(path), expected_blob))
+    return original_bound_reader(path, expected_blob)
+
+module._read_bound_source = record_bound_dependency
+try:
+    v2 = module._load_v2()
+
+    def forbidden_legacy_loader(*_args, **_kwargs):
+        raise AssertionError("legacy pathname dependency loader invoked")
+
+    v2._load_v1 = forbidden_legacy_loader
+    v2._load_installer = forbidden_legacy_loader
+    v1, installer = module._load_installer(v2)
+finally:
+    module._read_bound_source = original_bound_reader
+
+assert bound_reads == [
+    (module.V2_SOURCE, module.V2_BLOB),
+    (module.ROOT / v2.V1_REL, v2.V1_BLOB),
+    (module.ROOT / v2.INSTALLER_REL, v2.INSTALLER_BLOB),
+], bound_reads
 assert v2.ORIGINAL_HEAD == "65b4515b78e467afb399b510037e8c64256e87a5"
 assert v2.PREVIOUS_HEAD == "b92ba19cf16ea5f147c441e15de12b9932ca94c3"
 assert installer.NATIVE_BYTES == 726_976
@@ -353,6 +377,7 @@ print("bound_source_retained_descriptor=true")
 print("bound_source_symlink_rejected=true")
 print("bound_source_writerless_fifo_nonblocking_hold=true")
 print("bound_source_post_open_replacement_rejected=true")
+print("transitive_dependencies_use_bound_reader=true")
 print("credential_access_authorized=false")
 print("signing_authorized=false")
 print("transaction_authorized=false")
