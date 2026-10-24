@@ -100,14 +100,22 @@ created by that invocation.
 
 Cleanup requires:
 
-- the visible stage dev/inode still match the retained stage generation;
+- the stage dev/inode to be captured immediately after `mkdir`, before the
+  stage is reopened for population;
+- the visible stage dev/inode still match that retained generation;
 - no unexpected stage entries;
 - only the known source leaf may be removed;
 - the sealed stage is first restored to private mode `0700`;
 - the final destination is never touched.
 
+A cleanup exception or a cleanup result of false becomes its own explicit HOLD;
+the original pre-publication error is never allowed to masquerade as a clean
+cleanup.
+
 The self-test forces the rename step to fail after the stage has been sealed and
-requires both stage and destination to be absent afterward.
+requires both stage and destination to be absent afterward. The independent
+proof additionally injects a cleanup refusal and requires
+`prepublication_failure_stage_cleanup_incomplete`.
 
 ## Post-publication failure behavior
 
