@@ -14,7 +14,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_node_binary_live_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "666ff8cce5da8882ab0d1e5cdf759960be402e9f"
+EXPECTED_SOURCE_BLOB = "4255a8154b6817283f7eded7c79896124ee97d25"
 
 
 def git_blob(raw: bytes) -> str:
@@ -60,6 +60,37 @@ assert module.PARENT_EXPECTED == (
 
 module.verify_profile_source()
 module.self_test()
+
+fd_dir = Path("/proc/self/fd")
+if fd_dir.is_dir():
+    before_fds = len(list(fd_dir.iterdir()))
+    original_validate = module._validate_directory
+    validation_calls = {"count": 0}
+
+    def forced_validation_hold(st, *, uid, gid, mode, code):
+        validation_calls["count"] += 1
+        if validation_calls["count"] == 2:
+            raise module.CensusHold("forced_usr_validation_hold")
+        return original_validate(
+            st,
+            uid=uid,
+            gid=gid,
+            mode=mode,
+            code=code,
+        )
+
+    module._validate_directory = forced_validation_hold
+    try:
+        try:
+            module._open_expected_ancestry()
+        except module.CensusHold as exc:
+            assert "forced_usr_validation_hold" in str(exc)
+        else:
+            raise AssertionError("forced ancestry validation HOLD was not raised")
+    finally:
+        module._validate_directory = original_validate
+    after_fds = len(list(fd_dir.iterdir()))
+    assert after_fds == before_fds, (before_fds, after_fds)
 
 saved_getuid = module.os.getuid
 saved_geteuid = module.os.geteuid
@@ -160,6 +191,7 @@ print("profile_expected_identity_bound=true")
 print("fixed_node_path_bound=true")
 print("descriptor_bound_binary_read=true")
 print("ancestor_descriptor_revalidation=true")
+print("ancestor_validation_hold_fd_cleanup=true")
 print("exact_sha256_required=true")
 print("exact_byte_count_required=true")
 print("exact_uid_gid_mode_nlink_required=true")
