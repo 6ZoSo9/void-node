@@ -392,7 +392,7 @@ assert "production_filesystem_write_free\": False" in source
 assert "production_atime_write_possible\": True" in source
 
 census_block = pre_self_test.split("def census()", 1)[1]
-assert census_block.index("probe = _runtime_probe(stdlib[\"sha256\"])") < census_block.index(
+assert census_block.index("probe = _runtime_probe(stdlib[\"sha256\"], python)") < census_block.index(
     "_revalidate_file_receipt(PYTHON, python)"
 )
 assert census_block.index("_revalidate_file_receipt(PYTHON, python)") < census_block.index(
