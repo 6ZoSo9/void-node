@@ -354,14 +354,14 @@ def _file_ok(
         raise InstallError("installed_source_bytes_invalid")
 
 
-def _root_ok(
+def _verify_root(
     parent_fd: int,
     name: str,
     expected_raw: bytes,
     *,
     expected_uid: int,
     expected_gid: int,
-) -> tuple[int, os.stat_result]:
+) -> os.stat_result:
     before = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
     if (
         not stat.S_ISDIR(before.st_mode)
@@ -373,38 +373,34 @@ def _root_ok(
         raise InstallError("installed_root_metadata_invalid")
 
     fd = os.open(name, _directory_flags(), dir_fd=parent_fd)
-    opened = os.fstat(fd)
-    if _generation(before) != _generation(opened):
-        os.close(fd)
-        raise InstallError("installed_root_rebound")
-
     try:
+        opened = os.fstat(fd)
+        if _generation(before) != _generation(opened):
+            raise InstallError("installed_root_rebound")
+
         names = sorted(os.listdir(fd))
-    except OSError:
-        os.close(fd)
-        raise
-    if len(names) > MAX_ENTRIES or names != [SOURCE_NAME]:
-        os.close(fd)
-        raise InstallError("installed_root_entries_invalid")
+        if len(names) > MAX_ENTRIES or names != [SOURCE_NAME]:
+            raise InstallError("installed_root_entries_invalid")
 
-    _file_ok(
-        fd,
-        SOURCE_NAME,
-        expected_raw,
-        expected_uid=expected_uid,
-        expected_gid=expected_gid,
-        expected_mode=FINAL_SOURCE_MODE,
-    )
+        _file_ok(
+            fd,
+            SOURCE_NAME,
+            expected_raw,
+            expected_uid=expected_uid,
+            expected_gid=expected_gid,
+            expected_mode=FINAL_SOURCE_MODE,
+        )
 
-    terminal = os.fstat(fd)
-    visible = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-    if (
-        _generation(opened) != _generation(terminal)
-        or _generation(terminal) != _generation(visible)
-    ):
+        terminal = os.fstat(fd)
+        visible = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+        if (
+            _generation(opened) != _generation(terminal)
+            or _generation(terminal) != _generation(visible)
+        ):
+            raise InstallError("installed_root_generation_changed")
+        return terminal
+    finally:
         os.close(fd)
-        raise InstallError("installed_root_generation_changed")
-    return fd, terminal
 
 
 def _renameat2_noreplace(
@@ -598,14 +594,13 @@ def apply_create_only_algorithm(
         try:
             parent_fsync_fn(parent_fd)
             parent_fsync_completed = True
-            final_fd, _ = _root_ok(
+            _verify_root(
                 parent_fd,
                 install_name,
                 source_raw,
                 expected_uid=expected_uid,
                 expected_gid=expected_gid,
             )
-            os.close(final_fd)
             final_verification_completed = True
         except BaseException as exc:
             raise PublishedInstallError(
@@ -736,14 +731,13 @@ def self_test() -> None:
 
         parent_fd, _ = _open_bound_directory(parent)
         try:
-            final_fd, _ = _root_ok(
+            _verify_root(
                 parent_fd,
                 INSTALL_NAME,
                 accepted,
                 expected_uid=uid,
                 expected_gid=gid,
             )
-            os.close(final_fd)
         finally:
             os.close(parent_fd)
 
