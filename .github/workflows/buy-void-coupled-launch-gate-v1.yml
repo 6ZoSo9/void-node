@@ -29,6 +29,7 @@ on:
       - "scripts/prove_buy_void_request_under_lock_revalidation_v2.mjs"
       - "scripts/prove_buy_void_request_under_lock_revalidation_v3.mjs"
       - "scripts/prove_void_buy_coupled_launch_runtime_integration_current_v2.mjs"
+      - "scripts/prove_void_buy_coupled_launch_runtime_integration_current_v3.mjs"
       - "tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs"
       - "tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs"
       - "scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs"
@@ -139,6 +140,7 @@ on:
       - "scripts/prove_buy_void_request_under_lock_revalidation_v2.mjs"
       - "scripts/prove_buy_void_request_under_lock_revalidation_v3.mjs"
       - "scripts/prove_void_buy_coupled_launch_runtime_integration_current_v2.mjs"
+      - "scripts/prove_void_buy_coupled_launch_runtime_integration_current_v3.mjs"
       - "tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs"
       - "tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs"
       - "scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs"
@@ -277,7 +279,7 @@ jobs:
       - name: Prove current request persistence and privacy against disposable ledgers
         run: node scripts/prove_buy_void_request_under_lock_revalidation_v3.mjs
       - name: Prove current-generation coupled launch runtime integration
-        run: node scripts/prove_void_buy_coupled_launch_runtime_integration_current_v2.mjs
+        run: node scripts/prove_void_buy_coupled_launch_runtime_integration_current_v3.mjs
       - name: Prove request tx-hash launch-authority binding
         run: npx tsx scripts/prove_buy_void_request_tx_hash_binding_v1.ts
       - name: Diff hygiene
