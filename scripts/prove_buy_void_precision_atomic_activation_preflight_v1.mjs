@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -534,12 +535,44 @@ try {
   fs.rmSync(toolSwapDir, { recursive: true, force: true });
 }
 
+const fifoDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-atomic-preflight-tool-fifo-proof-"),
+);
+try {
+  const fifoPath = path.join(fifoDir, "preflight-tool.fifo");
+  const mkfifo = spawnSync("/usr/bin/mkfifo", [fifoPath], {
+    encoding: "utf8",
+    timeout: 2000,
+  });
+  assert.equal(mkfifo.status, 0, mkfifo.stderr);
+
+  const python = [
+    "import os,stat,sys",
+    "p=sys.argv[1]",
+    "flags=(os.O_RDONLY|getattr(os,'O_CLOEXEC',0)|getattr(os,'O_NOFOLLOW',0)|getattr(os,'O_NONBLOCK',0))",
+    "fd=os.open(p,flags)",
+    "st=os.fstat(fd)",
+    "os.close(fd)",
+    "raise SystemExit(17 if not stat.S_ISREG(st.st_mode) else 18)",
+  ].join(";");
+  const fifoOpen = spawnSync("python3", ["-I", "-B", "-c", python, fifoPath], {
+    encoding: "utf8",
+    timeout: 2000,
+    env: { PATH: "/usr/bin:/bin", HOME: "/nonexistent", LC_ALL: "C" },
+  });
+  assert.equal(fifoOpen.signal, null, "nonblocking FIFO probe timed out");
+  assert.equal(fifoOpen.status, 17, fifoOpen.stderr);
+} finally {
+  fs.rmSync(fifoDir, { recursive: true, force: true });
+}
+
 for (const required of [
   'tool_rel="tools/void-buy-void-precision-atomic-activation-preflight-v1.mjs"',
   "preflight_tool_path_not_canonical",
   "preflight_tool_symlink_forbidden",
   "preflight_tool_realpath_not_canonical",
   'getattr(os, "O_NOFOLLOW", 0)',
+  'getattr(os, "O_NONBLOCK", 0)',
   "preflight_tool_snapshot_failed",
   "preflight_tool_path_canonical=true",
   "preflight_tool_snapshot_green=true",
@@ -747,6 +780,7 @@ console.log("preflight_tool_current_head_binding_green=true");
 console.log("preflight_tool_canonical_path_green=true");
 console.log("preflight_tool_private_snapshot_green=true");
 console.log("preflight_tool_path_swap_adversary_green=true");
+console.log("preflight_tool_fifo_nonblocking_green=true");
 console.log("preflight_wrapper_current_head_binding_green=true");
 console.log("canonical_repository_origin_green=true");
 console.log("reviewed_source_slice_count=22");
