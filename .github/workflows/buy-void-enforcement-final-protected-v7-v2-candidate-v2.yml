@@ -291,7 +291,7 @@ jobs:
           fi
           test "$(git -C "$RUNNER_TEMP/v3-reachable" rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa"
           test "$(git -C "$RUNNER_TEMP/v3-reachable" rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs)" = "5cd2c9cb4f7ac4f4a71a697d04aa23c3ee9d6705"
-          test "$(git -C "$RUNNER_TEMP/v3-reachable" rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v3.md)" = "104aa434b3a19d8899545859cdaf2e1d627c97fe"
+          test "$(git -C "$RUNNER_TEMP/v3-reachable" rev-parse HEAD:docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v3.md)" = "55300d9cee6232af4366ff39eeb940ecc77526f7"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version: ${{ matrix.node }}
