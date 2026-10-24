@@ -91,14 +91,16 @@ The runtime is invoked unprivileged with the exact flags:
 
 The child environment is empty.
 
-The fixed probe immediately replaces `sys.path` with exactly:
+The fixed probe imports only built-in `sys` before closure, then immediately
+replaces `sys.path` with exactly:
 
 ```text
 /opt/void-buy-void-v7-python-runtime-v1/lib/python312.zip
 ```
 
-It then imports the standard-library modules required by the accepted V2
-installer and requires:
+Only after that replacement may any non-built-in standard-library module be
+imported. It then imports the modules required by the accepted V2 installer and
+requires:
 
 - Python version in the 3.12 series;
 - `_voidfs` present in `sys.builtin_module_names`;
