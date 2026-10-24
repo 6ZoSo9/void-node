@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = (
@@ -16,7 +17,7 @@ TARGET = (
       "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_installer_candidate_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "3b4c7023f7a98bb877cd613f207660994d827959"
+EXPECTED_SOURCE_BLOB = "c4138cea2d8acc2b7779c15d50a5a7479a64f62c"
 
 
 def git_blob(raw: bytes) -> str:
@@ -153,6 +154,9 @@ for required in (
     "RENAME_NOREPLACE",
     "destination_root_present",
     "staging_root_present",
+    "stage_initial_rebound",
+    "prepublication_failure_stage_cleanup_incomplete",
+    "prepublication_failure_stage_cleanup_error",
     "stage_cross_filesystem",
     "os.O_CREAT",
     "os.O_EXCL",
@@ -199,6 +203,60 @@ assert source.index("os.fchmod(stage_fd, 0o700)") < source.index(
     "os.unlink(source_name, dir_fd=stage_fd)"
 )
 
+stage_create_block = source.split("os.mkdir(stage_name, 0o700, dir_fd=parent_fd)", 1)[1].split(
+    "file_fd = os.open(", 1
+)[0]
+assert stage_create_block.index("stage_identity =") < stage_create_block.index(
+    "stage_fd = os.open("
+)
+
+with tempfile.TemporaryDirectory(
+    prefix="void-custody-procref-installer-cleanup-proof-"
+) as tmp:
+    parent = Path(tmp) / "opt"
+    parent.mkdir(mode=0o755)
+
+    def fail_rename(_fd: int, _source: str, _target: str) -> None:
+        raise module.InstallError("proof_injected_rename_failure")
+
+    saved_cleanup = module._cleanup_stage
+    module._cleanup_stage = lambda *_args, **_kwargs: False
+    try:
+        try:
+            module.apply_create_only_algorithm(
+                parent=parent,
+                install_name=module.INSTALL_NAME,
+                stage_name=module.STAGE_NAME,
+                source_name=module.SOURCE_NAME,
+                source_raw=source_raw,
+                expected_uid=os.geteuid(),
+                expected_gid=os.getegid(),
+                require_root_parent=False,
+                rename_fn=fail_rename,
+            )
+        except module.InstallError as exc:
+            assert "prepublication_failure_stage_cleanup_incomplete" in str(exc)
+        else:
+            raise AssertionError("cleanup failure did not become explicit HOLD")
+    finally:
+        module._cleanup_stage = saved_cleanup
+        parent_fd, _ = module._open_bound_directory(parent)
+        try:
+            saved_cleanup(
+                parent_fd,
+                stage_name=module.STAGE_NAME,
+                source_name=module.SOURCE_NAME,
+                stage_identity=(
+                    lambda st: (st.st_dev, st.st_ino)
+                )(os.stat(
+                    module.STAGE_NAME,
+                    dir_fd=parent_fd,
+                    follow_symlinks=False,
+                )),
+            )
+        finally:
+            os.close(parent_fd)
+
 root_verifier = source.split("def _verify_root(", 1)[1].split(
     "def _renameat2_noreplace(", 1
 )[0]
@@ -218,6 +276,8 @@ print("direct_apply_cli=false")
 print("protected_first_entry_required=true")
 print("create_only=true")
 print("destination_collision_rejected=true")
+print("stage_identity_bound_immediately_after_create=true")
+print("cleanup_failure_explicit_hold=true")
 print("forced_rename_failure_cleanup_proven=true")
 print("kernel_rename_noreplace_required=true")
 print("source_fsync_before_publication=true")
