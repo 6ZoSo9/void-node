@@ -110,6 +110,7 @@ for forbidden in (
     '#define VOID_PYTHON_DYNLOAD_PATH "',
     '#define VOID_RUNTIME_FILE_TABLE(',
     "/opt/void-buy-allocation-custody-procref-installer-first-entry-v1",
+    "/opt/void-buy-allocation-custody-procref-installer-first-entry-v2",
 ):
     assert forbidden not in source, forbidden
 
