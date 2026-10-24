@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import os
 from pathlib import Path
+import stat
 import tempfile
+import time
+import types
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = (
@@ -22,16 +24,124 @@ def git_blob(raw: bytes) -> str:
     ).hexdigest()
 
 
-raw = TARGET.read_bytes()
-assert git_blob(raw) == EXPECTED_SOURCE_BLOB
+MAX_TARGET_BYTES = 2 * 1024 * 1024
 
-spec = importlib.util.spec_from_file_location(
-    "void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1",
-    TARGET,
+
+def _generation(st: os.stat_result) -> tuple[int, int, int, int, int, int, int, int, int]:
+    return (
+        st.st_dev,
+        st.st_ino,
+        st.st_uid,
+        st.st_gid,
+        st.st_mode,
+        st.st_nlink,
+        st.st_size,
+        st.st_mtime_ns,
+        st.st_ctime_ns,
+    )
+
+
+def read_bound_source(path: Path, expected_blob: str, maximum: int = MAX_TARGET_BYTES) -> bytes:
+    before = os.stat(path, follow_symlinks=False)
+    assert stat.S_ISREG(before.st_mode), "source_not_regular:" + path.name
+    assert not stat.S_ISLNK(before.st_mode), "source_symlink:" + path.name
+    assert before.st_nlink == 1, "source_link_count:" + path.name
+    assert 0 < before.st_size <= maximum, "source_size_invalid:" + path.name
+
+    flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    fd = os.open(path, flags)
+    try:
+        opened = os.fstat(fd)
+        assert stat.S_ISREG(opened.st_mode), "source_opened_not_regular:" + path.name
+        assert _generation(before) == _generation(opened), "source_rebound_before_open:" + path.name
+
+        data = bytearray()
+        while len(data) < opened.st_size:
+            chunk = os.read(fd, min(65536, opened.st_size - len(data)))
+            assert chunk, "source_unexpected_eof:" + path.name
+            data.extend(chunk)
+        assert os.read(fd, 1) == b"", "source_grew_during_read:" + path.name
+
+        terminal = os.fstat(fd)
+        visible = os.stat(path, follow_symlinks=False)
+        assert _generation(opened) == _generation(terminal) == _generation(visible), (
+            "source_generation_changed:" + path.name
+        )
+
+        raw = bytes(data)
+        assert git_blob(raw) == expected_blob, "source_blob_mismatch:" + path.name
+        return raw
+    finally:
+        os.close(fd)
+
+
+def self_test_source_capture() -> None:
+    with tempfile.TemporaryDirectory(prefix="void-closed-python-proof-source-") as tmp:
+        root = Path(tmp)
+        good = root / "good.py"
+        good_bytes = b"VALUE = 1\n"
+        good.write_bytes(good_bytes)
+        good_blob = git_blob(good_bytes)
+        assert read_bound_source(good, good_blob, 4096) == good_bytes
+
+        symlink = root / "symlink.py"
+        symlink.symlink_to(good.name)
+        try:
+            read_bound_source(symlink, good_blob, 4096)
+        except (AssertionError, OSError):
+            pass
+        else:
+            raise AssertionError("symlink_source_accepted")
+
+        victim = root / "victim.py"
+        victim.write_bytes(good_bytes)
+        original_open = os.open
+        swapped = {"done": False}
+
+        def fifo_swap_open(path_arg, flags, *args):
+            if Path(path_arg) == victim and not swapped["done"]:
+                swapped["done"] = True
+                victim.unlink()
+                os.mkfifo(victim, 0o600)
+            return original_open(path_arg, flags, *args)
+
+        os.open = fifo_swap_open
+        started = time.monotonic()
+        try:
+            try:
+                read_bound_source(victim, good_blob, 4096)
+            except (AssertionError, OSError, BlockingIOError):
+                pass
+            else:
+                raise AssertionError("fifo_swap_source_accepted")
+        finally:
+            os.open = original_open
+        assert time.monotonic() - started < 2.0, "fifo_swap_source_blocked"
+
+        captured_path = root / "captured.py"
+        captured_path.write_bytes(good_bytes)
+        captured = read_bound_source(captured_path, good_blob, 4096)
+        captured_path.write_bytes(b"VALUE = 2\n")
+        synthetic = types.ModuleType("captured_source_generation")
+        synthetic.__file__ = str(captured_path)
+        exec(compile(captured, str(captured_path), "exec"), synthetic.__dict__)
+        assert synthetic.VALUE == 1
+
+
+raw = read_bound_source(TARGET, EXPECTED_SOURCE_BLOB)
+self_test_source_capture()
+
+module = types.ModuleType(
+    "void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1"
 )
-assert spec is not None and spec.loader is not None
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
+module.__file__ = str(TARGET)
+module.__package__ = ""
+exec(compile(raw, str(TARGET), "exec", dont_inherit=True, optimize=0), module.__dict__)
 
 assert module.MARKER == (
     "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_CLOSED_PYTHON_RUNTIME_CENSUS_V1"
@@ -294,6 +404,9 @@ assert census_block.index("_revalidate_file_receipt(STDLIB_ZIP, stdlib)") < cens
 
 print("VOID_BUY_VOID_CUSTODY_RUNTIME_V3_CLOSED_PYTHON_RUNTIME_CENSUS_V1_PROOF_GREEN")
 print("exact_source_blob_asserted=true")
+print("source_proof_descriptor_capture=true")
+print("source_proof_fifo_symlink_race_rejected=true")
+print("source_proof_executes_captured_bytes=true")
 print("first_entry_lock_exact=true")
 print("fixed_runtime_namespace_bound=true")
 print("closed_tree_contract_bound=true")
