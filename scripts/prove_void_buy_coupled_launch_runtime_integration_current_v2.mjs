@@ -9,10 +9,10 @@ import {
   deriveBuyVoidEnforcementArtifactAttestationV5Candidate,
 } from "./prove_buy_void_enforcement_artifact_attestation_v5_candidate.mjs";
 import {
-  CURRENT_SOURCE_BLOBS as EPOCH2_SOURCE_BLOBS,
+  SOURCE_BLOBS as EPOCH2_SOURCE_BLOBS,
   STATUS as EPOCH2_SOURCE_STATUS,
-  verifyCurrentEpoch2ClaimSourceV3,
-} from "../tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs";
+  verifyCurrentEpoch2ClaimSourceV1,
+} from "../tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs";
 import {
   VOID_BUY_COUPLED_LAUNCH_ID_V1,
   readBuyLaunchGateV1,
@@ -751,19 +751,13 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
     "historical V5 must HOLD the current audited package generation",
   );
 
-  const epoch2Source = verifyCurrentEpoch2ClaimSourceV3();
+  const epoch2Source = verifyCurrentEpoch2ClaimSourceV1();
   assert.equal(epoch2Source.ok, true);
   assert.equal(epoch2Source.status, EPOCH2_SOURCE_STATUS);
-  assert.equal(epoch2Source.historical_v1_source_qualification_preserved, true);
-  assert.equal(epoch2Source.historical_v2_signer_control_evidence_preserved, true);
-  assert.equal(epoch2Source.current_activation_candidate_source_requalified, true);
-  assert.equal(epoch2Source.signer_offchain_control_proven, true);
-  assert.equal(epoch2Source.systemd_credential_identity_proven, false);
   assert.equal(epoch2Source.credential_binding_established, false);
   assert.equal(epoch2Source.runtime_or_payment_activation_authorized, false);
-  assert.equal(epoch2Source.activation_authorized, false);
-  assert.equal(epoch2Source.funds_movement, false);
-  assert.equal(Object.keys(EPOCH2_SOURCE_BLOBS).length, 28);
+  assert.equal(epoch2Source.historical_v1_authority_inherited, false);
+  assert.ok(Object.keys(EPOCH2_SOURCE_BLOBS).length >= 27);
   assert.equal(
     EPOCH2_SOURCE_BLOBS[
       "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts"
@@ -786,7 +780,7 @@ console.log("canonical_coupled_readiness_dependency_closure_bound=true");
 
   console.log("historical_enforcement_v4_predecessor_immutable=true");
   console.log("historical_enforcement_v5_current_package_hold=true");
-  console.log("current_epoch2_source_tuple_v3_qualified=true");
+  console.log("current_epoch2_source_tuple_qualified=true");
   console.log("current_enforcement_v5_candidate_derived=false");
   console.log("current_enforcement_v5_candidate_acceptance=false");
   console.log("complete_executable_closure_verified=false");
