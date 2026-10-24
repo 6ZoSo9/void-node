@@ -57,6 +57,14 @@ V2 in turn retains the reviewed V1 atomic `renameat2` primitive and protected
 V6R2 installer bindings. V3 reuses that exact atomic mechanism rather than
 introducing a new publication primitive.
 
+The V2 source loader is itself treated as privileged input. V3 opens that path
+exactly once with `O_NOFOLLOW|O_NONBLOCK`, validates a retained single-link
+regular-file descriptor, performs a bounded read from that descriptor, checks
+for growth/short read, revalidates descriptor identity, then requires the
+visible pathname to still resolve to that same generation before accepting its
+exact Git blob. A symlink, writerless FIFO, or post-open pathname replacement
+therefore produces a bounded HOLD rather than a blocking pathname reopen.
+
 ## Exact immediate predecessor
 
 The V3 READY state requires the live protected policy to derive exactly from:
@@ -182,6 +190,9 @@ Hosted CI performs source-only checks:
 - stage-path replacement adversary proving a different inode is never deleted;
 - rollback-exchange ordering that fsyncs live and staging directories before
   recovery cleanup;
+- retained-descriptor source loading with regular-file success, symlink
+  rejection, writerless-FIFO nonblocking HOLD, and post-open pathname
+  replacement rejection;
 - exact no-authority markers.
 
 Hosted CI does not read Precision `/opt`, credentials, private keys, service
