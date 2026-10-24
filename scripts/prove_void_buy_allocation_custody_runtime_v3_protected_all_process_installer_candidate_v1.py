@@ -17,7 +17,7 @@ TARGET = (
       "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_installer_candidate_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "f3ab484e76519f33557835428274541b2946ea42"
+EXPECTED_SOURCE_BLOB = "9dd33f38fe4c89a5d2beacbc535380346eaea83b"
 
 
 def git_blob(raw: bytes) -> str:
@@ -459,6 +459,7 @@ print("direct_apply_cli=false")
 print("protected_first_entry_required=true")
 print("create_only=true")
 print("destination_collision_rejected=true")
+print("bound_stage_cleanup_before_publication=true")
 print("stage_identity_bound_on_first_successful_post_create_read=true")
 print("stage_generation_unknown_hold=true")
 print("possible_residual_stage_reported=true")
