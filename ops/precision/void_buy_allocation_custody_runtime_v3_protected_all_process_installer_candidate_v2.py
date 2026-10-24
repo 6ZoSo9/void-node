@@ -1152,6 +1152,7 @@ def self_test() -> None:
                 expected_gid=os.getegid(),
                 require_root_parent=False,
                 parent_fsync_fn=fail_parent_fsync,
+                rename_fn=_fixture_rename_noreplace,
             )
         except PublishedInstallError as exc:
             if (
@@ -1201,6 +1202,7 @@ def self_test() -> None:
     print("exact_post_publication_verification_required=true")
     print("truthful_post_publication_failure_receipt=true")
     print("postpublication_failure_preserves_final_root=true")
+    print("hosted_postpublication_fixture_bridge_explicit=true")
     print("protected_install_authorized=false")
     print("live_privileged_census_authorized=false")
     print("replacement_apply_authorized=false")
