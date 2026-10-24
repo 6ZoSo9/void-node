@@ -47,6 +47,7 @@ jobs:
         shell: bash
         env:
           TARGET_BRANCH: "ren/epoch2-v6r3-stack-collapse-current-main-v1-20261020"
+          ADMISSION_BRANCH: "ci/epoch2-v6r3-collapse-external-admission-v1-20261024"
           EVENT_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
@@ -63,6 +64,8 @@ jobs:
             git merge-base --is-ancestor "$EVENT_BASE_SHA" "$candidate"
             echo 'target_pr_event=true'
           else
+            test "$EVENT_HEAD_REF" = "$ADMISSION_BRANCH"
+            test "$EVENT_BASE_REF" = "main"
             echo 'bootstrap_admission_event=true'
           fi
           printf 'candidate=%s\n' "$candidate" >> "$GITHUB_ENV"
@@ -87,7 +90,10 @@ jobs:
 
       - name: Diff hygiene
         shell: bash
+        env:
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          git diff --check
+          git diff --check "$EVENT_BASE_SHA" "$EVENT_HEAD_SHA" --
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
