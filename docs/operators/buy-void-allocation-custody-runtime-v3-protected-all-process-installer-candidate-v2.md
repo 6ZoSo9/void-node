@@ -126,6 +126,14 @@ The internal mutation algorithm implements:
 
 The final root is required to contain exactly one entry: the accepted source.
 
+All retained read-only repository/source leaves use
+`O_RDONLY|O_NOFOLLOW|O_NONBLOCK` before their existing regular-file,
+single-link, size and generation checks. The standalone proof swaps a regular
+fixture to a real FIFO at the production leaf-open boundary, verifies
+`O_NOFOLLOW|O_NONBLOCK` before creating the FIFO, and requires the opened
+descriptor to fail closed as a rebound/non-regular generation rather than
+blocking for a writer.
+
 ## Pre-publication failure behavior
 
 Before publication, a failure may clean up only the exact stage generation
