@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 from pathlib import Path
+import tempfile
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = (
@@ -11,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "eedb2c69c59537972a39cb3fafb2a55e999f3181"
+EXPECTED_SOURCE_BLOB = "f2921df59419d20a69058a7963cec118ef78d4c6"
 
 
 def git_blob(raw: bytes) -> str:
@@ -58,6 +60,39 @@ assert lock["funds_movement"] is False
 
 module.self_test()
 
+with tempfile.TemporaryDirectory(
+    prefix="void-custody-closed-python-proof-"
+) as tmp:
+    sample = Path(tmp) / "runtime-file"
+    sample.write_bytes(b"runtime-bytes")
+    seen: list[tuple[int, int]] = []
+    original_measure = module._measure_verity_fd
+
+    def fake_measure(fd: int):
+        st = os.fstat(fd)
+        seen.append((st.st_dev, st.st_ino))
+        return {
+            "measured": True,
+            "errno": None,
+            "algorithm": module.FS_VERITY_HASH_ALG_SHA256,
+            "digest_hex": "aa" * 32,
+            "sha256_algorithm": True,
+        }
+
+    module._measure_verity_fd = fake_measure
+    try:
+        observed_raw, observed_st, observed_verity = module._read_runtime_file(
+            sample,
+            1024,
+        )
+    finally:
+        module._measure_verity_fd = original_measure
+
+    assert observed_raw == b"runtime-bytes"
+    assert seen == [(observed_st.st_dev, observed_st.st_ino)]
+    assert observed_verity["measured"] is True
+    assert observed_verity["sha256_algorithm"] is True
+
 source = raw.decode("utf-8")
 pre_self_test = source.split("def self_test()", 1)[0]
 
@@ -71,7 +106,9 @@ for required in (
     "EXPECTED_BIN_ENTRIES = (\"python3.12-static\",)",
     "EXPECTED_LIB_ENTRIES = (\"python312.zip\",)",
     "def _static_elf(",
-    "def _measure_verity(",
+    "def _measure_verity_fd(",
+    "def _read_runtime_file(",
+    "_measure_verity_fd(fd)",
     "def _runtime_probe(",
     '"-I", "-B", "-S", "-c"',
     "sys.path[:]=[z]",
@@ -87,6 +124,14 @@ for required in (
     "replacement_apply_authorized",
 ):
     assert required in source, required
+
+runtime_reader = pre_self_test.split("def _read_runtime_file(", 1)[1].split(
+    "def _runtime_probe(", 1
+)[0]
+assert "_measure_verity_fd(fd)" in runtime_reader
+assert "os.open(path, _leaf_flags())" in runtime_reader
+assert "return bytes(raw), after, verity" in runtime_reader
+assert "def _measure_verity(path" not in pre_self_test
 
 for forbidden in (
     "os.write(",
@@ -139,6 +184,7 @@ print("static_elf_parser_bound=true")
 print("pt_interp_rejected=true")
 print("pt_dynamic_rejected=true")
 print("fsverity_measurement_observed_not_assumed=true")
+print("runtime_hash_and_verity_same_descriptor=true")
 print("isolated_stdlib_only_probe_bound=true")
 print("sys_path_closed_before_stdlib_imports=true")
 print("voidfs_builtin_required=true")
