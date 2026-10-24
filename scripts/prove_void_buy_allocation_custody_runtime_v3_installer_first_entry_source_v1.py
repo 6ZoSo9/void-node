@@ -84,6 +84,9 @@ for name in required_compile_bindings:
     assert f"#ifndef {name}" in source, name
 
 # No production identity may be silently supplied by this source.
+assert "VOID_PYTHON_DYNLOAD_PATH" not in source
+assert "VOID_RUNTIME_FILE_TABLE" not in source
+
 for forbidden in (
     '#define VOID_FIRST_ENTRY_BIN "',
     '#define VOID_FIRST_ENTRY_POLICY "',
