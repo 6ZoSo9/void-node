@@ -1,10 +1,12 @@
 # Buy VOID public request: revalidate one-active-destination under launch lock
 
-## October 13 bounded-range source generation — current source-only
+## October 20 machine-readable range-error generation — current source-only
 
-The public `/blocks/range` hard bound changes `src/index.ts` outside the Buy VOID request-lock route while preserving the reviewed request-lock behavior. Current exact index Git blob: `123ec1792a027f93d4c9030749a0e7e136a75a44`.
+The reviewed machine-readable `/blocks/range` alias/recovery repair generation changes `src/index.ts` outside the Buy VOID request-lock route while preserving the request persistence/privacy behavior. Current exact index Git blob: `a09661797aa4295371c036be36d82995e5233269`.
 
-The historical request-lock V1 proof remains immutable at Git blob `26bb9725b4a4639bff4b3ce4375aeb9e827830be` and must fail closed on this source generation. Current request-lock V2 proof is Git blob `94d4ef0544264a4ec23b2def7b4d31066f709310`; it freezes V1 before replaying the same request persistence/privacy adversaries against the new exact router bytes.
+Historical request-lock V1 and V2 proofs remain immutable at Git blobs `26bb9725b4a4639bff4b3ce4375aeb9e827830be` and `94d4ef0544264a4ec23b2def7b4d31066f709310`; both must fail closed on this source generation. Current request-lock V3 proof is Git blob `ad1b9b017770717f72b40a61c0bdef4bb80254de`. It freezes V1+V2 before replaying the complete V2 request persistence/privacy adversary matrix against the exact range/alias-repaired router bytes.
+
+The public-request launch-lock workflow requires V1/V2 refusal, V3 success, and byte-identical Node 22/24/26 V3 receipts. Coupled-launch consumes V3 as the current request-persistence proof. No product/runtime implementation source changes in this successor.
 
 This is source/test/CI qualification only. It does not deploy the route, enable payment intake, authorize signing or funds movement, or activate the presale/WC market.
 

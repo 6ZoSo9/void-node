@@ -1,0 +1,70 @@
+name: Apollyon authorization custody launcher v3
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-authorization-custody-launcher-v3.mjs"
+      - "scripts/prove_apollyon_authorization_custody_launcher_v3.mjs"
+      - "scripts/prove_apollyon_authorization_custody_launcher_v3_signal_process_v1.mjs"
+      - "docs/security/apollyon-authorization-custody-launcher-v3.md"
+      - ".github/workflows/apollyon-authorization-custody-launcher-v3.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/apollyon-authorization-custody-launcher-v3.mjs"
+      - "scripts/prove_apollyon_authorization_custody_launcher_v3.mjs"
+      - "scripts/prove_apollyon_authorization_custody_launcher_v3_signal_process_v1.mjs"
+      - "docs/security/apollyon-authorization-custody-launcher-v3.md"
+      - ".github/workflows/apollyon-authorization-custody-launcher-v3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prove graceful custody launcher v3
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-authorization-custody-launcher-v3.mjs
+          node --check scripts/prove_apollyon_authorization_custody_launcher_v3.mjs
+          node --check scripts/prove_apollyon_authorization_custody_launcher_v3_signal_process_v1.mjs
+          node scripts/prove_apollyon_authorization_custody_launcher_v3.mjs
+          node scripts/prove_apollyon_authorization_custody_launcher_v3_signal_process_v1.mjs
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          case "$EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE"
+              BASE="$PR_BASE"
+              ;;
+            push)
+              test "$PUSH_BEFORE" != "0000000000000000000000000000000000000000"
+              BASE="$PUSH_BEFORE"
+              ;;
+            workflow_dispatch)
+              BASE="$(git rev-parse HEAD^)"
+              ;;
+            *)
+              echo "unsupported_event=$EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"

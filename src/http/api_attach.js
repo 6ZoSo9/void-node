@@ -3,7 +3,9 @@
 // Copyright (c) 2025 6ZoSo9
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ATTACH_BLOCK_RANGE_MAX_SPAN = void 0;
+exports.ATTACH_BLOCK_RANGE_ERROR_CODE_V1 = exports.ATTACH_BLOCK_RANGE_MAX_SPAN = void 0;
+exports.resolveAttachBlockRangeAliasV1 = resolveAttachBlockRangeAliasV1;
+exports.attachBlockRangeErrorV1 = attachBlockRangeErrorV1;
 exports.parseAttachBlockRange = parseAttachBlockRange;
 exports.startAttachServer = startAttachServer;
 // src/http/api_attach.ts
@@ -21,14 +23,81 @@ var seg_store_js_1 = require("../chain/seg_store.js");
 var PORT = Number(process.env.ATTACH_PORT || 4310);
 var DATA_DIR = process.env.DATA_DIR || "data";
 exports.ATTACH_BLOCK_RANGE_MAX_SPAN = 250;
+exports.ATTACH_BLOCK_RANGE_ERROR_CODE_V1 = "VOID_BLOCK_RANGE_INVALID_V1";
+function normalizeAttachBlockRangeBoundV1(raw, fallback) {
+    if (raw === undefined)
+        return fallback;
+    if (typeof raw === "number") {
+        return Number.isSafeInteger(raw) && raw >= 0 ? raw : null;
+    }
+    if (typeof raw !== "string" ||
+        !/^(?:0|[1-9][0-9]*)$/u.test(raw)) {
+        return null;
+    }
+    var value = Number(raw);
+    return Number.isSafeInteger(value) ? value : null;
+}
+function resolveAttachBlockRangeAliasV1(primary, alias) {
+    var primaryPresent = primary !== undefined;
+    var aliasPresent = alias !== undefined;
+    if (primaryPresent && aliasPresent)
+        return { ok: false, value: null };
+    return {
+        ok: true,
+        value: primaryPresent ? primary : alias,
+    };
+}
+function attachBlockRangeErrorV1(fromRaw, toRaw, head) {
+    var from = normalizeAttachBlockRangeBoundV1(fromRaw, 0);
+    var to = normalizeAttachBlockRangeBoundV1(toRaw, head);
+    var validHead = Number.isSafeInteger(head) && head >= -1;
+    if (!validHead) {
+        return {
+            ok: false,
+            error: "bad range",
+            code: exports.ATTACH_BLOCK_RANGE_ERROR_CODE_V1,
+            reason: "invalid_head",
+            max_heights: exports.ATTACH_BLOCK_RANGE_MAX_SPAN,
+            recovery: null,
+            aliases: { from: ["from", "start"], to: ["to", "end"] },
+        };
+    }
+    var validFrom = from !== null;
+    var boundedTo = to !== null ? Math.min(to, head) : Number.NaN;
+    var reason = from !== null &&
+        to !== null &&
+        to >= from &&
+        boundedTo >= from &&
+        boundedTo - from >= exports.ATTACH_BLOCK_RANGE_MAX_SPAN
+        ? "range_span_exceeds_limit"
+        : "invalid_bounds";
+    var recoveryFrom = head < 0 ? 0 : validFrom ? from : 0;
+    var recoveryCeiling = recoveryFrom <=
+        Number.MAX_SAFE_INTEGER - (exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1)
+        ? recoveryFrom + exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1
+        : recoveryFrom;
+    var recoveryTo = head < 0
+        ? 0
+        : recoveryFrom > head
+            ? recoveryFrom
+            : Math.min(head, recoveryCeiling);
+    return {
+        ok: false,
+        error: "bad range",
+        code: exports.ATTACH_BLOCK_RANGE_ERROR_CODE_V1,
+        reason: reason,
+        max_heights: exports.ATTACH_BLOCK_RANGE_MAX_SPAN,
+        recovery: { from: recoveryFrom, to: recoveryTo },
+        aliases: { from: ["from", "start"], to: ["to", "end"] },
+    };
+}
 function parseAttachBlockRange(fromRaw, toRaw, head) {
-    var from = Number(fromRaw !== null && fromRaw !== void 0 ? fromRaw : 0);
-    var to = Number(toRaw !== null && toRaw !== void 0 ? toRaw : head);
+    var from = normalizeAttachBlockRangeBoundV1(fromRaw, 0);
+    var to = normalizeAttachBlockRangeBoundV1(toRaw, head);
     if (!Number.isSafeInteger(head) ||
         head < -1 ||
-        !Number.isSafeInteger(from) ||
-        !Number.isSafeInteger(to) ||
-        from < 0 ||
+        from === null ||
+        to === null ||
         to < from) {
         return null;
     }
@@ -53,9 +122,17 @@ function startAttachServer(opts) {
         res.json({ ok: true, head: store.loadHeadNumber() });
     });
     app.get("/blocks/range", function (req, res) {
-        var range = parseAttachBlockRange(req.query.from, req.query.to, store.loadHeadNumber());
+        var _a, _b;
+        var head = store.loadHeadNumber();
+        var fromAlias = resolveAttachBlockRangeAliasV1(req.query.from, req.query.start);
+        var toAlias = resolveAttachBlockRangeAliasV1(req.query.to, req.query.end);
+        var fromRaw = fromAlias.ok ? fromAlias.value : null;
+        var toRaw = toAlias.ok ? toAlias.value : null;
+        var range = fromAlias.ok && toAlias.ok
+            ? parseAttachBlockRange(fromRaw, toRaw, head)
+            : null;
         if (!range) {
-            return res.status(400).json({ ok: false, error: "bad range" });
+            return res.status(400).json(attachBlockRangeErrorV1(fromRaw, toRaw, head));
         }
         var out = [];
         for (var n = range.from; n <= range.to; n++) {

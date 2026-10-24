@@ -15,9 +15,9 @@ export class IntervalWorker {
       this.running = true;
       try { await this.fn(); } finally { this.running = false; }
     };
-    void tick();
     this.t = setInterval(tick, Math.max(100, this.ms));
     (this.t as any).unref?.();
+    void tick();
     return true;
   }
 

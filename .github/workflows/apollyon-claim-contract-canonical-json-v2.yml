@@ -1,0 +1,131 @@
+name: Apollyon claim-contract canonical JSON v2
+
+on:
+  pull_request:
+    paths:
+      - "tools/apollyon-claim-contract-canonical-json-v2.mjs"
+      - "scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs"
+      - "docs/security/apollyon-claim-contract-canonical-json-v2.md"
+      - ".github/workflows/apollyon-claim-contract-canonical-json-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: canonical json v2 / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact source generation
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          BASE="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
+          test -n "$BASE"
+          echo "source_base=$BASE"
+
+          expected="$RUNNER_TEMP/expected.txt"
+          actual="$RUNNER_TEMP/actual.txt"
+          printf '%s\n' \
+            '.github/workflows/apollyon-claim-contract-canonical-json-v2.yml' \
+            'docs/security/apollyon-claim-contract-canonical-json-v2.md' \
+            'scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs' \
+            'tools/apollyon-claim-contract-canonical-json-v2.mjs' \
+            | LC_ALL=C sort > "$expected"
+          git diff --no-renames --name-only "$BASE" HEAD -- | LC_ALL=C sort > "$actual"
+          diff -u "$expected" "$actual"
+
+          test "$(git rev-parse HEAD:tools/apollyon-candidate-training-attempt-claim-contract-v1.mjs)" = f97fafb0148527ae3a954e2752faef8c7fc9e88e
+          test "$(git rev-parse HEAD:tools/apollyon-claim-contract-canonical-json-v2.mjs)" = 4d4b970fa2df3a3e7cae176b18c62aff52e94adc
+          test "$(git rev-parse HEAD:scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs)" = a0831748098a26087cc9a1ee79132fba16bdb20e
+          test "$(git rev-parse HEAD:docs/security/apollyon-claim-contract-canonical-json-v2.md)" = 086591efd47a0956eb97a2e9b605aef0f71ac985
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove canonical V2
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tools/apollyon-claim-contract-canonical-json-v2.mjs
+          node --check scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs
+
+          out="$RUNNER_TEMP/apollyon-canonical-v2-proof.txt"
+          node scripts/prove_apollyon_claim_contract_canonical_json_v2.mjs | tee "$out"
+
+          for marker in \
+            'VOID_APOLLYON_CLAIM_CONTRACT_CANONICAL_JSON_V2_PROOF_GREEN' \
+            'valid_fixture_equivalence_count=18' \
+            'post_import_object_tojson_poison_resisted=true' \
+            'post_import_array_tojson_poison_resisted=true' \
+            'post_import_json_stringify_poison_resisted=true' \
+            'captured_own_primitive_survived_poison=true' \
+            'captured_proxy_detector_survived_poison=true' \
+            'proxy_detector_poison_traps_executed=0' \
+            'revoked_proxy_rejected=true' \
+            'array_prototype_index_setter_hits=0' \
+            'proto_key_rejected=true' \
+            'proxy_traps_executed=0' \
+            'accessor_getter_executed=0' \
+            'closed_surface_adversaries_rejected=true' \
+            'integer_like_key_order_matches_v1=true' \
+            'frozen_v1_unchanged=true' \
+            'consumer_migration_performed=false' \
+            'protected_host_execution_authorized=false' \
+            'claim_publication_authorized=false' \
+            'training_execution_authorized=false' \
+            'funds_movement_authorized=false'
+          do
+            grep -Fx "$marker" "$out"
+          done
+
+          grep -E '^fixture_vector_sha256=[0-9a-f]{64}$' "$out" \
+            > "$RUNNER_TEMP/canonical-v2-node-${{ matrix.node }}.txt"
+
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: apollyon-canonical-v2-${{ github.event.pull_request.head.sha }}-node-${{ matrix.node }}
+          path: ${{ runner.temp }}/canonical-v2-node-${{ matrix.node }}.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: canonical json v2 / compare Node 22-24-26
+    needs: prove
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: apollyon-canonical-v2-${{ github.event.pull_request.head.sha }}-node-*
+          merge-multiple: true
+          path: digests
+      - name: Require exact cross-node fixture digest
+        run: |
+          set -euo pipefail
+          for v in 22 24 26; do
+            test -s "digests/canonical-v2-node-$v.txt"
+          done
+          cmp digests/canonical-v2-node-22.txt digests/canonical-v2-node-24.txt
+          cmp digests/canonical-v2-node-22.txt digests/canonical-v2-node-26.txt
+          echo VOID_APOLLYON_CLAIM_CONTRACT_CANONICAL_JSON_V2_THREE_NODE_GREEN
