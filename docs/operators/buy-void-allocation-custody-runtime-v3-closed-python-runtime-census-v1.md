@@ -105,6 +105,8 @@ requires:
 - Python version in the 3.12 series;
 - `_voidfs` present in `sys.builtin_module_names`;
 - `_voidfs.__spec__.origin == "built-in"`;
+- both `_voidfs.__spec__.loader` and `_voidfs.__loader__` are
+  `importlib.machinery.BuiltinImporter`;
 - exact public `_voidfs` surface: `rename_noreplace`;
 - every loaded module origin either built-in, frozen, or beneath the exact
   stdlib ZIP;
