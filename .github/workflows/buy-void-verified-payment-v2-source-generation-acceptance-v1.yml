@@ -60,7 +60,9 @@ jobs:
           grep -Fq 'protected_blob_drift:src/index.ts' "$RUNNER_TEMP/v2.stderr"
           grep -Fq '123ec1792a027f93d4c9030749a0e7e136a75a44' "$RUNNER_TEMP/v2.stderr"
           grep -Fq 'a09661797aa4295371c036be36d82995e5233269' "$RUNNER_TEMP/v2.stderr"
-          grep -Fq 'unexpected_post_census_economic_drift' "$RUNNER_TEMP/v1.stderr"
+          grep -Fq 'protected_blob_drift:src/index.ts' "$RUNNER_TEMP/v1.stderr"
+          grep -Fq '123ec1792a027f93d4c9030749a0e7e136a75a44' "$RUNNER_TEMP/v1.stderr"
+          grep -Fq 'a09661797aa4295371c036be36d82995e5233269' "$RUNNER_TEMP/v1.stderr"
           echo VOID_BUY_VOID_V2_SOURCE_SUCCESSOR_HISTORICAL_REFUSAL_GREEN
           echo predecessor_v2_source_acceptance_complete_for_current_generation=false
           echo predecessor_v2_refusal_reason=protected_range_router_drift
