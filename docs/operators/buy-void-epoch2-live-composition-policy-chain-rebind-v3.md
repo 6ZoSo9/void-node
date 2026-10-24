@@ -57,13 +57,17 @@ V2 in turn retains the reviewed V1 atomic `renameat2` primitive and protected
 V6R2 installer bindings. V3 reuses that exact atomic mechanism rather than
 introducing a new publication primitive.
 
-The V2 source loader is itself treated as privileged input. V3 opens that path
-exactly once with `O_NOFOLLOW|O_NONBLOCK`, validates a retained single-link
-regular-file descriptor, performs a bounded read from that descriptor, checks
-for growth/short read, revalidates descriptor identity, then requires the
-visible pathname to still resolve to that same generation before accepting its
-exact Git blob. A symlink, writerless FIFO, or post-open pathname replacement
-therefore produces a bounded HOLD rather than a blocking pathname reopen.
+All three transitive Python dependencies are treated as privileged input:
+the V2 policy-chain source, the V1 policy-head source, and the protected V6R2
+installer source. V3 independently opens each exact path with
+`O_NOFOLLOW|O_NONBLOCK`, validates one retained single-link regular-file
+descriptor, performs a bounded read from that descriptor, checks for
+growth/short read, revalidates descriptor identity, requires the visible
+pathname to remain the same generation, and then verifies the exact Git blob.
+V3 compiles those retained bytes directly; it does not invoke V2/V1's older
+pathname-reopen dependency loaders. A symlink, writerless FIFO, descriptor
+generation change, or post-open pathname replacement therefore produces a
+bounded HOLD rather than a blocking transitive reopen.
 
 ## Exact immediate predecessor
 
