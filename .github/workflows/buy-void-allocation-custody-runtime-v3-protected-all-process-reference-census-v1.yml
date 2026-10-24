@@ -30,13 +30,13 @@ jobs:
         shell: bash
         env:
           EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
-          BASE_REF: ren/custody-runtime-v3-process-reference-census-v1-20261023
+          BASE_REF: ren/custody-runtime-v3-process-reference-anchor-95d1d10f-20261023
         run: |
           set -euo pipefail
           git fetch --no-tags origin \
             "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
           BASE="$(git rev-parse "refs/remotes/origin/$BASE_REF")"
-          test "$BASE" = "0a09df2649b4db27ed32865915b04f18530fd925"
+          test "$BASE" = "95d1d10f41e00848b9c7e58da8d3fdf975ada3da"
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
@@ -51,15 +51,15 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "3fc9ff1878001dacc01cc8f951c910dfc3dc5b28"
+            "33a7221cad37aec70474b97b26c2b10e2ef60f66"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_reference_census_v1.py)" = \
-            "c60515fb79319002c64bdd7009b190285f52e3db"
+            "8160466f6fe336c020db6a5acc5828b92cb730ea"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-v1.md)" = \
-            "da5657e5082e703b637232716b670ddd6098c047"
+            "1af3074ee4415b4ef1b313b6d0e0950576140d8b"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py)" = \
-            "2a064c670bd3fafc44d3a3b213c6672df533f72b"
+            "4de1cb35a43045a0d9568b3bf4c10904c3653d34"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py)" = \
-            "4d9c6e5809a5cc64454626760f71e60ed99354bc"
+            "e32ebd94ad09cd80e03489079e74657aab159d7a"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-install-archive-lock-v3.json)" = \
             "edb4ea2b833373ab387762e45ba7da4032c860f3"
 
