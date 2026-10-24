@@ -391,6 +391,7 @@ def _runtime_probe(stdlib_sha256: str) -> dict[str, Any]:
         "\nout={'version':sys.version.split()[0],'path':sys.path,"
         "'voidfs_builtin':'_voidfs' in sys.builtin_module_names,"
         "'voidfs_origin':getattr(q.__spec__,'origin',None),"
+        "'voidfs_loader_builtin':getattr(q.__spec__,'loader',None) is importlib.machinery.BuiltinImporter and getattr(q,'__loader__',None) is importlib.machinery.BuiltinImporter,"
         "'voidfs_surface':sorted(x for x in dir(q) if not x.startswith('__')),"
         "'external_module_origins':v,'stdlib_sha256':" + repr(stdlib_sha256) + "};"
         "\nprint(json.dumps(out,sort_keys=True,separators=(',',':')))"
@@ -422,6 +423,7 @@ def _runtime_probe(stdlib_sha256: str) -> dict[str, Any]:
         or result.get("path") != [str(STDLIB_ZIP)]
         or result.get("voidfs_builtin") is not True
         or result.get("voidfs_origin") != "built-in"
+        or result.get("voidfs_loader_builtin") is not True
         or result.get("voidfs_surface") != ["rename_noreplace"]
         or result.get("external_module_origins") != []
         or result.get("stdlib_sha256") != stdlib_sha256
