@@ -2,53 +2,56 @@
 
 ## Purpose
 
-Advance existing Draft #3682 onto the exact repaired-router protected V4 lock in
-Draft #3667 while preserving the prior #3682 composition in history and reusing
-the exact seven repaired canonical V5 source paths from Draft #3681.
+Compose the current accepted V4 source identity from #3688 with the exact
+canonical-producer V5 source generation already merged through #3681. Historical
+#3682 remains first-parent history; the repaired V4 acceptance generation is the
+second parent.
 
-Current parents:
+Current intended parents:
 
-- prior composition history: `0527288a18ebb16161579089427a70d6fa402368`;
-- accepted V4 lock: `1fa91ea0e31ce1497ab2ca596eb1177e8588d768` (#3667);
-- canonical V5 source donor: `0b9567057af7a9bae271ead8f42c1b71794742f9` (#3681).
-
-The present tree is based on #3667. The superseded V1 composition evidence
-files are absent from this tree and replaced by three V2 evidence files.
+- prior #3682 history: `94a07497a1583ec990ac0ca665604bebf570b5e7`;
+- accepted V4 source identity: `2f214e81dc867c8dc526c9c883cfd4e85f34ca44` (#3688 repaired head);
+- canonical V5 donor: `c6f31c19ef3def20902b2c2b735de0803b2a2ab0` (#3681 reviewed V5 source).
 
 ## Accepted V4 preservation
 
-These identities remain byte-for-byte unchanged:
+The composition preserves the exact current V4 generation:
 
-- V4 candidate: `b8341906d9563739a50dac98ea184a1d93267531`;
-- V4 lock: `416202f5a7ee4c55950d5db9d13a718c721fc801`;
-- V4 lock proof: `1eb43afaea8e46dfc061a67e15e5dae099874091`;
-- V4 lock document: `7654605ce6c895656c694e8104efdbbf35c59138`;
-- V4 lock workflow: `c8043b9db6dbce4b4f86805091ccc553090c11d3`.
+- candidate: `ec00f0c552e600fff38e4998e4beb128c93b481d`;
+- accepted lock: `4de9c2185a1359d2877b17958666f91497a91179`;
+- accepted-lock proof: `15c33b8c88db7d31af96bbd50ed4940425ff7417`;
+- accepted-lock document: `2ef2554fdc0cba8f194c74b2f7c53bf1377e3814`;
+- acceptance workflow: `bf4d059202ed62449fbc6cfe62402aaa73b22682`.
 
-The accepted V4 lock still applies only to the exact V4 source generation.
+The acceptance proof includes the fail-closed standalone-derive repair: accepted
+bytes cannot be emitted without exact #3683 predecessor evidence.
 
 ## Canonical V5 transition
 
-The range router remains `src/index.ts@a09661797aa4295371c036be36d82995e5233269`. Canonical V5 changes
-exactly one protected inventory row:
+The range router remains
+`src/index.ts@a09661797aa4295371c036be36d82995e5233269`.
+The accepted V4 candidate's 49-row protected inventory is
+`c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d`.
+
+Canonical V5 changes exactly one protected row:
 
 - V4 runner: `6fb040de128ce0df16e848d61ea5f4acb62794da`, mode `100755`;
 - V5 runner: `bc6a17ccdf389299fb139db37e742f0b1ad9dc4e`, mode `100755`.
 
-The V5 guard, proof, dispatcher, launcher, workflows, and custody document are
-copied byte-for-byte from exact #3681 head `0b9567057af7a9bae271ead8f42c1b71794742f9`.
+The resulting current protected inventory SHA-256 is
+`7b56a1e130f2a2caa7ca29c6319dbe8823bc2147931ee2d7c7ba6f077a2d18c3`.
 
-A new protected candidate V5 and a separate V5 acceptance lock are required.
-The accepted V4 lock is preserved rather than silently repinned.
+All seven canonical-V5 source/workflow blobs are copied byte-for-byte from
+`c6f31c19ef3def20902b2c2b735de0803b2a2ab0`.
 
 ## Lifecycle boundary
 
-This composition creates no candidate V5, no V5 lock, no deployment receipt,
-and no runtime cutover. The deployment receipt installed for V4 remains
-evidence only for the installed V4 generation.
+This composition does not create or accept candidate V5. A separately versioned
+V5 candidate and acceptance lock remain required. It creates no deployment
+receipt and grants no runtime cutover, service mutation, credential/signer,
+payment/presale, transaction, treasury/liquidity, or funds authority.
 
-No service mutation, credential or signer access, provider RPC contact,
-transaction/payment acceptance, presale/WC activation, treasury/liquidity
-action, or funds movement occurs.
+Composition proof blob:
+`666c5b97276d04707bd0dced317193f83a58f371`.
 
 PROTECT THE CORE.

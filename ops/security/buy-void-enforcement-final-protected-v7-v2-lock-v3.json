@@ -3,27 +3,27 @@
   "marker": "VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_LOCK_V3",
   "version": 3,
   "repository": "6ZoSo9/void-node",
-  "candidate_head": "c9d516763cf6d6674d0ede57faf9452d4802d2f1",
+  "candidate_head": "f3d06b71ad9f6b6c6c7b26ba6001e07e55ae39f2",
   "candidate_hosted_evidence": {
-    "workflow_run": 39979328838,
-    "node22_artifact_id": 12513585992,
-    "node24_artifact_id": 12513785788,
-    "node26_artifact_id": 12512398541,
-    "cross_node_job_id": 120506442218,
+    "workflow_run": 40044451207,
+    "node22_artifact_id": 12540673158,
+    "node24_artifact_id": 12540507407,
+    "node26_artifact_id": 12540897955,
+    "cross_node_job_id": 120724698695,
     "cross_node_byte_identity_verified": true,
     "reachable_history_only_verified": true
   },
   "candidate_evidence": {
     "path": "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json",
     "derivation_proof_path": "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v3.mjs",
-    "derivation_proof_git_blob_sha1": "96ae15c0a76d4cc463ea64688fa2c5fd119b09fc",
+    "derivation_proof_git_blob_sha1": "5cd2c9cb4f7ac4f4a71a697d04aa23c3ee9d6705",
     "bytes": 17392,
-    "sha256": "eb2be386ecf374bc75d6c10e4d5cfa3ea5fa309acbef5612f74991c6ba311aab",
-    "git_blob_sha1": "5301c32f53c2a82435152e38b36486507a73f906",
-    "candidate_enforcement_set_sha256": "2bfc8455c09e8cbbaa56ac580ccc5f193b54f95c3e4bec1e2274a068303236ec"
+    "sha256": "7f9c032bb3685d0d45f439123878af0ba366bd587e29a98df3270f0f13808c96",
+    "git_blob_sha1": "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa",
+    "candidate_enforcement_set_sha256": "4d06da56a3fa3fa7891c64a0c7191756c344effb62b330a1b003bd4952dc0223"
   },
   "protected_successor_evidence": {
-    "current_enforcement_parent": "8e0f3c42208a0630b07cd0a64c0bf0b2a2819099",
+    "current_enforcement_parent": "9d1fba7fc676f3f5592eb7a4dff971cd7045e1b5",
     "predecessor_candidate_git_blob_sha1": "4e23ecbb64eb26c14f5ab15af85eb86d59c3a718",
     "predecessor_lock_git_blob_sha1": "589845615654da8b688764377b34296267ac0063",
     "dispatch_v2_proof_git_blob_sha1": "5f5e76a594c358639571a190dc48fc9e11fc8b01",

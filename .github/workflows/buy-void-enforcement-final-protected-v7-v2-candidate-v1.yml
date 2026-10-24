@@ -7,6 +7,13 @@ on:
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
       - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v2.md"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v4.md"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v4.md"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v3.mjs"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
       - "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs"
@@ -37,6 +44,13 @@ on:
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
       - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v2.md"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v4.md"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v4.md"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json"
       - "scripts/prove_buy_void_enforcement_final_v7_artifact_census_v3.mjs"
       - "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs"
       - "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs"
@@ -77,12 +91,12 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
           fetch-depth: 0
           persist-credentials: false
       - name: Bind exact revision
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
@@ -99,14 +113,14 @@ jobs:
       - name: Require current V2 and historical V1 refusal
         run: |
           set -euo pipefail
-          echo "HISTORICAL_V1_REFUSAL_CURRENT_V2_DISPATCH_V2"
+          echo "HISTORICAL_V1_REFUSAL_CURRENT_V2_DISPATCH_V4"
 
           test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v1.mjs)" =             "d1cb550cf8f05692ca83114281cc35b2a6fe0cf1"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v1.json)" =             "6b2958bdb4dbb38354d5a4b41e5b4d1e919b6794"
           test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v1.json)" =             "ff98ab6b3aaceea9c6ab921e8642a32a0fba79af"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_enforcement_final_protected_v7_v2_lock_v1.mjs)" =             "43074f083317a54520587ef70eaf3400255f3482"
 
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs --self-test
 
           set +e
           npx tsx scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v1.mjs             --derive > "$RUNNER_TEMP/historical-v1.stdout" 2> "$RUNNER_TEMP/historical-v1.stderr"

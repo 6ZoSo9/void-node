@@ -1,0 +1,58 @@
+name: VOID V7 static rename-noreplace bridge plan v1
+
+on:
+  pull_request:
+    paths:
+      - 'ops/security/buy-void-v7-static-rename-noreplace-bridge-plan-v1.json'
+      - 'docs/architecture/buy-void-v7-static-rename-noreplace-bridge-plan-v1.md'
+      - 'scripts/prove_buy_void_v7_static_rename_noreplace_bridge_plan_v1.mjs'
+      - '.github/workflows/buy-void-v7-static-rename-noreplace-bridge-plan-v1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plan-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Bind exact plan generation
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-static-rename-noreplace-bridge-plan-v1.json)" = "8dc063e54818ff9c5650ec9b34ba0102dab97656"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-v7-static-rename-noreplace-bridge-plan-v1.md)" = "c2a6108685575434ebcfb757fd4a5fdee62cf945"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_static_rename_noreplace_bridge_plan_v1.mjs)" = "4bbbb69c119e59073322e1935212ed7f4455da61"
+          git merge-base --is-ancestor 1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c HEAD
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            cat > "$RUNNER_TEMP/expected" <<'EOF'
+          A	.github/workflows/buy-void-v7-static-rename-noreplace-bridge-plan-v1.yml
+          A	docs/architecture/buy-void-v7-static-rename-noreplace-bridge-plan-v1.md
+          A	ops/security/buy-void-v7-static-rename-noreplace-bridge-plan-v1.json
+          A	scripts/prove_buy_void_v7_static_rename_noreplace_bridge_plan_v1.mjs
+          EOF
+            git diff --name-status 1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c HEAD -- | sort > "$RUNNER_TEMP/actual"
+            sort "$RUNNER_TEMP/expected" > "$RUNNER_TEMP/expected.sorted"
+            diff -u "$RUNNER_TEMP/expected.sorted" "$RUNNER_TEMP/actual"
+          fi
+          git diff --check
+
+      - name: Prove plan
+        run: |
+          set -euo pipefail
+          node --check scripts/prove_buy_void_v7_static_rename_noreplace_bridge_plan_v1.mjs
+          node scripts/prove_buy_void_v7_static_rename_noreplace_bridge_plan_v1.mjs

@@ -8,6 +8,13 @@ on:
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
       - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v2.md"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v4.md"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v4.md"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v4.md"
       - "ops/precision/**"
       - "ops/security/**"
@@ -30,6 +37,13 @@ on:
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
       - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v2.md"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v4.md"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v4.md"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json"
       - "docs/architecture/buy-void-enforcement-final-v7-artifact-census-v4.md"
       - "ops/precision/**"
       - "ops/security/**"
@@ -59,7 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 827b94aabbecb915ab2cf22bba8f178b7d0568bc
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
@@ -74,21 +88,27 @@ jobs:
       - name: Verify frozen V4 census against current protected integration
         run: |
           set -euo pipefail
-          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V2"
+          echo "CURRENT_PROTECTED_INTEGRATION_DISPATCH_V4"
           out="$RUNNER_TEMP/final-v7-v2-census-v4-node-${{ matrix.node }}.json"
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test
-          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --receipt > "$out"
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs --self-test
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs --receipt > "$out"
           node --input-type=module - "$out" <<'NODE'
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(c.schema,"void_buy_void_repaired_v7_v2_current_generation_dispatch_v2");
-          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2");
+          assert.equal(c.schema,"void_buy_void_repaired_v7_v2_current_generation_dispatch_v4");
+          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V4");
           assert.equal(c.protected_path_count,49);
           assert.equal(c.protected_path_identity_preserved,false);
           assert.equal(c.frozen_protected_inventory_preserved,true);
           assert.equal(c.reviewed_protected_drift_count,1);
-          assert.equal(c.reviewed_range_index_successor_bound,true);
+          assert.equal(c.reviewed_deployment_reader_successor_bound,true);
+          assert.equal(c.current_v4_candidate_inventory_preserved,true);
+          assert.equal(c.v4_candidate_rederived_on_current_head,true);
+          assert.equal(c.v4_candidate_enforcement_identity_accepted,false);
+          assert.equal(c.workflow_dispatch_contracts_bound,true);
+          assert.equal(c.production_tracked_file_nonblocking,true);
+          assert.equal(c.production_tracked_file_fifo_swap_rejected,true);
           assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
           assert.equal(c.frozen_v4_census_proof_preserved,true);
           assert.equal(c.nonprotected_economic_drift_count,3);
@@ -100,7 +120,7 @@ jobs:
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: final-v7-v2-census-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          name: final-v7-v2-census-v4-827b94aabbecb915ab2cf22bba8f178b7d0568bc-node-${{ matrix.node }}
           path: ${{ runner.temp }}/final-v7-v2-census-v4-node-${{ matrix.node }}.json
           if-no-files-found: error
           retention-days: 7
@@ -112,7 +132,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: final-v7-v2-census-v4-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: final-v7-v2-census-v4-827b94aabbecb915ab2cf22bba8f178b7d0568bc-node-*
           merge-multiple: true
           path: census
       - name: Require exact Node 22/24/26 protected-integration equality
@@ -126,12 +146,18 @@ jobs:
           import assert from "node:assert/strict";
           import fs from "node:fs";
           const c=JSON.parse(fs.readFileSync("census/final-v7-v2-census-v4-node-22.json","utf8"));
-          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2");
+          assert.equal(c.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V4");
           assert.equal(c.protected_path_count,49);
           assert.equal(c.protected_path_identity_preserved,false);
           assert.equal(c.frozen_protected_inventory_preserved,true);
           assert.equal(c.reviewed_protected_drift_count,1);
-          assert.equal(c.reviewed_range_index_successor_bound,true);
+          assert.equal(c.reviewed_deployment_reader_successor_bound,true);
+          assert.equal(c.current_v4_candidate_inventory_preserved,true);
+          assert.equal(c.v4_candidate_rederived_on_current_head,true);
+          assert.equal(c.v4_candidate_enforcement_identity_accepted,false);
+          assert.equal(c.workflow_dispatch_contracts_bound,true);
+          assert.equal(c.production_tracked_file_nonblocking,true);
+          assert.equal(c.production_tracked_file_fifo_swap_rejected,true);
           assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
           console.log("VOID_BUY_VOID_FROZEN_V4_CURRENT_INTEGRATION_CROSS_NODE_GREEN");
           console.log("protected_path_count="+c.protected_path_count);

@@ -1,0 +1,75 @@
+name: Buy VOID V7 protected substrate root launcher v3
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/buy-void-v7-protected-substrate-root-launcher-v3.yml'
+      - 'docs/operators/buy-void-v7-protected-substrate-root-launcher-v3.md'
+      - 'ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v3.c'
+      - 'scripts/prove_buy_void_v7_protected_substrate_root_launcher_v3.py'
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/buy-void-v7-protected-substrate-root-launcher-v3.yml'
+      - 'docs/operators/buy-void-v7-protected-substrate-root-launcher-v3.md'
+      - 'ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v3.c'
+      - 'scripts/prove_buy_void_v7_protected_substrate_root_launcher_v3.py'
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact V3 source generation
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          SOURCE_BASE: f373337c68e8d36ade57721878c408ff70c0ec0c
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            test "$(git merge-base "$SOURCE_BASE" "$EXPECTED_HEAD")" = "$SOURCE_BASE"
+            cat > "$RUNNER_TEMP/expected-delta" <<'EOF'
+          A	.github/workflows/buy-void-v7-protected-substrate-root-launcher-v3.yml
+          A	docs/operators/buy-void-v7-protected-substrate-root-launcher-v3.md
+          A	ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v3.c
+          A	scripts/prove_buy_void_v7_protected_substrate_root_launcher_v3.py
+          EOF
+            git diff --name-status "$SOURCE_BASE" "$EXPECTED_HEAD" -- | sort > "$RUNNER_TEMP/actual-delta"
+            sort "$RUNNER_TEMP/expected-delta" > "$RUNNER_TEMP/expected-delta.sorted"
+            diff -u "$RUNNER_TEMP/expected-delta.sorted" "$RUNNER_TEMP/actual-delta"
+            git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
+          else
+            git diff --check "$EXPECTED_HEAD^" "$EXPECTED_HEAD" --
+          fi
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v3.c)" = "21d170554307c13aebba1d4827305ce3e01156a1"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_v7_protected_substrate_root_launcher_v3.py)" = "4f840c330c87678987e7fcbf3ebf6c3c40eb0113"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-v7-protected-substrate-root-launcher-v3.md)" = "b75f05fce341355871e7b99b03fcc0626e2b601e"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_root_launcher_v2.c)" = "0aa8d3a990de662b8c3c9928d4c31452d8299ca7"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_protected_substrate_install_v5.py)" = "632f3371ad3095e6a8fdf338b24c34431abe7d2c"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-create-only-persistent-seal-plan-v1.json)" = "9dde5523dca6ab240626430ce1c2b82f1cfe7f20"
+          test "$(git rev-parse HEAD:ops/security/buy-void-v7-create-only-closed-tree-acceptance-v1.json)" = "919db72903a5fcff59dec7635a4288f41d1753d9"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_v7_create_only_closed_tree_bootstrap_v1.c)" = "2a8397c85d698d168f2257ec801557281b73c04d"
+
+      - name: Python proof syntax
+        run: |
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          p = Path("scripts/prove_buy_void_v7_protected_substrate_root_launcher_v3.py")
+          compile(p.read_bytes(), str(p), "exec", dont_inherit=True, optimize=0)
+          PY
+
+      - name: Static native V3 source proof
+        run: |
+          python3 -I -B scripts/prove_buy_void_v7_protected_substrate_root_launcher_v3.py

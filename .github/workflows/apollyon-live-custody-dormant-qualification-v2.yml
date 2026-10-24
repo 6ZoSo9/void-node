@@ -1,0 +1,59 @@
+name: Apollyon live custody dormant qualification v2
+
+on:
+  pull_request:
+    paths:
+      - "ops/xiphos/apollyon_live_custody_dormant_qualification_v2.py"
+      - "scripts/prove_apollyon_live_custody_dormant_qualification_v2.py"
+      - "docs/security/apollyon-live-custody-dormant-qualification-v2.md"
+      - "ops/xiphos/void-apollyon-authorization-custody-v1-launcher-v3.service"
+      - "tools/apollyon-authorization-custody-launcher-v3.mjs"
+      - ".github/workflows/apollyon-live-custody-dormant-qualification-v2.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/xiphos/apollyon_live_custody_dormant_qualification_v2.py"
+      - "scripts/prove_apollyon_live_custody_dormant_qualification_v2.py"
+      - "docs/security/apollyon-live-custody-dormant-qualification-v2.md"
+      - "ops/xiphos/void-apollyon-authorization-custody-v1-launcher-v3.service"
+      - "tools/apollyon-authorization-custody-launcher-v3.mjs"
+      - ".github/workflows/apollyon-live-custody-dormant-qualification-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Prove v3-bound dormant qualification v2
+        run: |
+          set -euo pipefail
+          python3 -I -B scripts/prove_apollyon_live_custody_dormant_qualification_v2.py
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Diff hygiene
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$HEAD"
+          case "$EVENT_NAME" in
+            pull_request) BASE="$PR_BASE" ;;
+            push) BASE="$PUSH_BEFORE" ;;
+            workflow_dispatch) BASE="$(git rev-parse HEAD^)" ;;
+            *) exit 1 ;;
+          esac
+          test -n "$BASE"
+          test "$BASE" != "0000000000000000000000000000000000000000"
+          git merge-base --is-ancestor "$BASE" "$HEAD"
+          git diff --check "$BASE" "$HEAD"

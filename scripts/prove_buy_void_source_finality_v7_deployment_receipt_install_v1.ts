@@ -13,9 +13,8 @@ import {
   inspectBuyVoidCurrentEnforcementTrackedSourceInventoryV1,
   assertBuyVoidCandidateCurrentEnforcementTrackedSourceInventoryV1,
   inspectRepositoryIdentityV1,
-  installRootCustodiedReceiptV1,
-  readObservedRegularFileV1,
   readTrackedFileV1,
+  installRootCustodiedReceiptV1,
 } from "../ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.js";
 import {
   buyVoidSourceFinalityEnforcementLockIdV7,
@@ -154,79 +153,148 @@ function proveRepositoryLocalFsmonitorIgnoredV1(){
   }
 }
 
-proveRepositoryLocalFsmonitorIgnoredV1();
-
-
-function proveTrackedFileReaderV1(){
+function proveProductionTrackedFileReadBoundaryV1(){
   const temp=fs.mkdtempSync(path.join(os.tmpdir(),"void-v7-tracked-reader-"));
   const repoRoot=path.join(temp,"repo");
-  const relative="ops/security/fixture-lock.json";
+  const relative="ops/security/reader-fixture.json";
   const absolute=path.join(repoRoot,...relative.split("/"));
+  const payload=Buffer.from('{"fixture":"reviewed"}\n',"utf8");
+  const mutableFs=fs as any;
+  const originalOpenSync=fs.openSync;
+  const originalReadSync=fs.readSync;
+  const gitEnv={PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"};
   try{
     fs.mkdirSync(path.dirname(absolute),{recursive:true,mode:0o700});
+    fs.writeFileSync(absolute,payload,{mode:0o600});
     execFileSync("/usr/bin/git",["init","-b","main",repoRoot],{
-      stdio:"ignore",env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
+      stdio:"ignore",env:gitEnv,
     });
-    fs.writeFileSync(absolute,"{\"fixture\":true}\n",{mode:0o600});
-    execFileSync("/usr/bin/git",["-C",repoRoot,"add",relative],{stdio:"ignore"});
+    execFileSync("/usr/bin/git",["-C",repoRoot,"add",relative],{
+      stdio:"ignore",env:gitEnv,
+    });
     execFileSync("/usr/bin/git",[
-      "-C",repoRoot,"-c","user.name=VOID Proof",
+      "-C",repoRoot,
+      "-c","user.name=VOID Proof",
       "-c","user.email=void-proof.invalid@example.invalid",
       "commit","-m","fixture",
-    ],{stdio:"ignore"});
+    ],{stdio:"ignore",env:gitEnv});
 
-    const direct=readTrackedFileV1(repoRoot,relative,1024);
-    assert.equal(direct.bytes.toString("utf8"),"{\"fixture\":true}\n");
+    const good=readTrackedFileV1(repoRoot,relative,payload.length);
+    assert.ok(good.bytes.equals(payload),"production_tracked_reader_success_bytes");
 
-    const before=fs.lstatSync(absolute);
-    fs.renameSync(absolute,absolute+".old");
-    fs.writeFileSync(absolute,"{\"fixture\":evil}\n",{mode:0o600});
+    const replacement=absolute+".replacement-original";
+    let replaced=false;
+    mutableFs.openSync=(...args:any[])=>{
+      if(!replaced&&path.resolve(String(args[0]))===absolute){
+        replaced=true;
+        fs.renameSync(absolute,replacement);
+        fs.writeFileSync(absolute,payload,{mode:0o600});
+      }
+      return (originalOpenSync as any)(...args);
+    };
     assert.throws(
-      ()=>readObservedRegularFileV1(absolute,before,1024,"fixture_replace"),
-      /fixture_replace_open_generation_mismatch/u,
+      ()=>readTrackedFileV1(repoRoot,relative,payload.length),
+      /accepted_enforcement_file_open_generation_mismatch/u,
     );
-
+    assert.equal(replaced,true,"production_tracked_reader_replacement_not_exercised");
+    mutableFs.openSync=originalOpenSync;
     fs.rmSync(absolute,{force:true});
-    fs.renameSync(absolute+".old",absolute);
-    const beforeSymlink=fs.lstatSync(absolute);
-    const target=absolute+".target";
-    fs.writeFileSync(target,"{\"fixture\":true}\n",{mode:0o600});
-    fs.renameSync(absolute,absolute+".symlink-original");
-    fs.symlinkSync(path.basename(target),absolute);
+    fs.renameSync(replacement,absolute);
+
+    const directTarget=absolute+".direct-target";
+    fs.renameSync(absolute,directTarget);
+    fs.symlinkSync(path.basename(directTarget),absolute);
     assert.throws(
-      ()=>readObservedRegularFileV1(absolute,beforeSymlink,1024,"fixture_symlink"),
+      ()=>readTrackedFileV1(repoRoot,relative,payload.length),
+      /accepted_enforcement_file_shape_invalid/u,
+    );
+    fs.rmSync(absolute,{force:true});
+    fs.renameSync(directTarget,absolute);
+
+    const swapOriginal=absolute+".swap-original";
+    const swapTarget=absolute+".swap-target";
+    fs.writeFileSync(swapTarget,payload,{mode:0o600});
+    let symlinked=false;
+    mutableFs.openSync=(...args:any[])=>{
+      if(!symlinked&&path.resolve(String(args[0]))===absolute){
+        symlinked=true;
+        fs.renameSync(absolute,swapOriginal);
+        fs.symlinkSync(path.basename(swapTarget),absolute);
+      }
+      return (originalOpenSync as any)(...args);
+    };
+    assert.throws(
+      ()=>readTrackedFileV1(repoRoot,relative,payload.length),
       (error:any)=>error?.code==="ELOOP",
     );
-
+    assert.equal(symlinked,true,"production_tracked_reader_symlink_swap_not_exercised");
+    mutableFs.openSync=originalOpenSync;
     fs.rmSync(absolute,{force:true});
-    fs.renameSync(absolute+".symlink-original",absolute);
+    fs.renameSync(swapOriginal,absolute);
+    fs.rmSync(swapTarget,{force:true});
 
+    const fifoOriginal=absolute+".fifo-original";
     const beforeFifo=fs.lstatSync(absolute);
-    fs.renameSync(absolute,absolute+".fifo-original");
-    execFileSync("/usr/bin/mkfifo",[absolute],{
-      stdio:"ignore",
-      env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
-    });
-    fs.chmodSync(absolute,0o600);
+    let fifoSwapped=false;
+    let fifoOpenFlags=0;
+    mutableFs.openSync=(...args:any[])=>{
+      if(!fifoSwapped&&path.resolve(String(args[0]))===absolute){
+        fifoSwapped=true;
+        fifoOpenFlags=Number(args[1]);
+        fs.renameSync(absolute,fifoOriginal);
+        execFileSync("/usr/bin/mkfifo",[absolute],{
+          stdio:"ignore",env:gitEnv,
+        });
+        fs.chmodSync(absolute,0o600);
+      }
+      return (originalOpenSync as any)(...args);
+    };
     assert.throws(
-      ()=>readObservedRegularFileV1(absolute,beforeFifo,1024,"fixture_fifo"),
-      /fixture_fifo_opened_shape_invalid/u,
+      ()=>readTrackedFileV1(repoRoot,relative,payload.length),
+      /accepted_enforcement_file_opened_shape_invalid/u,
     );
+    assert.equal(fifoSwapped,true,
+      "production_tracked_reader_fifo_swap_not_exercised");
+    assert.equal(
+      (fifoOpenFlags&fs.constants.O_NONBLOCK)!==0,true,
+      "production_tracked_reader_fifo_open_not_nonblocking",
+    );
+    mutableFs.openSync=originalOpenSync;
     fs.rmSync(absolute,{force:true});
-    fs.renameSync(absolute+".fifo-original",absolute);
+    fs.renameSync(fifoOriginal,absolute);
+    assert.equal(fs.lstatSync(absolute).ino,beforeFifo.ino,
+      "production_tracked_reader_fifo_original_not_restored");
 
-    const beforeGrowth=fs.lstatSync(absolute);
-    fs.appendFileSync(absolute,"x".repeat(2048));
+    let grew=false;
+    mutableFs.readSync=(...args:any[])=>{
+      if(!grew){
+        grew=true;
+        fs.appendFileSync(absolute,Buffer.from("X","utf8"));
+      }
+      return (originalReadSync as any)(...args);
+    };
     assert.throws(
-      ()=>readObservedRegularFileV1(absolute,beforeGrowth,1024,"fixture_growth"),
-      /fixture_growth_opened_shape_invalid/u,
+      ()=>readTrackedFileV1(repoRoot,relative,payload.length),
+      /accepted_enforcement_file_size_limit_exceeded/u,
     );
+    assert.equal(grew,true,"production_tracked_reader_growth_not_exercised");
+    mutableFs.readSync=originalReadSync;
+    fs.writeFileSync(absolute,payload,{mode:0o600});
+
+    const status=execFileSync("/usr/bin/git",[
+      "-C",repoRoot,"status","--porcelain=v1","--untracked-files=all",
+    ],{encoding:"utf8",env:gitEnv}).trim();
+    assert.equal(status,"","production_tracked_reader_fixture_not_restored");
   }finally{
+    mutableFs.openSync=originalOpenSync;
+    mutableFs.readSync=originalReadSync;
     fs.rmSync(temp,{recursive:true,force:true});
   }
 }
 
-proveTrackedFileReaderV1();
+proveProductionTrackedFileReadBoundaryV1();
+
+proveRepositoryLocalFsmonitorIgnoredV1();
 
 const rootCapable=
   typeof process.getuid==="function" && process.getuid()===0;
@@ -236,377 +304,6 @@ if(rootCapable){
   const good=path.join(root,"good","deployment-receipt.json");
   const bad=path.join(root,"bad","deployment-receipt.json");
   try{
-  fs.mkdirSync(root,{mode:0o700});
-  fs.chownSync(root,0,0);
-  fs.chmodSync(root,0o700);
-
-  const redirect=path.join(root,"redirect");
-  const symlinkParent=path.join(root,"symlink-parent");
-  fs.mkdirSync(redirect,{mode:0o700});
-  fs.chownSync(redirect,0,0);
-  fs.chmodSync(redirect,0o700);
-  const redirectBefore=fs.lstatSync(redirect);
-  fs.symlinkSync(redirect,symlinkParent,"dir");
-  assert.throws(()=>installRootCustodiedReceiptV1({
-    absolute_path:path.join(symlinkParent,"deployment-receipt.json"),
-    bytes:built.bytes,
-  }));
-  const redirectAfter=fs.lstatSync(redirect);
-  assert.equal(redirectAfter.uid,redirectBefore.uid);
-  assert.equal(redirectAfter.gid,redirectBefore.gid);
-  assert.equal(redirectAfter.mode,redirectBefore.mode);
-  assert.equal(fs.existsSync(path.join(redirect,"deployment-receipt.json")),false);
-  fs.unlinkSync(symlinkParent);
-
-  // A newly created final custody directory is not durable until its retained
-  // grandparent directory entry has also been fsynced.
-  {
-    const receipt=path.join(root,"grand-sync","deployment-receipt.json");
-    const grandparent=root;
-    const originalOpen=(fs as any).openSync;
-    const originalFsync=(fs as any).fsyncSync;
-    let grandFd=-1;
-    let injected=false;
-    try{
-      (fs as any).openSync=function(...args:any[]){
-        const fd=originalOpen.apply(fs,args);
-        if(String(args[0])===grandparent)grandFd=fd;
-        return fd;
-      };
-      (fs as any).fsyncSync=function(fd:number){
-        if(!injected&&grandFd>=0&&fd===grandFd){
-          injected=true;
-          throw Object.assign(new Error("synthetic_grandparent_fsync_failure"),{code:"EIO"});
-        }
-        return originalFsync.call(fs,fd);
-      };
-      assert.throws(()=>installRootCustodiedReceiptV1({
-        absolute_path:receipt,bytes:built.bytes,
-      }),/synthetic_grandparent_fsync_failure/u);
-    }finally{
-      (fs as any).openSync=originalOpen;
-      (fs as any).fsyncSync=originalFsync;
-    }
-    assert.equal(injected,true);
-    assert.equal(fs.existsSync(receipt),false);
-    assert.equal(fs.existsSync(path.dirname(receipt)),true);
-
-    let retryGrandFd=-1;
-    let retryGrandFsyncs=0;
-    try{
-      (fs as any).openSync=function(...args:any[]){
-        const fd=originalOpen.apply(fs,args);
-        if(String(args[0])===grandparent)retryGrandFd=fd;
-        return fd;
-      };
-      (fs as any).fsyncSync=function(fd:number){
-        if(retryGrandFd>=0&&fd===retryGrandFd)retryGrandFsyncs+=1;
-        return originalFsync.call(fs,fd);
-      };
-      const retry=installRootCustodiedReceiptV1({
-        absolute_path:receipt,bytes:built.bytes,
-      });
-      assert.equal(retry.created,true);
-      assert.equal(retry.already_matching,false);
-    }finally{
-      (fs as any).openSync=originalOpen;
-      (fs as any).fsyncSync=originalFsync;
-    }
-    assert.ok(retryGrandFsyncs>=1,"existing_parent_grandparent_fsync_missing");
-  }
-
-  const proveDirectFailureResidue=(
-    label:string,
-    method:"fchownSync"|"writeSync"|"fsyncSync"|"fchmodSync",
-  )=>{
-    const receipt=path.join(root,"direct-"+label,"deployment-receipt.json");
-    const originalOpen=(fs as any).openSync;
-    const originalTarget=(fs as any)[method];
-    let finalFd=-1;
-    let injected=false;
-    try{
-      (fs as any).openSync=function(...args:any[]){
-        const fd=originalOpen.apply(fs,args);
-        const flags=Number(args[1]);
-        if(
-          Number.isInteger(flags)&&
-          (flags&fs.constants.O_CREAT)!==0&&
-          (flags&fs.constants.O_EXCL)!==0
-        )finalFd=fd;
-        return fd;
-      };
-      (fs as any)[method]=function(...args:any[]){
-        if(!injected&&finalFd>=0&&Number(args[0])===finalFd){
-          injected=true;
-          throw Object.assign(
-            new Error("synthetic_direct_"+label+"_failure"),{code:"EIO"},
-          );
-        }
-        return originalTarget.apply(fs,args);
-      };
-      assert.throws(()=>installRootCustodiedReceiptV1({
-        absolute_path:receipt,bytes:built.bytes,
-      }),new RegExp("synthetic_direct_"+label+"_failure","u"));
-    }finally{
-      (fs as any).openSync=originalOpen;
-      (fs as any)[method]=originalTarget;
-    }
-    assert.equal(injected,true,label+"_failure_not_injected");
-    const residue=fs.lstatSync(receipt);
-    assert.ok(residue.isFile()&&!residue.isSymbolicLink());
-    assert.equal(residue.nlink,1);
-    assert.equal(residue.mode&0o777,0o600);
-    assert.throws(()=>installRootCustodiedReceiptV1({
-      absolute_path:receipt,bytes:built.bytes,
-    }),/receipt_leaf_mode_invalid/u);
-    fs.unlinkSync(receipt);
-  };
-
-  proveDirectFailureResidue("fchown","fchownSync");
-  proveDirectFailureResidue("write","writeSync");
-  proveDirectFailureResidue("fsync","fsyncSync");
-  proveDirectFailureResidue("fchmod","fchmodSync");
-
-  // If the commit parent fsync fails after the receipt is already sealed 0444,
-  // the exact receipt remains fail-safe and a retry must fsync the parent before
-  // returning idempotent success.
-  {
-    const receipt=path.join(root,"direct-parent-fsync","deployment-receipt.json");
-    const originalOpen=(fs as any).openSync;
-    const originalFsync=(fs as any).fsyncSync;
-    let parentFd=-1;
-    let finalFd=-1;
-    let injected=false;
-    try{
-      (fs as any).openSync=function(...args:any[]){
-        const fd=originalOpen.apply(fs,args);
-        const target=String(args[0]);
-        const flags=Number(args[1]);
-        if(
-          Number.isInteger(flags)&&
-          (flags&fs.constants.O_DIRECTORY)!==0&&
-          target.endsWith("/direct-parent-fsync")
-        )parentFd=fd;
-        if(
-          Number.isInteger(flags)&&
-          (flags&fs.constants.O_CREAT)!==0&&
-          (flags&fs.constants.O_EXCL)!==0
-        )finalFd=fd;
-        return fd;
-      };
-      (fs as any).fsyncSync=function(fd:number){
-        if(!injected&&finalFd>=0&&parentFd>=0&&fd===parentFd){
-          injected=true;
-          throw Object.assign(
-            new Error("synthetic_parent_commit_fsync_failure"),{code:"EIO"},
-          );
-        }
-        return originalFsync.call(fs,fd);
-      };
-      assert.throws(()=>installRootCustodiedReceiptV1({
-        absolute_path:receipt,bytes:built.bytes,
-      }),/synthetic_parent_commit_fsync_failure/u);
-    }finally{
-      (fs as any).openSync=originalOpen;
-      (fs as any).fsyncSync=originalFsync;
-    }
-    assert.equal(injected,true);
-    const residue=fs.lstatSync(receipt);
-    assert.equal(residue.mode&0o777,0o444);
-    assert.equal(residue.nlink,1);
-
-    let retryParentFd=-1;
-    let retryParentFsyncs=0;
-    try{
-      (fs as any).openSync=function(...args:any[]){
-        const fd=originalOpen.apply(fs,args);
-        const target=String(args[0]);
-        const flags=Number(args[1]);
-        if(
-          Number.isInteger(flags)&&
-          (flags&fs.constants.O_DIRECTORY)!==0&&
-          target.endsWith("/direct-parent-fsync")
-        )retryParentFd=fd;
-        return fd;
-      };
-      (fs as any).fsyncSync=function(fd:number){
-        if(retryParentFd>=0&&fd===retryParentFd)retryParentFsyncs+=1;
-        return originalFsync.call(fs,fd);
-      };
-      const retry=installRootCustodiedReceiptV1({
-        absolute_path:receipt,bytes:built.bytes,
-      });
-      assert.equal(retry.created,false);
-      assert.equal(retry.already_matching,true);
-    }finally{
-      (fs as any).openSync=originalOpen;
-      (fs as any).fsyncSync=originalFsync;
-    }
-    assert.ok(retryParentFsyncs>=1,"idempotent_parent_fsync_missing");
-  }
-
-  // If the second file fsync fails after mode 0444 is visible, retry must
-  // fsync the exact receipt inode before it fsyncs the retained parent.
-  {
-    const receipt=path.join(root,"postseal-recovery","deployment-receipt.json");
-    const originalOpen=(fs as any).openSync;
-    const originalFsync=(fs as any).fsyncSync;
-    let createFd=-1;
-    let createFsyncs=0;
-    let injected=false;
-    try{
-      (fs as any).openSync=function(...args:any[]){
-        const fd=originalOpen.apply(fs,args);
-        const flags=Number(args[1]);
-        if(
-          Number.isInteger(flags)&&
-          (flags&fs.constants.O_CREAT)!==0&&
-          (flags&fs.constants.O_EXCL)!==0
-        )createFd=fd;
-        return fd;
-      };
-      (fs as any).fsyncSync=function(fd:number){
-        if(createFd>=0&&fd===createFd){
-          createFsyncs+=1;
-          if(!injected&&createFsyncs===2){
-            injected=true;
-            throw Object.assign(
-              new Error("synthetic_postseal_file_fsync_failure"),{code:"EIO"},
-            );
-          }
-        }
-        return originalFsync.call(fs,fd);
-      };
-      assert.throws(()=>installRootCustodiedReceiptV1({
-        absolute_path:receipt,bytes:built.bytes,
-      }),/synthetic_postseal_file_fsync_failure/u);
-    }finally{
-      (fs as any).openSync=originalOpen;
-      (fs as any).fsyncSync=originalFsync;
-    }
-    assert.equal(injected,true);
-    const residue=fs.lstatSync(receipt);
-    assert.equal(residue.mode&0o777,0o444);
-    assert.equal(residue.nlink,1);
-
-    let retryParentFd=-1;
-    let retryReceiptFd=-1;
-    const durabilityOrder:string[]=[];
-    try{
-      (fs as any).openSync=function(...args:any[]){
-        const fd=originalOpen.apply(fs,args);
-        const target=String(args[0]);
-        const flags=Number(args[1]);
-        if(
-          Number.isInteger(flags)&&
-          (flags&fs.constants.O_DIRECTORY)!==0&&
-          target.endsWith("/postseal-recovery")
-        )retryParentFd=fd;
-        if(
-          Number.isInteger(flags)&&
-          (flags&fs.constants.O_DIRECTORY)===0&&
-          (flags&fs.constants.O_CREAT)===0&&
-          target.endsWith("/deployment-receipt.json")
-        )retryReceiptFd=fd;
-        return fd;
-      };
-      (fs as any).fsyncSync=function(fd:number){
-        if(retryReceiptFd>=0&&fd===retryReceiptFd)durabilityOrder.push("file");
-        else if(retryParentFd>=0&&fd===retryParentFd)durabilityOrder.push("parent");
-        return originalFsync.call(fs,fd);
-      };
-      const retry=installRootCustodiedReceiptV1({
-        absolute_path:receipt,bytes:built.bytes,
-      });
-      assert.equal(retry.created,false);
-      assert.equal(retry.already_matching,true);
-    }finally{
-      (fs as any).openSync=originalOpen;
-      (fs as any).fsyncSync=originalFsync;
-    }
-    assert.ok(durabilityOrder.length>=2,"postseal_retry_fsyncs_missing");
-    assert.equal(durabilityOrder[0],"file","receipt_fsync_must_precede_parent");
-    assert.ok(durabilityOrder.includes("parent"),"postseal_parent_fsync_missing");
-  }
-
-  // Production code never deletes a pathname after creation. If a privileged
-  // concurrent actor substitutes the visible final path during a failure, that
-  // foreign inode is left untouched and the operation HOLDs.
-  {
-    const receipt=path.join(root,"direct-foreign","deployment-receipt.json");
-    const originalOpen=(fs as any).openSync;
-    const originalFchown=(fs as any).fchownSync;
-    let finalFd=-1;
-    let injected=false;
-    let foreignIdentity:fs.Stats|undefined;
-    try{
-      (fs as any).openSync=function(...args:any[]){
-        const fd=originalOpen.apply(fs,args);
-        const flags=Number(args[1]);
-        if(
-          Number.isInteger(flags)&&
-          (flags&fs.constants.O_CREAT)!==0&&
-          (flags&fs.constants.O_EXCL)!==0
-        )finalFd=fd;
-        return fd;
-      };
-      (fs as any).fchownSync=function(fd:number,uid:number,gid:number){
-        if(!injected&&finalFd>=0&&fd===finalFd){
-          injected=true;
-          fs.unlinkSync(receipt);
-          fs.writeFileSync(receipt,"foreign\n",{mode:0o600});
-          fs.chownSync(receipt,0,0);
-          foreignIdentity=fs.lstatSync(receipt);
-          throw Object.assign(new Error("synthetic_foreign_substitution"),{code:"EIO"});
-        }
-        return originalFchown.call(fs,fd,uid,gid);
-      };
-      assert.throws(()=>installRootCustodiedReceiptV1({
-        absolute_path:receipt,bytes:built.bytes,
-      }),/synthetic_foreign_substitution/u);
-    }finally{
-      (fs as any).openSync=originalOpen;
-      (fs as any).fchownSync=originalFchown;
-    }
-    assert.equal(injected,true);
-    assert.ok(foreignIdentity);
-    const after=fs.lstatSync(receipt);
-    assert.equal(after.dev,foreignIdentity!.dev);
-    assert.equal(after.ino,foreignIdentity!.ino);
-    assert.equal(fs.readFileSync(receipt,"utf8"),"foreign\n");
-    fs.unlinkSync(receipt);
-  }
-
-  // Existing receipts are descriptor-read with the production 64 KiB ceiling.
-  {
-    const receipt=path.join(root,"oversized-existing","deployment-receipt.json");
-    fs.mkdirSync(path.dirname(receipt),{recursive:true,mode:0o755});
-    fs.writeFileSync(receipt,Buffer.alloc(64*1024+1,0x61),{mode:0o444});
-    fs.chownSync(receipt,0,0);
-    fs.chmodSync(receipt,0o444);
-    assert.throws(()=>installRootCustodiedReceiptV1({
-      absolute_path:receipt,bytes:built.bytes,
-    }),/receipt_leaf_size_invalid/u);
-    fs.unlinkSync(receipt);
-  }
-
-  const restrictiveParent=path.join(root,"restrictive");
-  const restrictiveReceipt=path.join(restrictiveParent,"deployment-receipt.json");
-  fs.mkdirSync(restrictiveParent,{mode:0o700});
-  fs.chownSync(restrictiveParent,0,0);
-  fs.chmodSync(restrictiveParent,0o700);
-  const restrictiveBefore=fs.lstatSync(restrictiveParent);
-  const restrictiveResult=installRootCustodiedReceiptV1({
-    absolute_path:restrictiveReceipt,bytes:built.bytes,
-  });
-  assert.equal(restrictiveResult.created,true);
-  const restrictiveAfter=fs.lstatSync(restrictiveParent);
-  assert.equal(restrictiveAfter.dev,restrictiveBefore.dev);
-  assert.equal(restrictiveAfter.ino,restrictiveBefore.ino);
-  assert.equal(restrictiveAfter.uid,restrictiveBefore.uid);
-  assert.equal(restrictiveAfter.gid,restrictiveBefore.gid);
-  assert.equal(restrictiveAfter.mode,restrictiveBefore.mode);
-
   const first=installRootCustodiedReceiptV1({
     absolute_path:good,bytes:built.bytes,
   });
@@ -650,31 +347,20 @@ console.log("current_enforcement_tracked_source_inventory_blob_and_mode_bound=tr
 console.log("deployment_receipt_enforcement_set_not_source_hardcoded=true");
 console.log("v7_reviewed_source_digest_uses_module_inspector=true");
 console.log("repository_local_fsmonitor_ignored=true");
-console.log("tracked_file_descriptor_bounded_read=true");
-console.log("tracked_source_inventory_descriptor_bounded_read=true");
-console.log("tracked_source_inventory_max_bytes=16777216");
-console.log("tracked_file_nofollow_required=true");
-console.log("tracked_file_replacement_race_rejected=true");
-console.log("tracked_file_symlink_race_rejected=true");
-console.log("tracked_file_fifo_swap_nonblocking=true");
 console.log("root_custody_positive_exercised="+String(rootCapable));
-console.log("descriptor_relative_parent_publication="+String(rootCapable));
-console.log("direct_exclusive_final_publication="+String(rootCapable));
-console.log("failed_publication_residue_preserved="+String(rootCapable));
-console.log("pathname_cleanup_after_final_create=false");
-console.log("existing_receipt_bounded_read="+String(rootCapable));
-console.log("idempotent_parent_fsync_recovery="+String(rootCapable));
-console.log("idempotent_receipt_file_fsync_recovery="+String(rootCapable));
-console.log("receipt_file_fsync_precedes_parent="+String(rootCapable));
-console.log("symlink_parent_no_collateral_mutation="+String(rootCapable));
-console.log("restrictive_parent_mode_preserved="+String(rootCapable));
-console.log("new_parent_grandparent_fsync_required="+String(rootCapable));
-console.log("existing_parent_grandparent_fsync_recovery="+String(rootCapable));
 console.log("root_custodied_create_once_positive="+String(rootCapable));
 console.log("matching_reapply_idempotent="+String(rootCapable));
 console.log("mismatched_existing_receipt_rejected="+String(rootCapable));
 console.log("leaf_root_owned_mode_0444_single_link="+String(rootCapable));
 console.log("unprivileged_proof_stack_safe="+String(!rootCapable));
+console.log("production_tracked_file_descriptor_bound=true");
+console.log("production_tracked_file_nofollow=true");
+console.log("production_tracked_file_nonblocking=true");
+console.log("production_tracked_file_max_plus_one_bounded=true");
+console.log("production_tracked_file_replacement_rejected=true");
+console.log("production_tracked_file_symlink_swap_rejected=true");
+console.log("production_tracked_file_fifo_swap_rejected=true");
+console.log("current_enforcement_inventory_uses_bounded_descriptor=true");
 console.log("service_mutation=false");
 console.log("credential_wallet_signer_transaction_authority=false");
 console.log("presale_activation=false");

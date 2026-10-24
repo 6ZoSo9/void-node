@@ -1,0 +1,192 @@
+name: VOID Buy VOID V7 deployment reader repair and V3 HOLD v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.yml"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"
+      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"
+      - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
+      - ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"
+      - ".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml"
+      - "docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md"
+      - "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
+      - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v4.md"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v4.md"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: 0344d7dab153be75716646d5c6f5162f926f25ee
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact revision and source identities
+        env:
+          EXPECTED_HEAD: 0344d7dab153be75716646d5c6f5162f926f25ee
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          echo "HISTORICAL_V3_READER_REPAIR_EXACT_HEAD=0344d7dab153be75716646d5c6f5162f926f25ee"
+          git merge-base --is-ancestor 9f610b351ad48b214fa04dc6b961e4a202049913 HEAD
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e0a682ea4038ca22e3a3b97da2cac29874096c46"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e634e666d3a190368ddb031f936ebbb6347b7196"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "fba37e94a90b3d4278fd3fba10fbe6313f2f0625"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md)" = "7567775b241a798752c1c36091d7059a75299b85"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs)" = "9298ab67c31b4651795b88cabd9dc549dcffc27e"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md)" = "ab6c5ac65f84ab3c66e6d60972b471e8d9fd14e2"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "245ce93ebfb53478211fab765489e88d8fa23c4a"
+          git diff --name-status 9f610b351ad48b214fa04dc6b961e4a202049913 HEAD > "$RUNNER_TEMP/delta.txt"
+          cat > "$RUNNER_TEMP/expected-delta.txt" <<'EOF'
+          M	.github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml
+          M	.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml
+          M	.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml
+          M	.github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml
+          A	.github/workflows/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.yml
+          M	.github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml
+          A	docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md
+          A	docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md
+          M	ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts
+          A	scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs
+          M	scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts
+          A	scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs
+          EOF
+          sort -k2,2 "$RUNNER_TEMP/delta.txt" -o "$RUNNER_TEMP/delta.txt"
+          sort -k2,2 "$RUNNER_TEMP/expected-delta.txt" -o "$RUNNER_TEMP/expected-delta.txt"
+          cmp "$RUNNER_TEMP/expected-delta.txt" "$RUNNER_TEMP/delta.txt"
+          git diff --check 9f610b351ad48b214fa04dc6b961e4a202049913 HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Typecheck and build
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+      - name: Exercise exported production reader
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/production-reader-${{ matrix.node }}.log"
+          npx tsx scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts | tee "$log"
+          grep -Fx 'production_tracked_file_descriptor_bound=true' "$log"
+          grep -Fx 'production_tracked_file_nofollow=true' "$log"
+          grep -Fx 'production_tracked_file_nonblocking=true' "$log"
+          grep -Fx 'production_tracked_file_max_plus_one_bounded=true' "$log"
+          grep -Fx 'production_tracked_file_replacement_rejected=true' "$log"
+          grep -Fx 'production_tracked_file_symlink_swap_rejected=true' "$log"
+          grep -Fx 'production_tracked_file_fifo_swap_rejected=true' "$log"
+          grep -Fx 'current_enforcement_inventory_uses_bounded_descriptor=true' "$log"
+          grep -Fx 'service_mutation=false' "$log"
+          grep -Fx 'funds_movement=false' "$log"
+      - name: Prove Dispatch V3
+        run: |
+          set -euo pipefail
+          receipt="$RUNNER_TEMP/dispatch-v3-${{ matrix.node }}.json"
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --self-test
+          node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs --receipt > "$receipt"
+          node --input-type=module - "$receipt" <<'NODE'
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          const r=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
+          assert.equal(r.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
+          assert.equal(r.reviewed_protected_drift_count,1);
+          assert.equal(r.nonprotected_economic_drift_count,3);
+          assert.equal(r.frozen_v4_census_proof_preserved,true);
+          assert.equal(r.reviewed_deployment_reader_successor_bound,true);
+          assert.equal(r.workflow_dispatch_contracts_bound,true);
+          assert.equal(r.provider_source_blob_manifest_bound,true);
+          assert.equal(r.provider_historical_commit_object_required,false);
+          assert.equal(r.protected_parent_scope_manifest_bound,true);
+          assert.equal(r.protected_parent_scope_delta_status_bound,true);
+          assert.equal(r.protected_parent_historical_commit_object_required,false);
+          assert.ok(Number.isSafeInteger(r.protected_parent_scope_row_count));
+          assert.ok(r.protected_parent_scope_row_count>3);
+          assert.equal(r.frozen_candidate_rederived_on_current_head,false);
+          assert.equal(r.current_generation_integration_verified,true);
+          assert.equal(r.production_source_finality_authority_ready,false);
+          assert.equal(r.public_presale_activation,false);
+          assert.equal(r.funds_movement,false);
+          NODE
+      - name: Prove focused source contract
+        run: node scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs
+      - name: Require V3 planner HOLD on exact tool transition
+        run: |
+          set -euo pipefail
+          head="$(git rev-parse HEAD)"
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          git switch -C main "$head"
+          hold="$RUNNER_TEMP/v3-reader-hold-${{ matrix.node }}.log"
+          set +e
+          npx tsx ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
+            --plan \
+            --expected-commit "$head" \
+            --expected-tree "$tree" \
+            --accepted-enforcement-lock-path ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json \
+            >"$hold" 2>&1
+          status=$?
+          set -e
+          cat "$hold"
+          test "$status" -eq 2
+          grep -Fx 'marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1_HOLD' "$hold"
+          grep -Fx 'reason=accepted_enforcement_candidate_current_source_inventory_mismatch:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts' "$hold"
+          test "$(grep -Fxc 'status=PLAN_GREEN' "$hold" || true)" -eq 0
+          printf '%s\n' \
+            'marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1_HOLD' \
+            'reason=accepted_enforcement_candidate_current_source_inventory_mismatch:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts' \
+            > "$hold.normalized"
+          mv "$hold.normalized" "$hold"
+          echo 'accepted_v3_lock_deliberately_stale_after_reader_repair=true'
+          echo 'separate_v4_candidate_lock_required=true'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: buy-void-v3-reader-repair-0344d7dab153be75716646d5c6f5162f926f25ee-node-${{ matrix.node }}
+          path: |
+            ${{ runner.temp }}/dispatch-v3-${{ matrix.node }}.json
+            ${{ runner.temp }}/v3-reader-hold-${{ matrix.node }}.log
+            ${{ runner.temp }}/production-reader-${{ matrix.node }}.log
+          if-no-files-found: error
+          retention-days: 7
+
+  cross-node:
+    needs: [prove]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: buy-void-v3-reader-repair-0344d7dab153be75716646d5c6f5162f926f25ee-node-*
+          merge-multiple: true
+          path: evidence
+      - name: Require exact Node 22 24 26 equality
+        run: |
+          set -euo pipefail
+          for node in 22 24 26; do
+            test -s "evidence/dispatch-v3-$node.json"
+            test -s "evidence/v3-reader-hold-$node.log"
+          done
+          cmp evidence/dispatch-v3-22.json evidence/dispatch-v3-24.json
+          cmp evidence/dispatch-v3-22.json evidence/dispatch-v3-26.json
+          cmp evidence/v3-reader-hold-22.log evidence/v3-reader-hold-24.log
+          cmp evidence/v3-reader-hold-22.log evidence/v3-reader-hold-26.log
+          echo VOID_BUY_VOID_V3_READER_REPAIR_CROSS_NODE_GREEN

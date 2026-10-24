@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, ctypes, hashlib, json, os, pathlib, stat, sys, types
+import argparse, ctypes, hashlib, json, os, pathlib, signal, stat, sys, types
 from typing import Any
 
 MARKER="VOID_BUY_VOID_EPOCH2_DORMANT_FIRST_ENTRY_PROTECTED_BOOTSTRAP_ATOMIC_UPGRADE_V1"
@@ -80,6 +80,52 @@ def exists(p):
     try: p.lstat(); return True
     except FileNotFoundError: return False
 
+LAYOUT_READY="old_live_new_stage"
+LAYOUT_EXCHANGED="new_live_old_stage"
+LAYOUT_RETAINED="new_live_old_predecessor"
+LAYOUT_ROLLBACK_SWAPPED="old_live_new_predecessor"
+
+def root_kind(m,path,policy,old_id,new_id):
+    if not exists(path): return "missing"
+    try: old_root(m,path,policy,old_id); return "old"
+    except Exception: pass
+    try: new_root(m,path,policy,new_id); return "new"
+    except Exception: return "other"
+
+def root_layout(m,policy,old_id,new_id):
+    kinds=(root_kind(m,INSTALL_ROOT,policy,old_id,new_id),root_kind(m,STAGE_ROOT,policy,old_id,new_id),root_kind(m,PREDECESSOR_ROOT,policy,old_id,new_id))
+    known={
+        ("old","new","missing"):LAYOUT_READY,
+        ("new","old","missing"):LAYOUT_EXCHANGED,
+        ("new","missing","old"):LAYOUT_RETAINED,
+        ("old","missing","new"):LAYOUT_ROLLBACK_SWAPPED,
+    }
+    return known.get(kinds,"ambiguous:"+"/".join(kinds))
+
+def published_inspection_error(reason,cause):
+    e=PublishedError(reason,cause); e.rollback_attempted=False; e.rollback_green=False; e.rollback_final_state_verified=False
+    return e
+
+def observed_rename(m,opt_fd,source,target,flags,policy,old_id,new_id,outcome=None):
+    caught=None; layout=None; inspection_error=None; rename_succeeded=False
+    if outcome is not None: outcome["rename_succeeded"]=False
+    previous=signal.pthread_sigmask(signal.SIG_BLOCK,{signal.SIGINT})
+    try:
+        try:
+            m._renameat2(opt_fd,source,target,flags)
+            rename_succeeded=True
+            if outcome is not None: outcome["rename_succeeded"]=True
+        except BaseException as exc: caught=exc
+        try: layout=root_layout(m,policy,old_id,new_id)
+        except BaseException as exc: inspection_error=exc
+    finally:
+        try: signal.pthread_sigmask(signal.SIG_SETMASK,previous)
+        except BaseException as exc:
+            if caught is None: caught=exc
+    if inspection_error is not None:
+        raise published_inspection_error("rename_outcome_needs_inspection",inspection_error) from inspection_error
+    return layout,caught,rename_succeeded
+
 def bindings(m,head):
     try:
         with m._RepositorySnapshot(head) as repo:
@@ -122,7 +168,7 @@ def collect(bootstrap,manifest,head):
 def source_plan():
     print(MARKER); print("mode=source-plan"); print("source_only=true"); print("host_read=false"); print("host_write=false")
     print("outer_installer_git_blob_sha1="+OUTER_BLOB); print("old_lock_id="+OLD_LOCK); print("new_lock_id="+NEW_LOCK); print("new_candidate_id="+NEW_CAND)
-    print("atomic_root_exchange_required=true"); print("predecessor_retention_required=true"); print("automatic_rollback_required=true")
+    print("atomic_root_exchange_required=true"); print("predecessor_retention_required=true"); print("automatic_rollback_required=true"); print("rename_outcome_reconciliation_required=true")
     print("bootstrap_execution=false"); print("inner_installer_execution=false"); print("service_mutation=false"); print("credential_access=false"); print("funds_movement=false")
 
 def plan(bootstrap,manifest,head):
@@ -182,6 +228,23 @@ def rebind(bootstrap,manifest,head,body):
         return bi==body["bootstrap"] and mi==body["manifest"] and b["checkout"]==body["checkout"] and b["python"]==body["python"] and b["git_tool"]==body["git_tool"] and b["lock_id"]==NEW_LOCK and h(p)==body["policy_sha256"] and len(p)==body["policy_bytes"]
     except Exception: return False
 
+def rollback_published(m,opt_fd,policy,body,initial,bootstrap,manifest,head,old_id,new_id):
+    try:
+        layout=root_layout(m,policy,old_id,new_id)
+        if layout==LAYOUT_RETAINED:
+            layout,_,_=observed_rename(m,opt_fd,PREDECESSOR_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
+            if layout!=LAYOUT_ROLLBACK_SWAPPED: return False
+            layout,_,_=observed_rename(m,opt_fd,PREDECESSOR_NAME,STAGE_NAME,RENAME_NOREPLACE,policy,old_id,new_id)
+            if layout!=LAYOUT_READY: return False
+        elif layout==LAYOUT_EXCHANGED:
+            layout,_,_=observed_rename(m,opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id)
+            if layout!=LAYOUT_READY: return False
+        elif layout!=LAYOUT_READY: return False
+        old_root(m,INSTALL_ROOT,policy,body["current_root_identity"])
+        return initial is not None and cleanup(m,opt_fd,initial) and not exists(PREDECESSOR_ROOT) and rebind(bootstrap,manifest,head,body)
+    except BaseException:
+        return False
+
 def apply(bootstrap,manifest,head,expected_plan,confirm):
     print(MARKER); print("mode=apply"); print("authority_boundary=PRE_MUTATION"); print("protected_root_mutation_possible=true"); print("protected_root_mutation_performed=false"); print("bootstrap_execution=false"); print("inner_installer_execution=false"); print("service_mutation=false"); print("credential_access=false"); print("funds_movement=false"); sys.stdout.flush()
     if confirm!=CONFIRM: raise UpgradeError("explicit_atomic_upgrade_confirmation_required")
@@ -195,31 +258,75 @@ def apply(bootstrap,manifest,head,expected_plan,confirm):
     if body["protected_state"]!=READY: raise UpgradeError("apply_state_not_ready")
     opt_fd=os.open(INSTALL_PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC|os.O_NOFOLLOW)
     initial=None; owned=[]; exchanged=False; retained=False; publication=False; rollback=False
+    exchange_attempted=False; retention_attempted=False; new_id=None
+    exchange_outcome={"rename_succeeded":False}
     try:
         if exists(STAGE_ROOT) or exists(PREDECESSOR_ROOT): raise UpgradeError("upgrade_auxiliary_root_present")
         old_id=old_root(m,INSTALL_ROOT,policy,body["current_root_identity"])
-        initial=stage(m,opt_fd,boot_raw,man_raw,policy,owned)
+        initial=stage(m,opt_fd,boot_raw,man_raw,policy,owned); new_id=rid(initial)
         if not rebind(bootstrap,manifest,head,body): raise UpgradeError("plan_bindings_changed_before_exchange")
-        old_root(m,INSTALL_ROOT,policy,old_id); new_root(m,STAGE_ROOT,policy)
-        m._renameat2(opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE); exchanged=True; publication=True; os.fsync(opt_fd)
-        new_root(m,INSTALL_ROOT,policy); old_root(m,STAGE_ROOT,policy,old_id)
+        old_root(m,INSTALL_ROOT,policy,old_id); new_root(m,STAGE_ROOT,policy,new_id)
+        if root_layout(m,policy,old_id,new_id)!=LAYOUT_READY: raise UpgradeError("pre_exchange_layout_invalid")
+        exchange_attempted=True
+        layout,handoff_error,rename_succeeded=observed_rename(m,opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE,policy,old_id,new_id,outcome=exchange_outcome)
+        if rename_succeeded:
+            publication=True
+        if layout==LAYOUT_EXCHANGED:
+            exchanged=True; publication=True
+        elif layout!=LAYOUT_READY:
+            publication=True
+        if rename_succeeded and layout==LAYOUT_READY:
+            raise published_inspection_error(
+                "atomic_exchange_succeeded_but_layout_reverted",
+                UpgradeError("successful_exchange_layout_reverted_before_observation"),
+            )
+        if handoff_error is not None: raise handoff_error
+        if layout!=LAYOUT_EXCHANGED: raise UpgradeError("atomic_exchange_outcome_invalid:"+layout)
+        os.fsync(opt_fd)
+        new_root(m,INSTALL_ROOT,policy,new_id); old_root(m,STAGE_ROOT,policy,old_id)
         if not rebind(bootstrap,manifest,head,body): raise UpgradeError("plan_bindings_changed_after_exchange")
-        m._renameat2(opt_fd,STAGE_NAME,PREDECESSOR_NAME,RENAME_NOREPLACE); retained=True; os.fsync(opt_fd)
-        new_root(m,INSTALL_ROOT,policy); old_root(m,PREDECESSOR_ROOT,policy,old_id)
+        retention_attempted=True
+        layout,handoff_error,retention_succeeded=observed_rename(m,opt_fd,STAGE_NAME,PREDECESSOR_NAME,RENAME_NOREPLACE,policy,old_id,new_id)
+        if layout==LAYOUT_RETAINED: retained=True
+        elif layout!=LAYOUT_EXCHANGED: publication=True
+        if handoff_error is not None: raise handoff_error
+        if layout!=LAYOUT_RETAINED: raise UpgradeError("predecessor_retention_outcome_invalid:"+layout)
+        os.fsync(opt_fd)
+        new_root(m,INSTALL_ROOT,policy,new_id); old_root(m,PREDECESSOR_ROOT,policy,old_id)
         if exists(STAGE_ROOT) or not rebind(bootstrap,manifest,head,body): raise UpgradeError("final_state_or_bindings_invalid")
     except BaseException as exc:
+        if isinstance(exc,PublishedError):
+            try: os.close(opt_fd)
+            except OSError: pass
+            raise
         if publication:
-            try:
-                if retained:
-                    m._renameat2(opt_fd,PREDECESSOR_NAME,INSTALL_NAME,RENAME_EXCHANGE); m._renameat2(opt_fd,PREDECESSOR_NAME,STAGE_NAME,RENAME_NOREPLACE)
-                elif exchanged: m._renameat2(opt_fd,STAGE_NAME,INSTALL_NAME,RENAME_EXCHANGE)
-                old_root(m,INSTALL_ROOT,policy,body["current_root_identity"])
-                rollback=initial is not None and cleanup(m,opt_fd,initial) and not exists(PREDECESSOR_ROOT) and rebind(bootstrap,manifest,head,body)
-            except BaseException: rollback=False
+            rollback=new_id is not None and rollback_published(m,opt_fd,policy,body,initial,bootstrap,manifest,head,old_id,new_id)
             try: os.close(opt_fd)
             except OSError: pass
             e=PublishedError("atomic_upgrade_rolled_back_after_failure" if rollback else "atomic_upgrade_rollback_failed",exc); e.rollback_attempted=True; e.rollback_green=rollback; e.rollback_final_state_verified=rollback
             raise e from exc
+        if exchange_attempted and new_id is not None:
+            try: layout=root_layout(m,policy,old_id,new_id)
+            except BaseException as inspection_error:
+                try: os.close(opt_fd)
+                except OSError: pass
+                raise published_inspection_error("atomic_upgrade_exchange_outcome_needs_inspection",inspection_error) from exc
+            if exchange_outcome["rename_succeeded"] and layout==LAYOUT_READY:
+                try: os.close(opt_fd)
+                except OSError: pass
+                raise published_inspection_error("atomic_upgrade_exchange_succeeded_ready_needs_inspection",exc) from exc
+            if layout==LAYOUT_EXCHANGED:
+                rollback=rollback_published(m,opt_fd,policy,body,initial,bootstrap,manifest,head,old_id,new_id)
+                try: os.close(opt_fd)
+                except OSError: pass
+                e=PublishedError("atomic_upgrade_rolled_back_after_failure" if rollback else "atomic_upgrade_rollback_failed",exc)
+                e.rollback_attempted=True; e.rollback_green=rollback; e.rollback_final_state_verified=rollback
+                raise e from exc
+            if layout not in (LAYOUT_READY,):
+                try: os.close(opt_fd)
+                except OSError: pass
+                e=PublishedError("atomic_upgrade_exchange_outcome_ambiguous",exc); e.rollback_attempted=False; e.rollback_green=False; e.rollback_final_state_verified=False
+                raise e from exc
         if initial is None and owned: initial=owned[0]
         if initial is not None: rollback=cleanup(m,opt_fd,initial)
         try: os.close(opt_fd)
@@ -241,7 +348,7 @@ def self_test():
         try:
             load_outer()._renameat2(fd,"a","b",RENAME_EXCHANGE); assert (p/"a"/"x").read_text()=="new" and (p/"b"/"x").read_text()=="old"; load_outer()._renameat2(fd,"b","pred",RENAME_NOREPLACE); assert (p/"pred"/"x").read_text()=="old"
         finally: os.close(fd)
-    print(MARKER+"_SELF_TEST_GREEN"); print("old_generation_identity_bound=true"); print("repaired_generation_identity_bound=true"); print("outer_installer_source_blob_bound=true"); print("atomic_root_exchange_required=true"); print("predecessor_retention_required=true"); print("automatic_rollback_required=true"); print("bootstrap_execution=false"); print("inner_installer_execution=false"); print("service_mutation=false"); print("credential_access=false"); print("funds_movement=false")
+    print(MARKER+"_SELF_TEST_GREEN"); print("old_generation_identity_bound=true"); print("repaired_generation_identity_bound=true"); print("outer_installer_source_blob_bound=true"); print("atomic_root_exchange_required=true"); print("predecessor_retention_required=true"); print("automatic_rollback_required=true"); print("rename_outcome_reconciliation_required=true"); print("bootstrap_execution=false"); print("inner_installer_execution=false"); print("service_mutation=false"); print("credential_access=false"); print("funds_movement=false")
 
 def failure_receipt(exc):
     if isinstance(exc,PublishedError):

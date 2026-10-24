@@ -70,9 +70,21 @@ route returns HTTP 405.
 
 The selected-rail USDC sender must equal the native VOID destination address.
 For backward compatibility, `ack_base_native_usdc` is accepted only for Base requests. Ethereum requests require the generic selected-rail `ack_native_usdc` acknowledgement explicitly.
-Only one non-terminal request may exist per destination. Repeating the same
-amount on the same payment chain is idempotent. Changing the amount or payment
-chain conflicts until the earlier request is `fulfilled` or `rejected`.
+Only one non-terminal request may exist per destination. For the same
+destination, amount, and source chain, the server can recognize a matching
+active request **internally** without persisting a second request. The
+unauthenticated public POST returns a generic HTTP 409, **not** an
+idempotent success, the previous buyer's request ID, or payment instructions.
+Changing the amount or payment chain while a request remains active also
+conflicts, without disclosing the previous buyer's details.
+
+**REQUEST OUTCOME UNCONFIRMED — DO NOT SEND FUNDS OR RESUBMIT.**
+If a POST times out, returns HTTP 409/502, or its response is lost, the
+request may already have been recorded. Verify the original with the
+operator before any further attempt. Never treat a conflict as authenticated
+recovery or permission to send payment. Only a terminal `fulfilled` or
+`rejected` request ends the active-destination conflict; fresh intake also
+requires its own current coupled-launch authority.
 
 The page cannot send USDC, request an approval, bind a payment transaction,
 activate fulfillment, sign, broadcast, move funds, transfer VOID, or restart a

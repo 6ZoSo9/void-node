@@ -147,6 +147,31 @@ for (const [name, from, to, head] of [
 }
 
 assert.equal(ATTACH_BLOCK_RANGE_ERROR_CODE_V1, "VOID_BLOCK_RANGE_INVALID_V1");
+for (const invalidHead of [
+  Number.NaN,
+  -2,
+  1.5,
+  Number.MAX_SAFE_INTEGER + 1,
+]) {
+  assert.deepEqual(
+    attachBlockRangeErrorV1("5", "6", invalidHead),
+    {
+      ok: false,
+      error: "bad range",
+      code: "VOID_BLOCK_RANGE_INVALID_V1",
+      reason: "invalid_head",
+      max_heights: 250,
+      recovery: null,
+      aliases: { from: ["from", "start"], to: ["to", "end"] },
+    },
+    "invalid internal head must be non-retryable",
+  );
+  assert.equal(
+    parseAttachBlockRange("5", "6", invalidHead),
+    null,
+    "invalid internal head must remain rejected by the canonical parser",
+  );
+}
 assert.deepEqual(
   attachBlockRangeErrorV1(undefined, undefined, 1000),
   {
@@ -229,6 +254,7 @@ for (const source of [tsSource, jsSource]) {
   assert.match(source, /VOID_BLOCK_RANGE_INVALID_V1/);
   assert.match(source, /max_heights/);
   assert.match(source, /range_span_exceeds_limit/);
+  assert.match(source, /invalid_head/);
   assert.match(source, /attachBlockRangeErrorV1/);
 }
 console.log("void_attach_block_range_bounds_v1=PASS");
