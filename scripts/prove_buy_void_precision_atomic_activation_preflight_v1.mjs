@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import * as activationContract from "../src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts";
 import {
@@ -484,6 +487,78 @@ const wrapperSource = fs.readFileSync(
   "ops/precision/void_precision_buy_void_atomic_activation_preflight_v1.sh",
   "utf8",
 );
+function gitBlobSha1(bytes) {
+  return crypto
+    .createHash("sha1")
+    .update(Buffer.from(`blob ${bytes.length}\\0`, "utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+
+const toolSwapDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-atomic-preflight-tool-snapshot-proof-"),
+);
+try {
+  const sourcePath = path.join(toolSwapDir, "preflight-tool.mjs");
+  const reviewedPath = path.join(toolSwapDir, "reviewed-tool.mjs");
+  const snapshotPath = path.join(toolSwapDir, "snapshot-tool.mjs");
+  const reviewedBytes = Buffer.from("console.log('reviewed')\\n", "utf8");
+  const swappedBytes = Buffer.from("console.log('swapped')\\n", "utf8");
+  const reviewedBlob = gitBlobSha1(reviewedBytes);
+
+  fs.writeFileSync(sourcePath, reviewedBytes, { flag: "wx", mode: 0o600 });
+  const sourceFd = fs.openSync(
+    sourcePath,
+    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+  );
+  let openedBytes;
+  try {
+    openedBytes = fs.readFileSync(sourceFd);
+  } finally {
+    fs.closeSync(sourceFd);
+  }
+  assert.equal(gitBlobSha1(openedBytes), reviewedBlob);
+
+  fs.writeFileSync(snapshotPath, openedBytes, { flag: "wx", mode: 0o400 });
+  fs.renameSync(sourcePath, reviewedPath);
+  fs.writeFileSync(sourcePath, swappedBytes, { flag: "wx", mode: 0o600 });
+
+  assert.equal(gitBlobSha1(fs.readFileSync(snapshotPath)), reviewedBlob);
+  assert.notEqual(gitBlobSha1(fs.readFileSync(sourcePath)), reviewedBlob);
+  assert.equal(
+    fs.statSync(snapshotPath).mode & 0o777,
+    0o400,
+    "private preflight snapshot mode changed",
+  );
+} finally {
+  fs.rmSync(toolSwapDir, { recursive: true, force: true });
+}
+
+for (const required of [
+  'tool_rel="tools/void-buy-void-precision-atomic-activation-preflight-v1.mjs"',
+  "preflight_tool_path_not_canonical",
+  "preflight_tool_symlink_forbidden",
+  "preflight_tool_realpath_not_canonical",
+  'getattr(os, "O_NOFOLLOW", 0)',
+  "preflight_tool_snapshot_failed",
+  "preflight_tool_path_canonical=true",
+  "preflight_tool_snapshot_green=true",
+  '"$tsx" "$tool_snapshot" --gate-sources "$gate_sources_json"',
+  '"$tsx" "$tool_snapshot" --snapshot "$snapshot"',
+]) {
+  assert(wrapperSource.includes(required), required);
+}
+assert.equal(
+  wrapperSource.includes('"$tsx" "$tool" --gate-sources'),
+  false,
+  "caller pathname must not execute during gate inventory",
+);
+assert.equal(
+  wrapperSource.includes('"$tsx" "$tool" --snapshot'),
+  false,
+  "caller pathname must not execute during full preflight",
+);
+
 const inventoryPosition = wrapperSource.indexOf(
   '--gate-sources "$gate_sources_json"',
 );
@@ -493,8 +568,13 @@ const qualifierPosition = wrapperSource.indexOf(
 const sourceSlicePosition = wrapperSource.indexOf(
   "reviewed_source_slice_green=true",
 );
+const toolSnapshotPosition = wrapperSource.indexOf(
+  "preflight_tool_snapshot_green=true",
+);
 assert(inventoryPosition >= 0);
 assert(sourceSlicePosition >= 0);
+assert(toolSnapshotPosition >= 0);
+assert(toolSnapshotPosition < sourceSlicePosition);
 assert(sourceSlicePosition < inventoryPosition);
 assert(qualifierPosition > inventoryPosition);
 assert(
@@ -664,6 +744,9 @@ console.log("base_unit_gate_inventory_green=true");
 console.log("late_dormant_override_hold_green=true");
 console.log("credential_read_blocked_before_inventory_green=true");
 console.log("preflight_tool_current_head_binding_green=true");
+console.log("preflight_tool_canonical_path_green=true");
+console.log("preflight_tool_private_snapshot_green=true");
+console.log("preflight_tool_path_swap_adversary_green=true");
 console.log("preflight_wrapper_current_head_binding_green=true");
 console.log("canonical_repository_origin_green=true");
 console.log("reviewed_source_slice_count=22");
