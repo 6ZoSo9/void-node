@@ -58,9 +58,11 @@ required identity, including:
 - exact protected all-process census path/mode/length/SHA-256;
 - exact Python executable path/mode/length/SHA-256;
 - exact pure-Python stdlib archive path/mode/length/SHA-256;
-- exact dynamic-extension directory path and mode;
-- complete dynamic-extension file-table count and exact file identities;
 - fixed retained installer and Python descriptor numbers.
+
+There is intentionally **no dynamic-extension directory binding** in this
+generation. The later Python runtime must be fully static and must provide every
+native module needed by the accepted installer as a built-in module.
 
 There are no production `/opt` path or runtime/hash defaults in the C source.
 
@@ -84,11 +86,10 @@ Before Python execution the source requires:
 5. root-owned, root-grouped, non-group/world-writable ancestry;
 6. exact trusted-file type/owner/group/mode/link-count/length;
 7. in-process SHA-256 verification of policy, all four protected source files,
-   Python executable, one exact pure-Python stdlib archive, and every separately
-   supplied dynamic-extension file;
-8. exact closed dynload namespace: every directory entry must be a direct regular
-   file represented exactly once by the compile-time runtime table; unlisted
-   entries, subdirectories, symlinks and special files HOLD;
+   Python executable and one exact pure-Python stdlib archive;
+8. native ELF admission of the Python executable as ELF64 little-endian x86-64
+   `ET_EXEC`, with at least one `PT_LOAD` and both `PT_INTERP` and
+   `PT_DYNAMIC` forbidden;
 9. before/open/after visible file-generation equality;
 10. retained exact installer and Python descriptors;
 11. stdin rebound to `/dev/null`;
@@ -111,9 +112,8 @@ The child flags are fixed:
 
 The embedded bootstrap:
 
-- replaces `sys.path` with exactly two compile-bound entries: the verified
-  pure-Python stdlib archive and the verified closed dynamic-extension
-  directory;
+- replaces `sys.path` with exactly one compile-bound entry: the verified
+  pure-Python stdlib archive;
 - reads installer bytes only from the retained installer descriptor;
 - sets `__file__` to the compile-bound protected installer path;
 - executes those exact bytes;
@@ -138,14 +138,16 @@ first_entry_candidate_accepted=false
 ```
 
 A later gate must qualify the exact Python runtime and complete import closure,
-including construction of the immutable stdlib archive and the exact flat
-dynload file set, then derive the binding header from that accepted evidence.
-Only after that may a reproducible native candidate be compiled.
+including construction of the immutable stdlib archive and proof that every
+native module needed by the accepted installer is built into the fully-static
+Python executable. It must also prove the interpreter's **startup imports before
+the `-c` bootstrap executes** are contained in that accepted static
+runtime/stdlib closure. Only then may the binding header be derived and a
+reproducible native candidate be compiled.
 
-The source itself now structurally prevents a binding header from claiming a
-small verified runtime table while leaving additional importable files beside
-it: dynload rows must be direct children of the selected dynload directory and
-the directory census must match the table one-for-one.
+The source itself now has no `lib-dynload` path or runtime-file table at all.
+This removes an entire privileged filesystem import namespace rather than
+trying to police it after selection.
 
 ## Source-only verification
 
