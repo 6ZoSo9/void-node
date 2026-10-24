@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
+import copy
 import hashlib
 import json
 from pathlib import Path
+import stat
 
 ROOT = Path(__file__).resolve().parent.parent
 LOCK = (
@@ -42,7 +45,7 @@ PREDECESSOR_LOCK = (
     "buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json"
 )
 
-LOCK_BLOB = "f9372da99d8ab9b3d5f7fddc6d8de0de605576f0"
+LOCK_BLOB = "3cbbb8f923a3c1836d71dbdb1eb79f63669a4278"
 INSTALLER_HEAD = "0eb7d49b10681ee7b29298ca325902671121ef5a"
 PLAN_HEAD = "06395abde20620b99808f62fe0d90a3f2e05528e"
 INSTALLER_BLOB = "bd8728be0b59bce3db0f559d0ebd01692f9a5844"
@@ -62,6 +65,13 @@ LOCK_ID = (
     "voidbuycustodyprocrefinstallerlock2_"
     "bd8728be0b59bce3db0f559d0ebd01692f9a5844"
 )
+SOURCE_PR = 3808
+WORKFLOW_ID = 394779866
+WORKFLOW_NAME = "VOID Buy custody V3 protected all-process installer candidate v2"
+WORKFLOW_EVENT = "pull_request"
+FOCUSED_JOB_NAME = "prove"
+REVIEW_AUTHOR = "6ZoSo9"
+MAX_HOSTED_METADATA_BYTES = 2 * 1024 * 1024
 
 
 def sha256(raw: bytes) -> str:
@@ -78,6 +88,75 @@ def read_exact(path: Path, expected_blob: str) -> bytes:
     raw = path.read_bytes()
     assert git_blob(raw) == expected_blob, path
     return raw
+
+
+def read_hosted_json(path: Path) -> object:
+    st = path.lstat()
+    assert stat.S_ISREG(st.st_mode), path
+    assert not path.is_symlink(), path
+    assert 1 <= st.st_size <= MAX_HOSTED_METADATA_BYTES, path
+    raw = path.read_bytes()
+    assert len(raw) == st.st_size, path
+    return json.loads(raw.decode("utf-8"))
+
+
+def validate_hosted_metadata(
+    run: object,
+    jobs_doc: object,
+    review: object,
+) -> None:
+    assert isinstance(run, dict)
+    assert run.get("id") == FOCUSED_RUN
+    assert run.get("workflow_id") == WORKFLOW_ID
+    assert run.get("name") == WORKFLOW_NAME
+    assert run.get("path") == (
+        ".github/workflows/"
+        "buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.yml"
+    )
+    assert run.get("event") == WORKFLOW_EVENT
+    assert run.get("status") == "completed"
+    assert run.get("conclusion") == "success"
+    assert run.get("head_sha") == INSTALLER_HEAD
+    assert run.get("repository", {}).get("full_name") == "6ZoSo9/void-node"
+    assert run.get("head_repository", {}).get("full_name") == "6ZoSo9/void-node"
+
+    assert isinstance(jobs_doc, dict)
+    jobs = jobs_doc.get("jobs")
+    assert isinstance(jobs, list)
+    matching_jobs = [
+        row for row in jobs
+        if isinstance(row, dict) and row.get("id") == FOCUSED_JOB
+    ]
+    assert len(matching_jobs) == 1
+    job = matching_jobs[0]
+    assert job.get("run_id") == FOCUSED_RUN
+    assert job.get("name") == FOCUSED_JOB_NAME
+    assert job.get("status") == "completed"
+    assert job.get("conclusion") == "success"
+    if "head_sha" in job:
+        assert job.get("head_sha") == INSTALLER_HEAD
+    run_url = str(job.get("run_url", ""))
+    assert run_url.endswith("/actions/runs/" + str(FOCUSED_RUN))
+
+    assert isinstance(review, dict)
+    assert review.get("id") == EXACT_HEAD_REVIEW
+    assert review.get("state") == "COMMENTED"
+    assert review.get("commit_id") == INSTALLER_HEAD
+    assert review.get("user", {}).get("login") == REVIEW_AUTHOR
+    body = str(review.get("body", ""))
+    assert INSTALLER_HEAD in body
+    assert str(FOCUSED_RUN) in body
+    assert str(FOCUSED_JOB) in body
+    assert "FOCUSED V2 QUALIFICATION" in body
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--hosted-metadata-dir", type=Path, required=True)
+args = parser.parse_args()
+hosted_dir = args.hosted_metadata_dir
+run_metadata = read_hosted_json(hosted_dir / "run.json")
+jobs_metadata = read_hosted_json(hosted_dir / "jobs.json")
+review_metadata = read_hosted_json(hosted_dir / "review.json")
 
 
 lock_raw = read_exact(LOCK, LOCK_BLOB)
@@ -124,9 +203,17 @@ assert lock == {
             "buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.yml"
         ),
         "workflow_git_blob_sha1": INSTALLER_WORKFLOW_BLOB,
+        "source_pr_number": SOURCE_PR,
+        "workflow_id": WORKFLOW_ID,
+        "workflow_name": WORKFLOW_NAME,
+        "focused_run_expected_event": WORKFLOW_EVENT,
+        "focused_run_expected_conclusion": "success",
         "focused_workflow_run": FOCUSED_RUN,
         "focused_job_id": FOCUSED_JOB,
+        "focused_job_name": FOCUSED_JOB_NAME,
         "exact_head_review_id": EXACT_HEAD_REVIEW,
+        "exact_head_review_commit": INSTALLER_HEAD,
+        "exact_head_review_author": REVIEW_AUTHOR,
     },
     "predecessor_lock_evidence": {
         "path": (
@@ -177,6 +264,40 @@ assert predecessor["protected_install_authorized"] is False
 assert predecessor["protected_source_installed"] is False
 assert predecessor["replacement_apply_authorized"] is False
 assert predecessor["funds_movement"] is False
+
+validate_hosted_metadata(run_metadata, jobs_metadata, review_metadata)
+
+bad_run = copy.deepcopy(run_metadata)
+assert isinstance(bad_run, dict)
+bad_run["head_sha"] = "0" * 40
+try:
+    validate_hosted_metadata(bad_run, jobs_metadata, review_metadata)
+except AssertionError:
+    pass
+else:
+    raise AssertionError("wrong hosted run head was accepted")
+
+bad_jobs = copy.deepcopy(jobs_metadata)
+assert isinstance(bad_jobs, dict) and isinstance(bad_jobs.get("jobs"), list)
+for row in bad_jobs["jobs"]:
+    if isinstance(row, dict) and row.get("id") == FOCUSED_JOB:
+        row["conclusion"] = "failure"
+try:
+    validate_hosted_metadata(run_metadata, bad_jobs, review_metadata)
+except AssertionError:
+    pass
+else:
+    raise AssertionError("failed hosted job was accepted")
+
+bad_review = copy.deepcopy(review_metadata)
+assert isinstance(bad_review, dict)
+bad_review["commit_id"] = "f" * 40
+try:
+    validate_hosted_metadata(run_metadata, jobs_metadata, bad_review)
+except AssertionError:
+    pass
+else:
+    raise AssertionError("wrong review commit was accepted")
 
 source = installer_raw.decode("ascii")
 for required in (
@@ -242,6 +363,13 @@ print("installer_source_sha256=" + INSTALLER_SHA256)
 print("hosted_installer_run_bound=true")
 print("hosted_installer_job_bound=true")
 print("exact_head_review_bound=true")
+print("hosted_installer_run_metadata_validated=true")
+print("hosted_installer_job_metadata_validated=true")
+print("exact_head_review_metadata_validated=true")
+print("hosted_qualification_metadata_validated=true")
+print("hosted_wrong_head_rejected=true")
+print("hosted_failed_job_rejected=true")
+print("hosted_wrong_review_commit_rejected=true")
 print("predecessor_lock_bound=true")
 print("fixed_least_authority_entrypoint_bound=true")
 print("direct_apply_cli_absent=true")
