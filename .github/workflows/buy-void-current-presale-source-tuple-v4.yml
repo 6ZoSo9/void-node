@@ -123,7 +123,7 @@ jobs:
           test "$status" -eq 1
           grep -Fq 'current mounted router generation drift' "$log"
           grep -Fq '40239e0f76aa1edce43523d18c1b57691e41e8cf' "$log"
-          grep -Fq '123ec1792a027f93d4c9030749a0e7e136a75a44' "$log"
+          grep -Fq 'a09661797aa4295371c036be36d82995e5233269' "$log"
           echo "historical_refusal_verified=scripts/prove_buy_void_operator_verified_allocation_dispatch_v4.ts"
           log="$RUNNER_TEMP/dispatcher-v5.hold"
           set +e
