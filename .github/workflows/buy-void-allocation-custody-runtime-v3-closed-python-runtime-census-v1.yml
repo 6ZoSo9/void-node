@@ -45,11 +45,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py)" = \
-            "f2921df59419d20a69058a7963cec118ef78d4c6"
+            "a40f60ff9d11e9a9bc8f215ebef539d759cc0e83"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py)" = \
-            "0210e85b48a89a16b1467c6ec19ea345e70379d2"
+            "1c4d9e1344c8140abccccd29fad3be592f28e623"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-closed-python-runtime-census-v1.md)" = \
-            "bb14d1aaf56c09e4743a6fd6efb86be4dcc5cfa1"
+            "cb7de3330158f01e28c0225b072461f53b2fc50a"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json)" = \
             "36d6c4a5ff825993371f109ee86a77b601e12d07"
 
@@ -86,6 +86,7 @@ jobs:
             'stdlib_only_sys_path_required=true' \
             'external_module_origin_forbidden=true' \
             'fsverity_measurement_observed_not_assumed=true' \
+            'post_probe_runtime_generation_revalidated=true' \
             'runtime_identity_candidate_only=true' \
             'python_runtime_identity_selected=false' \
             'python_stdlib_import_closure_selected=false' \
@@ -114,6 +115,8 @@ jobs:
             'pt_dynamic_rejected=true' \
             'fsverity_measurement_observed_not_assumed=true' \
             'runtime_hash_and_verity_same_descriptor=true' \
+            'post_probe_runtime_generation_revalidated=true' \
+            'post_probe_same_path_replacement_rejected=true' \
             'isolated_stdlib_only_probe_bound=true' \
             'sys_path_closed_before_stdlib_imports=true' \
             'voidfs_builtin_required=true' \
