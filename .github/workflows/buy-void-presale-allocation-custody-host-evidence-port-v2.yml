@@ -1,0 +1,106 @@
+name: Buy VOID custody host-evidence source port v2
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-presale-allocation-custody-host-evidence-port-v2.yml"
+      - "docs/operators/buy-void-presale-allocation-custody-host-evidence-port-v2.md"
+      - "ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v2.ts"
+      - "scripts/prove_buy_void_presale_allocation_custody_host_evidence_port_v2.ts"
+      - "tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v2.mjs"
+      - "tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v2.mjs"
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: proof / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Bind exact current-main portability source generation
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "${{ github.event.pull_request.base.ref }}" = "main"
+
+          HISTORICAL_BASE="4499b99a8a7fda883e1f55b11cf8b7ba2939f6b0"
+          HISTORICAL_HEAD="ea20cb6bf7420692315df71623ffb38ed1810fcf"
+          git merge-base --is-ancestor "$HISTORICAL_BASE" "$HISTORICAL_HEAD"
+          git merge-base --is-ancestor "$HISTORICAL_HEAD" "$EXPECTED_HEAD"
+
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          SOURCE_BASE="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
+          test -n "$SOURCE_BASE"
+          git merge-base --is-ancestor "$SOURCE_BASE" "$EXPECTED_HEAD"
+          echo "source_base=$SOURCE_BASE"
+
+          expected="$RUNNER_TEMP/expected-paths"
+          printf '%s\n' \
+            '.github/workflows/buy-void-presale-allocation-custody-host-evidence-port-v2.yml' \
+            'docs/operators/buy-void-presale-allocation-custody-host-evidence-port-v2.md' \
+            'ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v2.ts' \
+            'scripts/prove_buy_void_presale_allocation_custody_host_evidence_port_v2.ts' \
+            'tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs' | sort > "$expected"
+
+          historical="$RUNNER_TEMP/historical-paths"
+          git diff --name-only "$HISTORICAL_BASE" "$HISTORICAL_HEAD" -- | sort > "$historical"
+          diff -u "$expected" "$historical"
+          test "$(git diff --name-only --diff-filter=A "$HISTORICAL_BASE" "$HISTORICAL_HEAD" | wc -l)" -eq 5
+
+          actual="$RUNNER_TEMP/actual-paths"
+          git diff --name-only "$SOURCE_BASE" "$EXPECTED_HEAD" -- | sort > "$actual"
+          diff -u "$expected" "$actual"
+          test "$(git diff --name-only --diff-filter=A "$SOURCE_BASE" "$EXPECTED_HEAD" | wc -l)" -eq 5
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_presale_allocation_custody_host_evidence_v2.ts)" = "74de6857867180c5ababdcecdd6239a8a29e68d2"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_presale_allocation_custody_host_evidence_port_v2.ts)" = "291e18b49c1e0c8cc3d261052a867833e4d26527"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-presale-allocation-custody-host-evidence-port-v2.md)" = "8a322624d3f1da07596fab13ffcee7bd30da33f0"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-live-durability-rollback-contract-v1.mjs)" = "eef7c4e1db7401ba82fda96aa1e8da40c1981b7d"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-witness-live-read-replay-installation-evidence-v2.mjs)" = "fba97c9c9213048bd7e93e58fe1318f2fb572b10"
+          test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-witness-live-read-replay-rollback-policy-evidence-v2.mjs)" = "b6aa9cec490d44e44b3d255ada27edbf53cbd5f5"
+          git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+      - name: Install locked dependencies without install-time scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile and prove dormant port
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run build
+          proof="$RUNNER_TEMP/custody-port-proof.log"
+          timeout 80s npx tsx scripts/prove_buy_void_presale_allocation_custody_host_evidence_port_v2.ts | tee "$proof"
+          for marker in \
+            'VOID_BUY_VOID_PRESALE_CUSTODY_MAIN_PORT_V2_PROOF_GREEN' \
+            'v1_evidence_schema_preserved=true' \
+            'historical_source_reconstructed_and_blob_bound=true' \
+            'v2_observer_sources_content_bound=true' \
+            'collector_runtime_first_instruction_hold=true' \
+            'three_way_installation_generation_aba_rejected=true' \
+            'actual_cli_hold_and_injection_rejected=true' \
+            'source_only=true' \
+            'protected_host_execution_authorized=false' \
+            'production_gate_ready=false' \
+            'public_presale_activation=false' \
+            'funds_movement=false'
+          do
+            grep -Fx "$marker" "$proof"
+          done
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
