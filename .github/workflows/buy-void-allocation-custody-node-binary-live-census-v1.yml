@@ -47,7 +47,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_node_binary_live_census_v1.py)" = \
             "4255a8154b6817283f7eded7c79896124ee97d25"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_node_binary_live_census_v1.py)" = \
-            "0d2b494e8b567878b901c10899282d6c5dec7f6d"
+            "5c7a2453906318478c1208654214b9d788b125d9"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-node-binary-live-census-v1.md)" = \
             "00c9a01affb0a34c0754b57ad2d03c2daf3df8d9"
           test "$(git rev-parse HEAD:tools/void-buy-allocation-custody-node-binary-profile-v1.mjs)" = \
