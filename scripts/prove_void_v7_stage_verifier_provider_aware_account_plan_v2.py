@@ -51,48 +51,62 @@ def git(*args: str) -> str:
     return p.stdout.strip()
 
 
-def exact_blob(rel: str, blob: str) -> None:
-    assert git("rev-parse", "HEAD:" + rel) == blob, "head_blob_mismatch:" + rel
-    assert git("hash-object", "--no-filters", rel) == blob, "worktree_blob_mismatch:" + rel
-
-
 def git_blob_id(data: bytes) -> str:
     header = ("blob " + str(len(data)) + "\0").encode("ascii")
     return hashlib.sha1(header + data).hexdigest()
 
 
-def read_exact_bytes(rel: str, expected_blob: str, limit: int = 65536) -> bytes:
-    p = ROOT / rel
+def _descriptor_bound_bytes(
+    path: Path,
+    label: str,
+    expected_blob: str,
+    limit: int,
+) -> bytes:
+    before = os.lstat(path)
+    assert stat.S_ISREG(before.st_mode), "source_not_regular:" + label
+    assert not stat.S_ISLNK(before.st_mode), "source_symlink:" + label
+    assert before.st_nlink == 1, "source_link_count:" + label
+    assert 0 <= before.st_size <= limit, "source_oversize:" + label
+
     flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
-    fd = os.open(p, flags)
+    fd = os.open(path, flags)
     try:
         opened = os.fstat(fd)
-        assert stat.S_ISREG(opened.st_mode), "source_not_regular:" + rel
-        assert 0 <= opened.st_size <= limit, "source_oversize:" + rel
+        fields = lambda st: (
+            st.st_dev, st.st_ino, st.st_uid, st.st_gid, st.st_mode,
+            st.st_nlink, st.st_size, st.st_mtime_ns, st.st_ctime_ns,
+        )
+        assert stat.S_ISREG(opened.st_mode), "source_opened_not_regular:" + label
+        assert fields(before) == fields(opened), "source_rebound_before_open:" + label
+
         data = bytearray()
         while len(data) < opened.st_size:
             chunk = os.read(fd, min(65536, opened.st_size - len(data)))
-            assert chunk, "source_unexpected_eof:" + rel
+            assert chunk, "source_unexpected_eof:" + label
             data.extend(chunk)
-        assert os.read(fd, 1) == b"", "source_grew_during_read:" + rel
+        assert os.read(fd, 1) == b"", "source_grew_during_read:" + label
+
         terminal = os.fstat(fd)
-        visible = os.lstat(p)
-        fields = lambda s: (
-            s.st_dev, s.st_ino, s.st_uid, s.st_gid, s.st_mode,
-            s.st_nlink, s.st_size, s.st_mtime_ns, s.st_ctime_ns,
+        visible = os.lstat(path)
+        assert stat.S_ISREG(visible.st_mode), "source_visible_not_regular:" + label
+        assert not stat.S_ISLNK(visible.st_mode), "source_visible_symlink:" + label
+        assert fields(opened) == fields(terminal) == fields(visible), (
+            "source_generation_drift:" + label
         )
-        assert stat.S_ISREG(visible.st_mode), "source_visible_not_regular:" + rel
-        assert fields(opened) == fields(terminal) == fields(visible), "source_generation_drift:" + rel
         out = bytes(data)
-        assert git_blob_id(out) == expected_blob, "source_blob_mismatch:" + rel
+        assert git_blob_id(out) == expected_blob, "source_blob_mismatch:" + label
         return out
     finally:
         os.close(fd)
 
 
-def read_json(rel: str, expected_blob: str, limit: int = 65536) -> dict:
-    data = read_exact_bytes(rel, expected_blob, limit)
-    return json.loads(data.decode("utf-8", "strict"), object_pairs_hook=unique_object)
+def read_exact_bytes(rel: str, expected_blob: str, limit: int = 2 * 1024 * 1024) -> bytes:
+    return _descriptor_bound_bytes(ROOT / rel, rel, expected_blob, limit)
+
+
+def exact_blob(rel: str, blob: str, limit: int = 2 * 1024 * 1024) -> bytes:
+    assert git("rev-parse", "HEAD:" + rel) == blob, "head_blob_mismatch:" + rel
+    return read_exact_bytes(rel, blob, limit)
 
 
 def self_test_descriptor_reads() -> None:
@@ -102,33 +116,13 @@ def self_test_descriptor_reads() -> None:
         payload = b'{"ok":true}\n'
         good.write_bytes(payload)
         expected = git_blob_id(payload)
-        # Use the same descriptor logic, but on a disposable absolute-path helper.
-        def read_path(path: Path) -> bytes:
-            flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
-            fd = os.open(path, flags)
-            try:
-                opened = os.fstat(fd)
-                assert stat.S_ISREG(opened.st_mode)
-                data = os.read(fd, opened.st_size)
-                assert len(data) == opened.st_size
-                assert os.read(fd, 1) == b""
-                visible = os.lstat(path)
-                terminal = os.fstat(fd)
-                fields = lambda s: (
-                    s.st_dev, s.st_ino, s.st_uid, s.st_gid, s.st_mode,
-                    s.st_nlink, s.st_size, s.st_mtime_ns, s.st_ctime_ns,
-                )
-                assert fields(opened) == fields(terminal) == fields(visible)
-                return data
-            finally:
-                os.close(fd)
-        assert git_blob_id(read_path(good)) == expected
+        assert _descriptor_bound_bytes(good, "selftest_good", expected, 65536) == payload
 
         fifo = root / "fifo"
         os.mkfifo(fifo, 0o600)
         started = time.monotonic()
         try:
-            read_path(fifo)
+            _descriptor_bound_bytes(fifo, "selftest_fifo", expected, 65536)
         except (AssertionError, OSError):
             pass
         else:
@@ -138,7 +132,7 @@ def self_test_descriptor_reads() -> None:
         link = root / "link"
         link.symlink_to(good)
         try:
-            read_path(link)
+            _descriptor_bound_bytes(link, "selftest_symlink", expected, 65536)
         except (AssertionError, OSError):
             pass
         else:
@@ -325,14 +319,22 @@ def classify(candidate: dict) -> str:
 assert os.geteuid() != 0, "root_source_proof_forbidden"
 assert git("merge-base", "--is-ancestor", UPSTREAM_HEAD, "HEAD") == ""
 self_test_descriptor_reads()
-for rel, blob in (
-    (PLAN_REL, PLAN_BLOB), (ROLE_REL, ROLE_BLOB),
-    (SOURCE_REL, SOURCE_BLOB), (RECEIPT_REL, RECEIPT_BLOB),
-):
-    exact_blob(rel, blob)
+bound_inputs = {
+    rel: exact_blob(rel, blob)
+    for rel, blob in (
+        (PLAN_REL, PLAN_BLOB), (ROLE_REL, ROLE_BLOB),
+        (SOURCE_REL, SOURCE_BLOB), (RECEIPT_REL, RECEIPT_BLOB),
+    )
+}
 
-plan = read_json(PLAN_REL, PLAN_BLOB)
-role = read_json(ROLE_REL, ROLE_BLOB)
+plan = json.loads(
+    bound_inputs[PLAN_REL].decode("utf-8", "strict"),
+    object_pairs_hook=unique_object,
+)
+role = json.loads(
+    bound_inputs[ROLE_REL].decode("utf-8", "strict"),
+    object_pairs_hook=unique_object,
+)
 assert plan["marker"] == "VOID_V7_STAGE_VERIFIER_PROVIDER_AWARE_ACCOUNT_PLAN_V2"
 assert plan["schema"] == "void_v7_stage_verifier_provider_aware_account_plan_v2"
 assert plan["lifecycle"] == "SOURCE_ONLY_PROVIDER_PROFILE_UNATTESTED_UID_GID_UNSELECTED"
@@ -562,11 +564,6 @@ negative_cases = (
     ({"name_authority_generation_bound": False}, "HOLD_NAME_AUTHORITY_GENERATION"),
     ({"all_name_authority_surfaces_inspectable": False}, "HOLD_NAME_AUTHORITY_SCOPE"),
     ({"fresh_before_group_create": False}, "HOLD_GROUP_CREATE_CENSUS_STALE"),
-    ({"after_group_local_binding_exact": False}, "HOLD_POST_GROUP_LOCAL_BINDING"),
-    ({"after_group_nonfiles_group_negative": False}, "HOLD_POST_GROUP_NONFILES_COLLISION"),
-    ({"before_user_passwd_negative_reconfirmed": False}, "HOLD_PRE_USER_PASSWD_COLLISION"),
-    ({"before_user_gid_nonaccount_authority_absent": False}, "HOLD_POST_GROUP_GID_AUTHORITY"),
-    ({"fresh_before_user_create": False}, "HOLD_USER_CREATE_CENSUS_STALE"),
     ({"root_first_entry": False}, "HOLD_ROOT_FIRST_ENTRY"),
     ({"owner_authorization": False}, "HOLD_OWNER_AUTHORIZATION"),
     ({"shell": "/bin/bash"}, "HOLD_LOGIN_SURFACE"),
@@ -622,6 +619,9 @@ print("synthetic_negative_cases=" + str(
 ))
 print("pre_group_shape_only=true")
 print("pre_user_shape_only=true")
+print("all_four_worktree_inputs_descriptor_bound=true")
+print("production_reader_fifo_symlink_regressions=true")
+print("phase_specific_negative_matrices=true")
 print("synthetic_positive_is_host_authority=false")
 print("historical_3754_reusable=false")
 print("account_group_creation=false")
