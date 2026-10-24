@@ -78,6 +78,8 @@ const V2_HISTORICAL_SOURCE_FILES=Object.freeze({
 const V2_SOURCE_BASE="61b0f81b2112aab32e3dc16084fe2d43178ec4da";
 const V2_ACCEPTED_ADDITION_HEAD="f84d380d41e3aefd3c96b3fa956f5f7addf9f908";
 const V2_ACCEPTED_ADDITION_TREE="6d03b668ca51cc7ffa115c164955d09dc9b13e70";
+const V2_LANDED_MAIN_HEAD="652197dc8df36f0f2004d50c6bbf95369790e2d1";
+const V2_LANDED_MAIN_TREE="00e5dd00386372e533c945141dd857f663fdf036";
 const V2_FROZEN_V1_PROOF_BLOB="4e123302d25dd0a83923032d2dc0f40c8937e77f";
 const V2_ACCEPTED_SOURCE_FILES=Object.freeze({
   ".github/workflows/buy-void-verified-payment-transport-v2.yml":
@@ -377,8 +379,12 @@ function verifyRestackScope(){
 function verifyV2AcceptedSourceAdditions(){
   git(["cat-file","-e",V2_HISTORICAL_ADDITION_HEAD+"^{commit}"]);
   git(["cat-file","-e",V2_ACCEPTED_ADDITION_HEAD+"^{commit}"]);
+  git(["cat-file","-e",V2_LANDED_MAIN_HEAD+"^{commit}"]);
   git(["merge-base","--is-ancestor",V2_HISTORICAL_ADDITION_HEAD,V2_ACCEPTED_ADDITION_HEAD]);
-  git(["merge-base","--is-ancestor",V2_ACCEPTED_ADDITION_HEAD,"HEAD"]);
+  // #3692 landed by squash merge. Preserve the exact accepted branch as
+  // immutable evidence, but bind current/future execution to the permanent
+  // landed-main carrier rather than requiring impossible branch ancestry.
+  git(["merge-base","--is-ancestor",V2_LANDED_MAIN_HEAD,"HEAD"]);
   assert.equal(
     git(["rev-parse",V2_HISTORICAL_ADDITION_HEAD+"^{tree}"]),
     V2_HISTORICAL_ADDITION_TREE,
@@ -388,6 +394,11 @@ function verifyV2AcceptedSourceAdditions(){
     git(["rev-parse",V2_ACCEPTED_ADDITION_HEAD+"^{tree}"]),
     V2_ACCEPTED_ADDITION_TREE,
     "v2_accepted_head_tree_changed",
+  );
+  assert.equal(
+    git(["rev-parse",V2_LANDED_MAIN_HEAD+"^{tree}"]),
+    V2_LANDED_MAIN_TREE,
+    "v2_landed_main_tree_changed",
   );
 
   assert.deepEqual(
@@ -449,6 +460,10 @@ function verifyV2AcceptedSourceAdditions(){
     assert.equal(
       treeBlob(V2_ACCEPTED_ADDITION_HEAD,relative),acceptedBlob,
       "v2_accepted_head_blob_drift:"+relative,
+    );
+    assert.equal(
+      treeBlob(V2_LANDED_MAIN_HEAD,relative),currentBlob,
+      "v2_landed_main_source_blob_drift:"+relative,
     );
     assert.equal(
       treeBlob("HEAD",relative),currentBlob,
@@ -679,6 +694,10 @@ function verify(){
     historical_economic_drift_preserved_from_restack_base:true,
     accepted_v2_add_only_head:V2_ACCEPTED_ADDITION_HEAD,
     accepted_v2_add_only_tree:V2_ACCEPTED_ADDITION_TREE,
+    accepted_v2_branch_evidence_preserved:true,
+    landed_v2_source_acceptance_main_head:V2_LANDED_MAIN_HEAD,
+    landed_v2_source_acceptance_main_tree:V2_LANDED_MAIN_TREE,
+    landed_v2_source_acceptance_carrier_bound:true,
     added_v2_economic_source_count:3,
     verified_payment_v2_add_only_source_paths_verified:true,
     previous_source_dispatch_proof_unchanged:true,
@@ -734,6 +753,8 @@ if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   console.log("v2_source_reader_fifo_swap_rejected=true");
   console.log("v2_seven_add_only_paths_exact=true");
   console.log("v2_current_transport_workflow_successor_bound=true");
+  console.log("accepted_v2_branch_evidence_preserved=true");
+  console.log("landed_v2_source_acceptance_carrier_bound=true");
   console.log("v2_three_new_economic_sources_pinned=true");
   console.log("v2_five_workflow_dispatches_bound=true");
   console.log("historical_v1_source_proof_preserved=true");
