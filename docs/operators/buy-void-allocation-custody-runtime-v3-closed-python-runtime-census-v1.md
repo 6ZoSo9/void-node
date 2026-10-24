@@ -187,6 +187,17 @@ A later source lock must review and accept one exact runtime-candidate receipt
 before the V2 native first-entry source can be compiled with production
 runtime bindings.
 
+## Proof source-generation boundary
+
+The standalone proof authenticates the production census source itself through
+one bounded retained descriptor opened with `O_NOFOLLOW|O_NONBLOCK`. It
+requires before/open/terminal/visible generation equality and exact Git-blob
+identity, then compiles and executes only those captured bytes.
+
+Disposable regressions reject symlink input, force a regular-to-writerless-FIFO
+substitution at the production open without blocking, and prove that a
+post-capture pathname replacement cannot alter the executed proof generation.
+
 ## Invocation
 
 After exact-head source/CI qualification:
