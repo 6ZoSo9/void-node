@@ -91,9 +91,15 @@ const V2_ACCEPTED_SOURCE_FILES=Object.freeze({
   ...V2_ADDED_ECONOMIC_SOURCE_BLOBS,
 });
 const V2_SOURCE_FILES=Object.freeze({
-  ...V2_ACCEPTED_SOURCE_FILES,
   ".github/workflows/buy-void-verified-payment-transport-v2.yml":
     "6d9c8e821ba70f28183bc2d879b95b7e2f829be1",
+  "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs":
+    "b87945fb2d7df4af4740fc28ae467f8f660361e3",
+  "scripts/prove_buy_void_verified_payment_transport_v2.ts":
+    "2714988acfbcded3d4779ef79a141cd3e39b1426",
+  "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts":
+    "addd7842edb7f0e851d1e589d4303c0dc6e2756f",
+  ...V2_ADDED_ECONOMIC_SOURCE_BLOBS,
 });
 const NONPROTECTED_ECONOMIC_DRIFT=Object.freeze([
   ...LEGACY_NONPROTECTED_ECONOMIC_DRIFT,
