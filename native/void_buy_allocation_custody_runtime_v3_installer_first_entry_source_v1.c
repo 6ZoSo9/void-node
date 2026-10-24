@@ -2,6 +2,7 @@
 
 #include "void_buy_allocation_custody_runtime_v3_installer_first_entry_bindings_v1.h"
 
+#include <elf.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
@@ -461,6 +462,56 @@ static int open_verified_regular(
   return fd;
 }
 
+static void verify_static_elf64_x86_64_fd(int fd) {
+  Elf64_Ehdr eh;
+  struct stat st;
+  size_t i;
+  int have_load = 0;
+
+  if (fstat(fd, &st) != 0) die("fstat_static_python_failed");
+  if (!S_ISREG(st.st_mode) || st.st_size < (off_t)sizeof(eh)) {
+    die("static_python_file_shape_invalid");
+  }
+  if (pread(fd, &eh, sizeof(eh), 0) != (ssize_t)sizeof(eh)) {
+    die("read_static_python_elf_header_failed");
+  }
+  if (
+    memcmp(eh.e_ident, ELFMAG, SELFMAG) != 0 ||
+    eh.e_ident[EI_CLASS] != ELFCLASS64 ||
+    eh.e_ident[EI_DATA] != ELFDATA2LSB ||
+    eh.e_ident[EI_VERSION] != EV_CURRENT ||
+    eh.e_type != ET_EXEC ||
+    eh.e_machine != EM_X86_64 ||
+    eh.e_version != EV_CURRENT ||
+    eh.e_phentsize != sizeof(Elf64_Phdr) ||
+    eh.e_phnum < 1 ||
+    eh.e_phnum > 128
+  ) {
+    die("static_python_elf_identity_invalid");
+  }
+  if (
+    eh.e_phoff > (Elf64_Off)st.st_size ||
+    (Elf64_Off)eh.e_phnum >
+      ((Elf64_Off)st.st_size - eh.e_phoff) / sizeof(Elf64_Phdr)
+  ) {
+    die("static_python_program_headers_out_of_bounds");
+  }
+
+  for (i = 0; i < (size_t)eh.e_phnum; ++i) {
+    Elf64_Phdr ph;
+    off_t offset = (off_t)(
+      eh.e_phoff + ((Elf64_Off)i * sizeof(Elf64_Phdr))
+    );
+    if (pread(fd, &ph, sizeof(ph), offset) != (ssize_t)sizeof(ph)) {
+      die("read_static_python_program_header_failed");
+    }
+    if (ph.p_type == PT_INTERP) die("static_python_pt_interp_forbidden");
+    if (ph.p_type == PT_DYNAMIC) die("static_python_pt_dynamic_forbidden");
+    if (ph.p_type == PT_LOAD) have_load = 1;
+  }
+  if (!have_load) die("static_python_pt_load_required");
+}
+
 static void verify_self_generation(void) {
   struct stat exe_st, path_st;
   int exe_fd, path_fd;
@@ -642,6 +693,7 @@ int main(int argc, char **argv, char **envp) {
     VOID_PYTHON_BYTES,
     VOID_PYTHON_SHA256_HEX
   );
+  verify_static_elf64_x86_64_fd(python_fd);
 
   {
     int stdlib_fd = open_verified_regular(
