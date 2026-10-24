@@ -51,9 +51,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py)" = "6aa69d5bbfdecef0110cdd151db4c0351c08cf53"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py)" = "914a671be29edab0aece01538741be262196f107"
-          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-policy-chain-rebind-v3.md)" = "ae5dae76f9bcefbe674909f2c296bf8ac3c1fa0f"
+          test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py)" = "c030a6e8e6bb8ed71c5fc045753697b1bd1412d7"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py)" = "eae9ab982db728e3f8b855d5927f75928e4f5925"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-epoch2-live-composition-policy-chain-rebind-v3.md)" = "d2eb399895b93f8233a940d7cf63fde8641f0696"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_chain_rebind_v2.py)" = "891cce24244c62756caeba6d2bf702cc92e8a956"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_policy_head_rebind_v1.py)" = "37ab46ca5b77a642d84ad18c61388c30f4d63881"
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_epoch2_live_composition_native_protected_install_v5.py)" = "fd7a06490ccf6fb14831d8b0372a892e2764c9dc"
@@ -113,4 +113,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -I -B scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py
+          out="$(mktemp)"
+          python3 -I -B scripts/prove_buy_void_epoch2_live_composition_policy_chain_rebind_v3.py | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_V6R2_POLICY_CHAIN_REBIND_V3_PROOF_GREEN' "$out"
+          grep -Fx 'bound_source_retained_descriptor=true' "$out"
+          grep -Fx 'bound_source_symlink_rejected=true' "$out"
+          grep -Fx 'bound_source_writerless_fifo_nonblocking_hold=true' "$out"
+          grep -Fx 'bound_source_post_open_replacement_rejected=true' "$out"
+          grep -Fx 'credential_access_authorized=false' "$out"
+          grep -Fx 'transaction_authorized=false' "$out"
+          grep -Fx 'funds_movement_authorized=false' "$out"
