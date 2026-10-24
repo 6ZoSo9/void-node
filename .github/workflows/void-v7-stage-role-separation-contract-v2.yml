@@ -46,8 +46,8 @@ jobs:
           test "$(git rev-parse HEAD:docs/operators/buy-void-v7-v5-source-receipt-stage-install-v1.md)" = "02fa010cd66a50c5e2858b6cced9a7e08ee295af"
           test "$(git rev-parse HEAD:.github/workflows/buy-void-v7-v5-source-receipt-stage-install-v1.yml)" = "af1a9afad2a39b96ee4022ba1b36ebf7534c818b"
           test "$(git rev-parse HEAD:ops/security/void_v7_v5_stage_role_separation_contract_v2.json)" = "4801caaca496baeb85c7842b5b8b4b47122582ab"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_role_separation_contract_v2.py)" = "a28c8f8802c6d4f1f0c546391c1388dfa4f5ee9c"
-          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-role-separation-contract-v2.md)" = "9709526003e6bae5911b5b9c812044cc0fc160be"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_role_separation_contract_v2.py)" = "af5d78695c4752c1122cbfe9c22b12c813a813f3"
+          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-role-separation-contract-v2.md)" = "b21c1dd14f8497eaaaa50100fd29d2507b74037f"
           cat > /tmp/v7-role-v2-expected <<'SCOPE'
           A	.github/workflows/void-v7-stage-role-separation-contract-v2.yml
           A	docs/security/void-v7-v5-stage-role-separation-contract-v2.md
