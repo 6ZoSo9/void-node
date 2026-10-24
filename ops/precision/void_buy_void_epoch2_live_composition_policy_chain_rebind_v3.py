@@ -409,6 +409,7 @@ def _remove_owned_stage(
         raise RebindError("stage_cleanup_identity_unavailable") from exc
     if (
         not stat.S_ISREG(visible.st_mode)
+        or visible.st_nlink != 1
         or _inode_identity(visible) != stage_identity
     ):
         raise RebindError("stage_cleanup_identity_changed")
@@ -421,7 +422,7 @@ def _write_stage(
     installer: Any,
     opt_fd: int,
     new_policy: bytes,
-) -> None:
+) -> tuple[int, int]:
     fd: int | None = None
     stage_identity: tuple[int, int] | None = None
     try:
@@ -459,10 +460,15 @@ def _write_stage(
             expected_mode=0o444,
         )
         os.fsync(opt_fd)
+        if stage_identity is None:
+            raise RebindError("stage_identity_missing_after_write")
+        return stage_identity
     except BaseException as exc:
         if fd is not None:
             try:
                 os.close(fd)
+            except OSError:
+                pass
             finally:
                 fd = None
         cleanup_attempted = stage_identity is not None
@@ -507,7 +513,24 @@ def _remove_verified_new_policy(
     opt_fd: int,
     new_policy: bytes,
     name: str,
+    *,
+    expected_identity: tuple[int, int] | None = None,
 ) -> None:
+    if expected_identity is not None:
+        try:
+            visible = os.stat(
+                name,
+                dir_fd=opt_fd,
+                follow_symlinks=False,
+            )
+        except OSError as exc:
+            raise RebindError("new_policy_cleanup_identity_unavailable") from exc
+        if (
+            not stat.S_ISREG(visible.st_mode)
+            or visible.st_nlink != 1
+            or _inode_identity(visible) != expected_identity
+        ):
+            raise RebindError("new_policy_cleanup_identity_changed")
     v2._hash_exact_file(
         installer.INSTALL_PARENT / name,
         expected_bytes=len(new_policy),
@@ -693,6 +716,7 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
     )
 
     stage_created = False
+    stage_identity: tuple[int, int] | None = None
     exchanged = False
     immediate_backup_retained = False
     rollback_attempted = False
@@ -709,7 +733,7 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
         v2._verify_current_with_policy(installer, immediate_policy)
 
         failure_phase = "stage_write"
-        _write_stage(v2, installer, opt_fd, new_policy)
+        stage_identity = _write_stage(v2, installer, opt_fd, new_policy)
         stage_created = True
         failure_phase = "pre_exchange_revalidation"
 
@@ -807,6 +831,7 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
                         opt_fd,
                         new_policy,
                         IMMEDIATE_BACKUP_NAME,
+                        expected_identity=stage_identity,
                     )
                 else:
                     _durable_rollback_exchange(
@@ -822,6 +847,7 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
                         opt_fd,
                         new_policy,
                         STAGE_NAME,
+                        expected_identity=stage_identity,
                     )
                     stage_created = False
 
@@ -834,13 +860,9 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
         elif stage_created:
             rollback_attempted = True
             try:
-                _remove_verified_new_policy(
-                    v2,
-                    installer,
-                    opt_fd,
-                    new_policy,
-                    STAGE_NAME,
-                )
+                if stage_identity is None:
+                    raise RebindError("stage_cleanup_identity_missing")
+                _remove_owned_stage(opt_fd, stage_identity)
                 stage_created = False
                 rollback_green = True
             except BaseException:
