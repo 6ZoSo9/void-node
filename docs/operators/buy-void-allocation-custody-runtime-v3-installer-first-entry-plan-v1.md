@@ -120,6 +120,17 @@ The future launcher candidate must be:
 - self-bound to its own `/proc/self/exe` generation;
 - protected by root-owned, non-group/world-writable ancestry.
 
+The future privileged argv surface is closed to exactly one operation:
+
+```text
+--install-accepted-protected-census-source
+--confirm INSTALL_ACCEPTED_VOID_CUSTODY_PROTECTED_PROCREF_SOURCE_V1_CREATE_ONLY
+```
+
+The launcher must reject missing, duplicate or unknown options before child
+creation. It must not accept caller-selected paths, payload bytes, Python code
+or alternate confirmation text.
+
 Before Python may execute, native code must authenticate:
 
 1. itself and its installed ancestry;
