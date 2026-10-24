@@ -19,7 +19,13 @@
     "workflow_git_blob_sha1": "80efb530a09c89b81a23c639309f0aee6633ab90",
     "focused_workflow_run": 40073107466,
     "focused_job_id": 120810613302,
-    "exact_head_review_id": 5637294073
+    "operator_review_id": 5637294073,
+    "operator_review_expected_commit": "0eb7d49b10681ee7b29298ca325902671121ef5a",
+    "operator_review_independent": false,
+    "independent_codex_comment_id": 6381355558,
+    "independent_codex_expected_author": "chatgpt-codex-connector[bot]",
+    "independent_codex_expected_commit": "0eb7d49b10681ee7b29298ca325902671121ef5a",
+    "hosted_metadata_authentication_required": true
   },
   "predecessor_lock_evidence": {
     "path": "ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json",
