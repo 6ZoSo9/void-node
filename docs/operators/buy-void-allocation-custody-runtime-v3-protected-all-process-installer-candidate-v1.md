@@ -26,7 +26,9 @@ invoked against `/opt`.
 The parameterized mutation engine is private/test-only. Its success receipt
 always says `protected_source_installed=false`, even when a disposable fixture
 was successfully published. It cannot mint protected-install authority for
-caller-selected bytes or paths.
+caller-selected bytes or paths. Its recovery contract also requires
+`stage_generation_unknown_hold_required=true` and
+`retry_after_unknown_stage_requires_operator_inspection=true`.
 
 Only the zero-argument least-authority entrypoint
 
@@ -115,22 +117,37 @@ created by that invocation.
 
 Cleanup requires:
 
-- the stage dev/inode to be captured immediately after `mkdir`, before the
-  stage is reopened for population;
+- after `mkdir`, the **first successful** no-follow identity read binds the
+  stage dev/inode before the stage is reopened for population;
 - the visible stage dev/inode still match that retained generation;
 - no unexpected stage entries;
 - only the known source leaf may be removed;
 - the sealed stage is first restored to private mode `0700`;
 - the final destination is never touched.
 
-A cleanup exception or a cleanup result of false becomes its own explicit HOLD;
-the original pre-publication error is never allowed to masquerade as a clean
-cleanup.
+If `mkdir` succeeds but that first identity read fails, the installer does
+**not** guess that cleanup is safe. It raises a dedicated
+`StageGenerationUnknownError` with:
 
-The self-test forces the rename step to fail after the stage has been sealed and
-requires both stage and destination to be absent afterward. The independent
-proof additionally injects a cleanup refusal and requires
-`prepublication_failure_stage_cleanup_incomplete`.
+```text
+stage_creation_succeeded=true
+stage_identity_bound=false
+possible_residual_stage=true
+retry_requires_operator_inspection=true
+```
+
+That state preserves the possibly residual stage for inspection and forbids an
+ordinary blind retry. It cannot masquerade as a clean prepublication failure.
+
+Once a stage generation is bound, a cleanup exception or cleanup result of
+false becomes its own explicit HOLD; the original pre-publication error is
+never allowed to masquerade as a clean cleanup.
+
+The self-test and independent proof inject failure into the first post-`mkdir`
+identity read and require the dedicated unknown-generation HOLD with the stage
+left present. Separate adversaries force rename failure and cleanup refusal;
+the normal bound-generation cleanup path must remove only the exact stage
+generation and never touch the final destination.
 
 ## Post-publication failure behavior
 
