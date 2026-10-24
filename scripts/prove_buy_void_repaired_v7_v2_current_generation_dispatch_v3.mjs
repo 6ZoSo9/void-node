@@ -739,8 +739,16 @@ function verifyV2PredecessorRefusal(){
   assert.notEqual(result.status,0,"v2_predecessor_unexpectedly_accepted_fifo_generation");
   const output=String(result.stdout||"")+"\n"+String(result.stderr||"");
   assert.ok(
-    output.includes("reconciliation_modified_allowed_current_main_drift:"+V3_CAPACITY_SOURCE),
+    output.includes("protected_blob_drift:"+PROTECTED_RANGE_ROUTER_PATH),
     "v2_predecessor_refusal_reason_changed",
+  );
+  assert.ok(
+    output.includes(PROTECTED_RANGE_ROUTER_PREDECESSOR_BLOB),
+    "v2_predecessor_refusal_old_router_missing",
+  );
+  assert.ok(
+    output.includes(PROTECTED_RANGE_ROUTER_SOURCE_BLOB),
+    "v2_predecessor_refusal_new_router_missing",
   );
   return true;
 }
