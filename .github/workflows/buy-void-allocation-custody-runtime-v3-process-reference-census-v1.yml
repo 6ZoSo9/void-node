@@ -83,7 +83,6 @@ jobs:
             'production_census_read_only=true' \
             'python_no_bytecode_mode_required=true' \
             'production_census_atime_write_possible=true' \
-            'legacy_tree_entry_limit=32768' \
             'payment_acceptance=false' \
             'public_presale_activation=false' \
             'funds_movement=false'; do
