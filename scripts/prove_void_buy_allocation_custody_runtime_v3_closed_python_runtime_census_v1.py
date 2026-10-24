@@ -11,7 +11,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "b2285a6a8919cfc1901161848cd4d4ea3188f81b"
+EXPECTED_SOURCE_BLOB = "8df14f86f45134a51d9b9be7161f8282735847c5"
 
 
 def git_blob(raw: bytes) -> str:
@@ -108,6 +108,9 @@ probe = pre_self_test.split("def _runtime_probe(", 1)[1].split(
     "def _file_receipt(", 1
 )[0]
 assert "subprocess.run(" in probe
+assert '"import sys;"' in probe
+assert '"import json,sys;"' not in probe
+assert probe.index('"sys.path[:]=[z];"') < probe.index('"import argparse,hashlib')
 assert "[str(PYTHON), \"-I\", \"-B\", \"-S\", \"-c\", probe]" in probe
 assert "shell=True" not in probe
 assert "env={}" in probe
@@ -136,6 +139,7 @@ print("pt_interp_rejected=true")
 print("pt_dynamic_rejected=true")
 print("fsverity_measurement_observed_not_assumed=true")
 print("isolated_stdlib_only_probe_bound=true")
+print("sys_path_closed_before_stdlib_imports=true")
 print("voidfs_builtin_required=true")
 print("external_module_origin_forbidden=true")
 print("runtime_probe_shell_false=true")
