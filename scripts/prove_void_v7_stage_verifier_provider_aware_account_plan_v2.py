@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
@@ -17,7 +18,7 @@ PLAN_REL = "ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.j
 ROLE_REL = "ops/security/void_v7_v5_stage_role_separation_contract_v2.json"
 SOURCE_REL = "ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
 RECEIPT_REL = "ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py"
-PLAN_BLOB = "932fffe5fd5ba5d996f8cb6fd8928a618a9f92fb"
+PLAN_BLOB = "5881490da054360903e8ac9e9859ee58495830bb"
 ROLE_BLOB = "4801caaca496baeb85c7842b5b8b4b47122582ab"
 SOURCE_BLOB = "d88a9548ea34b8209ed7dcd53732fd25dd1371bf"
 RECEIPT_BLOB = "b462696826b4f90fdf5f4938cd5467e5711addab"
@@ -154,8 +155,21 @@ def unique_object(items):
 
 
 def classify(candidate: dict) -> str:
-    if candidate["user_present"] or candidate["group_present"]:
-        return "HOLD_PREEXISTING_NAME"
+    phase = candidate.get("phase")
+    if phase not in ("BEFORE_GROUP_CREATE", "BEFORE_USER_CREATE"):
+        return "HOLD_PROVISION_PHASE"
+    if candidate["user_present"]:
+        return "HOLD_PREEXISTING_USER"
+    if phase == "BEFORE_GROUP_CREATE":
+        if candidate["group_present"]:
+            return "HOLD_PREEXISTING_GROUP"
+        if candidate["group_created_by_exact_plan_receipt"]:
+            return "HOLD_PRE_GROUP_RECEIPT_PRESENT"
+    else:
+        if not candidate["group_present"]:
+            return "HOLD_EXPECTED_GROUP_MISSING"
+        if not candidate["group_created_by_exact_plan_receipt"]:
+            return "HOLD_EXPECTED_GROUP_RECEIPT"
     if type(candidate["uid"]) is not int or type(candidate["gid"]) is not int:
         return "HOLD_UID_GID_UNSELECTED"
     if candidate["uid"] <= 0 or candidate["gid"] <= 0:
@@ -189,8 +203,16 @@ def classify(candidate: dict) -> str:
             if not state.get("passwd_name_negative") or not state.get("uid_negative"):
                 return "HOLD_PASSWD_PROVIDER_COLLISION_OR_AMBIGUITY:" + provider
         if provider in group_route:
-            if not state.get("group_name_negative") or not state.get("gid_negative"):
-                return "HOLD_GROUP_PROVIDER_COLLISION_OR_AMBIGUITY:" + provider
+            if phase == "BEFORE_USER_CREATE" and provider == "files":
+                if not state.get("expected_local_group_binding"):
+                    return "HOLD_POST_GROUP_LOCAL_PROVIDER_BINDING"
+                if state.get("group_name_negative") or state.get("gid_negative"):
+                    return "HOLD_POST_GROUP_LOCAL_PROVIDER_CONTRADICTION"
+                if not state.get("expected_local_group_members_empty"):
+                    return "HOLD_POST_GROUP_LOCAL_MEMBERSHIP"
+            else:
+                if not state.get("group_name_negative") or not state.get("gid_negative"):
+                    return "HOLD_GROUP_PROVIDER_COLLISION_OR_AMBIGUITY:" + provider
         if provider == "files" and not state.get("local_files_generation_bound"):
             return "HOLD_FILES_GENERATION"
         if provider == "systemd":
@@ -259,18 +281,24 @@ def classify(candidate: dict) -> str:
         return "HOLD_NAME_AUTHORITY_GENERATION"
     if not candidate["all_name_authority_surfaces_inspectable"]:
         return "HOLD_NAME_AUTHORITY_SCOPE"
-    if not candidate["fresh_before_group_create"]:
-        return "HOLD_GROUP_CREATE_CENSUS_STALE"
-    if not candidate["after_group_local_binding_exact"]:
-        return "HOLD_POST_GROUP_LOCAL_BINDING"
-    if not candidate["after_group_nonfiles_group_negative"]:
-        return "HOLD_POST_GROUP_NONFILES_COLLISION"
-    if not candidate["before_user_passwd_negative_reconfirmed"]:
-        return "HOLD_PRE_USER_PASSWD_COLLISION"
-    if not candidate["before_user_gid_nonaccount_authority_absent"]:
-        return "HOLD_POST_GROUP_GID_AUTHORITY"
-    if not candidate["fresh_before_user_create"]:
-        return "HOLD_USER_CREATE_CENSUS_STALE"
+    if phase == "BEFORE_GROUP_CREATE":
+        if not candidate["fresh_before_group_create"]:
+            return "HOLD_GROUP_CREATE_CENSUS_STALE"
+        if candidate["after_group_local_binding_exact"]:
+            return "HOLD_PRE_GROUP_LOCAL_BINDING_PRESENT"
+        if candidate["after_group_nonfiles_group_negative"] is not True:
+            return "HOLD_PRE_GROUP_NONFILES_EVIDENCE"
+    else:
+        if not candidate["after_group_local_binding_exact"]:
+            return "HOLD_POST_GROUP_LOCAL_BINDING"
+        if not candidate["after_group_nonfiles_group_negative"]:
+            return "HOLD_POST_GROUP_NONFILES_COLLISION"
+        if not candidate["before_user_passwd_negative_reconfirmed"]:
+            return "HOLD_PRE_USER_PASSWD_COLLISION"
+        if not candidate["before_user_gid_nonaccount_authority_absent"]:
+            return "HOLD_POST_GROUP_GID_AUTHORITY"
+        if not candidate["fresh_before_user_create"]:
+            return "HOLD_USER_CREATE_CENSUS_STALE"
     if not candidate["root_first_entry"]:
         return "HOLD_ROOT_FIRST_ENTRY"
     if not candidate["owner_authorization"]:
@@ -287,7 +315,11 @@ def classify(candidate: dict) -> str:
         return "HOLD_NO_CREATE_ONLY_RECEIPT"
     if not candidate["manual_partial_failure_policy"]:
         return "HOLD_RECOVERY_POLICY"
-    return "SHAPE_ONLY_PROVIDER_AWARE_NOT_HOST_ATTESTED"
+    return (
+        "SHAPE_ONLY_BEFORE_GROUP_NOT_HOST_ATTESTED"
+        if phase == "BEFORE_GROUP_CREATE"
+        else "SHAPE_ONLY_BEFORE_USER_NOT_HOST_ATTESTED"
+    )
 
 
 assert os.geteuid() != 0, "root_source_proof_forbidden"
@@ -366,7 +398,13 @@ assert plan["future_create_only_sequence"][1]["precondition"] == "expected_local
 assert plan["future_create_only_sequence"][1]["requires_uid_inside_bound_system_range"] is True
 assert plan["future_create_only_sequence"][1]["must_not_create_subuid_or_subgid_delegation"] is True
 assert plan["future_create_only_sequence"][1]["requires_no_preexisting_name_based_user_authority"] is True
+assert plan["future_create_only_sequence"][0]["emits_exact_create_only_group_receipt"] is True
+assert plan["future_create_only_sequence"][1]["requires_exact_prior_group_receipt"] is True
 assert all(step["implemented_here"] is False for step in plan["future_create_only_sequence"])
+phase_model = plan["proof_phase_model"]
+assert phase_model["phases"] == ["BEFORE_GROUP_CREATE", "BEFORE_USER_CREATE"]
+assert phase_model["phase_transition_requires_exact_create_only_group_receipt"] is True
+assert phase_model["preexisting_or_mismatched_group_never_accepted_as_transition"] is True
 assert len(plan["post_create_requirements"]) == 13
 assert role["stage_verifier"]["status"] == "UNSELECTED"
 assert role["stage_verifier"]["uid"] is None and role["stage_verifier"]["gid"] is None
@@ -387,7 +425,9 @@ for key, value in authority.items():
         assert value is False, "authority_true:" + key
 
 positive = {
+    "phase": "BEFORE_GROUP_CREATE",
     "user_present": False, "group_present": False,
+    "group_created_by_exact_plan_receipt": False,
     "uid": 123456789, "gid": 123456790,
     "provider_profile_bound": True,
     "passwd_route": ["files", "systemd", "sss"],
@@ -397,6 +437,8 @@ positive = {
     "providers": {
         "files": {"health": True, "passwd_name_negative": True, "uid_negative": True,
                   "group_name_negative": True, "gid_negative": True,
+                  "expected_local_group_binding": False,
+                  "expected_local_group_members_empty": True,
                   "local_files_generation_bound": True},
         "systemd": {"health": True, "passwd_name_negative": True, "uid_negative": True,
                     "group_name_negative": True, "gid_negative": True,
@@ -434,7 +476,7 @@ positive = {
     "name_authority_generation_bound": True,
     "all_name_authority_surfaces_inspectable": True,
     "fresh_before_group_create": True,
-    "after_group_local_binding_exact": True,
+    "after_group_local_binding_exact": False,
     "after_group_nonfiles_group_negative": True,
     "before_user_passwd_negative_reconfirmed": True,
     "before_user_gid_nonaccount_authority_absent": True,
@@ -447,11 +489,28 @@ positive = {
     "create_only_receipt": True,
     "manual_partial_failure_policy": True,
 }
-assert classify(positive) == "SHAPE_ONLY_PROVIDER_AWARE_NOT_HOST_ATTESTED"
+assert classify(positive) == "SHAPE_ONLY_BEFORE_GROUP_NOT_HOST_ATTESTED"
+
+positive_before_user = copy.deepcopy(positive)
+positive_before_user.update({
+    "phase": "BEFORE_USER_CREATE",
+    "group_present": True,
+    "group_created_by_exact_plan_receipt": True,
+    "after_group_local_binding_exact": True,
+})
+positive_before_user["providers"]["files"].update({
+    "group_name_negative": False,
+    "gid_negative": False,
+    "expected_local_group_binding": True,
+    "expected_local_group_members_empty": True,
+})
+assert classify(positive_before_user) == "SHAPE_ONLY_BEFORE_USER_NOT_HOST_ATTESTED"
 
 negative_cases = (
-    ({"user_present": True}, "HOLD_PREEXISTING_NAME"),
-    ({"group_present": True}, "HOLD_PREEXISTING_NAME"),
+    ({"phase": "UNKNOWN"}, "HOLD_PROVISION_PHASE"),
+    ({"user_present": True}, "HOLD_PREEXISTING_USER"),
+    ({"group_present": True}, "HOLD_PREEXISTING_GROUP"),
+    ({"group_created_by_exact_plan_receipt": True}, "HOLD_PRE_GROUP_RECEIPT_PRESENT"),
     ({"uid": None}, "HOLD_UID_GID_UNSELECTED"),
     ({"gid": True}, "HOLD_UID_GID_UNSELECTED"),
     ({"uid": 0}, "HOLD_INVALID_NUMERIC_ID"),
@@ -520,8 +579,35 @@ negative_cases = (
     ({"manual_partial_failure_policy": False}, "HOLD_RECOVERY_POLICY"),
 )
 for mutation, expected in negative_cases:
-    candidate = dict(positive)
+    candidate = copy.deepcopy(positive)
     candidate.update(mutation)
+    got = classify(candidate)
+    assert got == expected, (mutation, expected, got)
+
+before_user_negative_cases = (
+    ({"group_present": False}, "HOLD_EXPECTED_GROUP_MISSING"),
+    ({"group_created_by_exact_plan_receipt": False}, "HOLD_EXPECTED_GROUP_RECEIPT"),
+    ({"after_group_local_binding_exact": False}, "HOLD_POST_GROUP_LOCAL_BINDING"),
+    ({"after_group_nonfiles_group_negative": False}, "HOLD_POST_GROUP_NONFILES_COLLISION"),
+    ({"before_user_passwd_negative_reconfirmed": False}, "HOLD_PRE_USER_PASSWD_COLLISION"),
+    ({"before_user_gid_nonaccount_authority_absent": False}, "HOLD_POST_GROUP_GID_AUTHORITY"),
+    ({"fresh_before_user_create": False}, "HOLD_USER_CREATE_CENSUS_STALE"),
+)
+for mutation, expected in before_user_negative_cases:
+    candidate = copy.deepcopy(positive_before_user)
+    candidate.update(mutation)
+    got = classify(candidate)
+    assert got == expected, (mutation, expected, got)
+
+provider_phase_negatives = (
+    ({"expected_local_group_binding": False}, "HOLD_POST_GROUP_LOCAL_PROVIDER_BINDING"),
+    ({"group_name_negative": True}, "HOLD_POST_GROUP_LOCAL_PROVIDER_CONTRADICTION"),
+    ({"gid_negative": True}, "HOLD_POST_GROUP_LOCAL_PROVIDER_CONTRADICTION"),
+    ({"expected_local_group_members_empty": False}, "HOLD_POST_GROUP_LOCAL_MEMBERSHIP"),
+)
+for mutation, expected in provider_phase_negatives:
+    candidate = copy.deepcopy(positive_before_user)
+    candidate["providers"]["files"].update(mutation)
     got = classify(candidate)
     assert got == expected, (mutation, expected, got)
 
@@ -531,7 +617,11 @@ print("role_contract_blob=" + ROLE_BLOB)
 print("provider_families=files,systemd,sss")
 print("provider_profile_authenticated=false")
 print("stage_verifier_uid_gid_unselected=true")
-print("synthetic_negative_cases=" + str(len(negative_cases)))
+print("synthetic_negative_cases=" + str(
+    len(negative_cases) + len(before_user_negative_cases) + len(provider_phase_negatives)
+))
+print("pre_group_shape_only=true")
+print("pre_user_shape_only=true")
 print("synthetic_positive_is_host_authority=false")
 print("historical_3754_reusable=false")
 print("account_group_creation=false")
