@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -42,7 +43,7 @@ PREDECESSOR_LOCK = (
     "buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v1.json"
 )
 
-LOCK_BLOB = "f9372da99d8ab9b3d5f7fddc6d8de0de605576f0"
+LOCK_BLOB = "486a6f6e1e2c594e60d6f9fe3fa32b03175630ae"
 INSTALLER_HEAD = "0eb7d49b10681ee7b29298ca325902671121ef5a"
 PLAN_HEAD = "06395abde20620b99808f62fe0d90a3f2e05528e"
 INSTALLER_BLOB = "bd8728be0b59bce3db0f559d0ebd01692f9a5844"
@@ -57,7 +58,9 @@ PLAN_BLOB = "0fef4e6f76738dd474ea775985b1facdd922bb54"
 PREDECESSOR_LOCK_BLOB = "a1e1f4887787b408d313e73360966f93a63b2b58"
 FOCUSED_RUN = 40073107466
 FOCUSED_JOB = 120810613302
-EXACT_HEAD_REVIEW = 5637294073
+OPERATOR_REVIEW = 5637294073
+INDEPENDENT_CODEX_COMMENT = 6381355558
+INDEPENDENT_CODEX_AUTHOR = "chatgpt-codex-connector[bot]"
 LOCK_ID = (
     "voidbuycustodyprocrefinstallerlock2_"
     "bd8728be0b59bce3db0f559d0ebd01692f9a5844"
@@ -87,6 +90,41 @@ read_exact(INSTALLER_DOC, INSTALLER_DOC_BLOB)
 read_exact(INSTALLER_WORKFLOW, INSTALLER_WORKFLOW_BLOB)
 read_exact(PLAN, PLAN_BLOB)
 predecessor_lock_raw = read_exact(PREDECESSOR_LOCK, PREDECESSOR_LOCK_BLOB)
+
+if len(sys.argv) != 3 or sys.argv[1] != "--hosted-evidence":
+    raise SystemExit("hosted_evidence_receipt_required")
+hosted_path = Path(sys.argv[2])
+hosted = json.loads(hosted_path.read_text(encoding="utf-8"))
+assert hosted == {
+    "schema": "void_buy_void_installer_v2_hosted_evidence_v1",
+    "repository": "6ZoSo9/void-node",
+    "run_id": FOCUSED_RUN,
+    "run_head_sha": INSTALLER_HEAD,
+    "run_workflow_path": (
+        ".github/workflows/"
+        "buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.yml"
+    ),
+    "run_event": "pull_request",
+    "run_status": "completed",
+    "run_conclusion": "success",
+    "job_id": FOCUSED_JOB,
+    "job_run_id": FOCUSED_RUN,
+    "job_name": "prove",
+    "job_status": "completed",
+    "job_conclusion": "success",
+    "operator_review_id": OPERATOR_REVIEW,
+    "operator_review_commit": INSTALLER_HEAD,
+    "operator_review_author": "6ZoSo9",
+    "operator_review_state": "COMMENTED",
+    "operator_review_independent": False,
+    "codex_comment_id": INDEPENDENT_CODEX_COMMENT,
+    "codex_comment_author": INDEPENDENT_CODEX_AUTHOR,
+    "codex_review_commit": INSTALLER_HEAD,
+    "codex_has_findings": False,
+    "codex_has_unresolved_findings": False,
+    "codex_status": "completed",
+    "authenticated_via_github_api": True,
+}
 
 assert len(installer_raw) == INSTALLER_BYTES
 assert sha256(installer_raw) == INSTALLER_SHA256
@@ -126,7 +164,13 @@ assert lock == {
         "workflow_git_blob_sha1": INSTALLER_WORKFLOW_BLOB,
         "focused_workflow_run": FOCUSED_RUN,
         "focused_job_id": FOCUSED_JOB,
-        "exact_head_review_id": EXACT_HEAD_REVIEW,
+        "operator_review_id": OPERATOR_REVIEW,
+        "operator_review_expected_commit": INSTALLER_HEAD,
+        "operator_review_independent": False,
+        "independent_codex_comment_id": INDEPENDENT_CODEX_COMMENT,
+        "independent_codex_expected_author": INDEPENDENT_CODEX_AUTHOR,
+        "independent_codex_expected_commit": INSTALLER_HEAD,
+        "hosted_metadata_authentication_required": True,
     },
     "predecessor_lock_evidence": {
         "path": (
@@ -239,8 +283,11 @@ print("installer_source_exact=true")
 print("installer_source_ascii_only=true")
 print("installer_source_bytes=46939")
 print("installer_source_sha256=" + INSTALLER_SHA256)
+print("hosted_metadata_authenticated=true")
 print("hosted_installer_run_bound=true")
 print("hosted_installer_job_bound=true")
+print("operator_review_same_account_only=true")
+print("independent_codex_review_bound=true")
 print("exact_head_review_bound=true")
 print("predecessor_lock_bound=true")
 print("fixed_least_authority_entrypoint_bound=true")
