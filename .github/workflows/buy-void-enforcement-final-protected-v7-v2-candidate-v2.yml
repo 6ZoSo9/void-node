@@ -164,23 +164,30 @@ jobs:
           test "$(sha256sum "$candidate" | awk '{print $1}')" = "092a97373013d32dda610df7363587fa3a669f33248a37420b07541d12d892bb"
           test "$(git hash-object "$candidate")" = "4e23ecbb64eb26c14f5ab15af85eb86d59c3a718"
 
-      - name: Prove accepted lock is deployment-planner consumable
+      - name: Require frozen V2 lock to refuse current protected successor
         run: |
           set -euo pipefail
           head="$(git rev-parse HEAD)"
           tree="$(git rev-parse 'HEAD^{tree}')"
           git switch -C main "$head"
+          log="$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
+          set +e
           npx tsx ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts \
             --plan \
             --expected-commit "$head" \
             --expected-tree "$tree" \
             --accepted-enforcement-lock-path ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v2.json \
-            | tee "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
-          grep -Fx 'status=PLAN_GREEN' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
-          grep -Fx 'accepted_enforcement_set_sha256=05d7648032223f74a05d89200ef23a76a5265ef2a3a26e52c7f51ce3b33bc852' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
-          grep -Fx 'filesystem_mutation=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
-          grep -Fx 'presale_activation=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
-          grep -Fx 'funds_movement=false' "$RUNNER_TEMP/deployment-plan-${{ matrix.node }}.log"
+            >"$log" 2>&1
+          status=$?
+          set -e
+          test "$status" -ne 0
+          grep -Fx 'marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1_HOLD' "$log"
+          grep -Fx 'reason=accepted_enforcement_candidate_current_source_inventory_mismatch:ops/run-void-node-live-v1.sh' "$log"
+          echo 'frozen_v2_deployment_plan_refuses_current_protected_successor=true'
+          echo 'candidate_enforcement_identity_accepted=false'
+          echo 'successor_runtime_generation_accepted=false'
+          echo 'public_presale_activation=false'
+          echo 'funds_movement=false'
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
