@@ -47,11 +47,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
-            "e9eb7f539caa0a98171793801f80c62b4a187a71"
+            "6fc600431e122d587661f2413b07d4a540cdc0c9"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_installer_candidate_v2.py)" = \
-            "9dd5917e5ba90f19fabac0b2361c8b11825fb68a"
+            "66b10af111fefdfb99d33b958a58f9ce6fcc0a9b"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-candidate-v2.md)" = \
-            "eb05ebe03c69f2814712b82928c70a8a2c00586a"
+            "9d4e47f9c4eefd7c18c5081e3b23f0dd4d5f29aa"
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
             "0fef4e6f76738dd474ea775985b1facdd922bb54"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v6.json)" = \
@@ -177,6 +177,7 @@ jobs:
             'truthful_post_publication_failure_receipt=true' \
             'postpublication_failure_preserves_final_root=true' \
             'hosted_postpublication_fixture_bridge_explicit=true' \
+            'repository_input_fifo_substitution_nonblocking_rejected=true' \
             'without_dash_b_bootstrap_hold=true' \
             'protected_install_authorized=false' \
             'protected_source_installed=false' \
