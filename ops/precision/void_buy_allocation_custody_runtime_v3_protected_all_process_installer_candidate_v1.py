@@ -1,0 +1,867 @@
+#!/usr/bin/env python3
+# Create-only protected source installer candidate.
+# CLI is intentionally non-mutating; live apply requires a later protected first-entry gate.
+import sys as _bootstrap_sys
+
+_BOOTSTRAP_MARKER = (
+    "VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_INSTALLER_CANDIDATE_V1"
+)
+if (
+    _bootstrap_sys.flags.isolated != 1
+    or not getattr(_bootstrap_sys.flags, "safe_path", False)
+    or _bootstrap_sys.flags.optimize != 0
+    or not __debug__
+    or not _bootstrap_sys.dont_write_bytecode
+):
+    if __name__ == "__main__":
+        print(_BOOTSTRAP_MARKER)
+        print("status=HOLD")
+        print("reason=python_isolated_unoptimized_no_bytecode_mode_required")
+        print("direct_apply_cli=false")
+        print("protected_install_authorized=false")
+        print("funds_movement=false")
+        raise SystemExit(2)
+    raise RuntimeError("python_isolated_unoptimized_no_bytecode_mode_required")
+
+import argparse
+import ctypes
+import hashlib
+import json
+import os
+from pathlib import Path
+import stat
+import tempfile
+from typing import Any, Callable
+
+MARKER = _BOOTSTRAP_MARKER
+SCHEMA = (
+    "void_buy_void_custody_runtime_v3_"
+    "protected_all_process_installer_candidate_v1"
+)
+VERSION = 1
+ROOT = Path(__file__).resolve().parents[2]
+
+PLAN_REL = (
+    "ops/precision/"
+    "void_buy_allocation_custody_runtime_v3_"
+    "protected_all_process_install_plan_v1.py"
+)
+PLAN_GIT_BLOB = "d0d500d5a4715c9319e702350a8851884b4baff8"
+PLAN_HEAD = "47a6f1ae0b6f0cebbfa7d6b859436d1e5858eb97"
+
+LOCK_REL = (
+    "ops/security/"
+    "buy-void-allocation-custody-runtime-v3-"
+    "protected-all-process-reference-census-lock-v6.json"
+)
+LOCK_GIT_BLOB = "5ba0c8d7b1ab8e8384472bb867e0603e6986b9b1"
+
+ACCEPTED_SOURCE_REL = (
+    "ops/precision/"
+    "void_buy_allocation_custody_runtime_v3_"
+    "protected_all_process_reference_census_v1.py"
+)
+ACCEPTED_SOURCE_GIT_BLOB = "33a7221cad37aec70474b97b26c2b10e2ef60f66"
+ACCEPTED_SOURCE_BYTES = 74322
+ACCEPTED_SOURCE_SHA256 = (
+    "d5b91c7efa048eb40601d162185563a29916f1ff22a23638c7da5f330b92beba"
+)
+
+INSTALL_PARENT = Path("/opt")
+INSTALL_NAME = "void-buy-allocation-custody-procref-v1"
+INSTALL_ROOT = INSTALL_PARENT / INSTALL_NAME
+STAGE_NAME = ".void-buy-allocation-custody-procref-v1.stage-v1"
+STAGE_ROOT = INSTALL_PARENT / STAGE_NAME
+SOURCE_NAME = (
+    "void_buy_allocation_custody_runtime_v3_"
+    "protected_all_process_reference_census_v1.py"
+)
+INSTALL_SOURCE = INSTALL_ROOT / SOURCE_NAME
+
+FINAL_ROOT_MODE = 0o555
+FINAL_SOURCE_MODE = 0o444
+RENAME_NOREPLACE = 1
+MAX_REPO_READ = 2 * 1024 * 1024
+MAX_SOURCE_READ = 2 * 1024 * 1024
+MAX_ENTRIES = 8
+
+PROTECTED_FIRST_ENTRY_REQUIRED = True
+DIRECT_APPLY_CLI = False
+
+
+class InstallError(RuntimeError):
+    pass
+
+
+class PublishedInstallError(InstallError):
+    def __init__(
+        self,
+        reason: str,
+        *,
+        parent_fsync_completed: bool,
+        final_verification_completed: bool,
+        original_failure_class: str,
+        original_failure_reason: str,
+    ) -> None:
+        super().__init__(reason)
+        self.publication = True
+        self.parent_fsync_completed = parent_fsync_completed
+        self.final_verification_completed = final_verification_completed
+        self.original_failure_class = original_failure_class
+        self.original_failure_reason = original_failure_reason
+
+
+def sha256(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def git_blob(raw: bytes) -> str:
+    prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
+    return hashlib.sha1(prefix + raw).hexdigest()
+
+
+def _identity(st: os.stat_result) -> tuple[int, int, int, int, int, int]:
+    return (
+        st.st_dev,
+        st.st_ino,
+        st.st_uid,
+        st.st_gid,
+        st.st_mode,
+        st.st_nlink,
+    )
+
+
+def _generation(
+    st: os.stat_result,
+) -> tuple[int, int, int, int, int, int, int, int, int]:
+    return _identity(st) + (st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+
+
+def _directory_flags() -> int:
+    values = (
+        getattr(os, "O_RDONLY", None),
+        getattr(os, "O_DIRECTORY", None),
+        getattr(os, "O_NOFOLLOW", None),
+        getattr(os, "O_CLOEXEC", None),
+    )
+    if any(type(value) is not int for value in values):
+        raise InstallError("descriptor_capability_invalid")
+    return os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+
+def _leaf_read_flags() -> int:
+    values = (
+        getattr(os, "O_RDONLY", None),
+        getattr(os, "O_NOFOLLOW", None),
+        getattr(os, "O_CLOEXEC", None),
+    )
+    if any(type(value) is not int for value in values):
+        raise InstallError("descriptor_capability_invalid")
+    return os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+
+def _open_bound_directory(path: Path) -> tuple[int, os.stat_result]:
+    absolute = Path(os.path.abspath(os.fspath(path)))
+    parts = absolute.parts
+    if (
+        not absolute.is_absolute()
+        or not parts
+        or parts[0] != "/"
+        or any(part in ("", ".", "..") for part in parts[1:])
+        or "\x00" in str(absolute)
+    ):
+        raise InstallError("directory_path_invalid")
+
+    fd = os.open("/", _directory_flags())
+    try:
+        for component in parts[1:]:
+            before = os.stat(component, dir_fd=fd, follow_symlinks=False)
+            if not stat.S_ISDIR(before.st_mode) or stat.S_ISLNK(before.st_mode):
+                raise InstallError("directory_component_invalid:" + component)
+            child = os.open(component, _directory_flags(), dir_fd=fd)
+            opened = os.fstat(child)
+            if _identity(before) != _identity(opened):
+                os.close(child)
+                raise InstallError("directory_component_rebound:" + component)
+            os.close(fd)
+            fd = child
+        opened = os.fstat(fd)
+        visible = os.stat(str(absolute), follow_symlinks=False)
+        if _identity(opened) != _identity(visible):
+            raise InstallError("directory_terminal_rebound")
+        return fd, opened
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _read_bound_regular(path: Path, maximum: int) -> bytes:
+    if maximum < 1 or maximum > 4 * 1024 * 1024:
+        raise InstallError("read_limit_invalid")
+    absolute = Path(os.path.abspath(os.fspath(path)))
+    parent_fd, _ = _open_bound_directory(absolute.parent)
+    fd = -1
+    try:
+        before = os.stat(
+            absolute.name,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or stat.S_ISLNK(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_size < 1
+            or before.st_size > maximum
+        ):
+            raise InstallError("source_file_shape_invalid:" + absolute.name)
+        fd = os.open(
+            absolute.name,
+            _leaf_read_flags(),
+            dir_fd=parent_fd,
+        )
+        opened = os.fstat(fd)
+        if _generation(before) != _generation(opened):
+            raise InstallError("source_file_rebound:" + absolute.name)
+
+        raw = bytearray()
+        while len(raw) <= maximum:
+            chunk = os.read(fd, min(65536, maximum + 1 - len(raw)))
+            if not chunk:
+                break
+            raw.extend(chunk)
+        if len(raw) > maximum:
+            raise InstallError("source_file_read_limit:" + absolute.name)
+
+        after = os.fstat(fd)
+        visible = os.stat(
+            absolute.name,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        if (
+            _generation(opened) != _generation(after)
+            or _generation(after) != _generation(visible)
+        ):
+            raise InstallError("source_file_generation_changed:" + absolute.name)
+        return bytes(raw)
+    finally:
+        if fd >= 0:
+            os.close(fd)
+        os.close(parent_fd)
+
+
+def verify_repository_inputs() -> bytes:
+    plan_raw = _read_bound_regular(ROOT / PLAN_REL, MAX_REPO_READ)
+    if git_blob(plan_raw) != PLAN_GIT_BLOB:
+        raise InstallError("install_plan_blob_mismatch")
+
+    lock_raw = _read_bound_regular(ROOT / LOCK_REL, MAX_REPO_READ)
+    if git_blob(lock_raw) != LOCK_GIT_BLOB:
+        raise InstallError("accepted_lock_blob_mismatch")
+
+    source_raw = _read_bound_regular(ROOT / ACCEPTED_SOURCE_REL, MAX_SOURCE_READ)
+    if (
+        git_blob(source_raw) != ACCEPTED_SOURCE_GIT_BLOB
+        or len(source_raw) != ACCEPTED_SOURCE_BYTES
+        or sha256(source_raw) != ACCEPTED_SOURCE_SHA256
+    ):
+        raise InstallError("accepted_source_identity_mismatch")
+    return source_raw
+
+
+def _exists_at(dir_fd: int, name: str) -> bool:
+    try:
+        os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def _trusted_parent(st: os.stat_result, *, require_root: bool) -> None:
+    if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode):
+        raise InstallError("install_parent_shape_invalid")
+    if stat.S_IMODE(st.st_mode) & 0o022:
+        raise InstallError("install_parent_writable_by_nonowner")
+    if require_root and (st.st_uid != 0 or st.st_gid != 0):
+        raise InstallError("install_parent_not_root_owned")
+
+
+def _write_all(fd: int, raw: bytes) -> None:
+    view = memoryview(raw)
+    offset = 0
+    while offset < len(view):
+        wrote = os.write(fd, view[offset:])
+        if wrote <= 0:
+            raise InstallError("short_write")
+        offset += wrote
+
+
+def _read_exact_fd(fd: int, expected_bytes: int) -> bytes:
+    raw = bytearray()
+    while len(raw) < expected_bytes:
+        chunk = os.read(fd, min(65536, expected_bytes - len(raw)))
+        if not chunk:
+            raise InstallError("short_read")
+        raw.extend(chunk)
+    if os.read(fd, 1):
+        raise InstallError("unexpected_trailing_bytes")
+    return bytes(raw)
+
+
+def _file_ok(
+    dir_fd: int,
+    name: str,
+    expected_raw: bytes,
+    *,
+    expected_uid: int,
+    expected_gid: int,
+    expected_mode: int,
+) -> None:
+    before = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+    if (
+        not stat.S_ISREG(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_uid != expected_uid
+        or before.st_gid != expected_gid
+        or stat.S_IMODE(before.st_mode) != expected_mode
+        or before.st_nlink != 1
+        or before.st_size != len(expected_raw)
+    ):
+        raise InstallError("installed_source_metadata_invalid")
+
+    fd = os.open(
+        name,
+        _leaf_read_flags(),
+        dir_fd=dir_fd,
+    )
+    try:
+        opened = os.fstat(fd)
+        if _generation(before) != _generation(opened):
+            raise InstallError("installed_source_rebound")
+        raw = _read_exact_fd(fd, len(expected_raw))
+        after = os.fstat(fd)
+        visible = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+        if (
+            _generation(opened) != _generation(after)
+            or _generation(after) != _generation(visible)
+        ):
+            raise InstallError("installed_source_generation_changed")
+    finally:
+        os.close(fd)
+
+    if raw != expected_raw or sha256(raw) != sha256(expected_raw):
+        raise InstallError("installed_source_bytes_invalid")
+
+
+def _root_ok(
+    parent_fd: int,
+    name: str,
+    expected_raw: bytes,
+    *,
+    expected_uid: int,
+    expected_gid: int,
+) -> tuple[int, os.stat_result]:
+    before = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if (
+        not stat.S_ISDIR(before.st_mode)
+        or stat.S_ISLNK(before.st_mode)
+        or before.st_uid != expected_uid
+        or before.st_gid != expected_gid
+        or stat.S_IMODE(before.st_mode) != FINAL_ROOT_MODE
+    ):
+        raise InstallError("installed_root_metadata_invalid")
+
+    fd = os.open(name, _directory_flags(), dir_fd=parent_fd)
+    opened = os.fstat(fd)
+    if _generation(before) != _generation(opened):
+        os.close(fd)
+        raise InstallError("installed_root_rebound")
+
+    try:
+        names = sorted(os.listdir(fd))
+    except OSError:
+        os.close(fd)
+        raise
+    if len(names) > MAX_ENTRIES or names != [SOURCE_NAME]:
+        os.close(fd)
+        raise InstallError("installed_root_entries_invalid")
+
+    _file_ok(
+        fd,
+        SOURCE_NAME,
+        expected_raw,
+        expected_uid=expected_uid,
+        expected_gid=expected_gid,
+        expected_mode=FINAL_SOURCE_MODE,
+    )
+
+    terminal = os.fstat(fd)
+    visible = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if (
+        _generation(opened) != _generation(terminal)
+        or _generation(terminal) != _generation(visible)
+    ):
+        os.close(fd)
+        raise InstallError("installed_root_generation_changed")
+    return fd, terminal
+
+
+def _renameat2_noreplace(
+    dir_fd: int,
+    source: str,
+    target: str,
+) -> None:
+    libc = ctypes.CDLL(None, use_errno=True)
+    fn = getattr(libc, "renameat2", None)
+    if fn is None:
+        raise InstallError("renameat2_unavailable")
+    fn.argtypes = [
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    ]
+    fn.restype = ctypes.c_int
+    rc = fn(
+        dir_fd,
+        source.encode("utf-8"),
+        dir_fd,
+        target.encode("utf-8"),
+        RENAME_NOREPLACE,
+    )
+    if rc != 0:
+        error = ctypes.get_errno()
+        raise InstallError("renameat2_noreplace_failed:" + str(error))
+
+
+def _cleanup_stage(
+    parent_fd: int,
+    *,
+    stage_name: str,
+    source_name: str,
+    stage_identity: tuple[int, int] | None,
+) -> bool:
+    if stage_identity is None:
+        return True
+    try:
+        visible = os.stat(stage_name, dir_fd=parent_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        return True
+    if (visible.st_dev, visible.st_ino) != stage_identity:
+        return False
+    try:
+        stage_fd = os.open(stage_name, _directory_flags(), dir_fd=parent_fd)
+    except OSError:
+        return False
+    try:
+        opened = os.fstat(stage_fd)
+        if (opened.st_dev, opened.st_ino) != stage_identity:
+            return False
+        names = sorted(os.listdir(stage_fd))
+        if names not in ([], [source_name]):
+            return False
+        if names == [source_name]:
+            entry = os.stat(
+                source_name,
+                dir_fd=stage_fd,
+                follow_symlinks=False,
+            )
+            if not stat.S_ISREG(entry.st_mode) or stat.S_ISLNK(entry.st_mode):
+                return False
+            os.unlink(source_name, dir_fd=stage_fd)
+        os.fchmod(stage_fd, 0o700)
+    finally:
+        os.close(stage_fd)
+    os.rmdir(stage_name, dir_fd=parent_fd)
+    return True
+
+
+def apply_create_only_algorithm(
+    *,
+    parent: Path,
+    install_name: str,
+    stage_name: str,
+    source_name: str,
+    source_raw: bytes,
+    expected_uid: int,
+    expected_gid: int,
+    require_root_parent: bool,
+    parent_fsync_fn: Callable[[int], None] = os.fsync,
+    rename_fn: Callable[[int, str, str], None] = _renameat2_noreplace,
+) -> dict[str, Any]:
+    if (
+        not isinstance(source_raw, bytes)
+        or len(source_raw) < 1
+        or len(source_raw) > MAX_SOURCE_READ
+    ):
+        raise InstallError("candidate_source_bytes_invalid")
+    if any(
+        not isinstance(name, str)
+        or not name
+        or "/" in name
+        or "\x00" in name
+        or name in (".", "..")
+        for name in (install_name, stage_name, source_name)
+    ):
+        raise InstallError("install_component_invalid")
+
+    parent_fd, parent_st = _open_bound_directory(parent)
+    stage_identity: tuple[int, int] | None = None
+    published = False
+    parent_fsync_completed = False
+    final_verification_completed = False
+
+    try:
+        _trusted_parent(parent_st, require_root=require_root_parent)
+        if _exists_at(parent_fd, install_name):
+            raise InstallError("destination_root_present")
+        if _exists_at(parent_fd, stage_name):
+            raise InstallError("staging_root_present")
+
+        os.mkdir(stage_name, 0o700, dir_fd=parent_fd)
+        stage_fd = os.open(stage_name, _directory_flags(), dir_fd=parent_fd)
+        try:
+            stage_st = os.fstat(stage_fd)
+            stage_identity = (stage_st.st_dev, stage_st.st_ino)
+            if stage_st.st_dev != parent_st.st_dev:
+                raise InstallError("stage_cross_filesystem")
+            if (
+                stage_st.st_uid != expected_uid
+                or stage_st.st_gid != expected_gid
+                or stat.S_IMODE(stage_st.st_mode) != 0o700
+            ):
+                raise InstallError("stage_initial_metadata_invalid")
+
+            file_fd = os.open(
+                source_name,
+                os.O_WRONLY
+                | os.O_CREAT
+                | os.O_EXCL
+                | os.O_NOFOLLOW
+                | os.O_CLOEXEC,
+                0o600,
+                dir_fd=stage_fd,
+            )
+            try:
+                file_st = os.fstat(file_fd)
+                if (
+                    file_st.st_uid != expected_uid
+                    or file_st.st_gid != expected_gid
+                    or not stat.S_ISREG(file_st.st_mode)
+                    or file_st.st_nlink != 1
+                ):
+                    raise InstallError("stage_source_initial_metadata_invalid")
+                _write_all(file_fd, source_raw)
+                os.fsync(file_fd)
+                os.fchmod(file_fd, FINAL_SOURCE_MODE)
+                os.fsync(file_fd)
+            finally:
+                os.close(file_fd)
+
+            _file_ok(
+                stage_fd,
+                source_name,
+                source_raw,
+                expected_uid=expected_uid,
+                expected_gid=expected_gid,
+                expected_mode=FINAL_SOURCE_MODE,
+            )
+            os.fchmod(stage_fd, FINAL_ROOT_MODE)
+            os.fsync(stage_fd)
+            final_stage = os.fstat(stage_fd)
+            if (
+                final_stage.st_uid != expected_uid
+                or final_stage.st_gid != expected_gid
+                or stat.S_IMODE(final_stage.st_mode) != FINAL_ROOT_MODE
+            ):
+                raise InstallError("stage_final_metadata_invalid")
+        finally:
+            os.close(stage_fd)
+
+        stage_visible = os.stat(
+            stage_name,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        if (
+            stage_identity is None
+            or (stage_visible.st_dev, stage_visible.st_ino) != stage_identity
+            or stat.S_IMODE(stage_visible.st_mode) != FINAL_ROOT_MODE
+        ):
+            raise InstallError("stage_visible_generation_invalid")
+
+        rename_fn(parent_fd, stage_name, install_name)
+        published = True
+
+        try:
+            parent_fsync_fn(parent_fd)
+            parent_fsync_completed = True
+            final_fd, _ = _root_ok(
+                parent_fd,
+                install_name,
+                source_raw,
+                expected_uid=expected_uid,
+                expected_gid=expected_gid,
+            )
+            os.close(final_fd)
+            final_verification_completed = True
+        except BaseException as exc:
+            raise PublishedInstallError(
+                "published_install_needs_inspection",
+                parent_fsync_completed=parent_fsync_completed,
+                final_verification_completed=final_verification_completed,
+                original_failure_class=type(exc).__name__,
+                original_failure_reason=str(exc)[:300],
+            ) from exc
+
+        return {
+            "publication": True,
+            "publication_state": "published_verified",
+            "parent_fsync_completed": True,
+            "final_verification_completed": True,
+            "create_only": True,
+            "rename_noreplace_used": True,
+            "protected_source_installed": True,
+            "live_privileged_census_executed": False,
+            "replacement_apply_authorized": False,
+            "payment_acceptance": False,
+            "public_presale_activation": False,
+            "funds_movement": False,
+        }
+    except PublishedInstallError:
+        raise
+    except BaseException:
+        if not published:
+            _cleanup_stage(
+                parent_fd,
+                stage_name=stage_name,
+                source_name=source_name,
+                stage_identity=stage_identity,
+            )
+        raise
+    finally:
+        os.close(parent_fd)
+
+
+def source_plan() -> dict[str, Any]:
+    source_raw = verify_repository_inputs()
+    return {
+        "schema": SCHEMA,
+        "marker": MARKER,
+        "version": VERSION,
+        "plan_head": PLAN_HEAD,
+        "plan_source_git_blob_sha1": PLAN_GIT_BLOB,
+        "accepted_lock_git_blob_sha1": LOCK_GIT_BLOB,
+        "accepted_source": {
+            "path": ACCEPTED_SOURCE_REL,
+            "git_blob_sha1": ACCEPTED_SOURCE_GIT_BLOB,
+            "bytes": len(source_raw),
+            "sha256": sha256(source_raw),
+        },
+        "fixed_destination": {
+            "install_root": str(INSTALL_ROOT),
+            "install_source": str(INSTALL_SOURCE),
+            "stage_root": str(STAGE_ROOT),
+            "root_mode": format(FINAL_ROOT_MODE, "04o"),
+            "source_mode": format(FINAL_SOURCE_MODE, "04o"),
+        },
+        "candidate_contract": {
+            "installer_algorithm_implemented": True,
+            "direct_apply_cli": False,
+            "protected_first_entry_required": True,
+            "create_only": True,
+            "kernel_rename_noreplace_required": True,
+            "destination_absent_required": True,
+            "stage_absent_required": True,
+            "same_filesystem_stage_required": True,
+            "source_fsync_required": True,
+            "stage_directory_fsync_required": True,
+            "install_parent_fsync_required": True,
+            "exact_post_publication_verification_required": True,
+            "truthful_post_publication_failure_receipt_required": True,
+            "host_namespace_lease_provenance_still_required": True,
+            "live_at_use_reverification_required": True,
+        },
+        "authority": {
+            "source_candidate_only": True,
+            "protected_installer_first_entry_installed": False,
+            "protected_installer_first_entry_verified": False,
+            "protected_install_authorized": False,
+            "protected_source_installed": False,
+            "live_privileged_census_authorized": False,
+            "live_privileged_census_executed": False,
+            "service_mutation": False,
+            "systemd_mutation": False,
+            "existing_target_replaced": False,
+            "replacement_apply_authorized": False,
+            "runtime_integration": False,
+            "payment_acceptance": False,
+            "public_presale_activation": False,
+            "production_gate_ready": False,
+            "funds_movement": False,
+        },
+        "next_gate": "ACCEPT_EXACT_INSTALLER_SOURCE_AND_PROTECT_FIRST_ENTRY",
+    }
+
+
+def self_test() -> None:
+    accepted = verify_repository_inputs()
+    with tempfile.TemporaryDirectory(
+        prefix="void-custody-procref-installer-candidate-"
+    ) as tmp:
+        parent = Path(tmp) / "opt"
+        parent.mkdir(mode=0o755)
+        uid = os.geteuid()
+        gid = os.getegid()
+
+        result = apply_create_only_algorithm(
+            parent=parent,
+            install_name=INSTALL_NAME,
+            stage_name=STAGE_NAME,
+            source_name=SOURCE_NAME,
+            source_raw=accepted,
+            expected_uid=uid,
+            expected_gid=gid,
+            require_root_parent=False,
+        )
+        if (
+            result["publication"] is not True
+            or result["publication_state"] != "published_verified"
+            or result["protected_source_installed"] is not True
+            or result["live_privileged_census_executed"] is not False
+        ):
+            raise InstallError("self_test_success_receipt_invalid")
+
+        parent_fd, _ = _open_bound_directory(parent)
+        try:
+            final_fd, _ = _root_ok(
+                parent_fd,
+                INSTALL_NAME,
+                accepted,
+                expected_uid=uid,
+                expected_gid=gid,
+            )
+            os.close(final_fd)
+        finally:
+            os.close(parent_fd)
+
+    with tempfile.TemporaryDirectory(
+        prefix="void-custody-procref-installer-collision-"
+    ) as tmp:
+        parent = Path(tmp) / "opt"
+        parent.mkdir(mode=0o755)
+        (parent / INSTALL_NAME).mkdir(mode=0o755)
+        try:
+            apply_create_only_algorithm(
+                parent=parent,
+                install_name=INSTALL_NAME,
+                stage_name=STAGE_NAME,
+                source_name=SOURCE_NAME,
+                source_raw=accepted,
+                expected_uid=os.geteuid(),
+                expected_gid=os.getegid(),
+                require_root_parent=False,
+            )
+        except InstallError as exc:
+            if "destination_root_present" not in str(exc):
+                raise
+        else:
+            raise InstallError("self_test_existing_destination_accepted")
+        if (parent / STAGE_NAME).exists():
+            raise InstallError("self_test_collision_created_stage")
+
+    with tempfile.TemporaryDirectory(
+        prefix="void-custody-procref-installer-postpublish-"
+    ) as tmp:
+        parent = Path(tmp) / "opt"
+        parent.mkdir(mode=0o755)
+
+        def fail_parent_fsync(_fd: int) -> None:
+            raise OSError("injected_parent_fsync_failure")
+
+        try:
+            apply_create_only_algorithm(
+                parent=parent,
+                install_name=INSTALL_NAME,
+                stage_name=STAGE_NAME,
+                source_name=SOURCE_NAME,
+                source_raw=accepted,
+                expected_uid=os.geteuid(),
+                expected_gid=os.getegid(),
+                require_root_parent=False,
+                parent_fsync_fn=fail_parent_fsync,
+            )
+        except PublishedInstallError as exc:
+            if (
+                exc.publication is not True
+                or exc.parent_fsync_completed is not False
+                or exc.final_verification_completed is not False
+                or "injected_parent_fsync_failure"
+                not in exc.original_failure_reason
+            ):
+                raise InstallError("self_test_published_failure_receipt_invalid")
+        else:
+            raise InstallError("self_test_postpublication_failure_not_raised")
+        if not (parent / INSTALL_NAME).is_dir():
+            raise InstallError("self_test_published_root_deleted_after_failure")
+
+    print(MARKER + "_SELF_TEST_GREEN")
+    print("accepted_plan_exact=true")
+    print("accepted_lock_exact=true")
+    print("accepted_source_exact=true")
+    print("installer_algorithm_implemented=true")
+    print("direct_apply_cli=false")
+    print("protected_first_entry_required=true")
+    print("create_only=true")
+    print("destination_collision_rejected=true")
+    print("staging_cleanup_before_publication=true")
+    print("kernel_rename_noreplace_required=true")
+    print("source_fsync_required=true")
+    print("stage_directory_fsync_required=true")
+    print("install_parent_fsync_required=true")
+    print("exact_post_publication_verification_required=true")
+    print("truthful_post_publication_failure_receipt=true")
+    print("postpublication_failure_preserves_final_root=true")
+    print("protected_install_authorized=false")
+    print("live_privileged_census_authorized=false")
+    print("replacement_apply_authorized=false")
+    print("payment_acceptance=false")
+    print("public_presale_activation=false")
+    print("funds_movement=false")
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser()
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--source-plan", action="store_true")
+    group.add_argument("--self-test", action="store_true")
+    args = parser.parse_args(argv)
+
+    if args.self_test:
+        self_test()
+        return 0
+    if args.source_plan:
+        print(json.dumps(source_plan(), sort_keys=True, separators=(",", ":")))
+        return 0
+    return 2
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main(_bootstrap_sys.argv[1:]))
+    except (InstallError, OSError, ValueError) as exc:
+        print(MARKER)
+        print("status=HOLD")
+        print("reason=" + str(exc))
+        print("direct_apply_cli=false")
+        print("protected_first_entry_required=true")
+        print("protected_install_authorized=false")
+        print("protected_source_installed=false")
+        print("live_privileged_census_authorized=false")
+        print("replacement_apply_authorized=false")
+        print("payment_acceptance=false")
+        print("public_presale_activation=false")
+        print("funds_movement=false")
+        raise SystemExit(2)
