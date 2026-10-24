@@ -17,7 +17,7 @@ PLAN_REL = "ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.j
 ROLE_REL = "ops/security/void_v7_v5_stage_role_separation_contract_v2.json"
 SOURCE_REL = "ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
 RECEIPT_REL = "ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py"
-PLAN_BLOB = "6b8057f000b85876aa986dd58dc324b5377dd568"
+PLAN_BLOB = "dc68696a60a226ea774b95c9c9f0a38201769957"
 ROLE_BLOB = "4801caaca496baeb85c7842b5b8b4b47122582ab"
 SOURCE_BLOB = "d88a9548ea34b8209ed7dcd53732fd25dd1371bf"
 RECEIPT_BLOB = "b462696826b4f90fdf5f4938cd5467e5711addab"
@@ -168,24 +168,29 @@ def classify(candidate: dict) -> str:
     group_route = candidate["group_route"]
     if not isinstance(passwd_route, list) or not isinstance(group_route, list) or not passwd_route or not group_route:
         return "HOLD_PROVIDER_ROUTE_SHAPE"
-    if passwd_route != group_route:
-        return "HOLD_PROVIDER_ROUTE_MISMATCH"
-    if len(set(passwd_route)) != len(passwd_route):
+    if len(set(passwd_route)) != len(passwd_route) or len(set(group_route)) != len(group_route):
         return "HOLD_DUPLICATE_PROVIDER"
-    if any(provider not in ALLOWED_PROVIDERS for provider in passwd_route):
+    configured = tuple(dict.fromkeys(passwd_route + group_route))
+    if any(provider not in ALLOWED_PROVIDERS for provider in configured):
         return "HOLD_UNSUPPORTED_PROVIDER"
+    if "files" not in passwd_route or "files" not in group_route:
+        return "HOLD_FILES_PROVIDER_REQUIRED"
     if not candidate["nss_action_policy_bound"]:
         return "HOLD_NSS_ACTION_POLICY"
     if candidate["provider_generation_changed"]:
         return "HOLD_PROVIDER_GENERATION_DRIFT"
-    for provider in passwd_route:
+    for provider in configured:
         state = candidate["providers"].get(provider)
         if not isinstance(state, dict):
             return "HOLD_PROVIDER_STATE_MISSING"
         if not state.get("health"):
             return "HOLD_PROVIDER_UNHEALTHY:" + provider
-        if not state.get("name_negative") or not state.get("uid_negative") or not state.get("gid_negative"):
-            return "HOLD_PROVIDER_COLLISION_OR_AMBIGUITY:" + provider
+        if provider in passwd_route:
+            if not state.get("passwd_name_negative") or not state.get("uid_negative"):
+                return "HOLD_PASSWD_PROVIDER_COLLISION_OR_AMBIGUITY:" + provider
+        if provider in group_route:
+            if not state.get("group_name_negative") or not state.get("gid_negative"):
+                return "HOLD_GROUP_PROVIDER_COLLISION_OR_AMBIGUITY:" + provider
         if provider == "files" and not state.get("local_files_generation_bound"):
             return "HOLD_FILES_GENERATION"
         if provider == "systemd" and not state.get("dynamic_user_census_bound"):
@@ -213,6 +218,14 @@ def classify(candidate: dict) -> str:
         return "HOLD_SYSTEMD_RESERVATION"
     if not candidate["fresh_before_group_create"]:
         return "HOLD_GROUP_CREATE_CENSUS_STALE"
+    if not candidate["after_group_local_binding_exact"]:
+        return "HOLD_POST_GROUP_LOCAL_BINDING"
+    if not candidate["after_group_nonfiles_group_negative"]:
+        return "HOLD_POST_GROUP_NONFILES_COLLISION"
+    if not candidate["before_user_passwd_negative_reconfirmed"]:
+        return "HOLD_PRE_USER_PASSWD_COLLISION"
+    if not candidate["before_user_gid_nonaccount_authority_absent"]:
+        return "HOLD_POST_GROUP_GID_AUTHORITY"
     if not candidate["fresh_before_user_create"]:
         return "HOLD_USER_CREATE_CENSUS_STALE"
     if not candidate["root_first_entry"]:
@@ -284,7 +297,10 @@ for key in (
     "configured_provider_order_must_be_exactly_bound",
     "provider_health_must_be_positive_before_absence_is_accepted",
     "enumeration_only_is_insufficient",
-    "name_and_numeric_negative_lookup_required_for_every_provider",
+    "passwd_and_group_routes_may_differ",
+    "files_provider_required_for_local_account_creation",
+    "namespace_specific_name_and_numeric_negative_lookup_required",
+    "expected_post_group_local_binding_is_not_a_collision",
     "current_provider_profile_recheck_before_each_create_operation",
 ):
     assert provider[key] is True, key
@@ -294,10 +310,12 @@ assert provider["provider_unavailable_or_timeout_policy"] == "HOLD"
 requirements = plan["provider_requirements"]
 assert set(requirements) == set(ALLOWED_PROVIDERS)
 assert len(requirements["files"]) == len(requirements["systemd"]) == len(requirements["sss"]) == 4
-assert len(plan["global_numeric_authority_requirements"]) == 12
+assert len(plan["global_numeric_authority_requirements"]) == 17
 assert len(plan["future_create_only_sequence"]) == 2
 assert plan["future_create_only_sequence"][0]["operation"] == "create_exact_primary_group"
+assert plan["future_create_only_sequence"][0]["postcondition"] == "exact_local_files_group_binding_only_no_nonfiles_collision"
 assert plan["future_create_only_sequence"][1]["operation"] == "create_exact_system_user"
+assert plan["future_create_only_sequence"][1]["precondition"] == "expected_local_group_bound_user_name_uid_still_absent"
 assert all(step["implemented_here"] is False for step in plan["future_create_only_sequence"])
 assert len(plan["post_create_requirements"]) == 9
 assert role["stage_verifier"]["status"] == "UNSELECTED"
@@ -323,15 +341,18 @@ positive = {
     "uid": 123456789, "gid": 123456790,
     "provider_profile_bound": True,
     "passwd_route": ["files", "systemd", "sss"],
-    "group_route": ["files", "systemd", "sss"],
+    "group_route": ["files", "systemd"],
     "nss_action_policy_bound": True,
     "provider_generation_changed": False,
     "providers": {
-        "files": {"health": True, "name_negative": True, "uid_negative": True, "gid_negative": True,
+        "files": {"health": True, "passwd_name_negative": True, "uid_negative": True,
+                  "group_name_negative": True, "gid_negative": True,
                   "local_files_generation_bound": True},
-        "systemd": {"health": True, "name_negative": True, "uid_negative": True, "gid_negative": True,
+        "systemd": {"health": True, "passwd_name_negative": True, "uid_negative": True,
+                    "group_name_negative": True, "gid_negative": True,
                     "dynamic_user_census_bound": True},
-        "sss": {"health": True, "name_negative": True, "uid_negative": True, "gid_negative": True,
+        "sss": {"health": True, "passwd_name_negative": True, "uid_negative": True,
+                "group_name_negative": True, "gid_negative": True,
                 "domain_generation_bound": True, "enumeration_only": False},
     },
     "host_namespace_leases_bound": True,
@@ -343,6 +364,10 @@ positive = {
     "numeric_acl_references_absent": True,
     "systemd_reservations_absent": True,
     "fresh_before_group_create": True,
+    "after_group_local_binding_exact": True,
+    "after_group_nonfiles_group_negative": True,
+    "before_user_passwd_negative_reconfirmed": True,
+    "before_user_gid_nonaccount_authority_absent": True,
     "fresh_before_user_create": True,
     "root_first_entry": True,
     "owner_authorization": True,
@@ -364,13 +389,15 @@ negative_cases = (
     ({"gid": 980}, "HOLD_RESERVED_ID"),
     ({"provider_profile_bound": False}, "HOLD_PROVIDER_PROFILE_UNBOUND"),
     ({"passwd_route": []}, "HOLD_PROVIDER_ROUTE_SHAPE"),
-    ({"group_route": ["files"]}, "HOLD_PROVIDER_ROUTE_MISMATCH"),
-    ({"passwd_route": ["files", "files"], "group_route": ["files", "files"]}, "HOLD_DUPLICATE_PROVIDER"),
-    ({"passwd_route": ["files", "ldap"], "group_route": ["files", "ldap"]}, "HOLD_UNSUPPORTED_PROVIDER"),
+    ({"passwd_route": ["systemd", "sss"]}, "HOLD_FILES_PROVIDER_REQUIRED"),
+    ({"group_route": ["systemd"]}, "HOLD_FILES_PROVIDER_REQUIRED"),
+    ({"passwd_route": ["files", "files"]}, "HOLD_DUPLICATE_PROVIDER"),
+    ({"group_route": ["files", "ldap"]}, "HOLD_UNSUPPORTED_PROVIDER"),
     ({"nss_action_policy_bound": False}, "HOLD_NSS_ACTION_POLICY"),
     ({"provider_generation_changed": True}, "HOLD_PROVIDER_GENERATION_DRIFT"),
     ({"providers": {**positive["providers"], "files": {**positive["providers"]["files"], "health": False}}}, "HOLD_PROVIDER_UNHEALTHY:files"),
-    ({"providers": {**positive["providers"], "systemd": {**positive["providers"]["systemd"], "uid_negative": False}}}, "HOLD_PROVIDER_COLLISION_OR_AMBIGUITY:systemd"),
+    ({"providers": {**positive["providers"], "systemd": {**positive["providers"]["systemd"], "uid_negative": False}}}, "HOLD_PASSWD_PROVIDER_COLLISION_OR_AMBIGUITY:systemd"),
+    ({"providers": {**positive["providers"], "systemd": {**positive["providers"]["systemd"], "gid_negative": False}}}, "HOLD_GROUP_PROVIDER_COLLISION_OR_AMBIGUITY:systemd"),
     ({"providers": {**positive["providers"], "files": {**positive["providers"]["files"], "local_files_generation_bound": False}}}, "HOLD_FILES_GENERATION"),
     ({"providers": {**positive["providers"], "systemd": {**positive["providers"]["systemd"], "dynamic_user_census_bound": False}}}, "HOLD_SYSTEMD_DYNAMIC_USER_CENSUS"),
     ({"providers": {**positive["providers"], "sss": {**positive["providers"]["sss"], "domain_generation_bound": False}}}, "HOLD_SSS_DOMAIN_GENERATION"),
@@ -385,6 +412,10 @@ negative_cases = (
     ({"numeric_acl_references_absent": False}, "HOLD_ORPHANED_ACL_AUTHORITY"),
     ({"systemd_reservations_absent": False}, "HOLD_SYSTEMD_RESERVATION"),
     ({"fresh_before_group_create": False}, "HOLD_GROUP_CREATE_CENSUS_STALE"),
+    ({"after_group_local_binding_exact": False}, "HOLD_POST_GROUP_LOCAL_BINDING"),
+    ({"after_group_nonfiles_group_negative": False}, "HOLD_POST_GROUP_NONFILES_COLLISION"),
+    ({"before_user_passwd_negative_reconfirmed": False}, "HOLD_PRE_USER_PASSWD_COLLISION"),
+    ({"before_user_gid_nonaccount_authority_absent": False}, "HOLD_POST_GROUP_GID_AUTHORITY"),
     ({"fresh_before_user_create": False}, "HOLD_USER_CREATE_CENSUS_STALE"),
     ({"root_first_entry": False}, "HOLD_ROOT_FIRST_ENTRY"),
     ({"owner_authorization": False}, "HOLD_OWNER_AUTHORIZATION"),
