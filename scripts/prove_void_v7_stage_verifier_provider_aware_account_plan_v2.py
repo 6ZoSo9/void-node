@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,11 +53,42 @@ def exact_blob(rel: str, blob: str) -> None:
     assert git("hash-object", "--no-filters", rel) == blob, "worktree_blob_mismatch:" + rel
 
 
-def read_json(rel: str, limit: int = 65536) -> dict:
+def git_blob_id(data: bytes) -> str:
+    header = ("blob " + str(len(data)) + "\0").encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()
+
+
+def read_exact_bytes(rel: str, expected_blob: str, limit: int = 65536) -> bytes:
     p = ROOT / rel
-    assert p.is_file() and not p.is_symlink(), "source_kind:" + rel
-    data = p.read_bytes()
-    assert len(data) <= limit, "source_oversize:" + rel
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+    fd = os.open(p, flags)
+    try:
+        opened = os.fstat(fd)
+        assert stat.S_ISREG(opened.st_mode), "source_not_regular:" + rel
+        assert 0 <= opened.st_size <= limit, "source_oversize:" + rel
+        data = bytearray()
+        while len(data) < opened.st_size:
+            chunk = os.read(fd, min(65536, opened.st_size - len(data)))
+            assert chunk, "source_unexpected_eof:" + rel
+            data.extend(chunk)
+        assert os.read(fd, 1) == b"", "source_grew_during_read:" + rel
+        terminal = os.fstat(fd)
+        visible = os.lstat(p)
+        fields = lambda s: (
+            s.st_dev, s.st_ino, s.st_uid, s.st_gid, s.st_mode,
+            s.st_nlink, s.st_size, s.st_mtime_ns, s.st_ctime_ns,
+        )
+        assert stat.S_ISREG(visible.st_mode), "source_visible_not_regular:" + rel
+        assert fields(opened) == fields(terminal) == fields(visible), "source_generation_drift:" + rel
+        out = bytes(data)
+        assert git_blob_id(out) == expected_blob, "source_blob_mismatch:" + rel
+        return out
+    finally:
+        os.close(fd)
+
+
+def read_json(rel: str, expected_blob: str, limit: int = 65536) -> dict:
+    data = read_exact_bytes(rel, expected_blob, limit)
     return json.loads(data.decode("utf-8", "strict"), object_pairs_hook=unique_object)
 
 
@@ -157,8 +190,8 @@ for rel, blob in (
 ):
     exact_blob(rel, blob)
 
-plan = read_json(PLAN_REL)
-role = read_json(ROLE_REL)
+plan = read_json(PLAN_REL, PLAN_BLOB)
+role = read_json(ROLE_REL, ROLE_BLOB)
 assert plan["marker"] == "VOID_V7_STAGE_VERIFIER_PROVIDER_AWARE_ACCOUNT_PLAN_V2"
 assert plan["schema"] == "void_v7_stage_verifier_provider_aware_account_plan_v2"
 assert plan["lifecycle"] == "SOURCE_ONLY_PROVIDER_PROFILE_UNATTESTED_UID_GID_UNSELECTED"
