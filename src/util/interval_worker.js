@@ -73,9 +73,9 @@ var IntervalWorker = /** @class */ (function () {
                 }
             });
         }); };
-        void tick();
         this.t = setInterval(tick, Math.max(100, this.ms));
         (_b = (_a = this.t).unref) === null || _b === void 0 ? void 0 : _b.call(_a);
+        void tick();
         return true;
     };
     IntervalWorker.prototype.stop = function () {

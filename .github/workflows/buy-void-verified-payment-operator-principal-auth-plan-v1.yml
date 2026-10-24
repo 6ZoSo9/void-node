@@ -1,0 +1,109 @@
+name: VOID Buy VOID verified-payment operator-principal auth plan v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/security/buy-void-verified-payment-operator-principal-auth-plan-v1.json"
+      - "scripts/prove_buy_void_verified_payment_operator_principal_auth_plan_v1.mjs"
+      - "docs/architecture/buy-void-verified-payment-operator-principal-auth-plan-v1.md"
+      - ".github/workflows/buy-void-verified-payment-operator-principal-auth-plan-v1.yml"
+      - "src/index.ts"
+      - "src/economic/buy_void_operator_local_intent_v1.ts"
+      - "scripts/prove_buy_void_operator_local_intent_v1.ts"
+      - "src/economic/buy_void_operator_verified_allocation_dispatch_v1.ts"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
+      - "ops/public/void-public-app-composition-gateway-v1.mjs"
+      - "scripts/prove_public_app_composition_gateway_v1.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preserve-historical-plan:
+    name: historical plan / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+
+    steps:
+      - name: Check out triggering revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind triggering revision and diff hygiene
+        shell: bash
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          test "$(git rev-parse HEAD:ops/security/buy-void-verified-payment-operator-principal-auth-plan-v1.json)" = "8258f7ff9ddd489c483c0e6daf675c9a2a58523e"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_operator_principal_auth_plan_v1.mjs)" = "729302c8bbbaa5eeb647d3894c5abcec5ea239de"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-verified-payment-operator-principal-auth-plan-v1.md)" = "f89f46685d89c7a91729a21340f888765de3c47a"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          if test -n "${BASE_SHA:-}" && ! printf '%s' "$BASE_SHA" | grep -Eq '^0+$'; then
+            merge_base="$(git merge-base "$BASE_SHA" "$EXPECTED_HEAD_SHA")"
+            test -n "$merge_base"
+            git diff --check "$merge_base" "$EXPECTED_HEAD_SHA"
+          else
+            git diff --check "$EXPECTED_HEAD_SHA^" "$EXPECTED_HEAD_SHA"
+          fi
+
+      - name: Check out immutable reviewed V1 plan
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: 0ddfe2ab8419089bfb91e1a5ca7a77468cd1844d
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify immutable V1 plan identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "0ddfe2ab8419089bfb91e1a5ca7a77468cd1844d"
+          test "$(git rev-parse HEAD:ops/security/buy-void-verified-payment-operator-principal-auth-plan-v1.json)" = "8258f7ff9ddd489c483c0e6daf675c9a2a58523e"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_operator_principal_auth_plan_v1.mjs)" = "729302c8bbbaa5eeb647d3894c5abcec5ea239de"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-verified-payment-operator-principal-auth-plan-v1.md)" = "f89f46685d89c7a91729a21340f888765de3c47a"
+          test "$(git rev-parse HEAD:.github/workflows/buy-void-verified-payment-operator-principal-auth-plan-v1.yml)" = "c6116b0b970ce9d46c64aebe684a780fe6bca075"
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Set up Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Prove immutable operator-principal authentication plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/operator-principal-auth-plan-v1.log"
+          node scripts/prove_buy_void_verified_payment_operator_principal_auth_plan_v1.mjs | tee "$log"
+          grep -Fx 'VOID_BUY_VOID_VERIFIED_PAYMENT_OPERATOR_PRINCIPAL_AUTH_PLAN_V1_GREEN' "$log"
+          grep -Fx 'plan_id=voidbuyopauth1_35d73623a820ffb06acd4bf49769237ad13cf2db0ad7f40f2613229d92f2c2d1' "$log"
+          grep -Fx 'source_binding_count=7' "$log"
+          grep -Fx 'future_requirement_count=17' "$log"
+          grep -Fx 'exact_base_tree_and_four_add_scope=true' "$log"
+          grep -Fx 'operator_local_intent_contract_present=true' "$log"
+          grep -Fx 'loopback_and_socket_peer_not_sufficient_authority=true' "$log"
+          grep -Fx 'operator_bearer_capability_required=true' "$log"
+          grep -Fx 'verified_allocation_dispatch_mounted=false' "$log"
+          grep -Fx 'operator_principal_authenticated=false' "$log"
+          grep -Fx 'server_controlled_allocation_roots_required=true' "$log"
+          grep -Fx 'public_gateway_blocks_operator_prefix=true' "$log"
+          grep -Fx 'current_router_legacy_capacity_writer=true' "$log"
+          grep -Fx 'payment_acceptance=false' "$log"
+          grep -Fx 'presale_activation=false' "$log"
+          grep -Fx 'funds_movement=false' "$log"
+          echo 'historical_plan_preserved=true'
+          echo 'current_source_acceptance=false'
+          echo 'payment_acceptance=false'
+          echo 'presale_activation=false'
+          echo 'funds_movement=false'

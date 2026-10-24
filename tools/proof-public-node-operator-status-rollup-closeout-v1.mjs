@@ -99,7 +99,6 @@ for (const [name, route] of Object.entries(routes)) {
 }
 
 const falseBoundaries = [
-  'mutation_route_enabled',
   'wallet_send_enabled',
   'money_movement_enabled',
   'buy_void_fulfillment_enabled',
@@ -117,6 +116,10 @@ for (const key of falseBoundaries) {
   if (receiptTemplate.boundary?.[key] !== false) throw new Error(`receipt boundary ${key} must be false`);
 }
 
+if (status.boundary?.mutation_route_enabled !== false) throw new Error('status rollup must not enable mutation');
+if (quickstart.boundary?.mutation_route_enabled !== false) throw new Error('quickstart must not enable mutation');
+if (connectPack.boundary?.mutation_route_enabled !== true) throw new Error('connect pack must disclose the local dial mutation route');
+if (receiptTemplate.boundary?.mutation_route_enabled !== false) throw new Error('receipt template must not enable mutation');
 if (status.boundary?.automatic_peer_dial_enabled_by_this_rollup !== false) throw new Error('status rollup must not enable automatic peer dial');
 if (status.boundary?.work_credit_claim_created !== false) throw new Error('status rollup must not create WC claim');
 if (quickstart.boundary?.work_credit_claim_created !== false) throw new Error('quickstart must not create WC claim');

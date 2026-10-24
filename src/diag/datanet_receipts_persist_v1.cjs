@@ -322,37 +322,155 @@ function renderProm(extra) {
   return out;
 }
 
+const RECEIPTS_PERSIST_METRICS_PATH = "/datanet/v1/metrics/receipts.persist.prom";
+
+async function receiptsPersistMetricsRoute(req, res) {
+  try {
+    const extra = await scanOnce();
+    res.status(200).type("text/plain; version=0.0.4").send(renderProm(extra));
+  } catch (e) {
+    const message = String(e?.message || "");
+    const reason = message === "scan_timeout"
+      ? "timeout"
+      : message === "line_too_large"
+        ? "line_too_large"
+        : "scan_failed";
+    res.status(200).type("text/plain; version=0.0.4").send(
+      renderProm({ file: receiptsFile(), missing: false }) +
+      "\n# err=1\n# err_reason=" + reason + "\n",
+    );
+  }
+}
+
+const EXPRESS4_ROUTER_GETTER_ERROR =
+  "'app.router' is deprecated!\n" +
+  "Please see the 3.x to 4.x migration guide for details on how to update your app.";
+
+function isExpectedExpress4RouterGetterError(key, error) {
+  if (key !== "router") return false;
+  return String(error?.message || error || "") === EXPRESS4_ROUTER_GETTER_ERROR;
+}
+
+function retainedRouteState(app, routePath, handler) {
+  let observedUnretained = false;
+  let unreadableAlias = false;
+  for (const key of ["_router", "router"]) {
+    try {
+      const router = app && app[key];
+      const stack = router && router.stack;
+      if (!stack || typeof stack.length !== "number") continue;
+      let stackIndeterminate = false;
+      for (let index = 0; index < stack.length; index += 1) {
+        const route = stack[index] && stack[index].route;
+        if (!route || route.path !== routePath) continue;
+        const methods = route.methods;
+        if (methods && methods.get !== true) continue;
+        const routeStack = route.stack;
+        if (!routeStack || typeof routeStack.length !== "number") {
+          stackIndeterminate = true;
+          continue;
+        }
+        for (let routeIndex = 0; routeIndex < routeStack.length; routeIndex += 1) {
+          const layer = routeStack[routeIndex];
+          if (layer && layer.handle === handler) return true;
+        }
+      }
+      if (!stackIndeterminate) observedUnretained = true;
+    } catch (error) {
+      if (!isExpectedExpress4RouterGetterError(key, error)) {
+        unreadableAlias = true;
+      }
+    }
+  }
+  if (unreadableAlias) return null;
+  if (observedUnretained) return false;
+  return null;
+}
+
 function mountOnce() {
   const app = getApp();
   if (!app || typeof app.get !== "function") return false;
-  if (app.__void_datanet_receipts_persist_v1_mounted) return true;
-  app.__void_datanet_receipts_persist_v1_mounted = true;
+  if (app.__void_datanet_receipts_persist_v1_mounted) {
+    app.__void_datanet_receipts_persist_v1_mount_state = "bound";
+    return true;
+  }
+  if (app.__void_datanet_receipts_persist_v1_mount_state === "bound") return true;
+  if (app.__void_datanet_receipts_persist_v1_mount_state === "indeterminate") return true;
 
-  app.get("/datanet/v1/metrics/receipts.persist.prom", async (req, res) => {
-    try {
-      const extra = await scanOnce();
-      res.status(200).type("text/plain; version=0.0.4").send(renderProm(extra));
-    } catch (e) {
-      const message = String(e?.message || "");
-      const reason = message === "scan_timeout"
-        ? "timeout"
-        : message === "line_too_large"
-          ? "line_too_large"
-          : "scan_failed";
-      res.status(200).type("text/plain; version=0.0.4").send(
-        renderProm({ file: receiptsFile(), missing: false }) +
-        "\n# err=1\n# err_reason=" + reason + "\n",
-      );
+  if (retainedRouteState(app, RECEIPTS_PERSIST_METRICS_PATH, receiptsPersistMetricsRoute) === true) {
+    app.__void_datanet_receipts_persist_v1_mounted = true;
+    app.__void_datanet_receipts_persist_v1_mount_state = "bound";
+    return true;
+  }
+
+  app.__void_datanet_receipts_persist_v1_mount_state = "indeterminate";
+  try {
+    app.get(RECEIPTS_PERSIST_METRICS_PATH, receiptsPersistMetricsRoute);
+    app.__void_datanet_receipts_persist_v1_mounted = true;
+    app.__void_datanet_receipts_persist_v1_mount_state = "bound";
+  } catch (error) {
+    const retained = retainedRouteState(
+      app,
+      RECEIPTS_PERSIST_METRICS_PATH,
+      receiptsPersistMetricsRoute,
+    );
+    if (retained === true) {
+      app.__void_datanet_receipts_persist_v1_mounted = true;
+      app.__void_datanet_receipts_persist_v1_mount_state = "bound";
+    } else if (retained === false) {
+      app.__void_datanet_receipts_persist_v1_mount_state = "idle";
     }
-  });
+    throw error;
+  }
 
-  try { console.error("[datanet_receipts_persist_v1] mounted: /datanet/v1/metrics/receipts.persist.prom"); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_RECEIPTS_PERSIST_V1_CJS_26_1_VISIBLE", __void_diag_pack3_err); }
+  try { console.error("[datanet_receipts_persist_v1] mounted: " + RECEIPTS_PERSIST_METRICS_PATH); } catch (__void_diag_pack3_err) { __voidSrcDiagPack3Visible("VOID_SRC_DIAG_DATANET_RECEIPT_PACK3_DATANET_RECEIPTS_PERSIST_V1_CJS_26_1_VISIBLE", __void_diag_pack3_err); }
   return true;
+}
+
+function reportMountError(error) {
+  const message =
+    "[datanet_receipts_persist_v1] mount attempt failed: " +
+    String(error?.message || error || "unknown");
+  try {
+    console.error(message);
+    return true;
+  } catch (consoleError) {
+    const fallback =
+      message +
+      "; console_error=" +
+      String(consoleError?.message || consoleError || "unknown");
+    try {
+      if (
+        typeof process !== "undefined" &&
+        process.stderr &&
+        typeof process.stderr.write === "function"
+      ) {
+        process.stderr.write(fallback + "\\n");
+        return true;
+      }
+    } catch (stderrError) {
+      void stderrError;
+    }
+    return false;
+  }
 }
 
 let tries = 0;
 const iv = setInterval(() => {
   tries++;
-  if (mountOnce()) { clearInterval(iv); return; }
+  try {
+    if (mountOnce()) { clearInterval(iv); return; }
+  } catch (error) {
+    reportMountError(error);
+  }
+  const app = getApp();
+  if (
+    app &&
+    (app.__void_datanet_receipts_persist_v1_mount_state === "bound" ||
+      app.__void_datanet_receipts_persist_v1_mount_state === "indeterminate")
+  ) {
+    clearInterval(iv);
+    return;
+  }
   if (tries >= 200) { clearInterval(iv); }
 }, 250);

@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 import io
 import os
+import signal
 from pathlib import Path
 import stat
 import tempfile
@@ -13,7 +14,7 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 TARGET_REL="ops/precision/void_buy_void_epoch2_dormant_first_entry_protected_bootstrap_atomic_upgrade_v1.py"
 TARGET=ROOT/TARGET_REL
-TARGET_BLOB="3fe1158a0fdf19fa4307c2a8122314b75ee36345"
+TARGET_BLOB="0c3f06b307d7b8733ff93a4211bea736aa54f003"
 
 def git_blob(raw:bytes)->str:
     return hashlib.sha1(b"blob "+str(len(raw)).encode()+b"\0"+raw).hexdigest()
@@ -29,6 +30,14 @@ for required in (
     "plan_bindings_changed_before_exchange",
     "plan_bindings_changed_after_exchange",
     "published_rolled_back_green",
+    "rename_outcome_reconciliation_required=true",
+    "rename_succeeded=False",
+    "rename_succeeded=True",
+    'outcome["rename_succeeded"]=True',
+    "return layout,caught,rename_succeeded",
+    "atomic_exchange_succeeded_but_layout_reverted",
+    "exchange_attempted=False",
+    "retention_attempted=False",
     "rollback_available=true",
     "protected_root_mutation_performed=false",
     "bootstrap_execution=false",
@@ -36,6 +45,7 @@ for required in (
     "service_mutation=false",
     "credential_access=false",
     "funds_movement=false",
+    "automatic_retry=false",
 ):
     assert required in text,required
 for forbidden in ("import subprocess","subprocess.","os.system(","os.exec","systemctl"):
@@ -169,6 +179,195 @@ try:
         finally:
             m.rebind=real_rebind
 
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-interrupt-exchange-") as d:
+        td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
+        result=m.collect(boot,man,"c"*40)
+        real_rename=fake._renameat2; calls={"n":0}
+        mask_before=signal.pthread_sigmask(signal.SIG_BLOCK,set())
+        def interrupt_after_exchange(*args,**kwargs):
+            calls["n"]+=1
+            real_rename(*args,**kwargs)
+            if calls["n"]==1:
+                os.kill(os.getpid(),signal.SIGINT)
+        fake._renameat2=interrupt_after_exchange
+        try:
+            m.apply(boot,man,"c"*40,result["plan_id"],m.CONFIRM)
+        except m.PublishedError as exc:
+            rec=m.failure_receipt(exc)
+            assert str(exc)=="atomic_upgrade_rolled_back_after_failure"
+            assert rec["publication"]=="true"
+            assert rec["publication_state"]=="published_rolled_back_green"
+            assert rec["rollback_green"]=="true"
+            assert (m.INSTALL_ROOT/m.BIN/m.BOOT).read_bytes()==old_boot
+            assert not m.STAGE_ROOT.exists()
+            assert not m.PREDECESSOR_ROOT.exists()
+        else:
+            raise AssertionError("interrupt after exchange did not reconcile publication")
+        finally:
+            fake._renameat2=real_rename
+            assert signal.pthread_sigmask(signal.SIG_BLOCK,set())==mask_before
+
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-interrupt-post-return-exchange-") as d:
+        td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
+        result=m.collect(boot,man,"f"*40)
+        real_observed=m.observed_rename; calls={"n":0}
+        def interrupt_after_observation(*args,**kwargs):
+            layout,handoff_error,rename_succeeded=real_observed(*args,**kwargs)
+            calls["n"]+=1
+            if calls["n"]==1:
+                raise KeyboardInterrupt("synthetic_post_return_exchange_interrupt")
+            return layout,handoff_error,rename_succeeded
+        m.observed_rename=interrupt_after_observation
+        try:
+            m.apply(boot,man,"f"*40,result["plan_id"],m.CONFIRM)
+        except m.PublishedError as exc:
+            rec=m.failure_receipt(exc)
+            assert str(exc)=="atomic_upgrade_rolled_back_after_failure"
+            assert rec["publication"]=="true"
+            assert rec["publication_state"]=="published_rolled_back_green"
+            assert rec["rollback_attempted"]=="true"
+            assert rec["rollback_green"]=="true"
+            assert rec["rollback_final_state_verified"]=="true"
+            assert (m.INSTALL_ROOT/m.BIN/m.BOOT).read_bytes()==old_boot
+            assert not m.STAGE_ROOT.exists()
+            assert not m.PREDECESSOR_ROOT.exists()
+            assert calls["n"]>=2
+        else:
+            raise AssertionError("post-return exchange interrupt did not rollback")
+        finally:
+            m.observed_rename=real_observed
+
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-success-reverted-before-observation-") as d:
+        td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
+        result=m.collect(boot,man,"9"*40)
+        real_layout=m.root_layout; calls={"n":0}
+        mask_before=signal.pthread_sigmask(signal.SIG_BLOCK,set())
+        def restore_ready_before_observation(*args,**kwargs):
+            calls["n"]+=1
+            if calls["n"]==2:
+                fd=os.open(m.INSTALL_PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
+                try:
+                    fake._renameat2(fd,m.STAGE_NAME,m.INSTALL_NAME,m.RENAME_EXCHANGE)
+                finally:
+                    os.close(fd)
+            return real_layout(*args,**kwargs)
+        m.root_layout=restore_ready_before_observation
+        try:
+            m.apply(boot,man,"9"*40,result["plan_id"],m.CONFIRM)
+        except m.PublishedError as exc:
+            rec=m.failure_receipt(exc)
+            assert str(exc)=="atomic_exchange_succeeded_but_layout_reverted"
+            assert rec["publication"]=="true"
+            assert rec["publication_state"]=="published_needs_inspection"
+            assert rec["rollback_attempted"]=="false"
+            assert rec["rollback_green"]=="false"
+            assert (m.INSTALL_ROOT/m.BIN/m.BOOT).read_bytes()==old_boot
+            assert (m.STAGE_ROOT/m.BIN/m.BOOT).read_bytes()==new_boot
+            assert not m.PREDECESSOR_ROOT.exists()
+            assert calls["n"]==2
+        else:
+            raise AssertionError("successful exchange reverted to READY lost publication truth")
+        finally:
+            m.root_layout=real_layout
+            assert signal.pthread_sigmask(signal.SIG_BLOCK,set())==mask_before
+
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-interrupt-post-return-reverted-") as d:
+        td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
+        result=m.collect(boot,man,"8"*40)
+        real_observed=m.observed_rename; calls={"n":0}
+        mask_before=signal.pthread_sigmask(signal.SIG_BLOCK,set())
+        def revert_ready_then_interrupt(*args,**kwargs):
+            layout,handoff_error,rename_succeeded=real_observed(*args,**kwargs)
+            calls["n"]+=1
+            if calls["n"]==1:
+                assert layout==m.LAYOUT_EXCHANGED and handoff_error is None and rename_succeeded is True
+                fd=os.open(m.INSTALL_PARENT,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
+                try:
+                    fake._renameat2(fd,m.STAGE_NAME,m.INSTALL_NAME,m.RENAME_EXCHANGE)
+                finally:
+                    os.close(fd)
+                os.kill(os.getpid(),signal.SIGINT)
+                raise AssertionError("fresh SIGINT did not interrupt tuple assignment")
+            return layout,handoff_error,rename_succeeded
+        m.observed_rename=revert_ready_then_interrupt
+        try:
+            m.apply(boot,man,"8"*40,result["plan_id"],m.CONFIRM)
+        except m.PublishedError as exc:
+            rec=m.failure_receipt(exc)
+            assert str(exc)=="atomic_upgrade_exchange_succeeded_ready_needs_inspection"
+            assert rec["publication"]=="true"
+            assert rec["publication_state"]=="published_needs_inspection"
+            assert rec["rollback_attempted"]=="false"
+            assert rec["rollback_green"]=="false"
+            assert rec["rollback_final_state_verified"]=="false"
+            assert (m.INSTALL_ROOT/m.BIN/m.BOOT).read_bytes()==old_boot
+            assert (m.STAGE_ROOT/m.BIN/m.BOOT).read_bytes()==new_boot
+            assert not m.PREDECESSOR_ROOT.exists()
+            assert calls["n"]==1
+        else:
+            raise AssertionError("return-boundary reverted layout lost successful exchange truth")
+        finally:
+            m.observed_rename=real_observed
+            assert signal.pthread_sigmask(signal.SIG_BLOCK,set())==mask_before
+
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-interrupt-retention-") as d:
+        td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
+        result=m.collect(boot,man,"d"*40)
+        real_rename=fake._renameat2; calls={"n":0}
+        mask_before=signal.pthread_sigmask(signal.SIG_BLOCK,set())
+        def interrupt_after_retention(*args,**kwargs):
+            calls["n"]+=1
+            real_rename(*args,**kwargs)
+            if calls["n"]==2:
+                os.kill(os.getpid(),signal.SIGINT)
+        fake._renameat2=interrupt_after_retention
+        try:
+            m.apply(boot,man,"d"*40,result["plan_id"],m.CONFIRM)
+        except m.PublishedError as exc:
+            rec=m.failure_receipt(exc)
+            assert str(exc)=="atomic_upgrade_rolled_back_after_failure"
+            assert rec["publication"]=="true"
+            assert rec["publication_state"]=="published_rolled_back_green"
+            assert rec["rollback_green"]=="true"
+            assert (m.INSTALL_ROOT/m.BIN/m.BOOT).read_bytes()==old_boot
+            assert not m.STAGE_ROOT.exists()
+            assert not m.PREDECESSOR_ROOT.exists()
+        else:
+            raise AssertionError("interrupt after retention did not reconcile publication")
+        finally:
+            fake._renameat2=real_rename
+            assert signal.pthread_sigmask(signal.SIG_BLOCK,set())==mask_before
+
+    with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-layout-inspection-failure-") as d:
+        td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
+        result=m.collect(boot,man,"e"*40)
+        real_layout=m.root_layout; calls={"n":0}
+        mask_before=signal.pthread_sigmask(signal.SIG_BLOCK,set())
+        def unavailable_after_attempt(*args,**kwargs):
+            calls["n"]+=1
+            if calls["n"]>=2:
+                raise OSError("synthetic_layout_unavailable")
+            return real_layout(*args,**kwargs)
+        m.root_layout=unavailable_after_attempt
+        try:
+            m.apply(boot,man,"e"*40,result["plan_id"],m.CONFIRM)
+        except m.PublishedError as exc:
+            rec=m.failure_receipt(exc)
+            assert str(exc)=="rename_outcome_needs_inspection"
+            assert rec["publication"]=="true"
+            assert rec["publication_state"]=="published_needs_inspection"
+            assert rec["rollback_attempted"]=="false"
+            assert rec["rollback_green"]=="false"
+            assert (m.INSTALL_ROOT/m.BIN/m.BOOT).read_bytes()==new_boot
+            assert (m.STAGE_ROOT/m.BIN/m.BOOT).read_bytes()==old_boot
+            assert not m.PREDECESSOR_ROOT.exists()
+            assert calls["n"]==2
+        else:
+            raise AssertionError("layout inspection failure lost publication truth")
+        finally:
+            m.root_layout=real_layout
+            assert signal.pthread_sigmask(signal.SIG_BLOCK,set())==mask_before
+
     with tempfile.TemporaryDirectory(prefix="void-e2-bootstrap-upgrade-foreign-") as d:
         td=Path(d); boot,man,old_boot,new_boot,old_man,new_man=configure(td)
         fd=os.open(td,os.O_RDONLY|os.O_DIRECTORY|os.O_CLOEXEC)
@@ -191,6 +390,18 @@ print("success_atomic_exchange_exercised=true")
 print("predecessor_retention_exercised=true")
 print("post_exchange_failure_rollback_exercised=true")
 print("publication_truth_monotonic=true")
+print("rename_outcome_layout_reconciled=true")
+print("interrupt_after_exchange_reconciled=true")
+print("interrupt_after_retention_reconciled=true")
+print("pending_sigint_after_exchange_reconciled=true")
+print("post_return_exchange_interrupt_rollback_exercised=true")
+print("pending_sigint_after_retention_reconciled=true")
+print("successful_exchange_reverted_layout_publication_aware=true")
+print("successful_exchange_reverted_layout_prepublication_cleanup=false")
+print("post_return_reverted_layout_interrupt_publication_aware=true")
+print("layout_inspection_failure_publication_aware=true")
+print("signal_mask_restored_after_layout_failure=true")
+print("inspection_failure_automatic_retry_false=true")
 print("foreign_stage_cleanup_refused=true")
 print("bootstrap_execution=false")
 print("inner_installer_execution=false")

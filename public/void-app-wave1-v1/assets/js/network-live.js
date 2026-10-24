@@ -1044,7 +1044,7 @@ const networkShell = () => `
         <div class="hero-content">
           <span class="status-chip status-chip--info" data-network-live-chip>Checking network</span>
           <h2 id="network-live-title" data-network-live-title>Reading the read-only network adapter</h2>
-          <p data-network-live-summary>No topology claim is shown until the exact read-only snapshot validates.</p>
+          <p data-network-live-summary role="status" aria-live="polite" aria-atomic="true">No topology claim is shown until the exact read-only snapshot validates.</p>
         </div>
         <aside class="hero-aside" aria-label="Live network summary">
           <div class="signal-line"><span>Network</span><strong data-network-name>MAINNET-0</strong></div>
