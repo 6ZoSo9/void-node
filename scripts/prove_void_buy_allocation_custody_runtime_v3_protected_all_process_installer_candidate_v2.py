@@ -247,6 +247,12 @@ assert '"_voidfs" not in _bootstrap_sys.builtin_module_names' in source
 assert 'getattr(spec, "origin", None) != "built-in"' in source
 assert 'public != ["rename_noreplace"]' in source
 
+production_bridge = source.split(
+    "def _voidfs_rename_noreplace(", 1
+)[1].split("def _stat_nofollow_at", 1)[0]
+assert "os.rename(" not in production_bridge
+assert "_fixture_rename_noreplace" not in production_bridge
+
 assert source.index("os.fsync(file_fd)") < source.index(
     "rename_fn(parent_fd, stage_name, install_name)"
 )
@@ -522,6 +528,8 @@ print("ctypes_forbidden=true")
 print("dynamic_symbol_lookup_forbidden=true")
 print("libc_symbol_lookup_fallback=false")
 print("same_parent_fd_publication_required=true")
+print("production_voidfs_bridge_no_os_rename_fallback=true")
+print("fixed_entrypoint_no_bridge_override=true")
 print("source_fsync_before_publication=true")
 print("stage_directory_fsync_before_publication=true")
 print("parent_fsync_after_publication=true")
