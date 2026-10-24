@@ -258,5 +258,5 @@ jobs:
           assert.equal(lock.funds_movement,false);
           console.log("lock_json_sha256="+crypto.createHash("sha256").update(lockBytes).digest("hex"));
           console.log("accepted_enforcement_set_sha256="+lock.candidate_evidence.candidate_enforcement_set_sha256);
-          console.log("candidate_enforcement_identity_accepted=true");
+          console.log("historical_v2_lock_candidate_enforcement_identity_accepted=true");
           NODE
