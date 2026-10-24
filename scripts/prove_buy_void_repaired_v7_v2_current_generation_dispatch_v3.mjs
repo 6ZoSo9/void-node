@@ -131,6 +131,9 @@ const LOCK_BLOB="589845615654da8b688764377b34296267ac0063";
 const CENSUS_ID="voidbefv7c4_9c8fa20632d3cfb431c0d13229153d19f076613720c7402e5374eab1f833401d";
 const CENSUS_SHA256="c9d910cd461b87c6b4722ada7505ceffe9a8d3c266387f3d9bbebddaf8f586f8";
 const PROTECTED_INVENTORY="224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2";
+const PROTECTED_RANGE_ROUTER_PATH="src/index.ts";
+const PROTECTED_RANGE_ROUTER_PREDECESSOR_BLOB="123ec1792a027f93d4c9030749a0e7e136a75a44";
+const PROTECTED_RANGE_ROUTER_SOURCE_BLOB="a09661797aa4295371c036be36d82995e5233269";
 
 const PROVIDER_EVIDENCE="ops/security/buy-void-delivery-dependency-provider-closure-post2865-v1.json";
 const PROVIDER_EVIDENCE_BLOB="b08c03912e0f66742f06f314bf5e1f5cad81f20f";
@@ -556,14 +559,43 @@ function verifyProtectedCurrentIdentity(candidate){
   assert.equal(rows.length,49);
   const paths=rows.map(row=>row.path);
   assert.equal(new Set(paths).size,49,"protected_path_duplicate");
+
+  const protectedDrift=[];
   for(const row of rows){
-    assert.equal(treeBlob("HEAD",row.path),row.git_blob_sha1,"protected_blob_drift:"+row.path);
-    assert.equal(treeMode("HEAD",row.path),row.git_mode,"protected_mode_drift:"+row.path);
+    const currentBlob=treeBlob("HEAD",row.path);
+    const currentMode=treeMode("HEAD",row.path);
+    if(row.path===PROTECTED_RANGE_ROUTER_PATH){
+      assert.equal(row.git_blob_sha1,PROTECTED_RANGE_ROUTER_PREDECESSOR_BLOB,
+        "protected_range_router_predecessor_drift");
+      assert.equal(currentBlob,PROTECTED_RANGE_ROUTER_SOURCE_BLOB,
+        "protected_range_router_source_drift");
+      assert.equal(currentMode,row.git_mode,
+        "protected_range_router_mode_drift");
+      protectedDrift.push({
+        path:row.path,
+        from_git_blob_sha1:row.git_blob_sha1,
+        to_git_blob_sha1:currentBlob,
+        git_mode:currentMode,
+      });
+      continue;
+    }
+    assert.equal(currentBlob,row.git_blob_sha1,"protected_blob_drift:"+row.path);
+    assert.equal(currentMode,row.git_mode,"protected_mode_drift:"+row.path);
   }
+  assert.deepEqual(
+    protectedDrift,
+    [{
+      path:PROTECTED_RANGE_ROUTER_PATH,
+      from_git_blob_sha1:PROTECTED_RANGE_ROUTER_PREDECESSOR_BLOB,
+      to_git_blob_sha1:PROTECTED_RANGE_ROUTER_SOURCE_BLOB,
+      git_mode:"100644",
+    }],
+    "protected_current_generation_drift_set_invalid",
+  );
   assert.equal(
     sha256(Buffer.from(canonical(rows),"utf8")),
     candidate.current_enforcement_tracked_source_inventory_sha256,
-    "protected_inventory_digest_drift",
+    "historical_protected_inventory_digest_drift",
   );
 
   const economicDrift=names(
@@ -597,9 +629,8 @@ function verifyProtectedCurrentIdentity(candidate){
     assert.equal(treeBlob("HEAD",relative),blob,
       "v2_added_economic_source_not_exact:"+relative);
   }
-  return paths;
+  return {paths,protectedDrift};
 }
-
 function verifyBuiltCensusIdentity(candidate){
   const artifacts=ARTIFACT_PATHS.map(relative=>{
     const b=read(relative,2*1024*1024);
@@ -719,7 +750,7 @@ function verify(){
   verifyV2AcceptedSourceAdditions();
   verifyV2PredecessorRefusal();
   const frozen=verifyFrozenEvidence();
-  const protectedPaths=verifyProtectedCurrentIdentity(frozen.candidate);
+  const protectedState=verifyProtectedCurrentIdentity(frozen.candidate);
   verifyBuiltCensusIdentity(frozen.candidate);
   const provider=verifyProviderIdentity();
   verifyWorkflowDispatch();
@@ -732,8 +763,11 @@ function verify(){
     restack_base:RESTACK_BASE,
     accepted_restack_head:RESTACK_HEAD,
     protected_parent:PROTECTED_PARENT,
-    protected_path_count:protectedPaths.length,
-    protected_path_identity_preserved:true,
+    protected_path_count:protectedState.paths.length,
+    protected_path_identity_preserved:false,
+    protected_range_router_drift_classified:true,
+    protected_current_generation_drift:protectedState.protectedDrift,
+    current_protected_source_generation_accepted:false,
     frozen_candidate_json_sha256:CANDIDATE_SHA256,
     frozen_candidate_enforcement_set_sha256:CANDIDATE_SET,
     frozen_candidate_rederived_on_current_head:false,
@@ -799,6 +833,8 @@ if(args.length===0||(args.length===1&&args[0]==="--self-test")){
   console.log("verified_payment_v2_route_mounted=false");
   console.log("independent_source_acceptance_complete=false");
   console.log("protected_path_identity_preserved="+receipt.protected_path_identity_preserved);
+  console.log("protected_range_router_drift_classified="+receipt.protected_range_router_drift_classified);
+  console.log("current_protected_source_generation_accepted="+receipt.current_protected_source_generation_accepted);
   console.log("protected_path_count="+receipt.protected_path_count);
   console.log("nonprotected_economic_drift_count="+receipt.nonprotected_economic_drift_count);
   console.log("provider_source_identity_preserved="+receipt.provider_source_identity_preserved);
