@@ -12,7 +12,7 @@ TARGET = (
     / "native/"
     "void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v1.c"
 )
-EXPECTED_SOURCE_BLOB = "e4c6e77190844ca750b16d0375189371fdd15642"
+EXPECTED_SOURCE_BLOB = "1bbe19704a3d1f89b8fe1bfc3759e202ba85594c"
 PLAN = (
     ROOT
     / "ops/precision/"
@@ -77,10 +77,6 @@ required_compile_bindings = (
     "VOID_PYTHON_STDLIB_MODE",
     "VOID_PYTHON_STDLIB_BYTES",
     "VOID_PYTHON_STDLIB_SHA256_HEX",
-    "VOID_PYTHON_DYNLOAD_PATH",
-    "VOID_PYTHON_DYNLOAD_MODE",
-    "VOID_RUNTIME_FILE_COUNT",
-    "VOID_RUNTIME_FILE_TABLE",
     "VOID_INSTALLER_FD",
     "VOID_PYTHON_FD",
 )
@@ -99,6 +95,7 @@ for forbidden in (
     '#define VOID_PYTHON_STDLIB_PATH "',
     '#define VOID_PYTHON_STDLIB_SHA256_HEX "',
     '#define VOID_PYTHON_DYNLOAD_PATH "',
+    '#define VOID_RUNTIME_FILE_TABLE(',
     "/opt/void-buy-allocation-custody-procref-installer-first-entry-v1",
 ):
     assert forbidden not in source, forbidden
@@ -114,15 +111,15 @@ for required in (
     "setgroups(0, NULL)",
     'open("/proc/self/exe", O_RDONLY|O_CLOEXEC)',
     "verify_ancestry(VOID_FIRST_ENTRY_BIN);",
-    "VOID_RUNTIME_FILE_TABLE(VOID_VERIFY_RUNTIME_ROW)",
-    "path_is_direct_child_of",
-    "runtime_path_is_bound",
-    "verify_dynload_directory_closure",
-    "runtime_row_not_direct_dynload_child",
-    "dynload_unbound_entry",
-    "dynload_nonregular_entry_forbidden",
     "VOID_PYTHON_STDLIB_SHA256_HEX",
-    "VOID_PYTHON_DYNLOAD_MODE",
+    "verify_static_elf64_x86_64_fd",
+    "ELFCLASS64",
+    "ELFDATA2LSB",
+    "ET_EXEC",
+    "EM_X86_64",
+    "PT_INTERP",
+    "PT_DYNAMIC",
+    "PT_LOAD",
     "open_verified_regular(",
     "VOID_INSTALLER_SHA256_HEX",
     "VOID_PYTHON_SHA256_HEX",
@@ -210,12 +207,6 @@ with tempfile.TemporaryDirectory(
 #define VOID_PYTHON_STDLIB_MODE 0444
 #define VOID_PYTHON_STDLIB_BYTES 500
 #define VOID_PYTHON_STDLIB_SHA256_HEX "3333333333333333333333333333333333333333333333333333333333333333"
-#define VOID_PYTHON_DYNLOAD_PATH "/synthetic/runtime/lib/python/lib-dynload"
-#define VOID_PYTHON_DYNLOAD_MODE 0555
-#define VOID_RUNTIME_FILE_COUNT 2
-#define VOID_RUNTIME_FILE_TABLE(X) \
-  X("/synthetic/runtime/lib/python/a.py",0444,10,"1111111111111111111111111111111111111111111111111111111111111111") \
-  X("/synthetic/runtime/lib/python/lib-dynload/b.so",0555,20,"2222222222222222222222222222222222222222222222222222222222222222")
 #define VOID_INSTALLER_FD 198
 #define VOID_PYTHON_FD 199
 #endif
@@ -284,10 +275,12 @@ print("self_exe_generation_source_bound=true")
 print("root_owned_nonwritable_ancestry_source_bound=true")
 print("native_sha256_file_verification_source_bound=true")
 print("stdlib_archive_exact_identity_source_bound=true")
-print("runtime_closure_table_source_bound=true")
-print("runtime_rows_direct_dynload_children_required=true")
-print("closed_dynload_namespace_source_bound=true")
-print("unlisted_dynload_entries_rejected_source_bound=true")
+print("python_sys_path_stdlib_zip_only=true")
+print("dynamic_extension_namespace_absent=true")
+print("static_python_elf64_x86_64_required=true")
+print("static_python_pt_interp_forbidden=true")
+print("static_python_pt_dynamic_forbidden=true")
+print("static_python_pt_load_required=true")
 print("retained_installer_fd_source_bound=true")
 print("retained_python_fd_source_bound=true")
 print("stdin_dev_null_source_bound=true")
