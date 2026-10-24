@@ -21,8 +21,11 @@ request or payment mutation proceeds.
 
 The disposable V2 proof performs a real regular-to-FIFO substitution on the
 private high-water leaf after production lstat and before production open. The
-hook first requires the actual production flags to contain `O_NONBLOCK`, so a
-future flag regression fails immediately rather than hanging CI.
+hook first requires the actual production flags to contain `O_NONBLOCK`, then
+requires `mkfifo` to create a real FIFO and requires the real kernel open to
+return before accepting the expected production HOLD. Fixture-setup or kernel-
+open errors are rethrown outside the observer's fail-closed catch boundary, so
+a failed adversary cannot be misreported as GREEN.
 
 This successor does not read deployed custody evidence, provision credentials,
 enable a writer, activate Buy VOID/WC-VOID, sign or broadcast a transaction, or

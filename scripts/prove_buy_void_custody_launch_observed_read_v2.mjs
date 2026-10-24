@@ -126,6 +126,9 @@ try {
   fs.renameSync(highWater+".normal",highWater);
 
   let attacked=false;
+  let fifoCreated=false;
+  let kernelOpenCompleted=false;
+  let fifoFixtureError=null;
   const fifoOriginal=highWater+".fifo-original";
   try{
     fs.openSync=function(p,flags,...args){
@@ -134,19 +137,39 @@ try {
           p.endsWith("/"+path.basename(highWater))){
         assert.ok((Number(flags)&fs.constants.O_NONBLOCK)!==0,
           "custody launch leaf open lost O_NONBLOCK");
-        attacked=true;
-        fs.renameSync(highWater,fifoOriginal);
-        execFileSync("/usr/bin/mkfifo",[highWater],{
-          stdio:"ignore",
-          env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
-        });
-        fs.chmodSync(highWater,0o600);
+        try{
+          fs.renameSync(highWater,fifoOriginal);
+          execFileSync("/usr/bin/mkfifo",[highWater],{
+            stdio:"ignore",
+            env:{PATH:"/usr/bin:/bin",HOME:"/nonexistent",LANG:"C",LC_ALL:"C"},
+          });
+          fifoCreated=fs.lstatSync(highWater).isFIFO();
+          assert.equal(fifoCreated,true,
+            "custody launch FIFO fixture was not created");
+          fs.chmodSync(highWater,0o600);
+          attacked=true;
+        }catch(error){
+          fifoFixtureError=error;
+          throw error;
+        }
+        try{
+          const fd=originalOpen.call(fs,p,flags,...args);
+          kernelOpenCompleted=true;
+          return fd;
+        }catch(error){
+          fifoFixtureError=error;
+          throw error;
+        }
       }
       return originalOpen.call(fs,p,flags,...args);
     };
     const fifoHeld=held();
-    assert.equal(fifoHeld.reason,"evidence_descriptor_or_path_unqualified");
+    if(fifoFixtureError)throw fifoFixtureError;
     assert.equal(attacked,true,"custody launch FIFO adversary did not execute");
+    assert.equal(fifoCreated,true,"custody launch FIFO fixture creation not proven");
+    assert.equal(kernelOpenCompleted,true,
+      "custody launch FIFO kernel open did not complete");
+    assert.equal(fifoHeld.reason,"evidence_descriptor_or_path_unqualified");
   } finally {
     fs.openSync=originalOpen;
     if(fs.existsSync(highWater))fs.unlinkSync(highWater);
@@ -239,6 +262,8 @@ try {
   console.log("custody_high_water_permissions_fail_closed=true");
   console.log("leaf_symlink_rejected=true");
   console.log("leaf_fifo_substitution_nonblocking=true");
+  console.log("leaf_fifo_fixture_created=true");
+  console.log("leaf_fifo_kernel_open_completed=true");
   console.log("ancestor_preopen_swap_rejected=true");
   console.log("ancestor_during_read_swap_rejected=true");
   console.log("same_size_in_place_mutation_rejected=true");
