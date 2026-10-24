@@ -15,7 +15,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_process_reference_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "4de1cb35a43045a0d9568b3bf4c10904c3653d34"
+EXPECTED_SOURCE_BLOB = "a1368a6460bb7bb783371cdd1c8da3fb874a3ca9"
 
 
 def git_blob(raw: bytes) -> str:
@@ -40,7 +40,7 @@ assert module.SCHEMA == (
     "void_buy_void_custody_runtime_v3_process_reference_census_v1"
 )
 assert module.PRESTATE_SOURCE_BLOB == (
-    "e32ebd94ad09cd80e03489079e74657aab159d7a"
+    "4d9c6e5809a5cc64454626760f71e60ed99354bc"
 )
 assert module.ARCHIVE_LOCK_BLOB == (
     "edb4ea2b833373ab387762e45ba7da4032c860f3"
