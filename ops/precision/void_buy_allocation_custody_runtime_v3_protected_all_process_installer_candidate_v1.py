@@ -517,10 +517,28 @@ def apply_create_only_algorithm(
             raise InstallError("staging_root_present")
 
         os.mkdir(stage_name, 0o700, dir_fd=parent_fd)
+        stage_visible_initial = os.stat(
+            stage_name,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        if (
+            not stat.S_ISDIR(stage_visible_initial.st_mode)
+            or stat.S_ISLNK(stage_visible_initial.st_mode)
+        ):
+            raise InstallError("stage_initial_shape_invalid")
+        stage_identity = (
+            stage_visible_initial.st_dev,
+            stage_visible_initial.st_ino,
+        )
         stage_fd = os.open(stage_name, _directory_flags(), dir_fd=parent_fd)
         try:
             stage_st = os.fstat(stage_fd)
-            stage_identity = (stage_st.st_dev, stage_st.st_ino)
+            if (
+                (stage_st.st_dev, stage_st.st_ino) != stage_identity
+                or _identity(stage_visible_initial) != _identity(stage_st)
+            ):
+                raise InstallError("stage_initial_rebound")
             if stage_st.st_dev != parent_st.st_dev:
                 raise InstallError("stage_cross_filesystem")
             if (
@@ -627,14 +645,25 @@ def apply_create_only_algorithm(
         }
     except PublishedInstallError:
         raise
-    except BaseException:
-        if not published:
-            _cleanup_stage(
-                parent_fd,
-                stage_name=stage_name,
-                source_name=source_name,
-                stage_identity=stage_identity,
-            )
+    except BaseException as exc:
+        if not published and stage_identity is not None:
+            try:
+                cleanup_green = _cleanup_stage(
+                    parent_fd,
+                    stage_name=stage_name,
+                    source_name=source_name,
+                    stage_identity=stage_identity,
+                )
+            except BaseException as cleanup_exc:
+                raise InstallError(
+                    "prepublication_failure_stage_cleanup_error:"
+                    + type(cleanup_exc).__name__
+                ) from exc
+            if not cleanup_green:
+                raise InstallError(
+                    "prepublication_failure_stage_cleanup_incomplete:"
+                    + type(exc).__name__
+                ) from exc
         raise
     finally:
         os.close(parent_fd)
@@ -842,6 +871,8 @@ def self_test() -> None:
     print("create_only=true")
     print("destination_collision_rejected=true")
     print("staging_cleanup_before_publication=true")
+    print("stage_identity_bound_immediately_after_create=true")
+    print("cleanup_failure_explicit_hold=true")
     print("forced_rename_failure_cleanup_proven=true")
     print("kernel_rename_noreplace_required=true")
     print("source_fsync_required=true")
