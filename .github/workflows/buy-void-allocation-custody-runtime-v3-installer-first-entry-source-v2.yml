@@ -53,7 +53,7 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.c)" = "d7693320783bcd0e3a2c4ef6c4afd86123e3688e"
-          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py)" = "c0aec404064264b16504000ee5404751497c042a"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py)" = "0f69c02a45d9a539d21a98a418f35a3fe961b37d"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.md)" = "39b60fcda1d68d5d2ba831a8eebdfe8026f4a698"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json)" = "f9372da99d8ab9b3d5f7fddc6d8de0de605576f0"
 
