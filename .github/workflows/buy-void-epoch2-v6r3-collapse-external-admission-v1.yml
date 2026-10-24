@@ -1,0 +1,93 @@
+name: VOID Epoch2 V6R3 collapse external admission v1
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.yml"
+      - ".github/workflows/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.yml"
+      - ".github/workflows/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.yml"
+      - ".github/workflows/buy-void-epoch2-live-composition-runner-policy-candidate-v6r3.yml"
+      - ".github/workflows/buy-void-epoch2-live-composition-runner-policy-upgrade-plan-v6r3.yml"
+      - "docs/operators/buy-void-epoch2-dormant-candidate-v3r-live-binding-v4.md"
+      - "docs/operators/buy-void-epoch2-live-binding-source-runtime-compat-contract-v1.md"
+      - "docs/operators/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.md"
+      - "docs/operators/buy-void-epoch2-live-composition-runner-policy-candidate-v6r3.md"
+      - "docs/operators/buy-void-epoch2-live-composition-runner-policy-upgrade-plan-v6r3.md"
+      - "ops/precision/void_buy_void_epoch2_authenticated_credential_live_composition_v4.mjs"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_binding_native_preentry_v4.c"
+      - "ops/precision/void_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.mjs"
+      - "ops/precision/void_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py"
+      - "ops/precision/void_buy_void_epoch2_live_composition_runner_policy_upgrade_plan_v6r3.py"
+      - "ops/security/buy-void-epoch2-live-composition-runner-policy-candidate-lock-v6r3.json"
+      - "scripts/prove_buy_void_epoch2_dormant_candidate_v3r_live_binding_v4.py"
+      - "scripts/prove_buy_void_epoch2_live_binding_source_runtime_compat_contract_v1.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_runner_policy_candidate_lock_v6r3.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_runner_policy_candidate_v6r3.py"
+      - "scripts/prove_buy_void_epoch2_live_composition_runner_policy_upgrade_plan_v6r3.py"
+      - ".github/workflows/buy-void-epoch2-v6r3-collapse-external-admission-v1.yml"
+      - "docs/architecture/buy-void-epoch2-v6r3-collapse-external-admission-v1.md"
+      - "ops/security/buy-void-epoch2-v6r3-collapse-external-admission-v1.json"
+      - "scripts/prove_buy_void_epoch2_v6r3_collapse_external_admission_v1.py"
+
+permissions:
+  contents: read
+
+jobs:
+  admit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch and bind target collapse candidate
+        shell: bash
+        env:
+          TARGET_BRANCH: "ren/epoch2-v6r3-stack-collapse-current-main-v1-20261020"
+          EVENT_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          EVENT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --prune origin \
+            "+refs/heads/$TARGET_BRANCH:refs/remotes/origin/$TARGET_BRANCH"
+          candidate="$(git rev-parse "refs/remotes/origin/$TARGET_BRANCH")"
+          test -n "$candidate"
+          if [ "$EVENT_HEAD_REF" = "$TARGET_BRANCH" ]; then
+            test "$EVENT_BASE_REF" = "main"
+            test "$candidate" = "$EVENT_HEAD_SHA"
+            git merge-base --is-ancestor "$EVENT_BASE_SHA" "$candidate"
+            echo 'target_pr_event=true'
+          else
+            echo 'bootstrap_admission_event=true'
+          fi
+          printf 'candidate=%s\n' "$candidate" >> "$GITHUB_ENV"
+
+      - name: Prove external object admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/epoch2-collapse-admission.txt"
+          python3 -I -B scripts/prove_buy_void_epoch2_v6r3_collapse_external_admission_v1.py \
+            --candidate "$candidate" | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_EPOCH2_V6R3_COLLAPSE_EXTERNAL_ADMISSION_V1_GREEN' "$out"
+          grep -Fx 'path_count=21' "$out"
+          grep -Fx 'inherited_count=17' "$out"
+          grep -Fx 'adapted_count=4' "$out"
+          grep -Fx 'adapted_workflow_blob=3d1f8cc8a0d377063c9dd3ca3509648d3a859ec5' "$out"
+          grep -Fx 'candidate_content_admitted=true' "$out"
+          grep -Fx 'protected_host_install=false' "$out"
+          grep -Fx 'payment_acceptance=false' "$out"
+          grep -Fx 'public_presale_activation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
+
+      - name: Diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
