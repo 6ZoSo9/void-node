@@ -62,10 +62,36 @@ a1e1f4887787b408d313e73360966f93a63b2b58
 Hosted evidence:
 
 ```text
+source PR: 3808
+workflow id: 394779866
+workflow name: VOID Buy custody V3 protected all-process installer candidate v2
+workflow event: pull_request
 focused run: 40073107466
+focused run conclusion: success
 focused job: 120810613302
+focused job name: prove
 exact-head review: 5637294073
+exact-head review commit: 0eb7d49b10681ee7b29298ca325902671121ef5a
+exact-head review author: 6ZoSo9
 ```
+
+The lock proof does not accept those numbers merely because they are repeated in
+JSON. Focused CI fetches the referenced run, job-list and pull-request review
+through the read-only GitHub API and passes the returned JSON to the exact proof.
+The proof requires:
+
+- repository `6ZoSo9/void-node`;
+- workflow ID/name/path and `pull_request` event;
+- exact installer head `0eb7d49b10681ee7b29298ca325902671121ef5a`;
+- completed/successful focused run;
+- exact job membership, name `prove`, completed/successful conclusion and
+  run binding;
+- exact review ID, exact installer commit, author `6ZoSo9`, and receipt body
+  binding the same focused run/job.
+
+Synthetic copies with a wrong run head, failed job, or wrong review commit must
+be rejected before any hosted-qualification GREEN marker is emitted. The API
+access is read-only evidence retrieval; it does not change repository state.
 
 ## Accepted V2 source properties
 
@@ -91,7 +117,8 @@ This lock accepts the exact repaired V2 source boundary:
 - stage-generation-unknown, exact-generation cleanup, fsync ordering and
   truthful post-publication failure receipts remain bound.
 
-This lock accepts those exact source bytes only. It does not claim that the
+This lock accepts those exact source bytes only after the hosted qualification
+relationships above are revalidated by focused CI. It does not claim that the
 source has been placed under a protected root, compiled into a first-entry
 binary, or invoked with root authority.
 
