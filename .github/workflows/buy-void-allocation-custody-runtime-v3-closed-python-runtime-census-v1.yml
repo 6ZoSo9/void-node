@@ -47,7 +47,7 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py)" = \
             "8914d9e8031377e3bcda4770194024e2f6fed2fd"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py)" = \
-            "6dabae6832086da78449d1ea2197d0d76dd8eb1d"
+            "ef859fcea64d9a9b84279f68674301401224aa55"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-closed-python-runtime-census-v1.md)" = \
             "529b5e46983b4d514f9088ca60eda6c122ced9c8"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json)" = \
