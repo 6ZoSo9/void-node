@@ -74,8 +74,8 @@ jobs:
 
           test "$(git rev-parse HEAD:tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs)" = "f8281ffc9cfbfd2b810a11a10f8cb3ff8473fa95"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_payment_keyed_dispatcher-postgres-activation-contract-v1.ts)" = "674de094c6750a1f7498fa06efa6f7571edb3151"
-          test "$(git rev-parse HEAD:tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs)" = "c4413b4a8f9dfb95a31bce9613d0af7939233736"
-          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs)" = "e349a0e2e7bb5c61da58574f96bd5ff977170491"
+          test "$(git rev-parse HEAD:tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs)" = "38230df7822b3dcbdc24a42e4fd2e2c24cc43009"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs)" = "95f4ac1c4c764feed6b1782c22f1ec1038518015"
 
           node tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs > "$RUNNER_TEMP/current-activation-candidate.log"
           grep -Fx 'status=candidate_verified_activation_not_authorized' "$RUNNER_TEMP/current-activation-candidate.log"
