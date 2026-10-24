@@ -12,7 +12,7 @@ Current exact role/stager identities:
 - source-stage installer: Git blob `d88a9548ea34b8209ed7dcd53732fd25dd1371bf`;
 - receipt-stage installer: Git blob `b462696826b4f90fdf5f4938cd5467e5711addab`.
 
-This plan's exact machine source is `ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json`, Git blob `932fffe5fd5ba5d996f8cb6fd8928a618a9f92fb`. The exact source proof is `scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py`, Git blob `0a32190afaa03674d8b4f575d8f8d00cda39338a`.
+This plan's exact machine source is `ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json`, Git blob `5881490da054360903e8ac9e9859ee58495830bb`. The exact source proof is `scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py`, Git blob `0ea71c08323bcc5e4ea61f482a6efcd942277481`.
 
 ## Why historical #3754 is not enough
 
@@ -103,6 +103,8 @@ A separately reviewed provisioner may eventually:
 
 No existing identity may be modified or reused.
 
+The source proof models two explicit phases. **BEFORE_GROUP_CREATE** requires both user and group absent. **BEFORE_USER_CREATE** requires the group to be present as the exact local-files binding created by the accepted create-only group receipt; the group must not be treated as a collision in that phase. The local group membership must remain empty, every configured non-`files` group provider must still report the name/GID absent, and the user name/UID must remain absent across every configured passwd provider. A preexisting, mismatched, receipt-less, multiply bound, or nonlocal group cannot satisfy this transition.
+
 Before either future create-only step, the proposed user/group name must also be absent from preexisting **name-based authority**: subordinate-ID entries, sysusers definitions, unexpected systemd User=/Group= or credential references, sudo/Polkit/SSH privilege rules, scheduled jobs, tmpfiles ownership rules, and other reviewed automatic privilege/chown surfaces. A preexisting future-facing reference is not made safe merely because NSS currently reports the name as absent.
 
 After the future group-create step, the selected group is expected to exist **exactly once in the bound local-files provider**. Before user creation, that exact local group binding must be re-authenticated, the same group name/GID must remain absent from every configured non-`files` group provider, the user name/UID must remain absent from every configured passwd provider, and complete process/mount/ownership/ACL evidence must be repeated. The expected local group is therefore not misclassified as a collision.
@@ -119,7 +121,7 @@ Run under a nonroot account on this exact branch:
 python3 -I -B scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py
 ```
 
-The proof pins this plan, current #3804 role contract, and both current #3715 installers. Its plan/role JSON reads use retained `O_NOFOLLOW|O_NONBLOCK` descriptors with exact regular-file size/EOF, visible-generation and Git-blob checks, plus disposable FIFO/symlink substitution regressions. It verifies all authority fields remain false and evaluates **68 synthetic fail-closed cases**, including provider-profile/order errors, unknown providers, provider health/collision ambiguity, SSS enumeration-only and future-ID-range evidence, systemd userdb/DynamicUser current and future allocation gaps, system-account-range and subordinate-ID delegation collisions, live-process and live-user-namespace mapping collisions, SysV/kernel authority reuse, idmapped-mount ambiguity, stale numeric ownership/ACL reuse, latent name-based sysusers/systemd/sudo/Polkit/SSH/scheduled/tmpfiles authority, stale recensus, login/group/admin authority, and recovery errors.
+The proof pins this plan, current #3804 role contract, and both current #3715 installers. Its plan/role JSON reads use retained `O_NOFOLLOW|O_NONBLOCK` descriptors with exact regular-file size/EOF, visible-generation and Git-blob checks, plus disposable FIFO/symlink substitution regressions. It verifies all authority fields remain false and evaluates **81 synthetic fail-closed cases**, including provider-profile/order errors, unknown providers, provider health/collision ambiguity, SSS enumeration-only and future-ID-range evidence, systemd userdb/DynamicUser current and future allocation gaps, system-account-range and subordinate-ID delegation collisions, live-process and live-user-namespace mapping collisions, SysV/kernel authority reuse, idmapped-mount ambiguity, stale numeric ownership/ACL reuse, latent name-based sysusers/systemd/sudo/Polkit/SSH/scheduled/tmpfiles authority, invalid provisioning phase/receipt transitions, mismatched post-group local binding or membership, stale recensus, login/group/admin authority, and recovery errors.
 
 The fake `123456789/123456790` values are deliberately absurd proof-only numbers. Even the synthetic fully satisfied case returns only `SHAPE_ONLY_PROVIDER_AWARE_NOT_HOST_ATTESTED`.
 
