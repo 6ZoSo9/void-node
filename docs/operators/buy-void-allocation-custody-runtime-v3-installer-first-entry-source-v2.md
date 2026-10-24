@@ -22,8 +22,8 @@ Accepted installer lock:
 
 ```text
 ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json
-Git blob: f9372da99d8ab9b3d5f7fddc6d8de0de605576f0
-parent lock head: c1c50f848b42d720d2dae94cfef52c3f7e92a215
+Git blob: 486a6f6e1e2c594e60d6f9fe3fa32b03175630ae
+parent lock head: 3ad8c6f87fc9edfbffe196c42cf3aea99fdc9797
 ```
 
 The lock accepts exact installer source:
@@ -64,7 +64,7 @@ Git blob: d7693320783bcd0e3a2c4ef6c4afd86123e3688e
 
 standalone proof:
 scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py
-Git blob: d640403d01643cff452fc95090a4c426fb3627e5
+Git blob: 3d2fce2dba70f63dc3b8894fa3f120baf0584c3c
 ```
 
 ## V2 binding surface
@@ -120,12 +120,22 @@ The helper is used for:
 Post-open `fstat`, generation, type, owner, mode, link-count, length and
 digest checks remain unchanged.
 
-The standalone proof compiles a disposable native harness that includes the
-actual production V2 source and calls the exact helper on a real FIFO with no
-writer. The subprocess has a short timeout. Success therefore proves the
-production helper returns promptly instead of blocking on the FIFO shape.
+The standalone proof first opens the repository V2 source once with
+`O_RDONLY|O_NOFOLLOW|O_NONBLOCK|O_CLOEXEC`, requires a bounded regular
+descriptor with stable before/open/after generation and exact EOF, and computes
+the accepted Git blob from those retained bytes. It then materializes only those
+verified bytes into a disposable proof-only regular file and compiles/includes
+that captured copy; the compiler never reopens the repository source pathname.
 
-This is a test fixture only; no production path is opened and no privileged
+Disposable regressions additionally require:
+- a symlink source to be rejected by the descriptor-bound reader;
+- a FIFO source to be rejected without blocking under a bounded alarm;
+- replacing a pathname after the retained-byte read cannot change the source
+  that compiles successfully; reopening the replacement instead fails;
+- the native helper itself still returns promptly when the compiled disposable
+  harness opens a real FIFO with no writer.
+
+These are test fixtures only; no production path is modified and no privileged
 binary is produced.
 
 ## Preserved first-instruction behavior
