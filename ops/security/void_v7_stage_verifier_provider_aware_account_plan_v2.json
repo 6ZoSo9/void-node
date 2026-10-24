@@ -106,6 +106,7 @@
     "authenticate_host_initial_pid_and_user_namespace_leases",
     "complete_procfs_all_pid_uid_gid_and_supplementary_group_census",
     "exclude_deleted_account_live_process_credentials",
+    "census_all_live_user_namespace_uid_map_and_gid_map_ranges_and_exclude_candidate_host_ids",
     "authenticate_complete_mounted_filesystem_authority_scope_and_mount_generation",
     "include_tmpfs_bind_remote_and_other_mounts_where_numeric_owner_or_acl_can_confer_access",
     "hold_on_unreadable_unsupported_or_unclassifiable_mount_scope",
@@ -114,9 +115,12 @@
     "exclude_systemd_dynamic_user_reservations",
     "exclude_candidate_uid_from_all_existing_subuid_delegated_ranges",
     "exclude_candidate_gid_from_all_existing_subgid_delegated_ranges",
+    "exclude_candidate_uid_gid_from_existing_sysv_ipc_owner_creator_credentials",
+    "exclude_candidate_uid_gid_from_persistent_kernel_authority_objects_or_hold_if_not_completely_censusable",
     "before_group_creation_require_user_and_group_names_and_uid_gid_absent_in_each_configured_namespace_provider",
     "repeat_complete_provider_process_mount_ownership_acl_census_immediately_before_group_creation",
     "after_group_creation_bind_exact_expected_local_files_group_name_gid_generation",
+    "bind_idmapped_mount_user_namespace_maps_and_translate_or_hold_numeric_ownership_acl_census",
     "after_group_creation_require_group_name_gid_absent_from_all_configured_nonfiles_group_providers",
     "before_user_creation_require_user_name_uid_absent_from_all_configured_passwd_providers",
     "before_user_creation_require_selected_gid_has_no_non_accountdb_file_acl_process_or_service_authority",
@@ -130,7 +134,8 @@
       "modify_existing": false,
       "implemented_here": false,
       "postcondition": "exact_local_files_group_binding_only_no_nonfiles_collision",
-      "requires_gid_inside_bound_system_range": true
+      "requires_gid_inside_bound_system_range": true,
+      "requires_no_preexisting_name_based_group_authority": true
     },
     {
       "order": 2,
@@ -145,7 +150,8 @@
       "implemented_here": false,
       "precondition": "expected_local_group_bound_user_name_uid_still_absent",
       "requires_uid_inside_bound_system_range": true,
-      "must_not_create_subuid_or_subgid_delegation": true
+      "must_not_create_subuid_or_subgid_delegation": true,
+      "requires_no_preexisting_name_based_user_authority": true
     }
   ],
   "post_create_requirements": [
@@ -156,6 +162,9 @@
     "no_custody_ipc_gid980",
     "no_subuid_or_subgid_delegation_created",
     "no_running_process_or_service_started",
+    "no_preexisting_name_based_privilege_or_scheduled_execution_authority_activated",
+    "no_preexisting_sysv_ipc_or_kernel_authority_rebound",
+    "no_live_user_namespace_mapping_rebound",
     "no_preexisting_file_or_acl_authority_rebound",
     "no_operator_home_custody_wallet_signer_or_admin_access",
     "stage_verifier_still_unbound_to_installer_until_separate_manifest_review"
@@ -169,7 +178,8 @@
     "rollback_requires_distinct_authorization": true,
     "rollback_requires_exact_created_generation": true,
     "rollback_requires_no_process_files_acl_group_membership_or_service_dependency": true,
-    "never_remove_preexisting_identity": true
+    "never_remove_preexisting_identity": true,
+    "rollback_requires_no_name_based_authority_dependency": true
   },
   "required_future_host_artifact": {
     "accepted_provider_aware_host_planner": false,
@@ -197,5 +207,16 @@
     "presale_activation": false,
     "work_credit_or_market_activation": false,
     "treasury_or_funds_movement": false
-  }
+  },
+  "non_nss_name_authority_requirements": [
+    "proposed_user_and_group_name_absent_from_subuid_and_subgid_delegation_entries",
+    "proposed_user_and_group_name_absent_from_systemd_sysusers_definitions",
+    "proposed_user_and_group_name_absent_from_enabled_or_startable_systemd_user_group_credentials_unless_exactly_reviewed_as_future_target",
+    "proposed_user_and_group_name_absent_from_sudoers_polkit_and_other_privilege_policy_grants",
+    "proposed_user_name_absent_from_ssh_login_allow_match_authority_and_authorized_key_roots",
+    "proposed_user_and_group_name_absent_from_cron_at_and_scheduled_execution_authority",
+    "proposed_user_and_group_name_absent_from_tmpfiles_or_other_automatic_chown_chgrp_rules",
+    "proposed_name_reference_census_generation_bound_and_repeated_before_each_creation",
+    "unknown_unreadable_or_unclassifiable_name_authority_surface_is_hold"
+  ]
 }
