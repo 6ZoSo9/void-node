@@ -87,7 +87,9 @@ jobs:
           assert.equal(c.historical_v2_candidate_enforcement_identity_accepted,true);
           assert.equal(c.candidate_enforcement_identity_accepted,false);
           assert.equal(c.protected_path_count,49);
-          assert.equal(c.protected_path_identity_preserved,true);
+          assert.equal(c.protected_path_identity_preserved,false);
+          assert.equal(c.protected_range_router_drift_classified,true);
+          assert.equal(c.current_protected_source_generation_accepted,false);
           assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
           assert.equal(c.frozen_v4_census_proof_preserved,true);
           assert.equal(c.nonprotected_economic_drift_count,6);
@@ -129,7 +131,9 @@ jobs:
           assert.equal(c.historical_v2_candidate_enforcement_identity_accepted,true);
           assert.equal(c.candidate_enforcement_identity_accepted,false);
           assert.equal(c.protected_path_count,49);
-          assert.equal(c.protected_path_identity_preserved,true);
+          assert.equal(c.protected_path_identity_preserved,false);
+          assert.equal(c.protected_range_router_drift_classified,true);
+          assert.equal(c.current_protected_source_generation_accepted,false);
           assert.equal(c.current_built_census_identity_matches_frozen_v4,true);
           console.log("VOID_BUY_VOID_FROZEN_V4_CURRENT_INTEGRATION_CROSS_NODE_GREEN");
           console.log("protected_path_count="+c.protected_path_count);
