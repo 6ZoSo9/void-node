@@ -47,9 +47,9 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py)" = \
             "8914d9e8031377e3bcda4770194024e2f6fed2fd"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py)" = \
-            "11be843ed6f3511c4ee169a26666dab7ff40acac"
+            "6dabae6832086da78449d1ea2197d0d76dd8eb1d"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-closed-python-runtime-census-v1.md)" = \
-            "eaa5ac2ba6f27bd7fc319e49ce1e4670f856a55c"
+            "529b5e46983b4d514f9088ca60eda6c122ced9c8"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json)" = \
             "36d6c4a5ff825993371f109ee86a77b601e12d07"
 
@@ -108,6 +108,9 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_CLOSED_PYTHON_RUNTIME_CENSUS_V1_PROOF_GREEN' "$proof"
           for marker in \
             'exact_source_blob_asserted=true' \
+            'source_proof_descriptor_capture=true' \
+            'source_proof_fifo_symlink_race_rejected=true' \
+            'source_proof_executes_captured_bytes=true' \
             'first_entry_lock_exact=true' \
             'fixed_runtime_namespace_bound=true' \
             'closed_tree_contract_bound=true' \
