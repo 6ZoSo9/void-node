@@ -16,7 +16,9 @@ if (
         print("status=HOLD")
         print("reason=python_isolated_unoptimized_nobytecode_mode_required")
         print("production_census_read_only=true")
-        print("production_census_filesystem_write=false")
+        print("production_census_explicit_filesystem_write=false")
+        print("production_census_filesystem_write_free=false")
+        print("production_census_atime_write_possible=true")
         print("self_test_temporary_filesystem_write=false")
         print("service_mutation=false")
         print("funds_movement=false")
@@ -67,7 +69,6 @@ PROPOSED_ROLLBACK = INSTALL_PARENT / PROPOSED_ROLLBACK_NAME
 MAX_TREE_ENTRIES = 32768
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_TOTAL_REGULAR_BYTES = 512 * 1024 * 1024
-MAX_SYMLINK_BYTES = 4096
 MAX_DEPTH = 64
 
 
@@ -345,24 +346,19 @@ def _entry_record(
     return result
 
 
-def _hash_symlink_at(
+def _observe_symlink_at(
     parent_fd: int,
     name: str,
     before: os.stat_result,
-) -> tuple[int, str]:
+) -> os.stat_result:
+    # Symlink target text is opaque and potentially sensitive. Do not read,
+    # hash, print, or otherwise consume it in this metadata-only census.
     if not stat.S_ISLNK(before.st_mode):
-        hold("target_symlink_shape_invalid:" + name)
-    try:
-        target = os.readlink(name, dir_fd=parent_fd)
-    except OSError as exc:
-        hold("target_symlink_read_failed:" + name + ":" + str(exc.errno))
-    raw = os.fsencode(target)
-    if len(raw) > MAX_SYMLINK_BYTES:
-        hold("target_symlink_target_too_large:" + name)
+        hold("target_symlink_shape_invalid")
     after = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
     if _generation(before) != _generation(after):
-        hold("target_symlink_generation_changed:" + name)
-    return len(raw), sha256(raw)
+        hold("target_symlink_generation_changed")
+    return after
 
 
 def _observe_regular_at(
@@ -374,24 +370,24 @@ def _observe_regular_at(
     # Legacy runtime files are intentionally content-blind here. Open only to
     # bind type/mount/generation metadata; never read opaque file bodies.
     if before.st_size < 0 or before.st_size > MAX_FILE_BYTES:
-        hold("target_file_size_out_of_bounds:" + name)
+        hold("target_file_size_out_of_bounds")
     fd = os.open(name, _leaf_flags(), dir_fd=parent_fd)
     try:
         opened = os.fstat(fd)
         if _fd_mount_id(fd) != expected_mnt_id:
-            hold("target_tree_cross_mount_file_forbidden:" + name)
+            hold("target_tree_cross_mount_file_forbidden")
         if (
             not stat.S_ISREG(opened.st_mode)
             or _generation(before) != _generation(opened)
         ):
-            hold("target_file_rebound:" + name)
+            hold("target_file_rebound")
         after = os.fstat(fd)
         visible = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
         if (
             _generation(opened) != _generation(after)
             or _generation(after) != _generation(visible)
         ):
-            hold("target_file_generation_changed:" + name)
+            hold("target_file_generation_changed")
         return after
     finally:
         os.close(fd)
@@ -411,9 +407,9 @@ def _scan_dir(
     if not stat.S_ISDIR(before.st_mode):
         hold("target_directory_not_directory")
     if before.st_dev != expected_dev:
-        hold("target_tree_cross_device_directory_forbidden:" + relative_prefix)
+        hold("target_tree_cross_device_directory_forbidden")
     if _fd_mount_id(fd) != expected_mnt_id:
-        hold("target_tree_cross_mount_directory_forbidden:" + relative_prefix)
+        hold("target_tree_cross_mount_directory_forbidden")
 
     # Process each directory entry as it is enumerated. Do not retain a
     # per-recursion-frame name list: otherwise wide ancestors plus wide
@@ -439,7 +435,7 @@ def _scan_dir(
                 st = os.stat(name, dir_fd=fd, follow_symlinks=False)
                 if st.st_dev != expected_dev:
                     hold(
-                        "target_tree_cross_device_entry_forbidden:" + relative
+                        "target_tree_cross_device_entry_forbidden"
                     )
 
                 if stat.S_ISDIR(st.st_mode):
@@ -447,7 +443,7 @@ def _scan_dir(
                     try:
                         opened = os.fstat(child_fd)
                         if _identity(st) != _identity(opened):
-                            hold("target_directory_rebound:" + relative)
+                            hold("target_directory_rebound")
                         records.append(
                             _entry_record(relative, opened, "directory")
                         )
@@ -470,10 +466,7 @@ def _scan_dir(
                             or _generation(terminal)
                             != _generation(visible_terminal)
                         ):
-                            hold(
-                                "target_directory_generation_changed:"
-                                + relative
-                            )
+                            hold("target_directory_generation_changed")
                     finally:
                         os.close(child_fd)
                 elif stat.S_ISREG(st.st_mode):
@@ -486,14 +479,11 @@ def _scan_dir(
                     if totals["bytes"] > MAX_TOTAL_REGULAR_BYTES:
                         hold("target_tree_byte_limit_exceeded")
                 elif stat.S_ISLNK(st.st_mode):
-                    link_bytes, link_sha256 = _hash_symlink_at(fd, name, st)
-                    record = _entry_record(relative, st, "symlink")
-                    record["link_target_bytes"] = link_bytes
-                    record["link_target_sha256"] = link_sha256
-                    records.append(record)
+                    observed = _observe_symlink_at(fd, name, st)
+                    records.append(_entry_record(relative, observed, "symlink"))
                     totals["symlinks"] += 1
                 else:
-                    hold("target_tree_special_file_forbidden:" + relative)
+                    hold("target_tree_special_file_forbidden")
     except CensusHold:
         raise
     except OSError as exc:
@@ -501,7 +491,7 @@ def _scan_dir(
 
     after = os.fstat(fd)
     if _generation(before) != _generation(after):
-        hold("target_directory_changed_during_scan:" + relative_prefix)
+        hold("target_directory_changed_during_scan")
 
 def scan_target_at(
     parent_fd: int,
@@ -711,9 +701,13 @@ def census() -> dict[str, Any]:
         },
         "prestate": prestate,
         "read_only": True,
-        "filesystem_write": False,
+        "filesystem_explicit_write": False,
+        "filesystem_write_free": False,
+        "atime_write_possible": True,
         "production_census_read_only": True,
-        "production_census_filesystem_write": False,
+        "production_census_explicit_filesystem_write": False,
+        "production_census_filesystem_write_free": False,
+        "production_census_atime_write_possible": True,
         "archive_extraction": False,
         "permission_mutation": False,
         "service_state_checked": False,
@@ -830,12 +824,15 @@ def self_test() -> None:
     print("legacy_regular_file_content_read=false")
     print("nested_mount_rejection_bound=true")
     print("mount_id_boundary_bound=true")
-    print("symlink_opaque_identity_bound=true")
+    print("symlink_target_content_read=false")
+    print("hold_reason_untrusted_entry_names_redacted=true")
     print("special_file_rejection=true")
     print("stage_and_rollback_collision_observed=true")
     print("production_census_read_only=true")
     print("python_no_bytecode_mode_required=true")
-    print("production_census_filesystem_write=false")
+    print("production_census_explicit_filesystem_write=false")
+    print("production_census_filesystem_write_free=false")
+    print("production_census_atime_write_possible=true")
     print("self_test_temporary_filesystem_write=true")
     print("archive_extraction=false")
     print("service_state_checked=false")
@@ -876,7 +873,9 @@ if __name__ == "__main__":
         print("status=HOLD")
         print("reason=" + str(exc))
         print("production_census_read_only=true")
-        print("production_census_filesystem_write=false")
+        print("production_census_explicit_filesystem_write=false")
+        print("production_census_filesystem_write_free=false")
+        print("production_census_atime_write_possible=true")
         print(
             "self_test_temporary_filesystem_write="
             + ("true" if "--self-test" in _bootstrap_sys.argv[1:] else "false")
