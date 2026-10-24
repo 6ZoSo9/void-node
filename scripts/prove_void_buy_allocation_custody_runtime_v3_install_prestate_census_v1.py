@@ -16,7 +16,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_install_prestate_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "4d9c6e5809a5cc64454626760f71e60ed99354bc"
+EXPECTED_SOURCE_BLOB = "e32ebd94ad09cd80e03489079e74657aab159d7a"
 
 def git_blob(raw: bytes) -> str:
     prefix = b"blob " + str(len(raw)).encode("ascii") + b"\0"
@@ -93,9 +93,13 @@ try:
     module.collect_prestate = lambda *args, **kwargs: {"synthetic": True}
     receipt = module.census()
     assert receipt["read_only"] is True
-    assert receipt["filesystem_write"] is False
+    assert receipt["filesystem_explicit_write"] is False
+    assert receipt["filesystem_write_free"] is False
+    assert receipt["atime_write_possible"] is True
     assert receipt["production_census_read_only"] is True
-    assert receipt["production_census_filesystem_write"] is False
+    assert receipt["production_census_explicit_filesystem_write"] is False
+    assert receipt["production_census_filesystem_write_free"] is False
+    assert receipt["production_census_atime_write_possible"] is True
 finally:
     module.verify_archive_lock = _original_verify_archive_lock
     module.collect_prestate = _original_collect_prestate
@@ -146,7 +150,7 @@ with tempfile.TemporaryDirectory(
     assert present["create_only_install_candidate"] is False
 
     link = target / "opaque-link"
-    link.symlink_to("../outside-do-not-follow")
+    link.symlink_to("../credential-token-DO-NOT-READ")
     linked = module.collect_prestate(
         parent,
         module.TARGET_NAME,
@@ -157,7 +161,7 @@ with tempfile.TemporaryDirectory(
     assert linked["target"]["tree"]["symlinks"] == 1
     link.unlink()
 
-    fifo = target / "bad-fifo"
+    fifo = target / "secret-token\nforged_authority=true"
     os.mkfifo(fifo, 0o600)
     try:
         module.collect_prestate(
@@ -168,7 +172,13 @@ with tempfile.TemporaryDirectory(
             require_root_owned_parent=False,
         )
     except module.CensusHold as exc:
-        assert "target_tree_special_file_forbidden" in str(exc)
+        reason = str(exc)
+        assert reason == (
+            "custody_runtime_v3_install_prestate_"
+            "target_tree_special_file_forbidden"
+        )
+        assert "secret-token" not in reason
+        assert "\n" not in reason
     else:
         raise AssertionError("FIFO target entry was accepted")
     fifo.unlink()
@@ -249,7 +259,9 @@ assert (
     "reason=python_isolated_unoptimized_nobytecode_mode_required"
     in without_b.stdout
 ), without_b.stdout
-assert "production_census_filesystem_write=false" in without_b.stdout
+assert "production_census_explicit_filesystem_write=false" in without_b.stdout
+assert "production_census_filesystem_write_free=false" in without_b.stdout
+assert "production_census_atime_write_possible=true" in without_b.stdout
 assert "self_test_temporary_filesystem_write=false" in without_b.stdout
 
 source = TARGET.read_text(encoding="utf-8")
@@ -261,7 +273,7 @@ for required in (
     "read_bound_regular",
     "scan_target_at",
     "os.scandir(fd)",
-    "_hash_symlink_at",
+    "_observe_symlink_at",
     "_observe_regular_at",
     "metadata_sha256",
     "target_tree_cross_device_entry_forbidden",
@@ -284,6 +296,7 @@ for required in (
     assert required in source, required
 
 for forbidden in (
+    "os.readlink(",
     "subprocess",
     "systemctl",
     "sudo ",
@@ -304,6 +317,8 @@ for forbidden in (
 assert "O_NOFOLLOW" in pre_self_test
 assert "O_NONBLOCK" in pre_self_test
 assert "follow_symlinks=False" in pre_self_test
+assert "link_target_bytes" not in pre_self_test
+assert "link_target_sha256" not in pre_self_test
 
 scan_source = pre_self_test.split("def _scan_dir(", 1)[1].split(
     "def scan_target_at(", 1
@@ -312,6 +327,14 @@ assert "with os.scandir(fd) as iterator:" in scan_source
 assert "names: list[str]" not in scan_source
 assert "names.sort()" not in scan_source
 assert scan_source.index('totals["entries"] += 1') < scan_source.index("_scan_dir(")
+for leaked in (
+    '"target_tree_cross_device_entry_forbidden:" + relative',
+    '"target_directory_rebound:" + relative',
+    '"target_directory_generation_changed:"',
+    '"target_tree_special_file_forbidden:" + relative',
+    '"target_directory_changed_during_scan:" + relative_prefix',
+):
+    assert leaked not in scan_source, leaked
 
 regular_observer = pre_self_test.split("def _observe_regular_at(", 1)[1].split(
     "def _scan_dir(", 1
@@ -327,7 +350,8 @@ print("target_tree_metadata_digest=true")
 print("legacy_regular_file_content_read=false")
 print("nested_mount_rejection_bound=true")
 print("mount_id_boundary_bound=true")
-print("symlink_opaque_identity_bound=true")
+print("symlink_target_content_read=false")
+print("hold_reason_untrusted_entry_names_redacted=true")
 print("absent_target_create_only_candidate_proven=true")
 print("present_target_rollback_candidate_proven=true")
 print("special_file_rejection=true")
@@ -340,7 +364,9 @@ print("production_census_read_only=true")
 print("production_receipt_scoped_authority_keys=true")
 print("python_no_bytecode_mode_required=true")
 print("without_dash_b_bootstrap_hold=true")
-print("production_census_filesystem_write=false")
+print("production_census_explicit_filesystem_write=false")
+print("production_census_filesystem_write_free=false")
+print("production_census_atime_write_possible=true")
 print("test_fixture_filesystem_write=true")
 print("legacy_tree_entry_limit=32768")
 print("legacy_file_metadata_size_limit=67108864")
