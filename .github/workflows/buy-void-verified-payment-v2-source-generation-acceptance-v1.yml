@@ -1,35 +1,23 @@
-name: Buy VOID V2 protected source-generation successor (unmounted)
+name: Buy VOID V2 protected source-generation successor (historical refusal under V3)
 
 on:
   pull_request:
     paths:
-      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
-      - "scripts/prove_buy_void_verified_payment_v2_trigger_closure_v1.mjs"
-      - "docs/architecture/buy-void-verified-payment-v2-source-generation-acceptance-v1.md"
-      - ".github/workflows/buy-void-verified-payment-v2-source-generation-acceptance-v1.yml"
+      - "src/economic/buy_void_verified_payment_capacity_admission_v1.ts"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs"
-      - ".github/workflows/buy-void-verified-payment-transport-v2.yml"
-      - "scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs"
-      - "scripts/prove_buy_void_verified_payment_transport_v2.ts"
-      - "scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts"
-      - "src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs"
-      - "src/economic/buy_void_verified_payment_transport_v2.ts"
-      - "src/economic/buy_void_verified_payment_v2_allocation_stage.ts"
-      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml"
-      - ".github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml"
-      - ".github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml"
-      - ".github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml"
-      - ".github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - ".github/workflows/buy-void-verified-payment-v2-source-generation-acceptance-v1.yml"
+      - ".github/workflows/buy-void-verified-payment-v3-fifo-composed-source-generation-v1.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  prove:
-    name: source successor / Node ${{ matrix.node }}
+  historical-refusal:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -43,131 +31,45 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node }}
-      - name: Exact checkout and build
-        env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Bind exact historical V2 and current writer identities
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git hash-object scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs)" = "796cad42e6413a1894eef8dc0466848377176645"
+          test "$(git hash-object src/index.ts)" = "a09661797aa4295371c036be36d82995e5233269"
+          test "$(git hash-object src/economic/buy_void_verified_payment_capacity_admission_v1.ts)" = "d1320be22fe55af24017b84f0655fbcde82dbee9"
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs)" = "796cad42e6413a1894eef8dc0466848377176645"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v2_trigger_closure_v1.mjs)" = "480cab83e3b64144f30dc3f1c672857eddece1ce"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-verified-payment-v2-source-generation-acceptance-v1.md)" = "d9bfcfb6491b4b01cdb785c2ba3af2641633a6b9"
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml)" = "1482b40b8660f334a8696bf84ce4be969ca7a361"
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml)" = "71395eb72458a4a4e48c9f3f3bdb457580dfd8b1"
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v2.yml)" = "acbf97afa861b4353a129e4947098b11593b4445"
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-enforcement-final-v7-artifact-census-v4.yml)" = "e6f14d279eea0124453adedb580e9206df0e5b3b"
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-source-finality-v7-executable-delta-candidate-v1.yml)" = "aa5f915bf9cc7fde5cf0d0ef00469bf5110d1b8f"
-          test "$(git rev-parse HEAD:.github/workflows/buy-void-verified-payment-transport-v2.yml)" = "6d9c8e821ba70f28183bc2d879b95b7e2f829be1"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_v2_custody_inspect_bridge_v1.mjs)" = "b87945fb2d7df4af4740fc28ae467f8f660361e3"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_transport_v2.ts)" = "2714988acfbcded3d4779ef79a141cd3e39b1426"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_verified_payment_v2_allocation_stage.ts)" = "addd7842edb7f0e851d1e589d4303c0dc6e2756f"
-          test "$(git rev-parse HEAD:src/economic/buy_void_v2_custody_inspect_bridge_v1.mjs)" = "45ade2941e28a51e4dbb4884dfcbe9ec549022e6"
-          test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_transport_v2.ts)" = "61dc219117538f2894b170ac98bb56806f69f430"
-          test "$(git rev-parse HEAD:src/economic/buy_void_verified_payment_v2_allocation_stage.ts)" = "6efb2be5f03ff87290ef376d7852d22db22900f8"
+      - name: Build current composed source
+        run: |
+          set -euo pipefail
           npm ci --ignore-scripts --no-audit --no-fund
           npm run typecheck
           npm run build
-      - name: Prove source-trigger closure
-        run: |
-          set -euo pipefail
-          node --check scripts/prove_buy_void_verified_payment_v2_trigger_closure_v1.mjs
-          trigger_out="$RUNNER_TEMP/source-trigger-closure-${{ matrix.node }}.log"
-          timeout 30s node scripts/prove_buy_void_verified_payment_v2_trigger_closure_v1.mjs | tee "$trigger_out"
-          grep -Fx "VOID_BUY_VOID_VERIFIED_PAYMENT_V2_TRIGGER_CLOSURE_V1_GREEN" "$trigger_out"
-          grep -Fx "v2_trigger_reader_descriptor_bound=true" "$trigger_out"
-          grep -Fx "v2_trigger_reader_fifo_swap_rejected=true" "$trigger_out"
-          grep -Fx "v2_source_file_count=7" "$trigger_out"
-          grep -Fx "v2_source_file_triggers_complete=true" "$trigger_out"
-          grep -Fx "protected_consumer_count=5" "$trigger_out"
-          grep -Fx "alternative_compulsory_trigger_bound=true" "$trigger_out"
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
-      - name: Prove strict versioned source-only successor
-        run: |
-          set -euo pipefail
-          node --check scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs
-          receipt="$RUNNER_TEMP/source-successor-${{ matrix.node }}.json"
-          out="$RUNNER_TEMP/source-successor-${{ matrix.node }}.log"
-          timeout 120s node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test | tee "$out"
-          timeout 120s node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --receipt > "$receipt"
-          grep -Fx "VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2_GREEN" "$out"
-          grep -Fx "v2_source_reader_descriptor_bound=true" "$out"
-          grep -Fx "v2_source_reader_fifo_swap_rejected=true" "$out"
-          grep -Fx "historical_v2_candidate_enforcement_identity_accepted=true" "$out"
-          grep -Fx "candidate_enforcement_identity_accepted=false" "$out"
-          grep -Fx "current_v2_consumer_acceptance_split_assertions_bound=true" "$out"
-          grep -Fx "unqualified_current_acceptance_promotion_rejected=true" "$out"
-          grep -Fx "v2_seven_add_only_paths_exact=true" "$out"
-          grep -Fx "v2_current_transport_workflow_successor_bound=true" "$out"
-          grep -Fx "accepted_v2_branch_evidence_preserved=true" "$out"
-          grep -Fx "landed_v2_source_acceptance_carrier_bound=true" "$out"
-          grep -Fx "v2_three_new_economic_sources_pinned=true" "$out"
-          grep -Fx "v2_five_workflow_dispatches_bound=true" "$out"
-          grep -Fx "historical_v1_source_proof_preserved=true" "$out"
-          node --input-type=module - "$receipt" <<'NODE'
-          import assert from "node:assert/strict";
-          import fs from "node:fs";
-          const p=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
-          assert.equal(p.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V2");
-          assert.equal(p.version,2);
-          assert.equal(p.protected_path_count,49);
-          assert.equal(p.nonprotected_economic_drift_count,6);
-          assert.equal(p.added_v2_economic_source_count,3);
-          assert.equal(p.verified_payment_v2_add_only_source_paths_verified,true);
-          assert.equal(p.five_historical_workflow_successors_bound,true);
-          assert.equal(p.successor_workflow_dispatch_independently_approved,false);
-          assert.equal(p.current_built_census_identity_matches_frozen_v4,true);
-          assert.equal(p.provider_source_identity_preserved,true);
-          assert.equal(p.previous_source_dispatch_proof_unchanged,true);
-          assert.equal(p.historical_v2_candidate_enforcement_identity_accepted,true);
-          assert.equal(p.candidate_enforcement_identity_accepted,false);
-          assert.equal(p.current_v2_consumer_acceptance_split_assertions_bound,true);
-          assert.equal(p.accepted_v2_branch_evidence_preserved,true);
-          assert.equal(p.landed_v2_source_acceptance_main_head,"652197dc8df36f0f2004d50c6bbf95369790e2d1");
-          assert.equal(p.landed_v2_source_acceptance_main_tree,"00e5dd00386372e533c945141dd857f663fdf036");
-          assert.equal(p.landed_v2_source_acceptance_carrier_bound,true);
-          assert.equal(p.frozen_candidate_rederived_on_current_head,false);
-          assert.equal(p.verified_payment_v2_route_mounted,false);
-          assert.equal(p.payment_allocation_custody_authority,false);
-          assert.equal(p.source_finality_authentication_verified,false);
-          assert.equal(p.independent_source_acceptance_complete,false);
-          assert.equal(p.successor_runtime_generation_accepted,false);
-          assert.equal(p.public_presale_activation,false);
-          assert.equal(p.funds_movement,false);
-          NODE
-      - name: Preserve historical V1 refusal
+      - name: Require immutable V2 refusal and historical V1 refusal
         run: |
           set -euo pipefail
           set +e
-          timeout 120s node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --self-test             > "$RUNNER_TEMP/historical-v1.stdout" 2> "$RUNNER_TEMP/historical-v1.stderr"
-          result=$?
+          timeout 150s node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v2.mjs --self-test \
+            > "$RUNNER_TEMP/v2.stdout" 2> "$RUNNER_TEMP/v2.stderr"
+          v2_rc=$?
+          timeout 150s node scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v1.mjs --self-test \
+            > "$RUNNER_TEMP/v1.stdout" 2> "$RUNNER_TEMP/v1.stderr"
+          v1_rc=$?
           set -e
-          test "$result" -ne 0
-          grep -Fq "unexpected_post_census_economic_drift" "$RUNNER_TEMP/historical-v1.stderr"
-          echo "historical_v1_proof_still_refuses_new_generation=true"
+          test "$v2_rc" -ne 0
+          test "$v1_rc" -ne 0
+          grep -Fq 'protected_blob_drift:src/index.ts' "$RUNNER_TEMP/v2.stderr"
+          grep -Fq '123ec1792a027f93d4c9030749a0e7e136a75a44' "$RUNNER_TEMP/v2.stderr"
+          grep -Fq 'a09661797aa4295371c036be36d82995e5233269' "$RUNNER_TEMP/v2.stderr"
+          grep -Fq 'protected_blob_drift:src/index.ts' "$RUNNER_TEMP/v1.stderr"
+          grep -Fq '123ec1792a027f93d4c9030749a0e7e136a75a44' "$RUNNER_TEMP/v1.stderr"
+          grep -Fq 'a09661797aa4295371c036be36d82995e5233269' "$RUNNER_TEMP/v1.stderr"
+          echo VOID_BUY_VOID_V2_SOURCE_SUCCESSOR_HISTORICAL_REFUSAL_GREEN
+          echo predecessor_v2_source_acceptance_complete_for_current_generation=false
+          echo predecessor_v2_refusal_reason=protected_range_router_drift
+          echo fifo_writer_transition_independently_bound=true
+          echo current_successor=v3
+          echo verified_payment_v2_route_mounted=false
+          echo payment_acceptance=false
+          echo public_presale_activation=false
+          echo funds_movement=false
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: buy-void-v2-source-successor-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
-          path: ${{ runner.temp }}/source-successor-${{ matrix.node }}.json
-          if-no-files-found: error
-          retention-days: 7
-  cross-node:
-    needs: [prove]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          pattern: buy-void-v2-source-successor-${{ github.event.pull_request.head.sha || github.sha }}-node-*
-          merge-multiple: true
-          path: proof
-      - name: Exact Node 22/24/26 receipt equality
-        run: |
-          set -euo pipefail
-          for version in 22 24 26; do
-            test -s "proof/source-successor-$version.json"
-          done
-          cmp proof/source-successor-22.json proof/source-successor-24.json
-          cmp proof/source-successor-22.json proof/source-successor-26.json
-          echo "VOID_BUY_VOID_V2_SOURCE_SUCCESSOR_CROSS_NODE_GREEN"
