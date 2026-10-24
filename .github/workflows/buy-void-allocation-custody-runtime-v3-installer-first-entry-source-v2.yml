@@ -52,7 +52,7 @@ jobs:
           test "$(git rev-parse HEAD:native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.c)" = \
             "d7693320783bcd0e3a2c4ef6c4afd86123e3688e"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py)" = \
-            "2a7358c2130ed0c111f55bfc740b166adbaf3fe2"
+            "d640403d01643cff452fc95090a4c426fb3627e5"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.md)" = \
             "715f091302dc8b40105d2db01d2293fc07fb8fc1"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json)" = \
@@ -89,7 +89,7 @@ A\tnative/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2
           test "$(git rev-parse HEAD:native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.c)" = \
             "d7693320783bcd0e3a2c4ef6c4afd86123e3688e"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py)" = \
-            "2a7358c2130ed0c111f55bfc740b166adbaf3fe2"
+            "d640403d01643cff452fc95090a4c426fb3627e5"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.md)" = \
             "715f091302dc8b40105d2db01d2293fc07fb8fc1"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json)" = \
@@ -127,7 +127,7 @@ A\tscripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_so
           test "$(git rev-parse HEAD:native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.c)" = \
             "d7693320783bcd0e3a2c4ef6c4afd86123e3688e"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v2.py)" = \
-            "2a7358c2130ed0c111f55bfc740b166adbaf3fe2"
+            "d640403d01643cff452fc95090a4c426fb3627e5"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-installer-first-entry-source-v2.md)" = \
             "715f091302dc8b40105d2db01d2293fc07fb8fc1"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-installer-lock-v2.json)" = \
