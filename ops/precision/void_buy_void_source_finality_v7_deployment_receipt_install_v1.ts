@@ -21,6 +21,7 @@ const ROOT=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"../..");
 const SHA40=/^[0-9a-f]{40}$/u;
 const SHA256=/^[0-9a-f]{64}$/u;
 const SAFE_LOCK_PATH=/^ops\/security\/[A-Za-z0-9._\/-]+\.json$/u;
+const CURRENT_TRACKED_SOURCE_MAX_BYTES=16*1024*1024;
 const PROTECTED_DISPATCH_MARKER_V1="VOID_BUY_VOID_V7_PROTECTED_DISPATCH_V1";
 const PROTECTED_NATIVE_PREENTRY_MARKER_V1="VOID_BUY_VOID_V7_NATIVE_PREENTRY_V1";
 const PROTECTED_SOURCE_ROOT_V1="/opt/void-buy-void-v7-reviewed-v1";
@@ -103,14 +104,17 @@ function inspectCurrentTrackedSourceRowV1(
   );
   const absolute=path.join(repositoryRoot,...relative.split("/"));
   const before=fs.lstatSync(absolute);
-  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1,
-    "current_enforcement_source_not_direct_regular_file:"+relative);
-  const bytes=fs.readFileSync(absolute);
-  const after=fs.lstatSync(absolute);
-  for(const key of ["dev","ino","size","mtimeMs","ctimeMs","nlink"] as const){
-    assert.equal(after[key],before[key],
-      "current_enforcement_source_changed:"+relative+":"+key);
-  }
+  assert.ok(
+    before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&
+    before.size>0&&before.size<=CURRENT_TRACKED_SOURCE_MAX_BYTES,
+    "current_enforcement_source_not_direct_regular_file:"+relative,
+  );
+  const bytes=readObservedRegularFileV1(
+    absolute,
+    before,
+    CURRENT_TRACKED_SOURCE_MAX_BYTES,
+    "current_enforcement_source:"+relative,
+  );
   const visibleBlob=currentSourceBlobV1(bytes);
   const headBlob=git(repositoryRoot,["rev-parse","--verify","HEAD:"+relative]);
   assert.equal(visibleBlob,headBlob,
@@ -326,7 +330,64 @@ const gitBlobSha1=(bytes:Buffer)=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+String(bytes.length)+"\0","utf8"))
   .update(bytes).digest("hex");
 
-function readTrackedFileV1(repositoryRoot:string,relative:string,maxBytes=1024*1024){
+function sameTrackedFileIdentityV1(a:fs.Stats,b:fs.Stats):boolean{
+  return a.dev===b.dev&&a.ino===b.ino&&a.uid===b.uid&&a.gid===b.gid&&
+    a.mode===b.mode&&a.nlink===b.nlink&&a.size===b.size&&
+    a.mtimeMs===b.mtimeMs&&a.ctimeMs===b.ctimeMs;
+}
+
+export function readObservedRegularFileV1(
+  absolute:string,
+  before:fs.Stats,
+  maxBytes:number,
+  label:string,
+  fsyncAfterRead=false,
+):Buffer{
+  assert.ok(Number.isSafeInteger(maxBytes)&&maxBytes>0,label+"_max_invalid");
+  let fd=-1;
+  try{
+    fd=fs.openSync(absolute,
+      fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
+    const opened=fs.fstatSync(fd);
+    assert.ok(
+      opened.isFile()&&opened.nlink===1&&opened.size>0&&opened.size<=maxBytes,
+      label+"_opened_shape_invalid",
+    );
+    assert.ok(sameTrackedFileIdentityV1(opened,before),
+      label+"_open_generation_mismatch");
+
+    const chunks:Buffer[]=[];
+    const scratch=Buffer.alloc(Math.min(64*1024,maxBytes+1));
+    let total=0;
+    while(total<=maxBytes){
+      const want=Math.min(scratch.length,maxBytes+1-total);
+      if(want===0)break;
+      const count=fs.readSync(fd,scratch,0,want,null);
+      if(count===0)break;
+      chunks.push(Buffer.from(scratch.subarray(0,count)));
+      total+=count;
+    }
+    assert.ok(total<=maxBytes,label+"_size_limit");
+    assert.equal(total,opened.size,label+"_short_or_grown_read");
+    if(fsyncAfterRead)fs.fsyncSync(fd);
+
+    const after=fs.fstatSync(fd);
+    assert.ok(sameTrackedFileIdentityV1(after,opened),
+      label+"_descriptor_generation_changed");
+    const visible=fs.lstatSync(absolute);
+    assert.ok(sameTrackedFileIdentityV1(visible,opened),
+      label+"_visible_generation_changed");
+    return Buffer.concat(chunks,total);
+  }finally{
+    if(fd>=0)fs.closeSync(fd);
+  }
+}
+
+export function readTrackedFileV1(
+  repositoryRoot:string,
+  relative:string,
+  maxBytes=1024*1024,
+){
   assert.match(relative,SAFE_LOCK_PATH,"accepted_enforcement_lock_path_invalid");
   assert.equal(path.posix.normalize(relative),relative,
     "accepted_enforcement_lock_path_not_normalized");
@@ -337,13 +398,9 @@ function readTrackedFileV1(repositoryRoot:string,relative:string,maxBytes=1024*1
   assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&
     before.size>0&&before.size<=maxBytes,
     "accepted_enforcement_file_shape_invalid:"+relative);
-  const bytes=fs.readFileSync(absolute);
-  const after=fs.lstatSync(absolute);
-  assert.equal(after.dev,before.dev,"accepted_enforcement_file_device_drift");
-  assert.equal(after.ino,before.ino,"accepted_enforcement_file_inode_drift");
-  assert.equal(after.size,before.size,"accepted_enforcement_file_size_drift");
-  assert.equal(after.mtimeMs,before.mtimeMs,"accepted_enforcement_file_mtime_drift");
-  assert.equal(after.ctimeMs,before.ctimeMs,"accepted_enforcement_file_ctime_drift");
+  const bytes=readObservedRegularFileV1(
+    absolute,before,maxBytes,"accepted_enforcement_file:"+relative,
+  );
   const blob=gitBlobSha1(bytes);
   assert.equal(git(repositoryRoot,["rev-parse","HEAD:"+relative]),blob,
     "accepted_enforcement_file_not_exact_head");
@@ -475,6 +532,12 @@ export function buildBuyVoidSourceFinalityV7DeploymentReceiptV1(input:{
   });
 }
 
+function sameMetadataIdentityV1(a:fs.Stats,b:fs.Stats):boolean{
+  return a.dev===b.dev&&a.ino===b.ino&&a.uid===b.uid&&a.gid===b.gid&&
+    a.mode===b.mode&&a.nlink===b.nlink;
+}
+
+
 function validateRootAncestorsV1(absolute:string){
   let current=path.dirname(absolute);
   for(;;){
@@ -490,14 +553,164 @@ function validateRootAncestorsV1(absolute:string){
   }
 }
 
-function verifyFinalV1(absolute:string,expected:Buffer){
-  const st=fs.lstatSync(absolute);
-  assert.ok(st.isFile()&&!st.isSymbolicLink(),"receipt_leaf_not_regular");
-  assert.equal(st.uid,0,"receipt_leaf_not_root_owned");
-  assert.equal(st.nlink,1,"receipt_leaf_link_count_invalid");
-  assert.equal(st.mode&0o777,0o444,"receipt_leaf_mode_invalid");
-  const got=fs.readFileSync(absolute);
+type ReceiptParentBindingV1=Readonly<{
+  parent:string;
+  parent_fd:number;
+  parent_dev:number;
+  parent_ino:number;
+  parent_uid:number;
+  parent_gid:number;
+  parent_mode:number;
+  grandparent:string;
+  grandparent_fd:number;
+  grandparent_dev:number;
+  grandparent_ino:number;
+  parent_via_fd:string;
+}>;
+
+function assertRootDirectoryV1(st:fs.Stats,label:string):void{
+  assert.ok(st.isDirectory()&&!st.isSymbolicLink(),label+"_not_direct_directory");
+  assert.equal(st.uid,0,label+"_not_root_owned");
+  assert.equal(st.mode&0o022,0,label+"_group_or_world_writable");
+}
+
+function bindReceiptParentV1(absolute:string):ReceiptParentBindingV1{
+  const parent=path.dirname(absolute);
+  const grandparent=path.dirname(parent);
+  const parentName=path.basename(parent);
+  assert.match(parentName,/^[A-Za-z0-9._-]{1,120}$/u,"receipt_parent_name_invalid");
+
+  validateRootAncestorsV1(path.join(grandparent,".void-receipt-parent-probe"));
+  const grandVisible=fs.lstatSync(grandparent);
+  assertRootDirectoryV1(grandVisible,"receipt_grandparent");
+  const grandFd=fs.openSync(
+    grandparent,
+    fs.constants.O_RDONLY|fs.constants.O_DIRECTORY|fs.constants.O_NOFOLLOW,
+  );
+  let parentFd=-1;
+  try{
+    const grandOpened=fs.fstatSync(grandFd);
+    assert.ok(sameMetadataIdentityV1(grandVisible,grandOpened),
+      "receipt_grandparent_open_identity_mismatch");
+    const parentViaFd="/proc/self/fd/"+String(grandFd)+"/"+parentName;
+    let created=false;
+    try{
+      const existing=fs.lstatSync(parentViaFd);
+      assertRootDirectoryV1(existing,"receipt_parent");
+    }catch(error:any){
+      if(error?.code!=="ENOENT")throw error;
+      fs.mkdirSync(parentViaFd,{mode:0o755});
+      created=true;
+    }
+
+    const visible=fs.lstatSync(parentViaFd);
+    assertRootDirectoryV1(visible,"receipt_parent");
+    parentFd=fs.openSync(
+      parentViaFd,
+      fs.constants.O_RDONLY|fs.constants.O_DIRECTORY|fs.constants.O_NOFOLLOW,
+    );
+    if(created){
+      fs.fchownSync(parentFd,0,0);
+      fs.fchmodSync(parentFd,0o755);
+      fs.fsyncSync(parentFd);
+    }
+    // Persist or recover the retained parent directory entry on every bind.
+    // A prior attempt may have made the parent visible but failed its fsync.
+    fs.fsyncSync(grandFd);
+    const opened=fs.fstatSync(parentFd);
+    assertRootDirectoryV1(opened,"receipt_parent");
+    const visibleAfter=fs.lstatSync(parentViaFd);
+    assert.ok(
+      sameMetadataIdentityV1(opened,visibleAfter),
+      "receipt_parent_open_identity_mismatch",
+    );
+    assert.equal(fs.realpathSync.native(parent),parent,
+      "receipt_parent_not_canonical_direct_path");
+
+    return Object.freeze({
+      parent,
+      parent_fd:parentFd,
+      parent_dev:opened.dev,
+      parent_ino:opened.ino,
+      parent_uid:opened.uid,
+      parent_gid:opened.gid,
+      parent_mode:opened.mode,
+      grandparent,
+      grandparent_fd:grandFd,
+      grandparent_dev:grandOpened.dev,
+      grandparent_ino:grandOpened.ino,
+      parent_via_fd:parentViaFd,
+    });
+  }catch(error){
+    if(parentFd>=0)fs.closeSync(parentFd);
+    fs.closeSync(grandFd);
+    throw error;
+  }
+}
+
+function assertReceiptParentStableV1(binding:ReceiptParentBindingV1):void{
+  const parentOpened=fs.fstatSync(binding.parent_fd);
+  assertRootDirectoryV1(parentOpened,"receipt_parent");
+  assert.equal(parentOpened.dev,binding.parent_dev,"receipt_parent_device_changed");
+  assert.equal(parentOpened.ino,binding.parent_ino,"receipt_parent_inode_changed");
+  assert.equal(parentOpened.uid,binding.parent_uid,"receipt_parent_owner_changed");
+  assert.equal(parentOpened.gid,binding.parent_gid,"receipt_parent_group_changed");
+  assert.equal(parentOpened.mode,binding.parent_mode,"receipt_parent_mode_changed");
+
+  const parentVisible=fs.lstatSync(binding.parent_via_fd);
+  assert.ok(
+    sameMetadataIdentityV1(parentOpened,parentVisible),
+    "receipt_parent_visible_identity_changed",
+  );
+  const canonicalVisible=fs.lstatSync(binding.parent);
+  assert.ok(
+    sameMetadataIdentityV1(parentOpened,canonicalVisible),
+    "receipt_parent_canonical_identity_changed",
+  );
+  assert.equal(fs.realpathSync.native(binding.parent),binding.parent,
+    "receipt_parent_canonical_path_changed");
+
+  const grandOpened=fs.fstatSync(binding.grandparent_fd);
+  assertRootDirectoryV1(grandOpened,"receipt_grandparent");
+  assert.equal(grandOpened.dev,binding.grandparent_dev,
+    "receipt_grandparent_device_changed");
+  assert.equal(grandOpened.ino,binding.grandparent_ino,
+    "receipt_grandparent_inode_changed");
+}
+
+function closeReceiptParentV1(binding:ReceiptParentBindingV1|undefined):void{
+  if(!binding)return;
+  const errors:unknown[]=[];
+  for(const fd of [binding.parent_fd,binding.grandparent_fd]){
+    try{fs.closeSync(fd);}
+    catch(error:unknown){errors.push(error);}
+  }
+  if(errors.length>0)throw new AggregateError(errors,"receipt_parent_close_failed");
+}
+
+function finalViaParentV1(binding:ReceiptParentBindingV1,leaf:string):string{
+  return "/proc/self/fd/"+String(binding.parent_fd)+"/"+leaf;
+}
+
+function verifyFinalBoundV1(
+  binding:ReceiptParentBindingV1,
+  leaf:string,
+  expected:Buffer,
+):void{
+  assertReceiptParentStableV1(binding);
+  const absolute=finalViaParentV1(binding,leaf);
+  const visible=fs.lstatSync(absolute);
+  assert.ok(visible.isFile()&&!visible.isSymbolicLink(),"receipt_leaf_not_regular");
+  assert.equal(visible.uid,0,"receipt_leaf_not_root_owned");
+  assert.equal(visible.gid,0,"receipt_leaf_not_root_group");
+  assert.equal(visible.nlink,1,"receipt_leaf_link_count_invalid");
+  assert.equal(visible.mode&0o777,0o444,"receipt_leaf_mode_invalid");
+  assert.ok(visible.size>0&&visible.size<=64*1024,"receipt_leaf_size_invalid");
+  const got=readObservedRegularFileV1(
+    absolute,visible,64*1024,"receipt_leaf",true,
+  );
   assert.ok(got.equals(expected),"receipt_leaf_bytes_mismatch");
+  assertReceiptParentStableV1(binding);
 }
 
 export function installRootCustodiedReceiptV1(input:{
@@ -513,56 +726,103 @@ export function installRootCustodiedReceiptV1(input:{
   assert.ok(Buffer.isBuffer(input.bytes)&&input.bytes.length>0&&
     input.bytes.length<=64*1024,"receipt_bytes_invalid");
 
-  const parent=path.dirname(absolute);
-  fs.mkdirSync(parent,{recursive:true,mode:0o755});
-  fs.chownSync(parent,0,0);
-  fs.chmodSync(parent,0o755);
-  validateRootAncestorsV1(absolute);
-
-  if(fs.existsSync(absolute)){
-    verifyFinalV1(absolute,input.bytes);
-    return Object.freeze({created:false,already_matching:true});
-  }
-
   const leaf=path.basename(absolute);
   assert.match(leaf,/^[A-Za-z0-9._-]{3,120}$/u,"receipt_leaf_name_invalid");
-  const temp=path.join(parent,
-    "."+leaf+".tmp-"+String(process.pid)+"-"+String(Date.now()));
-  let fd=-1;
+  let binding:ReceiptParentBindingV1|undefined;
+  let finalFd=-1;
+  let primaryError:unknown;
   try{
-    fd=fs.openSync(temp,
-      fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|
-        fs.constants.O_NOFOLLOW,
-      0o600);
+    binding=bindReceiptParentV1(absolute);
+    assertReceiptParentStableV1(binding);
+    const finalVia=finalViaParentV1(binding,leaf);
+
+    try{
+      fs.lstatSync(finalVia);
+      verifyFinalBoundV1(binding,leaf,input.bytes);
+      fs.fsyncSync(binding.parent_fd);
+      verifyFinalBoundV1(binding,leaf,input.bytes);
+      return Object.freeze({created:false,already_matching:true});
+    }catch(error:any){
+      if(error?.code!=="ENOENT")throw error;
+    }
+
+    try{
+      finalFd=fs.openSync(
+        finalVia,
+        fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|
+          fs.constants.O_NOFOLLOW,
+        0o600,
+      );
+    }catch(error:any){
+      if(error?.code!=="EEXIST")throw error;
+      verifyFinalBoundV1(binding,leaf,input.bytes);
+      fs.fsyncSync(binding.parent_fd);
+      verifyFinalBoundV1(binding,leaf,input.bytes);
+      return Object.freeze({created:false,already_matching:true});
+    }
+
+    const created=fs.fstatSync(finalFd);
+    assert.ok(created.isFile()&&created.nlink===1,
+      "receipt_created_descriptor_invalid");
+    fs.fchownSync(finalFd,0,0);
+
     let offset=0;
     while(offset<input.bytes.length){
-      const written=fs.writeSync(fd,input.bytes,offset,input.bytes.length-offset,offset);
+      const written=fs.writeSync(
+        finalFd,input.bytes,offset,input.bytes.length-offset,offset,
+      );
       assert.ok(written>0,"receipt_short_write");
       offset+=written;
     }
-    fs.fsyncSync(fd);
-    fs.fchmodSync(fd,0o444);
-    fs.fsyncSync(fd);
-    fs.closeSync(fd); fd=-1;
+    fs.fsyncSync(finalFd);
+    fs.fchmodSync(finalFd,0o444);
+    fs.fsyncSync(finalFd);
 
-    try{
-      fs.linkSync(temp,absolute);
-    }catch(error:any){
-      if(error?.code!=="EEXIST")throw error;
-      verifyFinalV1(absolute,input.bytes);
-      fs.unlinkSync(temp);
-      const dirFd=fs.openSync(parent,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY);
-      try{fs.fsyncSync(dirFd);}finally{fs.closeSync(dirFd);}
-      return Object.freeze({created:false,already_matching:true});
-    }
-    fs.unlinkSync(temp);
-    const dirFd=fs.openSync(parent,fs.constants.O_RDONLY|fs.constants.O_DIRECTORY);
-    try{fs.fsyncSync(dirFd);}finally{fs.closeSync(dirFd);}
-    verifyFinalV1(absolute,input.bytes);
+    const sealed=fs.fstatSync(finalFd);
+    assert.equal(sealed.dev,created.dev,"receipt_created_device_changed");
+    assert.equal(sealed.ino,created.ino,"receipt_created_inode_changed");
+    assert.equal(sealed.uid,0,"receipt_created_not_root_owned");
+    assert.equal(sealed.gid,0,"receipt_created_not_root_group");
+    assert.equal(sealed.nlink,1,"receipt_created_link_count_invalid");
+    assert.equal(sealed.mode&0o777,0o444,"receipt_created_mode_invalid");
+    assert.equal(sealed.size,input.bytes.length,"receipt_created_size_invalid");
+
+    const visible=fs.lstatSync(finalVia);
+    assert.ok(sameMetadataIdentityV1(sealed,visible),
+      "receipt_created_visible_identity_changed");
+    assertReceiptParentStableV1(binding);
+    fs.fsyncSync(binding.parent_fd);
+    assertReceiptParentStableV1(binding);
+
+    const sealedAfter=fs.fstatSync(finalFd);
+    const visibleAfter=fs.lstatSync(finalVia);
+    assert.ok(
+      sameMetadataIdentityV1(sealedAfter,sealed)&&
+      sameMetadataIdentityV1(visibleAfter,sealed),
+      "receipt_created_generation_changed",
+    );
+
+    fs.closeSync(finalFd);
+    finalFd=-1;
+    verifyFinalBoundV1(binding,leaf,input.bytes);
     return Object.freeze({created:true,already_matching:false});
+  }catch(error:unknown){
+    primaryError=error;
+    throw error;
   }finally{
-    if(fd>=0)fs.closeSync(fd);
-    if(fs.existsSync(temp))fs.unlinkSync(temp);
+    const closeErrors:unknown[]=[];
+    if(finalFd>=0){
+      try{fs.closeSync(finalFd);}
+      catch(error:unknown){closeErrors.push(error);}
+    }
+    try{closeReceiptParentV1(binding);}
+    catch(error:unknown){closeErrors.push(error);}
+    if(closeErrors.length>0){
+      throw new AggregateError(
+        primaryError===undefined?closeErrors:[primaryError,...closeErrors],
+        "deployment_receipt_close_failed",
+      );
+    }
   }
 }
 
