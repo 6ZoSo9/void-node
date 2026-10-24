@@ -1,0 +1,400 @@
+{
+  "schema": "void_buy_void_enforcement_final_protected_v7_v2_candidate_v4",
+  "marker": "VOID_BUY_VOID_ENFORCEMENT_FINAL_PROTECTED_V7_V2_CANDIDATE_V4",
+  "version": 4,
+  "repository": "6ZoSo9/void-node",
+  "runtime_source_parent": "16563121f8d6c2a1fa7cd2f99ca4be2f88aa3cca",
+  "protected_census_parent": "3faa7ba803b479d0f709bdc1f437b553154787d9",
+  "current_enforcement_parent": "1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26",
+  "hosted_census_evidence": {
+    "workflow_run": 38649905025,
+    "node22_artifact_id": 11934412568,
+    "artifact_json_bytes": 24495,
+    "artifact_json_sha256": "c9d910cd461b87c6b4722ada7505ceffe9a8d3c266387f3d9bbebddaf8f586f8",
+    "artifact_json_git_blob_sha1": "d1ddee2088107d575a86b67d072720ceea4c81bb",
+    "census_id": "voidbefv7c4_9c8fa20632d3cfb431c0d13229153d19f076613720c7402e5374eab1f833401d",
+    "artifact_inventory_sha256": "4dc2469dc898fb3c9c10baa47638a2892b3fb26159bd853454c7d94f98721b37",
+    "source_inventory_sha256": "172c6be2f5e2f8d9865df516bde4bbbec65086025b779337d3b5ed2e701163be",
+    "artifact_count": 28,
+    "source_file_count": 28,
+    "cross_node_byte_identity_verified": true
+  },
+  "protected_census_evidence": {
+    "workflow_run": 38649905025,
+    "node22_artifact_id": 11934412568,
+    "census_id": "voidbefv7c4_9c8fa20632d3cfb431c0d13229153d19f076613720c7402e5374eab1f833401d",
+    "census_json_sha256": "c9d910cd461b87c6b4722ada7505ceffe9a8d3c266387f3d9bbebddaf8f586f8",
+    "economic_artifact_inventory_sha256": "4dc2469dc898fb3c9c10baa47638a2892b3fb26159bd853454c7d94f98721b37",
+    "economic_source_inventory_sha256": "172c6be2f5e2f8d9865df516bde4bbbec65086025b779337d3b5ed2e701163be",
+    "protected_tracked_source_inventory_canonical_sha256": "224e8c4b63b231e40b1abf4982127a6e2b999724642c4360c10ca21887bbc0a2",
+    "economic_artifact_count": 28,
+    "economic_source_file_count": 28,
+    "protected_tracked_source_count": 49,
+    "cross_node_byte_identity_verified": true
+  },
+  "current_inventory_evidence": {
+    "hosted_json_artifact_inventory_sha256": "4dc2469dc898fb3c9c10baa47638a2892b3fb26159bd853454c7d94f98721b37",
+    "hosted_json_source_inventory_sha256": "172c6be2f5e2f8d9865df516bde4bbbec65086025b779337d3b5ed2e701163be",
+    "canonical_artifact_inventory_sha256": "41e845d6d88107f071697b324afa21155f9e649758deb82048b994aec602732a",
+    "canonical_source_inventory_sha256": "2f6a49dcaa8dde179af2ed366daa2dc1a0abbc0956de61275260d29af047b280"
+  },
+  "current_enforcement_tracked_source_inventory_v1": [
+    {
+      "path": "ops/precision/void_buy_void_source_finality_live_process_binding_v2_receipt_publish_v1.ts",
+      "git_blob_sha1": "a334ab29477dec3e36862a512191b9701debb73e",
+      "git_mode": "100644"
+    },
+    {
+      "path": "ops/precision/void_buy_void_source_finality_live_process_v2_collection_plan_v1.ts",
+      "git_blob_sha1": "d47a6f99870f385c1bc938adbef74535b78eba1f",
+      "git_mode": "100644"
+    },
+    {
+      "path": "ops/precision/void_buy_void_source_finality_live_process_v2_selector_guard.c",
+      "git_blob_sha1": "b7aad6ecea7afa5b7f931b50b4b463e992b19748",
+      "git_mode": "100644"
+    },
+    {
+      "path": "ops/precision/void_buy_void_source_finality_provider_pair_binding_receipt_install_v1.ts",
+      "git_blob_sha1": "6617fc49a01c3fca0bbc0629111e9bac78b5824f",
+      "git_mode": "100644"
+    },
+    {
+      "path": "ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts",
+      "git_blob_sha1": "e0a682ea4038ca22e3a3b97da2cac29874096c46",
+      "git_mode": "100644"
+    },
+    {
+      "path": "ops/precision/void_buy_void_source_finality_v7_native_preentry_v1.c",
+      "git_blob_sha1": "14fbb6759589ca2719da6a52d058891d987b2db9",
+      "git_mode": "100644"
+    },
+    {
+      "path": "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_body_v2.bash",
+      "git_blob_sha1": "ef0dc3b74e850d84569aab2ed2156b5cafdfeac4",
+      "git_mode": "100644"
+    },
+    {
+      "path": "ops/precision/void_buy_void_source_finality_v7_privileged_launcher_v1.sh",
+      "git_blob_sha1": "449700bb4f92e4d94b704c23676a9a0191e7fe3d",
+      "git_mode": "100755"
+    },
+    {
+      "path": "ops/run-void-node-live-v1.sh",
+      "git_blob_sha1": "6fb040de128ce0df16e848d61ea5f4acb62794da",
+      "git_mode": "100755"
+    },
+    {
+      "path": "ops/security/buy-void-v7-live-process-v2-selector-elf-lock-v1.json",
+      "git_blob_sha1": "f2c3d0c9f87ffd1e5495a6163594dbd79d7a8a96",
+      "git_mode": "100644"
+    },
+    {
+      "path": "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json",
+      "git_blob_sha1": "445bcfbf5feae928e0d9cc06d4d31c1ee186fe39",
+      "git_mode": "100644"
+    },
+    {
+      "path": "package-lock.json",
+      "git_blob_sha1": "15b5c82ea36f13079a2f9e8863722f654eb3f201",
+      "git_mode": "100644"
+    },
+    {
+      "path": "package.json",
+      "git_blob_sha1": "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f",
+      "git_mode": "100644"
+    },
+    {
+      "path": "runtime/canonical-producer-self-http-guard-v4.cjs",
+      "git_blob_sha1": "157089e787362d46c6ac4deacb2742789b476017",
+      "git_mode": "100644"
+    },
+    {
+      "path": "runtime/canonical-producer-source-custody-v1.cjs",
+      "git_blob_sha1": "7c54d71db1fd041cc1a091cdb1a7fc8b80e0cb4a",
+      "git_mode": "100644"
+    },
+    {
+      "path": "scripts/prove_void_buy_v7_privileged_launcher_package_runtime_v2.mjs",
+      "git_blob_sha1": "ef37078e977cfdff9fc104f54b6e9fceb3d93a34",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_auto_fulfillment_v1.ts",
+      "git_blob_sha1": "b7c963b1d55f000d82ad82289b31107b432503de",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_broadcast_outcome_journal_v1.ts",
+      "git_blob_sha1": "de8765d306c9ba1153ade10f0e5db92823ef3e39",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_confirmed_state_journal_v1.ts",
+      "git_blob_sha1": "d420ff9fc9533098b613d2dae82425a9c4a4bf7e",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_crash_consistent_saga_server_policy_v1.ts",
+      "git_blob_sha1": "e284a38a4b7f3d498b07e77c661d6eef3b742e7a",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_delivery_runtime_integration_v1.ts",
+      "git_blob_sha1": "5b23824bf0a0f33b193e1cfc022fcfb5b898b022",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts",
+      "git_blob_sha1": "2deaee8ae4e0fbd909b417eef96a76012174c668",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_delivery_submission_guard_v1.ts",
+      "git_blob_sha1": "f84ca60a37c77ae7691ec6970c59f123de4f73b7",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_erc20_delivery_receipt_reconciler_v1.ts",
+      "git_blob_sha1": "d769edb821cec543cf05e8425857114261561cc0",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_erc20_execution_composition_v1.ts",
+      "git_blob_sha1": "acf2f88b513bbe50e192531f9fc8d261b69bd0f1",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_erc20_transaction_preparation_planner_v1.ts",
+      "git_blob_sha1": "baff79fbfdc9a01c73e66176dcb25ccc8cdaf0e7",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_ethereum_public_checkout_finality_gate_v1.ts",
+      "git_blob_sha1": "0aaee66b0ebbfd8ba3e12d4f754aa9f2e68c1d02",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_execution_attempt_journal_v1.ts",
+      "git_blob_sha1": "536b6f6970c3aaf48b1ae0dec3a0356ad7c3a7fe",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_filesystem_bakery_lock_v1.ts",
+      "git_blob_sha1": "9bd47abb857368d928c0ca289766cdf3571629ba",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_fulfillment_confirmation_v1.ts",
+      "git_blob_sha1": "31c8ce9b88c86d32e187ed2ca7d0a23344fbd113",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_fulfillment_journal_v1.ts",
+      "git_blob_sha1": "7c4b099d835b84f50867e873fca763767c80c015",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_inventory_reservation_journal_v1.ts",
+      "git_blob_sha1": "dc15061a3c4f09ec31da678aa26a731708e70d6c",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_payment_rpc_observer_v1.ts",
+      "git_blob_sha1": "0073818ad6f6418e895bf794024c9d678b3bef86",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_pipeline_coordinator_v1.ts",
+      "git_blob_sha1": "318aaa6a1534fed0d2ab934a78d2a5de187f7ef8",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_source_chain_finality_rpc_adapter_v1.ts",
+      "git_blob_sha1": "419054e00f4d96015cd066be81e8719ee71ac00c",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_authenticated_composition_v3.ts",
+      "git_blob_sha1": "a3dbe4d0fed3034d3ca2c0b3704a758d7c776090",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_authority_v2.ts",
+      "git_blob_sha1": "64953050d74bc0bc6d1e6948ae992d6143edca99",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_execution_preflight_v1.ts",
+      "git_blob_sha1": "c23155893efd684073a72a0903b89c72605faad5",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_generation_provenance_v6.ts",
+      "git_blob_sha1": "d371b1b08d2afc383d5e4ad831464752843791a3",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_generation_provenance_v7.ts",
+      "git_blob_sha1": "390ff1a2ff0437cd8c8693e7807c12275df42573",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_live_process_binding_v1.ts",
+      "git_blob_sha1": "73f088779f015a554f16e9eecf8a9fd9de0e1594",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_live_process_binding_v2.ts",
+      "git_blob_sha1": "987c97568a4d1b9814218603df48a65dbfeed18f",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_source_finality_provider_pair_binding_v1.ts",
+      "git_blob_sha1": "5d47cd29929f778b07a59647a80c4384b1497a08",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/economic/buy_void_verified_payment_v2.ts",
+      "git_blob_sha1": "550ede02fc0b7d6874c324af58b5ef9c5591b311",
+      "git_mode": "100644"
+    },
+    {
+      "path": "src/index.ts",
+      "git_blob_sha1": "a09661797aa4295371c036be36d82995e5233269",
+      "git_mode": "100644"
+    },
+    {
+      "path": "tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",
+      "git_blob_sha1": "d6a2d1cd82e5e255f435c1e21d1783774a44b2b1",
+      "git_mode": "100644"
+    },
+    {
+      "path": "tools/void-reviewed-node-package-runtime-v1.mjs",
+      "git_blob_sha1": "6475c3f18ffe566cf5f448ca1de4795391a6efde",
+      "git_mode": "100755"
+    },
+    {
+      "path": "tsconfig.build.json",
+      "git_blob_sha1": "d43e7f3fa03d20159f7b92aca4c8a56e738cd2fb",
+      "git_mode": "100644"
+    },
+    {
+      "path": "tsconfig.json",
+      "git_blob_sha1": "c970faf406a0fa95638ce0b1ac0c63f8d8e96120",
+      "git_mode": "100644"
+    }
+  ],
+  "current_enforcement_tracked_source_inventory_count": 49,
+  "current_enforcement_tracked_source_inventory_sha256": "c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d",
+  "current_enforcement_tracked_source_inventory_verified": true,
+  "current_enforcement_parent_path_identity_preserved": true,
+  "predecessor_enforcement": {
+    "path": "ops/security/buy-void-enforcement-post2865-lock-v1.json",
+    "git_blob_sha1": "37210b74fa0de86250af84ec088c2d74e9e90499",
+    "candidate_enforcement_set_sha256": "1f83d8e867fc53e8a9ed240f4876f1f9412b7b2dca7c06cbb479dbe38e40a93b",
+    "complete_executable_closure_verified": true,
+    "candidate_enforcement_identity_accepted": true,
+    "historical_identity_preserved": true
+  },
+  "audited_package_runtime": {
+    "manifest_path": "ops/security/reviewed-node-package-runtime-enforcement-post2865-v1.json",
+    "manifest_git_blob_sha1": "445bcfbf5feae928e0d9cc06d4d31c1ee186fe39",
+    "profile_id": "voidrnpr1_08e05626e80fbd2aecc3018514aaf76e491954f8258fff996f0b2dca1c3055ac",
+    "packages_aggregate_sha256": "77622df7d483bc3f73aa39468246f6860237a3f6749a09a0284644493f3990b6",
+    "profile_canonical_sha256": "3493638417e2f02a39bb7c48a08935e299754d7474feb71a5c2a48944d3f1757",
+    "root_packages": [
+      "ethers",
+      "express"
+    ],
+    "profile_identity_accepted": true
+  },
+  "dependency_provider": {
+    "lock_proof_path": "scripts/prove_buy_void_delivery_dependency_provider_closure_post2865_lock_v1.mjs",
+    "lock_proof_git_blob_sha1": "39f660e23f5baa3f0a4f1e5b8b40c756c31da4cb",
+    "candidate_json_sha256": "6c2bfe62b0d669bc9794a13eb24d357026ca8f9f7c055af1bcc0c0893c94247b",
+    "provider_closure_sha256": "3b6be7b9efdc7f70b6f270f77208efab2f7321136a54cc76a7e1d34c57bd4945",
+    "provider_closure_semantic_sha256": "95112d913d45b2b03887edb97c8693eef84a72b54b61503ffc66a6a7bce67384",
+    "provider_closure_identity_accepted": true,
+    "current_descendant_semantics_requalified": true
+  },
+  "v7_executable_delta": {
+    "proof_path": "scripts/prove_buy_void_source_finality_v7_executable_delta_candidate_v1.mjs",
+    "proof_git_blob_sha1": "ed0aeaca4e5feaf306d7d5e5f308878d43c03b0e",
+    "module_count": 6,
+    "candidate_generation_sha256": "5c5637207d5970d2ca793cf431726ff8d86db370b3e69e9ff1e5caa25d9b5224",
+    "source_inventory_sha256": "ce0d9d52226f09cd0ad10d9a6f04520e68587ced228932b0aa61bd323a59ee8d",
+    "artifact_inventory_sha256": "df158119982f790d050b2bfbb77a1df54bfe8a12aa9774534a7f53e230164d89",
+    "cross_node_byte_identity_verified": true
+  },
+  "closure_transition": {
+    "predecessor_artifact_count": 23,
+    "current_artifact_count": 28,
+    "unchanged_predecessor_artifact_count": 22,
+    "changed_artifact_paths": [
+      "dist/economic/buy_void_source_finality_execution_preflight_v1.js"
+    ],
+    "added_artifact_paths": [
+      "dist/economic/buy_void_source_finality_generation_provenance_v7.js",
+      "dist/economic/buy_void_source_finality_live_process_binding_v1.js",
+      "dist/economic/buy_void_source_finality_live_process_binding_v2.js",
+      "dist/economic/buy_void_source_finality_provider_pair_binding_v1.js",
+      "dist/economic/buy_void_ethereum_public_checkout_finality_gate_v1.js"
+    ],
+    "removed_artifact_paths": [],
+    "transition_exact": true
+  },
+  "live_process_v2_static_edge": {
+    "artifact_path": "dist/economic/buy_void_source_finality_live_process_binding_v2.js",
+    "artifact_sha256": "23b93cdd8c73b8f466281462b95a0c10df12eb6e6c62a6548d667b8142b9151b",
+    "source_git_blob_sha1": "987c97568a4d1b9814218603df48a65dbfeed18f",
+    "dynamic_import_count": 0,
+    "function_constructor_count": 0,
+    "static_execution_closure_verified": true
+  },
+  "dynamic_saga_edge": {
+    "importer_artifact": "dist/economic/buy_void_erc20_execution_composition_v1.js",
+    "importer_artifact_sha256": "b243a1611bceff0a7d758aeaaebf4e74c2bad6b762595ff0e13804e11b5c2af1",
+    "tool_specifier": "../../tools/buy-void-crash-consistent-fulfillment-saga-v1.mjs",
+    "saga_source_git_blob_sha1": "d6a2d1cd82e5e255f435c1e21d1783774a44b2b1",
+    "saga_source_sha256": "e94b2c5c2da0a4849acab936d0d7f8710f2d2229909d73bc679a83c63f777e01",
+    "saga_behavior_proof_git_blob_sha1": "d33206063799aaddf64ce178a618e174e0ddf628",
+    "dynamic_tool_execution_identity_verified": true,
+    "dynamic_tool_transitive_closure_verified": true
+  },
+  "package_runtime_identity_accepted": true,
+  "provider_closure_composed": true,
+  "delivery_route_closure_composed": true,
+  "live_process_v2_static_execution_closure_verified": true,
+  "third_party_package_runtime_closure_verified": true,
+  "complete_executable_closure_verified": true,
+  "candidate_enforcement_identity_accepted": false,
+  "deployed_artifact_generation_verified": false,
+  "runtime_mount_authority": false,
+  "production_source_finality_authority_ready": false,
+  "public_presale_activation": false,
+  "funds_movement": false,
+  "successor_transition": {
+    "predecessor_candidate_path": "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json",
+    "predecessor_candidate_git_blob_sha1": "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa",
+    "predecessor_lock_path": "ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json",
+    "predecessor_lock_git_blob_sha1": "f1b9d661eb3363e9bf18dbeb3610c659a54219bb",
+    "dispatch_v3_proof_path": "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs",
+    "dispatch_v3_proof_git_blob_sha1": "2dd9e7024eaafe4641c0d3ac7d10f542a441bb92",
+    "frozen_protected_inventory_sha256": "65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589",
+    "current_protected_inventory_sha256": "c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d",
+    "reviewed_protected_drift_count": 1,
+    "reviewed_deployment_reader_successor_bound": true,
+    "workflow_dispatch_contracts_bound": true,
+    "production_tracked_file_nonblocking": true,
+    "production_tracked_file_fifo_swap_rejected": true,
+    "frozen_v4_census_proof_preserved": true,
+    "nonprotected_economic_drift_count": 3,
+    "predecessor_tool_git_blob_sha1": "3de6e4bd1f9aa2e9c0a0889cc7c0ab489cb306c0",
+    "current_tool_git_blob_sha1": "e0a682ea4038ca22e3a3b97da2cac29874096c46",
+    "predecessor_candidate_preserved": true,
+    "predecessor_lock_preserved": true,
+    "current_candidate_rederived": true
+  },
+  "candidate_enforcement_set_sha256": "00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a"
+}

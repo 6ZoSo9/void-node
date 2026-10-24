@@ -15,6 +15,11 @@ on:
       - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts"
       - "scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs"
       - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs"
+      - "scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v4.mjs"
+      - "docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v4.md"
+      - "scripts/prove_buy_void_enforcement_final_protected_v7_v2_candidate_v4.mjs"
+      - "docs/architecture/buy-void-enforcement-final-protected-v7-v2-deployment-successor-v4.md"
+      - "ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v4.json"
   workflow_dispatch:
 
 permissions:
@@ -31,25 +36,26 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 0344d7dab153be75716646d5c6f5162f926f25ee
           fetch-depth: 0
           persist-credentials: false
       - name: Bind exact revision and source identities
         env:
-          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_HEAD: 0344d7dab153be75716646d5c6f5162f926f25ee
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
-          git merge-base --is-ancestor 4a051b906b827836fd50216e80b226f8e0b23300 HEAD
+          echo "HISTORICAL_V3_READER_REPAIR_EXACT_HEAD=0344d7dab153be75716646d5c6f5162f926f25ee"
+          git merge-base --is-ancestor 9f610b351ad48b214fa04dc6b961e4a202049913 HEAD
           test "$(git rev-parse HEAD:ops/precision/void_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e0a682ea4038ca22e3a3b97da2cac29874096c46"
           test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_install_v1.ts)" = "e634e666d3a190368ddb031f936ebbb6347b7196"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "2dd9e7024eaafe4641c0d3ac7d10f542a441bb92"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md)" = "36947405bbf3fede19004b9b2352d678b5632fd7"
-          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs)" = "d2c690277cb5b370d57af9ed3445babf46825004"
-          test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md)" = "33af5c86ea701ab8235863608a6d9d629960fb25"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "40c7d21e0f22bc2ffe079f80360af342f4d8a6aa"
-          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "f1b9d661eb3363e9bf18dbeb3610c659a54219bb"
-          git diff --name-status 4a051b906b827836fd50216e80b226f8e0b23300 HEAD > "$RUNNER_TEMP/delta.txt"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_repaired_v7_v2_current_generation_dispatch_v3.mjs)" = "fba37e94a90b3d4278fd3fba10fbe6313f2f0625"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-repaired-v7-v2-current-generation-dispatch-v3.md)" = "7567775b241a798752c1c36091d7059a75299b85"
+          test "$(git rev-parse HEAD:scripts/prove_buy_void_source_finality_v7_deployment_receipt_v3_lock_plan_v1.mjs)" = "9298ab67c31b4651795b88cabd9dc549dcffc27e"
+          test "$(git rev-parse HEAD:docs/architecture/buy-void-source-finality-v7-deployment-receipt-v3-lock-plan-v1.md)" = "ab6c5ac65f84ab3c66e6d60972b471e8d9fd14e2"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-candidate-v3.json)" = "79998af4763b6afca84ffe4e8d14d9a6ff535dfd"
+          test "$(git rev-parse HEAD:ops/security/buy-void-enforcement-final-protected-v7-v2-lock-v3.json)" = "245ce93ebfb53478211fab765489e88d8fa23c4a"
+          git diff --name-status 9f610b351ad48b214fa04dc6b961e4a202049913 HEAD > "$RUNNER_TEMP/delta.txt"
           cat > "$RUNNER_TEMP/expected-delta.txt" <<'EOF'
           M	.github/workflows/buy-void-delivery-dependency-provider-closure-post2865-lock-v1.yml
           M	.github/workflows/buy-void-enforcement-final-protected-v7-v2-candidate-v1.yml
@@ -67,7 +73,7 @@ jobs:
           sort -k2,2 "$RUNNER_TEMP/delta.txt" -o "$RUNNER_TEMP/delta.txt"
           sort -k2,2 "$RUNNER_TEMP/expected-delta.txt" -o "$RUNNER_TEMP/expected-delta.txt"
           cmp "$RUNNER_TEMP/expected-delta.txt" "$RUNNER_TEMP/delta.txt"
-          git diff --check 4a051b906b827836fd50216e80b226f8e0b23300 HEAD
+          git diff --check 9f610b351ad48b214fa04dc6b961e4a202049913 HEAD
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -154,7 +160,7 @@ jobs:
           echo 'separate_v4_candidate_lock_required=true'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: buy-void-v3-reader-repair-${{ github.event.pull_request.head.sha || github.sha }}-node-${{ matrix.node }}
+          name: buy-void-v3-reader-repair-0344d7dab153be75716646d5c6f5162f926f25ee-node-${{ matrix.node }}
           path: |
             ${{ runner.temp }}/dispatch-v3-${{ matrix.node }}.json
             ${{ runner.temp }}/v3-reader-hold-${{ matrix.node }}.log
@@ -169,7 +175,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          pattern: buy-void-v3-reader-repair-${{ github.event.pull_request.head.sha || github.sha }}-node-*
+          pattern: buy-void-v3-reader-repair-0344d7dab153be75716646d5c6f5162f926f25ee-node-*
           merge-multiple: true
           path: evidence
       - name: Require exact Node 22 24 26 equality
