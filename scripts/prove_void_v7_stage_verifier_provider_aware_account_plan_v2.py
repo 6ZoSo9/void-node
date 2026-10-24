@@ -17,7 +17,7 @@ PLAN_REL = "ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.j
 ROLE_REL = "ops/security/void_v7_v5_stage_role_separation_contract_v2.json"
 SOURCE_REL = "ops/precision/void_buy_void_v7_v5_source_stage_install_v1.py"
 RECEIPT_REL = "ops/precision/void_buy_void_v7_v5_receipt_stage_install_v1.py"
-PLAN_BLOB = "c38b886ec58bcc2e274d43b937defe0db4754a1a"
+PLAN_BLOB = "932fffe5fd5ba5d996f8cb6fd8928a618a9f92fb"
 ROLE_BLOB = "4801caaca496baeb85c7842b5b8b4b47122582ab"
 SOURCE_BLOB = "d88a9548ea34b8209ed7dcd53732fd25dd1371bf"
 RECEIPT_BLOB = "b462696826b4f90fdf5f4938cd5467e5711addab"
@@ -215,22 +215,50 @@ def classify(candidate: dict) -> str:
         return "HOLD_SUBUID_DELEGATION_COLLISION"
     if not candidate["subgid_collision_absent"]:
         return "HOLD_SUBGID_DELEGATION_COLLISION"
+    if not candidate["live_user_namespace_maps_collision_absent"]:
+        return "HOLD_LIVE_USERNS_IDMAP_COLLISION"
     if not candidate["host_namespace_leases_bound"]:
         return "HOLD_NAMESPACE_LEASE"
     if not candidate["complete_procfs_census"]:
         return "HOLD_PROCFS_CENSUS"
     if candidate["uid"] in candidate["live_uid_slots"] or candidate["gid"] in candidate["live_gid_slots"]:
         return "HOLD_LIVE_PROCESS_COLLISION"
+    if not candidate["sysv_ipc_collision_absent"]:
+        return "HOLD_SYSV_IPC_AUTHORITY_COLLISION"
+    if not candidate["kernel_authority_scope_complete"]:
+        return "HOLD_KERNEL_AUTHORITY_SCOPE"
+    if not candidate["kernel_authority_collision_absent"]:
+        return "HOLD_KERNEL_AUTHORITY_COLLISION"
     if not candidate["mount_scope_generation_bound"]:
         return "HOLD_MOUNT_SCOPE"
     if not candidate["all_authority_mounts_inspectable"]:
         return "HOLD_UNINSPECTABLE_MOUNT"
+    if not candidate["idmapped_mount_authority_resolved"]:
+        return "HOLD_IDMAPPED_MOUNT_AUTHORITY"
     if not candidate["numeric_file_ownership_absent"]:
         return "HOLD_ORPHANED_FILE_OWNERSHIP"
     if not candidate["numeric_acl_references_absent"]:
         return "HOLD_ORPHANED_ACL_AUTHORITY"
     if not candidate["systemd_reservations_absent"]:
         return "HOLD_SYSTEMD_RESERVATION"
+    if not candidate["subid_name_entries_absent"]:
+        return "HOLD_SUBID_NAME_AUTHORITY"
+    if not candidate["systemd_sysusers_name_absent"]:
+        return "HOLD_SYSUSERS_NAME_AUTHORITY"
+    if not candidate["systemd_unit_name_authority_absent"]:
+        return "HOLD_SYSTEMD_UNIT_NAME_AUTHORITY"
+    if not candidate["privilege_policy_name_authority_absent"]:
+        return "HOLD_PRIVILEGE_POLICY_NAME_AUTHORITY"
+    if not candidate["ssh_name_authority_absent"]:
+        return "HOLD_SSH_NAME_AUTHORITY"
+    if not candidate["scheduled_name_authority_absent"]:
+        return "HOLD_SCHEDULED_NAME_AUTHORITY"
+    if not candidate["tmpfiles_name_authority_absent"]:
+        return "HOLD_TMPFILES_NAME_AUTHORITY"
+    if not candidate["name_authority_generation_bound"]:
+        return "HOLD_NAME_AUTHORITY_GENERATION"
+    if not candidate["all_name_authority_surfaces_inspectable"]:
+        return "HOLD_NAME_AUTHORITY_SCOPE"
     if not candidate["fresh_before_group_create"]:
         return "HOLD_GROUP_CREATE_CENSUS_STALE"
     if not candidate["after_group_local_binding_exact"]:
@@ -326,17 +354,20 @@ assert provider["provider_unavailable_or_timeout_policy"] == "HOLD"
 requirements = plan["provider_requirements"]
 assert set(requirements) == set(ALLOWED_PROVIDERS)
 assert len(requirements["files"]) == len(requirements["systemd"]) == len(requirements["sss"]) == 6
-assert len(plan["global_numeric_authority_requirements"]) == 19
+assert len(plan["global_numeric_authority_requirements"]) == 23
+assert len(plan["non_nss_name_authority_requirements"]) == 9
 assert len(plan["future_create_only_sequence"]) == 2
 assert plan["future_create_only_sequence"][0]["operation"] == "create_exact_primary_group"
 assert plan["future_create_only_sequence"][0]["postcondition"] == "exact_local_files_group_binding_only_no_nonfiles_collision"
 assert plan["future_create_only_sequence"][0]["requires_gid_inside_bound_system_range"] is True
+assert plan["future_create_only_sequence"][0]["requires_no_preexisting_name_based_group_authority"] is True
 assert plan["future_create_only_sequence"][1]["operation"] == "create_exact_system_user"
 assert plan["future_create_only_sequence"][1]["precondition"] == "expected_local_group_bound_user_name_uid_still_absent"
 assert plan["future_create_only_sequence"][1]["requires_uid_inside_bound_system_range"] is True
 assert plan["future_create_only_sequence"][1]["must_not_create_subuid_or_subgid_delegation"] is True
+assert plan["future_create_only_sequence"][1]["requires_no_preexisting_name_based_user_authority"] is True
 assert all(step["implemented_here"] is False for step in plan["future_create_only_sequence"])
-assert len(plan["post_create_requirements"]) == 10
+assert len(plan["post_create_requirements"]) == 13
 assert role["stage_verifier"]["status"] == "UNSELECTED"
 assert role["stage_verifier"]["uid"] is None and role["stage_verifier"]["gid"] is None
 assert role["identity_selection_dependency"]["status"] == "HOLD_PROVIDER_AWARE_ACCOUNT_PLAN_REQUIRED"
@@ -380,14 +411,28 @@ positive = {
     "uid_gid_inside_system_ranges": True,
     "subuid_collision_absent": True,
     "subgid_collision_absent": True,
+    "live_user_namespace_maps_collision_absent": True,
     "host_namespace_leases_bound": True,
     "complete_procfs_census": True,
     "live_uid_slots": set(), "live_gid_slots": set(),
+    "sysv_ipc_collision_absent": True,
+    "kernel_authority_scope_complete": True,
+    "kernel_authority_collision_absent": True,
     "mount_scope_generation_bound": True,
     "all_authority_mounts_inspectable": True,
+    "idmapped_mount_authority_resolved": True,
     "numeric_file_ownership_absent": True,
     "numeric_acl_references_absent": True,
     "systemd_reservations_absent": True,
+    "subid_name_entries_absent": True,
+    "systemd_sysusers_name_absent": True,
+    "systemd_unit_name_authority_absent": True,
+    "privilege_policy_name_authority_absent": True,
+    "ssh_name_authority_absent": True,
+    "scheduled_name_authority_absent": True,
+    "tmpfiles_name_authority_absent": True,
+    "name_authority_generation_bound": True,
+    "all_name_authority_surfaces_inspectable": True,
     "fresh_before_group_create": True,
     "after_group_local_binding_exact": True,
     "after_group_nonfiles_group_negative": True,
@@ -434,15 +479,29 @@ negative_cases = (
     ({"uid_gid_inside_system_ranges": False}, "HOLD_OUTSIDE_SYSTEM_ID_RANGE"),
     ({"subuid_collision_absent": False}, "HOLD_SUBUID_DELEGATION_COLLISION"),
     ({"subgid_collision_absent": False}, "HOLD_SUBGID_DELEGATION_COLLISION"),
+    ({"live_user_namespace_maps_collision_absent": False}, "HOLD_LIVE_USERNS_IDMAP_COLLISION"),
     ({"host_namespace_leases_bound": False}, "HOLD_NAMESPACE_LEASE"),
     ({"complete_procfs_census": False}, "HOLD_PROCFS_CENSUS"),
     ({"live_uid_slots": {123456789}}, "HOLD_LIVE_PROCESS_COLLISION"),
     ({"live_gid_slots": {123456790}}, "HOLD_LIVE_PROCESS_COLLISION"),
+    ({"sysv_ipc_collision_absent": False}, "HOLD_SYSV_IPC_AUTHORITY_COLLISION"),
+    ({"kernel_authority_scope_complete": False}, "HOLD_KERNEL_AUTHORITY_SCOPE"),
+    ({"kernel_authority_collision_absent": False}, "HOLD_KERNEL_AUTHORITY_COLLISION"),
     ({"mount_scope_generation_bound": False}, "HOLD_MOUNT_SCOPE"),
     ({"all_authority_mounts_inspectable": False}, "HOLD_UNINSPECTABLE_MOUNT"),
+    ({"idmapped_mount_authority_resolved": False}, "HOLD_IDMAPPED_MOUNT_AUTHORITY"),
     ({"numeric_file_ownership_absent": False}, "HOLD_ORPHANED_FILE_OWNERSHIP"),
     ({"numeric_acl_references_absent": False}, "HOLD_ORPHANED_ACL_AUTHORITY"),
     ({"systemd_reservations_absent": False}, "HOLD_SYSTEMD_RESERVATION"),
+    ({"subid_name_entries_absent": False}, "HOLD_SUBID_NAME_AUTHORITY"),
+    ({"systemd_sysusers_name_absent": False}, "HOLD_SYSUSERS_NAME_AUTHORITY"),
+    ({"systemd_unit_name_authority_absent": False}, "HOLD_SYSTEMD_UNIT_NAME_AUTHORITY"),
+    ({"privilege_policy_name_authority_absent": False}, "HOLD_PRIVILEGE_POLICY_NAME_AUTHORITY"),
+    ({"ssh_name_authority_absent": False}, "HOLD_SSH_NAME_AUTHORITY"),
+    ({"scheduled_name_authority_absent": False}, "HOLD_SCHEDULED_NAME_AUTHORITY"),
+    ({"tmpfiles_name_authority_absent": False}, "HOLD_TMPFILES_NAME_AUTHORITY"),
+    ({"name_authority_generation_bound": False}, "HOLD_NAME_AUTHORITY_GENERATION"),
+    ({"all_name_authority_surfaces_inspectable": False}, "HOLD_NAME_AUTHORITY_SCOPE"),
     ({"fresh_before_group_create": False}, "HOLD_GROUP_CREATE_CENSUS_STALE"),
     ({"after_group_local_binding_exact": False}, "HOLD_POST_GROUP_LOCAL_BINDING"),
     ({"after_group_nonfiles_group_negative": False}, "HOLD_POST_GROUP_NONFILES_COLLISION"),
