@@ -33,3 +33,22 @@ service mutation, credential access, signing, transaction, payment acceptance,
 public presale/WC activation, treasury/liquidity action, or funds movement.
 
 PROTECT THE CORE.
+
+
+## Trusted execution model
+
+The bootstrap pull request uses a `pull_request` job only to test this
+four-file admission implementation before it lands. Bootstrap output is not
+trusted admission of the target candidate.
+
+After this control is merged to `main`, target-candidate verification runs
+only under `pull_request_target`. That event loads the workflow definition
+from the trusted base branch. The job explicitly checks out the exact base SHA
+for the verifier and manifest, fetches the target branch only as Git-object
+input, requires the exact 21 ADD-only target delta, and then validates all 21
+mode/type/blob identities. No file or executable from the candidate checkout is
+used as admission logic.
+
+The object verifier therefore reports
+`candidate_objects_match_manifest=true`; only the trusted-base job may promote
+that mechanical fact to `trusted_target_admission=true`.
