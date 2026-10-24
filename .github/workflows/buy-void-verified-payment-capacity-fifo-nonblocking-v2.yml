@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           HISTORICAL_BASE="1d8c8804d75fa12e1fa9fcfffe7bc93940fbd56c"
           HISTORICAL_HEAD="abbfa9c5b074a01e8381e533a1a349fb9b2b2e23"
-          CURRENT_MAIN="e83b1df4bc3b52d08d5e38e076fa6c80085f7e01"
+          CURRENT_MAIN="29057c25f06fcb214853bc612ea7606211778f81"
 
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           test "$BASE_REF" = "main"
