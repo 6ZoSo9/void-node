@@ -112,6 +112,20 @@ jobs:
                   continue
                 fi
                 ;;
+              scripts/prove_buy_void_legacy_operator_status_exact_identity_v1.ts)
+                # V1 is frozen on the pre-FIFO writer. The V2 successor is
+                # the current-positive operator-status identity proof.
+                set +e
+                ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
+                historical_status=$?
+                set -e
+                test "$historical_status" -eq 1
+                grep -Fq 'exact reviewed writer source drift' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'ac8bf352979e0e24d2cab45c3b23949e1bd2b026' "$RUNNER_TEMP/$(basename "$proof").hold"
+                grep -Fq 'd1320be22fe55af24017b84f0655fbcde82dbee9' "$RUNNER_TEMP/$(basename "$proof").hold"
+                echo "VOID_BUY_VOID_HISTORICAL_OPERATOR_STATUS_V1_HELD=$proof"
+                continue
+                ;;
               scripts/prove_buy_void_operator_verified_allocation_dispatch_v1.ts)
                 set +e
                 ./node_modules/.bin/tsx "$proof" > "$RUNNER_TEMP/$(basename "$proof").hold" 2>&1
