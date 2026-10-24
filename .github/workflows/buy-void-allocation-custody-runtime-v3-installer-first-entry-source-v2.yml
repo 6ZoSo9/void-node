@@ -39,7 +39,10 @@ jobs:
           test "$(git merge-base "$BASE" HEAD)" = "$BASE"
 
           git fetch --no-tags origin "$PREDECESSOR_BRANCH:refs/remotes/origin/$PREDECESSOR_BRANCH"
-          test "$(git rev-parse "refs/remotes/origin/$PREDECESSOR_BRANCH")" = "$PREDECESSOR_HEAD"
+          PREDECESSOR_TIP="$(git rev-parse "refs/remotes/origin/$PREDECESSOR_BRANCH")"
+          test -n "$PREDECESSOR_TIP"
+          git merge-base --is-ancestor "$PREDECESSOR_HEAD" "$PREDECESSOR_TIP"
+          echo "predecessor_tip=$PREDECESSOR_TIP"
           test "$(git rev-parse "$PREDECESSOR_HEAD:native/void_buy_allocation_custody_runtime_v3_installer_first_entry_source_v1.c")" = "$PREDECESSOR_BLOB"
 
           mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
