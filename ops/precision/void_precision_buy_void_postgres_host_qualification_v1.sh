@@ -7,6 +7,7 @@ repo="${VOID_LIVE_REPO_ROOT:-$HOME/dev/void-node}"
 unit="void-node-live.service"
 drop="$HOME/.config/systemd/user/void-node-live.service.d"
 tool="${1:-}"
+tool_rel="tools/void-precision-buy-void-postgres-host-qualification-v1.mjs"
 
 say(){ printf '%s\n' "$*"; }
 hold(){ say "${MARKER}_HOLD reason=$*" >&2; exit 2; }
@@ -21,11 +22,10 @@ say "credential_content_output=false"
 say "transaction_broadcast=false"
 say "funds_movement=false"
 
-test -n "$tool" && test -f "$tool" || hold "qualifier_tool_missing"
-expected_tool_blob="3a9db8d007539bc605b6aa374dee6ba59ca36e1c"
-actual_tool_blob="$(git hash-object "$tool")"
-test "$actual_tool_blob" = "$expected_tool_blob" ||
-  hold "qualifier_tool_blob_mismatch"
+for cmd in python3 mktemp readlink; do
+  command -v "$cmd" >/dev/null 2>&1 ||
+    hold "required_command_missing:$cmd"
+done
 
 test -d "$repo/.git" || hold "live_repo_missing"
 cd "$repo"
@@ -33,6 +33,78 @@ cd "$repo"
 test "$(git branch --show-current)" = "main" || hold "live_repo_not_main"
 test -z "$(git status --porcelain=v1 --untracked-files=all)" ||
   hold "live_repo_dirty"
+
+test -n "$tool" && test -f "$tool" || hold "qualifier_tool_missing"
+canonical_tool="$repo/$tool_rel"
+test "$tool" = "$canonical_tool" || hold "qualifier_tool_path_not_canonical"
+test ! -L "$tool" || hold "qualifier_tool_symlink_forbidden"
+test "$(readlink -f -- "$tool")" = "$canonical_tool" ||
+  hold "qualifier_tool_realpath_not_canonical"
+
+expected_tool_blob="3a9db8d007539bc605b6aa374dee6ba59ca36e1c"
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/void-buy-void-postgres-qualifier.XXXXXX")"
+cleanup(){ rm -rf "$tmp"; }
+trap cleanup EXIT INT TERM
+tool_snapshot="$tmp/qualifier-tool.mjs"
+
+if ! python3 - "$tool" "$tool_snapshot" "$expected_tool_blob" <<'PY'
+import hashlib
+import os
+import stat
+import sys
+
+src, dst, expected = sys.argv[1:]
+flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+fd = os.open(src, flags)
+try:
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode):
+        raise SystemExit("qualifier_tool_not_regular")
+    if st.st_size <= 0 or st.st_size > 1048576:
+        raise SystemExit("qualifier_tool_size_invalid")
+    chunks = []
+    while True:
+        chunk = os.read(fd, 65536)
+        if not chunk:
+            break
+        chunks.append(chunk)
+finally:
+    os.close(fd)
+
+data = b"".join(chunks)
+blob = hashlib.sha1(
+    b"blob " + str(len(data)).encode("ascii") + b"\0" + data
+).hexdigest()
+if blob != expected:
+    raise SystemExit("qualifier_tool_blob_mismatch")
+
+out_flags = (
+    os.O_WRONLY
+    | os.O_CREAT
+    | os.O_EXCL
+    | getattr(os, "O_CLOEXEC", 0)
+    | getattr(os, "O_NOFOLLOW", 0)
+)
+out_fd = os.open(dst, out_flags, 0o400)
+try:
+    view = memoryview(data)
+    while view:
+        written = os.write(out_fd, view)
+        view = view[written:]
+    os.fsync(out_fd)
+    os.fchmod(out_fd, 0o400)
+finally:
+    os.close(out_fd)
+
+snap = os.stat(dst, follow_symlinks=False)
+if not stat.S_ISREG(snap.st_mode) or stat.S_IMODE(snap.st_mode) != 0o400:
+    raise SystemExit("qualifier_tool_snapshot_mode_invalid")
+PY
+then
+  hold "qualifier_tool_snapshot_failed"
+fi
+say "qualifier_tool_path_canonical=true"
+say "qualifier_tool_snapshot_green=true"
 
 declare -A expected_blob=(
   ["ops/systemd/void-node-live.service.d/91-buy-void-payment-keyed-production-dormant-v1.conf.example"]="a3500a7f1813972b90e5c00dbf8a03ed4b4ddd6b"
@@ -187,6 +259,6 @@ say "dormant_runtime_gate_green=true"
 say "credential_content_read_inside_reviewed_factory_authorized=true"
 say "ambient_libpq_environment_forwarded=false"
 
-env -i   PATH="$PATH"   HOME="$HOME"   VOID_LIVE_REPO_ROOT="$repo"   VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED="$runtime_integration"   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED="$full_runtime"   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED="$full_apply"   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED="$claimed_runtime"   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED="$admitted_runtime"   VOID_BUY_VOID_DISPATCHER_POSTGRES_HOST="$pg_host"   VOID_BUY_VOID_DISPATCHER_POSTGRES_PORT="$pg_port"   VOID_BUY_VOID_DISPATCHER_POSTGRES_POOL_MAX="$pg_pool"   VOID_BUY_VOID_DISPATCHER_POSTGRES_CONNECTION_TIMEOUT_MS="$pg_connect_timeout"   VOID_BUY_VOID_DISPATCHER_POSTGRES_IDLE_TIMEOUT_MS="$pg_idle_timeout"   CREDENTIALS_DIRECTORY="$cred_dir"   "$tsx" "$tool"
+env -i   PATH="$PATH"   HOME="$HOME"   VOID_LIVE_REPO_ROOT="$repo"   VOID_BUY_VOID_RUNTIME_INTEGRATION_ENABLED="$runtime_integration"   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_ENABLED="$full_runtime"   VOID_BUY_VOID_PAYMENT_KEYED_FULL_RUNTIME_APPLY_ENABLED="$full_apply"   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_CLAIMED_RUNTIME_ENABLED="$claimed_runtime"   VOID_BUY_VOID_PAYMENT_KEYED_DISPATCHER_POSTGRES_ADMITTED_GUARDED_RUNTIME_ENABLED="$admitted_runtime"   VOID_BUY_VOID_DISPATCHER_POSTGRES_HOST="$pg_host"   VOID_BUY_VOID_DISPATCHER_POSTGRES_PORT="$pg_port"   VOID_BUY_VOID_DISPATCHER_POSTGRES_POOL_MAX="$pg_pool"   VOID_BUY_VOID_DISPATCHER_POSTGRES_CONNECTION_TIMEOUT_MS="$pg_connect_timeout"   VOID_BUY_VOID_DISPATCHER_POSTGRES_IDLE_TIMEOUT_MS="$pg_idle_timeout"   CREDENTIALS_DIRECTORY="$cred_dir"   "$tsx" "$tool_snapshot"
 
 say "${MARKER}_GREEN"
