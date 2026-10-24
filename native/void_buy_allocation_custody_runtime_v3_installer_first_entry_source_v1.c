@@ -2,6 +2,7 @@
 
 #include "void_buy_allocation_custody_runtime_v3_installer_first_entry_bindings_v1.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
@@ -106,8 +107,20 @@
 #ifndef VOID_PYTHON_STDLIB_PATH
 #error "VOID_PYTHON_STDLIB_PATH is required"
 #endif
+#ifndef VOID_PYTHON_STDLIB_MODE
+#error "VOID_PYTHON_STDLIB_MODE is required"
+#endif
+#ifndef VOID_PYTHON_STDLIB_BYTES
+#error "VOID_PYTHON_STDLIB_BYTES is required"
+#endif
+#ifndef VOID_PYTHON_STDLIB_SHA256_HEX
+#error "VOID_PYTHON_STDLIB_SHA256_HEX is required"
+#endif
 #ifndef VOID_PYTHON_DYNLOAD_PATH
 #error "VOID_PYTHON_DYNLOAD_PATH is required"
+#endif
+#ifndef VOID_PYTHON_DYNLOAD_MODE
+#error "VOID_PYTHON_DYNLOAD_MODE is required"
 #endif
 #ifndef VOID_RUNTIME_FILE_COUNT
 #error "VOID_RUNTIME_FILE_COUNT is required"
@@ -464,6 +477,146 @@ static int open_verified_regular(
   return fd;
 }
 
+static int path_is_direct_child_of(
+  const char *path,
+  const char *parent
+) {
+  size_t parent_len;
+  const char *leaf;
+
+  if (!safe_absolute_path(path) || !safe_absolute_path(parent)) return 0;
+  parent_len = strlen(parent);
+  if (parent_len < 1 || strncmp(path, parent, parent_len) != 0) return 0;
+  if (path[parent_len] != '/') return 0;
+  leaf = path + parent_len + 1;
+  if (*leaf == '\0' || strchr(leaf, '/') != NULL) return 0;
+  return 1;
+}
+
+static int runtime_path_is_bound(const char *path) {
+  size_t matches = 0;
+#define VOID_MATCH_RUNTIME_ROW(bound_path, mode, bytes, digest) do { \
+    if (strcmp((path), (bound_path)) == 0) ++matches; \
+  } while (0);
+  VOID_RUNTIME_FILE_TABLE(VOID_MATCH_RUNTIME_ROW)
+#undef VOID_MATCH_RUNTIME_ROW
+  return matches == 1;
+}
+
+static void verify_dynload_directory_closure(void) {
+  struct stat before, opened, after, visible;
+  DIR *dir;
+  int fd;
+  size_t seen = 0;
+  char sentinel[PATH_MAX];
+
+  if (
+    snprintf(
+      sentinel,
+      sizeof(sentinel),
+      "%s/.void-closure-sentinel",
+      VOID_PYTHON_DYNLOAD_PATH
+    ) < 0 ||
+    strlen(sentinel) >= sizeof(sentinel)
+  ) {
+    die("dynload_sentinel_path_invalid");
+  }
+  verify_ancestry(sentinel);
+
+  if (lstat(VOID_PYTHON_DYNLOAD_PATH, &before) != 0) {
+    die("lstat_dynload_directory_failed");
+  }
+  if (
+    !S_ISDIR(before.st_mode) ||
+    S_ISLNK(before.st_mode) ||
+    before.st_uid != 0 ||
+    before.st_gid != 0 ||
+    (before.st_mode & 07777) != VOID_PYTHON_DYNLOAD_MODE
+  ) {
+    die("dynload_directory_metadata_invalid");
+  }
+
+  fd = open(
+    VOID_PYTHON_DYNLOAD_PATH,
+    O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC
+  );
+  if (fd < 0) die("open_dynload_directory_failed");
+  if (fstat(fd, &opened) != 0) die("fstat_dynload_directory_failed");
+  if (!same_generation(&before, &opened)) {
+    die("dynload_directory_rebound");
+  }
+
+  dir = fdopendir(fd);
+  if (dir == NULL) {
+    (void)close(fd);
+    die("fdopendir_dynload_failed");
+  }
+
+  for (;;) {
+    struct dirent *entry;
+    char full[PATH_MAX];
+    struct stat leaf_st;
+    errno = 0;
+    entry = readdir(dir);
+    if (entry == NULL) {
+      if (errno != 0) die("readdir_dynload_failed");
+      break;
+    }
+    if (
+      strcmp(entry->d_name, ".") == 0 ||
+      strcmp(entry->d_name, "..") == 0
+    ) {
+      continue;
+    }
+    if (strchr(entry->d_name, '/') != NULL) {
+      die("dynload_entry_name_invalid");
+    }
+    if (
+      snprintf(
+        full,
+        sizeof(full),
+        "%s/%s",
+        VOID_PYTHON_DYNLOAD_PATH,
+        entry->d_name
+      ) < 0 ||
+      strlen(full) >= sizeof(full)
+    ) {
+      die("dynload_entry_path_invalid");
+    }
+    if (!path_is_direct_child_of(full, VOID_PYTHON_DYNLOAD_PATH)) {
+      die("dynload_entry_not_direct_child");
+    }
+    if (!runtime_path_is_bound(full)) {
+      die("dynload_unbound_entry");
+    }
+    if (lstat(full, &leaf_st) != 0) die("lstat_dynload_entry_failed");
+    if (!S_ISREG(leaf_st.st_mode) || S_ISLNK(leaf_st.st_mode)) {
+      die("dynload_nonregular_entry_forbidden");
+    }
+    ++seen;
+    if (seen > (size_t)VOID_RUNTIME_FILE_COUNT) {
+      die("dynload_entry_count_exceeded");
+    }
+  }
+
+  if (fstat(dirfd(dir), &after) != 0) {
+    die("post_fstat_dynload_directory_failed");
+  }
+  if (closedir(dir) != 0) die("closedir_dynload_failed");
+  if (lstat(VOID_PYTHON_DYNLOAD_PATH, &visible) != 0) {
+    die("post_lstat_dynload_directory_failed");
+  }
+  if (
+    !same_generation(&opened, &after) ||
+    !same_generation(&after, &visible)
+  ) {
+    die("dynload_directory_generation_changed");
+  }
+  if (seen != (size_t)VOID_RUNTIME_FILE_COUNT) {
+    die("dynload_entry_count_mismatch");
+  }
+}
+
 static void verify_self_generation(void) {
   struct stat exe_st, path_st;
   int exe_fd, path_fd;
@@ -494,7 +647,11 @@ static void verify_self_generation(void) {
 static void verify_runtime_closure(void) {
   size_t seen = 0;
 #define VOID_VERIFY_RUNTIME_ROW(path, mode, bytes, digest) do { \
-    int row_fd = open_verified_regular((path),(mode),(bytes),(digest)); \
+    int row_fd; \
+    if (!path_is_direct_child_of((path), VOID_PYTHON_DYNLOAD_PATH)) { \
+      die("runtime_row_not_direct_dynload_child"); \
+    } \
+    row_fd = open_verified_regular((path),(mode),(bytes),(digest)); \
     if (close(row_fd) != 0) die("close_runtime_file_failed"); \
     ++seen; \
   } while (0);
@@ -503,6 +660,7 @@ static void verify_runtime_closure(void) {
   if (seen != (size_t)VOID_RUNTIME_FILE_COUNT) {
     die("runtime_file_count_mismatch");
   }
+  verify_dynload_directory_closure();
 }
 
 static int duplicate_to_fixed_fd(int source_fd, int target_fd, int cloexec) {
@@ -659,6 +817,16 @@ int main(int argc, char **argv, char **envp) {
     VOID_PYTHON_BYTES,
     VOID_PYTHON_SHA256_HEX
   );
+
+  {
+    int stdlib_fd = open_verified_regular(
+      VOID_PYTHON_STDLIB_PATH,
+      VOID_PYTHON_STDLIB_MODE,
+      VOID_PYTHON_STDLIB_BYTES,
+      VOID_PYTHON_STDLIB_SHA256_HEX
+    );
+    if (close(stdlib_fd) != 0) die("close_stdlib_archive_failed");
+  }
 
   verify_runtime_closure();
 
