@@ -46,8 +46,8 @@ jobs:
           test "$(git rev-parse HEAD:docs/operators/buy-void-v7-v5-source-receipt-stage-install-v1.md)" = "02fa010cd66a50c5e2858b6cced9a7e08ee295af"
           test "$(git rev-parse HEAD:.github/workflows/buy-void-v7-v5-source-receipt-stage-install-v1.yml)" = "af1a9afad2a39b96ee4022ba1b36ebf7534c818b"
           test "$(git rev-parse HEAD:ops/security/void_v7_v5_stage_role_separation_contract_v2.json)" = "4801caaca496baeb85c7842b5b8b4b47122582ab"
-          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_role_separation_contract_v2.py)" = "af5d78695c4752c1122cbfe9c22b12c813a813f3"
-          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-role-separation-contract-v2.md)" = "b21c1dd14f8497eaaaa50100fd29d2507b74037f"
+          test "$(git rev-parse HEAD:scripts/prove_void_v7_v5_stage_role_separation_contract_v2.py)" = "d640a6b6ad67562f57489807d0bf86eff80bad1d"
+          test "$(git rev-parse HEAD:docs/security/void-v7-v5-stage-role-separation-contract-v2.md)" = "92b5a125c210d7cecd2262b8852e11a0bdd71d9c"
           cat > /tmp/v7-role-v2-expected <<'SCOPE'
           A	.github/workflows/void-v7-stage-role-separation-contract-v2.yml
           A	docs/security/void-v7-v5-stage-role-separation-contract-v2.md
@@ -64,4 +64,14 @@ jobs:
         run: |
           set -euo pipefail
           test "$(id -u)" -ne 0
-          python3 -I -B scripts/prove_void_v7_v5_stage_role_separation_contract_v2.py
+          out="$(mktemp)"
+          python3 -I -B scripts/prove_void_v7_v5_stage_role_separation_contract_v2.py | tee "$out"
+          grep -Fx 'VOID_V7_V5_STAGE_ROLE_SEPARATION_CONTRACT_V2_PROOF_GREEN' "$out"
+          grep -Fx 'descriptor_bound_nonblocking_exact_reads=true' "$out"
+          grep -Fx 'all_pinned_worktree_inputs_descriptor_bound=true' "$out"
+          grep -Fx 'fifo_symlink_read_regressions=GREEN' "$out"
+          grep -Fx 'root_execution=false' "$out"
+          grep -Fx 'account_or_acl_mutation=false' "$out"
+          grep -Fx 'protected_stage_apply=false' "$out"
+          grep -Fx 'presale_activation=false' "$out"
+          grep -Fx 'funds_movement=false' "$out"
