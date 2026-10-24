@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 import stat
 import subprocess
+import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 PLAN_REL = "ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json"
@@ -90,6 +92,56 @@ def read_exact_bytes(rel: str, expected_blob: str, limit: int = 65536) -> bytes:
 def read_json(rel: str, expected_blob: str, limit: int = 65536) -> dict:
     data = read_exact_bytes(rel, expected_blob, limit)
     return json.loads(data.decode("utf-8", "strict"), object_pairs_hook=unique_object)
+
+
+def self_test_descriptor_reads() -> None:
+    with tempfile.TemporaryDirectory(prefix="void-v7-provider-account-read-") as tmp:
+        root = Path(tmp)
+        good = root / "good"
+        payload = b'{"ok":true}\n'
+        good.write_bytes(payload)
+        expected = git_blob_id(payload)
+        # Use the same descriptor logic, but on a disposable absolute-path helper.
+        def read_path(path: Path) -> bytes:
+            flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK
+            fd = os.open(path, flags)
+            try:
+                opened = os.fstat(fd)
+                assert stat.S_ISREG(opened.st_mode)
+                data = os.read(fd, opened.st_size)
+                assert len(data) == opened.st_size
+                assert os.read(fd, 1) == b""
+                visible = os.lstat(path)
+                terminal = os.fstat(fd)
+                fields = lambda s: (
+                    s.st_dev, s.st_ino, s.st_uid, s.st_gid, s.st_mode,
+                    s.st_nlink, s.st_size, s.st_mtime_ns, s.st_ctime_ns,
+                )
+                assert fields(opened) == fields(terminal) == fields(visible)
+                return data
+            finally:
+                os.close(fd)
+        assert git_blob_id(read_path(good)) == expected
+
+        fifo = root / "fifo"
+        os.mkfifo(fifo, 0o600)
+        started = time.monotonic()
+        try:
+            read_path(fifo)
+        except (AssertionError, OSError):
+            pass
+        else:
+            raise AssertionError("fifo_substitution_accepted")
+        assert time.monotonic() - started < 2.0, "fifo_substitution_blocked"
+
+        link = root / "link"
+        link.symlink_to(good)
+        try:
+            read_path(link)
+        except (AssertionError, OSError):
+            pass
+        else:
+            raise AssertionError("symlink_substitution_accepted")
 
 
 def unique_object(items):
@@ -184,6 +236,7 @@ def classify(candidate: dict) -> str:
 
 assert os.geteuid() != 0, "root_source_proof_forbidden"
 assert git("merge-base", "--is-ancestor", UPSTREAM_HEAD, "HEAD") == ""
+self_test_descriptor_reads()
 for rel, blob in (
     (PLAN_REL, PLAN_BLOB), (ROLE_REL, ROLE_BLOB),
     (SOURCE_REL, SOURCE_BLOB), (RECEIPT_REL, RECEIPT_BLOB),
