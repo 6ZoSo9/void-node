@@ -118,7 +118,10 @@ The probe neither invokes the protected installer nor calls
 ## fs-verity observation
 
 The census also invokes Linux `FS_IOC_MEASURE_VERITY` read-only on the exact
-Python and stdlib descriptors.
+same retained Python and stdlib descriptors used to read/hash those bytes.
+It does not close and reopen the pathname between byte identity and verity
+measurement; before/open/post-visible generation equality is required before
+the descriptor is released.
 
 This gate **observes rather than assumes** fs-verity:
 
