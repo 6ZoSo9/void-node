@@ -6,7 +6,7 @@ import fs from "node:fs";
 const target = "public/demo/index.html";
 const sourceBytes = fs.readFileSync(target);
 const source = sourceBytes.toString("utf8");
-const REVIEWED_HTML_GIT_BLOB = "6f31d5951febd95f5b618f54e9d4fd64d74bed83";
+const REVIEWED_HTML_GIT_BLOB = "1c9b4a22e2df1cf97c89c6c28ae32f1ea8eacecf";
 
 function gitBlobSha1(bytes) {
   return crypto.createHash("sha1")
@@ -150,6 +150,21 @@ function requireDemoAccessibility(html) {
     html,
     /\.btn:focus-visible,textarea:focus-visible\s*\{[\s\S]*?outline:3px solid var\(--accent\);[\s\S]*?outline-offset:3px;/u,
     "keyboard focus must remain visibly distinct on demo controls",
+  );
+  assert.match(
+    html,
+    /\.dot\.pending\{background:var\(--accent\)\}/u,
+    "pending submission state must have a neutral accent indicator",
+  );
+  assert.match(
+    html,
+    /function setDot\(dotEl, labelEl, state, text\)\{\s*dotEl\.className = "dot " \+ state;/u,
+    "status indicator helper must apply the explicit state token",
+  );
+  assert.match(
+    html,
+    /setDot\(\$\("submitDot"\), \$\("submitLabel"\), "pending", "submitting"\);/u,
+    "submitting must use the pending visual state instead of the error state",
   );
 }
 
@@ -413,6 +428,14 @@ const negativeMutations = [
     html: source.replace("outline:3px solid var(--accent);", "outline:none;"),
     error: /keyboard focus/u,
   },
+  {
+    name: "submitting_uses_error_tone",
+    html: source.replace(
+      'setDot($("submitDot"), $("submitLabel"), "pending", "submitting");',
+      'setDot($("submitDot"), $("submitLabel"), "bad", "submitting");',
+    ),
+    error: /submitting must use the pending visual state/u,
+  },
 ];
 
 for (const mutation of negativeMutations) {
@@ -447,4 +470,5 @@ console.log("foreign_cdata_live_ancestor_rejected=true");
 console.log("table_scope_live_ancestor_rejected=true");
 console.log("slash_delimited_live_ancestor_rejected=true");
 console.log("keyboard_focus_visible=true");
-console.log("negative_mutations=31");
+console.log("submission_pending_not_error=true");
+console.log("negative_mutations=32");
