@@ -89,7 +89,13 @@ The runtime is invoked unprivileged with the exact flags:
 -I -B -S -c <fixed census probe>
 ```
 
-The child environment is empty.
+The census reopens the admitted Python generation, checks it against the
+captured receipt, keeps that descriptor open, and executes
+`/proc/self/fd/<python-fd>` while preserving the canonical Python pathname as
+`argv[0]`. The descriptor is explicitly passed across child creation and the
+child environment is empty. This mirrors the accepted native first-entry's
+retained-descriptor / `fexecve` Python launch model instead of reopening the
+Python pathname at exec time.
 
 The fixed probe imports only built-in `sys` before closure, then immediately
 replaces `sys.path` with exactly:
@@ -115,10 +121,12 @@ requires:
 The probe neither invokes the protected installer nor calls
 `rename_noreplace`.
 
-After the probe exits, the census re-stats both the Python executable and stdlib
-ZIP and requires the exact dev/inode/UID/GID/mode/link-count/size/mtime/ctime
-generation captured before the probe. A same-path replacement or metadata drift
-during execution therefore HOLDs before a runtime-candidate receipt is emitted.
+After the probe exits, the retained Python descriptor and visible Python path
+must still match the admitted receipt. The census also re-stats both the Python
+executable and stdlib ZIP and requires the exact
+dev/inode/UID/GID/mode/link-count/size/mtime/ctime generation captured before
+the probe. A same-path replacement or metadata drift during execution therefore
+HOLDs before a runtime-candidate receipt is emitted.
 
 ## fs-verity observation
 
