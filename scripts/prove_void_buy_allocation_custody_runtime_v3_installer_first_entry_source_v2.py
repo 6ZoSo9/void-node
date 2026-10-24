@@ -245,6 +245,21 @@ with tempfile.TemporaryDirectory(
     captured_fixture.write_bytes(retained_fixture)
     assert b"void_marker_original" in captured_fixture.read_bytes()
     assert b"void_marker_replacement" not in captured_fixture.read_bytes()
+    captured_compile = subprocess.run(
+        [
+            "cc", "-std=c11", "-Wall", "-Wextra", "-Werror",
+            "-fsyntax-only", str(captured_fixture),
+        ],
+        cwd="/",
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+        timeout=20,
+        env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent", "LC_ALL": "C"},
+    )
+    assert captured_compile.returncode == 0, captured_compile.stderr
 
     symlink_fixture = binding_fixture / "symlink.c"
     symlink_fixture.symlink_to(original_fixture)
