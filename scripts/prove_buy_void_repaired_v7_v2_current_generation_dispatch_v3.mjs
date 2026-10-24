@@ -809,10 +809,16 @@ function verifyWorkflowDispatch(){
     "successor_runtime_generation_accepted=false",
     "public_presale_activation=false",
     "funds_movement=false",
+    "historical_v2_lock_candidate_enforcement_identity_accepted=true",
   ]){
     assert.ok(finalWorkflowSource.includes(required),
       "v3_frozen_deployment_refusal_missing:"+required);
   }
+  assert.equal(
+    finalWorkflowSource.includes('console.log("candidate_enforcement_identity_accepted=true")'),
+    false,
+    "historical_v2_lock_acceptance_must_not_be_logged_as_current",
+  );
   assert.equal(
     finalWorkflowSource.includes("status=PLAN_GREEN"),
     false,
