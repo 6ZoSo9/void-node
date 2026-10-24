@@ -47,9 +47,9 @@ jobs:
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
             "0fef4e6f76738dd474ea775985b1facdd922bb54"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
-            "b2680123f6af4ce56b2d4548af5bf823f8834090"
+            "cb22f8c1fd5f0ebf69d86f053206908c7510a662"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-install-plan-v1.md)" = \
-            "5b493d87fb3ced8af3950e48bf3083cdbb07131c"
+            "d89a677b6a11aabf499cdff4812bc974814b1059"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v6.json)" = \
             "5ba0c8d7b1ab8e8384472bb867e0603e6986b9b1"
 
@@ -110,6 +110,11 @@ jobs:
           grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_PROTECTED_ALL_PROCESS_INSTALL_PLAN_V1_PROOF_GREEN' "$proof"
           for marker in \
             'exact_source_blob_asserted=true' \
+            'descriptor_bound_source_read=true' \
+            'verified_bytes_executed_without_path_reopen=true' \
+            'source_symlink_rejected=true' \
+            'source_fifo_nonblocking_rejected=true' \
+            'post_hash_path_swap_executes_verified_bytes=true' \
             'accepted_lock_exact=true' \
             'accepted_source_exact=true' \
             'fixed_protected_install_path_bound=true' \
