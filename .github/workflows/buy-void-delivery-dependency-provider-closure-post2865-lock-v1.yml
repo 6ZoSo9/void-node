@@ -156,7 +156,9 @@ jobs:
           assert.equal(v.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
           assert.equal(v.provider_source_identity_preserved,true);
           assert.equal(v.provider_built_artifact_identity_preserved,true);
-          assert.equal(v.protected_path_identity_preserved,true);
+          assert.equal(v.protected_path_identity_preserved,false);
+          assert.equal(v.protected_range_router_drift_classified,true);
+          assert.equal(v.current_protected_source_generation_accepted,false);
           assert.equal(v.current_built_census_identity_matches_frozen_v4,true);
           assert.equal(v.current_generation_integration_verified,true);
           assert.equal(v.historical_v2_candidate_enforcement_identity_accepted,true);
@@ -285,7 +287,9 @@ jobs:
           assert.equal(v.marker,"VOID_BUY_VOID_REPAIRED_V7_V2_CURRENT_GENERATION_DISPATCH_V3");
           assert.equal(v.provider_source_identity_preserved,true);
           assert.equal(v.provider_built_artifact_identity_preserved,true);
-          assert.equal(v.protected_path_identity_preserved,true);
+          assert.equal(v.protected_path_identity_preserved,false);
+          assert.equal(v.protected_range_router_drift_classified,true);
+          assert.equal(v.current_protected_source_generation_accepted,false);
           assert.equal(v.current_generation_integration_verified,true);
           assert.equal(v.historical_v2_candidate_enforcement_identity_accepted,true);
           assert.equal(v.candidate_enforcement_identity_accepted,false);
