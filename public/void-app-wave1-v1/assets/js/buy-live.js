@@ -875,6 +875,19 @@ async function submitBuy(event) {
     updateSubmit();
   }
 }
+// Background-tab timers can be suspended. On return, synchronously recheck
+// the existing receipt's monotonic deadline and wall-clock skew BEFORE the
+// buyer can rely on payment text. This neither fetches fresh authority nor
+// creates or retries a request.
+const recheckBuyInstructionLeaseOnResume = () => {
+  if (currentRoute() === 'buy' && one('[data-buy-view]')) updateSubmit();
+};
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') recheckBuyInstructionLeaseOnResume();
+});
+window.addEventListener('pageshow', recheckBuyInstructionLeaseOnResume);
+window.addEventListener('focus', recheckBuyInstructionLeaseOnResume);
+
 document.addEventListener('submit', (event) => {
   if (event.target?.matches?.('[data-buy-request-form]')) submitBuy(event);
 });

@@ -51,28 +51,36 @@ function attachBlockRangeErrorV1(fromRaw, toRaw, head) {
     var from = normalizeAttachBlockRangeBoundV1(fromRaw, 0);
     var to = normalizeAttachBlockRangeBoundV1(toRaw, head);
     var validHead = Number.isSafeInteger(head) && head >= -1;
+    if (!validHead) {
+        return {
+            ok: false,
+            error: "bad range",
+            code: exports.ATTACH_BLOCK_RANGE_ERROR_CODE_V1,
+            reason: "invalid_head",
+            max_heights: exports.ATTACH_BLOCK_RANGE_MAX_SPAN,
+            recovery: null,
+            aliases: { from: ["from", "start"], to: ["to", "end"] },
+        };
+    }
     var validFrom = from !== null;
-    var boundedTo = validHead && to !== null ? Math.min(to, head) : Number.NaN;
-    var reason = validHead &&
-        from !== null &&
+    var boundedTo = to !== null ? Math.min(to, head) : Number.NaN;
+    var reason = from !== null &&
         to !== null &&
         to >= from &&
         boundedTo >= from &&
         boundedTo - from >= exports.ATTACH_BLOCK_RANGE_MAX_SPAN
         ? "range_span_exceeds_limit"
         : "invalid_bounds";
-    var recoveryFrom = validHead && head < 0 ? 0 : validFrom ? from : 0;
+    var recoveryFrom = head < 0 ? 0 : validFrom ? from : 0;
     var recoveryCeiling = recoveryFrom <=
         Number.MAX_SAFE_INTEGER - (exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1)
         ? recoveryFrom + exports.ATTACH_BLOCK_RANGE_MAX_SPAN - 1
         : recoveryFrom;
-    var recoveryTo = validHead
-        ? head < 0
-            ? 0
-            : recoveryFrom > head
-                ? recoveryFrom
-                : Math.min(head, recoveryCeiling)
-        : recoveryCeiling;
+    var recoveryTo = head < 0
+        ? 0
+        : recoveryFrom > head
+            ? recoveryFrom
+            : Math.min(head, recoveryCeiling);
     return {
         ok: false,
         error: "bad range",

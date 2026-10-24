@@ -43,14 +43,14 @@ local Git object database.
 
 ## Frozen evidence
 
-- V3 candidate: `5301c32f53c2a82435152e38b36486507a73f906`
-- V3 candidate SHA-256: `eb2be386ecf374bc75d6c10e4d5cfa3ea5fa309acbef5612f74991c6ba311aab`
-- V3 lock: `e530390e505d447ca0ad9e2a098ec6a819ae3e6c`
-- accepted enforcement set: `2bfc8455c09e8cbbaa56ac580ccc5f193b54f95c3e4bec1e2274a068303236ec`
+- V3 candidate: `40c7d21e0f22bc2ffe079f80360af342f4d8a6aa`
+- V3 candidate SHA-256: `7f9c032bb3685d0d45f439123878af0ba366bd587e29a98df3270f0f13808c96`
+- V3 lock: `f1b9d661eb3363e9bf18dbeb3610c659a54219bb`
+- accepted enforcement set: `4d06da56a3fa3fa7891c64a0c7191756c344effb62b330a1b003bd4952dc0223`
 - frozen current-inventory SHA-256: `65880eb31fd75bc07b8c568ada5a4903a2c178108408e2a8390c15b3cafb7589`
 - frozen Dispatch V2 proof: `5f5e76a594c358639571a190dc48fc9e11fc8b01`
 
-Dispatch V3 proof Git blob: `fd4dc893171a666b8abba83873a63261466d36fd`.
+Dispatch V3 proof Git blob: `2dd9e7024eaafe4641c0d3ac7d10f542a441bb92`.
 
 ## Deliberate boundary
 
@@ -65,4 +65,4 @@ funds movement.
 
 Current repaired-router reader composition inventory SHA-256: `c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d`.
 
-Current V3 candidate/lock proof blobs: `96ae15c0a76d4cc463ea64688fa2c5fd119b09fc` / `a3b2aad30e22ead3cc73bbd0def3d1fb4f934d01`.
+Current V3 candidate/lock proof blobs: `5cd2c9cb4f7ac4f4a71a697d04aa23c3ee9d6705` / `126fad9b17e4958742ccd508fe04c52ef84599b5`.

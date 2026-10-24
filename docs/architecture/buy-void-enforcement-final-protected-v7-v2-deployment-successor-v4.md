@@ -2,7 +2,7 @@
 
 Status: **unaccepted source candidate; no deployment, runtime, presale, or funds authority**.
 
-This candidate is derived from Draft PR #3661 exact head `d66379084ceead538479b776d153bddac2f678e3` and
+This candidate is derived from Draft PR #3661 exact head `1b15fcf5070e7b8a8aa4b9348de88cf11be2ef26` and
 replaces the stale V3 deployment-reader inventory row with the reviewed
 descriptor-bound production reader.
 
@@ -16,17 +16,17 @@ descriptor-bound production reader.
 
 ## Candidate identities
 
-- V4 proof Git blob: `4a10cebe913999bb12a5e2cce44e7e48652ab706`
-- V4 candidate Git blob: `cde87fb709b727102fd05b106217f3bdeef07985`
-- V4 candidate SHA-256: `701a6c493d17e1263ae09b591b3df93feed8fea710b8ee8e2980f3b8c9e2263b`
+- V4 proof Git blob: `3a7401202fee374f2a7da3f5efc0d29976f9792a`
+- V4 candidate Git blob: `ec00f0c552e600fff38e4998e4beb128c93b481d`
+- V4 candidate SHA-256: `fbf3d5fbc1efad92c7bb5bb3fb45f686d1bddb95d4a7c34cadbd862b69318c60`
 - V4 protected inventory SHA-256: `c87299b5d3ab7efad7b946ea3cbdc3b01bcae828141e864785743cd3d5f8e21d`
-- V4 enforcement-set SHA-256: `e13b69320010736404819dcf24061aaeee5da37b4efae3a140eec8ff08faaeec`
+- V4 enforcement-set SHA-256: `00e8ca31370f9c6c4fa77185ed05a9ed0554e0b2036b6c5f2e937e7839c67b1a`
 
 The proof reads every protected source through a bounded
 `O_RDONLY|O_NOFOLLOW|O_NONBLOCK` descriptor and directly exercises replacement,
 symlink, FIFO-substitution, post-open growth, and oversize cases.
 
-The V3 candidate `5301c32f53c2a82435152e38b36486507a73f906` and V3 lock `e530390e505d447ca0ad9e2a098ec6a819ae3e6c` remain
+The V3 candidate `40c7d21e0f22bc2ffe079f80360af342f4d8a6aa` and V3 lock `f1b9d661eb3363e9bf18dbeb3610c659a54219bb` remain
 byte-for-byte preserved. V4 is not accepted by this lane. A separate hosted
 evidence review and V4 acceptance-lock successor are required before the
 deployment planner may return `PLAN_GREEN` for the repaired reader generation.

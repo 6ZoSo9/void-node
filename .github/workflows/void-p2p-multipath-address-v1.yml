@@ -4,17 +4,23 @@ on:
   pull_request:
     paths:
       - "src/types/p2p.ts"
+      - "src/http/p2p_routes.ts"
       - "src/node_core.ts"
       - "scripts/prove_void_p2p_multipath_address_v1.ts"
+      - "scripts/prove_void_p2p_dial_route_validation_v1.ts"
       - "docs/public/void-p2p-multipath-address-v1.md"
+      - "docs/public/void-p2p-dial-route-validation-v1.md"
       - ".github/workflows/void-p2p-multipath-address-v1.yml"
   push:
     branches: [main]
     paths:
       - "src/types/p2p.ts"
+      - "src/http/p2p_routes.ts"
       - "src/node_core.ts"
       - "scripts/prove_void_p2p_multipath_address_v1.ts"
+      - "scripts/prove_void_p2p_dial_route_validation_v1.ts"
       - "docs/public/void-p2p-multipath-address-v1.md"
+      - "docs/public/void-p2p-dial-route-validation-v1.md"
       - ".github/workflows/void-p2p-multipath-address-v1.yml"
   workflow_dispatch:
 
@@ -56,6 +62,9 @@ jobs:
 
       - name: Prove multipath peer addresses
         run: npx --no-install tsx scripts/prove_void_p2p_multipath_address_v1.ts
+
+      - name: Prove manual dial route validation
+        run: npx --no-install tsx scripts/prove_void_p2p_dial_route_validation_v1.ts
 
       - name: Diff hygiene
         run: git diff --check

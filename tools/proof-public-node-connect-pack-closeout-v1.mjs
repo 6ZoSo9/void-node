@@ -81,14 +81,14 @@ ok(root.public_node_connect_pack?.marker === packMarker, 'root connect summary m
 ok(root.public_node_connect_pack?.expected_green_marker === 'VOID_PUBLIC_NODE_CONNECT_PACK_V1_GREEN', 'root connect expected green mismatch');
 
 mustTrue(pack.boundary, [
-  'read_only',
   'public_routes_only',
-  'operator_guidance_only'
+  'operator_guidance_only',
+  'mutation_route_enabled'
 ], 'pack.boundary');
 
 mustFalse(pack.boundary, [
+  'read_only',
   'automatic_peer_dial_enabled_by_this_pack',
-  'mutation_route_enabled',
   'wallet_send_enabled',
   'money_movement_enabled',
   'buy_void_fulfillment_enabled',
@@ -99,15 +99,26 @@ mustFalse(pack.boundary, [
   'public_internet_mesh_claim'
 ], 'pack.boundary');
 
+mustTrue(root.public_node_connect_pack?.boundary, [
+  'public_routes_only',
+  'operator_guidance_only',
+  'mutation_route_enabled'
+], 'root.public_node_connect_pack.boundary');
+
 mustFalse(root.public_node_connect_pack?.boundary, [
+  'read_only',
   'automatic_peer_dial_enabled_by_this_pack',
-  'mutation_route_enabled',
   'wallet_send_enabled',
   'money_movement_enabled',
   'validator_admission_enabled',
   'public_wc_self_serve_earning_enabled',
   'public_internet_mesh_claim'
 ], 'root.public_node_connect_pack.boundary');
+
+ok(pack.example_commands?.dial_peer?.includes('--fail-with-body --silent --show-error'), 'dial command must preserve rejection bodies');
+ok(pack.dial_outcomes?.accepted?.includes('does not prove'), 'accepted dial outcome must not claim connection');
+ok(pack.dial_outcomes?.rejected?.includes('before retrying'), 'rejected dial outcome must guide correction');
+ok(pack.dial_outcomes?.connection_verification?.includes('/p2p/peers'), 'dial verification route missing');
 
 for (const text of [doc, html, page]) {
   for (const needle of [
