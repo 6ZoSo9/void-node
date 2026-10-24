@@ -242,13 +242,28 @@ export function classifyCurrentActivationCandidateV3(candidate) {
     return bad("activation_candidate_not_dormant");
   }
   const authority = candidate.authority;
+  const authorityKeys = [
+    "source_candidate_only",
+    "activation_authorized",
+    "host_mutation",
+    "service_mutation",
+    "runtime_gate_mutation",
+    "credential_read",
+    "database_mutation",
+    "wallet_or_signer_access",
+    "transaction_construction",
+    "transaction_signing",
+    "transaction_broadcast",
+    "market_activation",
+    "public_presale_activation",
+    "funds_movement",
+  ];
   if (
-    !authority ||
-    authority.activation_authorized !== false ||
-    authority.runtime_gate_mutation !== false ||
-    authority.service_mutation !== false ||
-    authority.transaction_broadcast !== false ||
-    authority.funds_movement !== false
+    !exactPlainObject(authority, authorityKeys) ||
+    authority.source_candidate_only !== true ||
+    Object.entries(authority).some(
+      ([key, value]) => key !== "source_candidate_only" && value !== false,
+    )
   ) {
     return bad("activation_candidate_authority_expanded");
   }
