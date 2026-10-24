@@ -92,6 +92,76 @@ function currentSourceBlobV1(bytes:Buffer):string{
     .update(bytes).digest("hex");
 }
 
+const MAX_CURRENT_ENFORCEMENT_SOURCE_BYTES_V1=16*1024*1024;
+const STABLE_FILE_STAT_FIELDS_V1=Object.freeze([
+  "dev","ino","mode","nlink","uid","gid","rdev","size","mtimeMs","ctimeMs",
+] as const);
+
+function readBoundedRegularFileV1(
+  absolute:string,
+  relative:string,
+  maxBytes:number,
+  errorPrefix:string,
+){
+  assert.ok(Number.isSafeInteger(maxBytes)&&maxBytes>0&&
+    maxBytes<Number.MAX_SAFE_INTEGER,
+    errorPrefix+"_max_bytes_invalid:"+relative);
+  const before=fs.lstatSync(absolute);
+  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&
+    before.size>0&&before.size<=maxBytes,
+    errorPrefix+"_shape_invalid:"+relative);
+  const openConstants=fs.constants as typeof fs.constants & {
+    O_NOFOLLOW?:number;
+    O_NONBLOCK?:number;
+  };
+  const noFollow=openConstants.O_NOFOLLOW;
+  const nonBlock=openConstants.O_NONBLOCK;
+  if(typeof noFollow!=="number")throw Error(errorPrefix+"_nofollow_unavailable");
+  if(typeof nonBlock!=="number")throw Error(errorPrefix+"_nonblock_unavailable");
+  let fd=-1;
+  try{
+    fd=fs.openSync(absolute,fs.constants.O_RDONLY|noFollow|nonBlock);
+    const opened=fs.fstatSync(fd);
+    assert.ok(opened.isFile()&&opened.nlink===1&&opened.size>0&&
+      opened.size<=maxBytes,
+      errorPrefix+"_opened_shape_invalid:"+relative);
+    for(const key of STABLE_FILE_STAT_FIELDS_V1){
+      assert.equal(opened[key],before[key],
+        errorPrefix+"_open_generation_mismatch:"+relative+":"+key);
+    }
+    const chunks:Buffer[]=[];
+    const scratch=Buffer.alloc(Math.min(64*1024,maxBytes+1));
+    let total=0;
+    while(total<=maxBytes){
+      const remaining=maxBytes+1-total;
+      if(remaining<=0)break;
+      const count=fs.readSync(
+        fd,scratch,0,Math.min(scratch.length,remaining),null,
+      );
+      if(count===0)break;
+      chunks.push(Buffer.from(scratch.subarray(0,count)));
+      total+=count;
+    }
+    assert.ok(total<=maxBytes,
+      errorPrefix+"_size_limit_exceeded:"+relative);
+    assert.equal(total,opened.size,
+      errorPrefix+"_short_or_grown_read:"+relative);
+    const after=fs.fstatSync(fd);
+    for(const key of STABLE_FILE_STAT_FIELDS_V1){
+      assert.equal(after[key],opened[key],
+        errorPrefix+"_descriptor_generation_changed:"+relative+":"+key);
+    }
+    const visible=fs.lstatSync(absolute);
+    for(const key of STABLE_FILE_STAT_FIELDS_V1){
+      assert.equal(visible[key],opened[key],
+        errorPrefix+"_visible_generation_changed:"+relative+":"+key);
+    }
+    return Object.freeze({bytes:Buffer.concat(chunks,total),stat:opened});
+  }finally{
+    if(fd>=0)fs.closeSync(fd);
+  }
+}
+
 function inspectCurrentTrackedSourceRowV1(
   repositoryRoot:string,
   relative:string,
@@ -102,16 +172,11 @@ function inspectCurrentTrackedSourceRowV1(
     "current_enforcement_source_path_not_required:"+relative,
   );
   const absolute=path.join(repositoryRoot,...relative.split("/"));
-  const before=fs.lstatSync(absolute);
-  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1,
-    "current_enforcement_source_not_direct_regular_file:"+relative);
-  const bytes=fs.readFileSync(absolute);
-  const after=fs.lstatSync(absolute);
-  for(const key of ["dev","ino","size","mtimeMs","ctimeMs","nlink"] as const){
-    assert.equal(after[key],before[key],
-      "current_enforcement_source_changed:"+relative+":"+key);
-  }
-  const visibleBlob=currentSourceBlobV1(bytes);
+  const stable=readBoundedRegularFileV1(
+    absolute,relative,MAX_CURRENT_ENFORCEMENT_SOURCE_BYTES_V1,
+    "current_enforcement_source",
+  );
+  const visibleBlob=currentSourceBlobV1(stable.bytes);
   const headBlob=git(repositoryRoot,["rev-parse","--verify","HEAD:"+relative]);
   assert.equal(visibleBlob,headBlob,
     "current_enforcement_source_worktree_blob_mismatch:"+relative);
@@ -123,7 +188,7 @@ function inspectCurrentTrackedSourceRowV1(
   assert.equal(match[3],relative,
     "current_enforcement_source_tree_path_mismatch:"+relative);
   const visibleMode:(("100644"|"100755"))=
-    (before.mode&0o111)!==0?"100755":"100644";
+    (stable.stat.mode&0o111)!==0?"100755":"100644";
   assert.equal(visibleMode,match[1],
     "current_enforcement_source_worktree_mode_mismatch:"+relative);
   return Object.freeze({
@@ -326,28 +391,28 @@ const gitBlobSha1=(bytes:Buffer)=>crypto.createHash("sha1")
   .update(Buffer.from("blob "+String(bytes.length)+"\0","utf8"))
   .update(bytes).digest("hex");
 
-function readTrackedFileV1(repositoryRoot:string,relative:string,maxBytes=1024*1024){
+export function readTrackedFileV1(
+  repositoryRoot:string,
+  relative:string,
+  maxBytes=1024*1024,
+){
   assert.match(relative,SAFE_LOCK_PATH,"accepted_enforcement_lock_path_invalid");
   assert.equal(path.posix.normalize(relative),relative,
     "accepted_enforcement_lock_path_not_normalized");
   assert.equal(relative.split("/").includes(".."),false,
     "accepted_enforcement_lock_path_escape");
   const absolute=path.join(repositoryRoot,...relative.split("/"));
-  const before=fs.lstatSync(absolute);
-  assert.ok(before.isFile()&&!before.isSymbolicLink()&&before.nlink===1&&
-    before.size>0&&before.size<=maxBytes,
-    "accepted_enforcement_file_shape_invalid:"+relative);
-  const bytes=fs.readFileSync(absolute);
-  const after=fs.lstatSync(absolute);
-  assert.equal(after.dev,before.dev,"accepted_enforcement_file_device_drift");
-  assert.equal(after.ino,before.ino,"accepted_enforcement_file_inode_drift");
-  assert.equal(after.size,before.size,"accepted_enforcement_file_size_drift");
-  assert.equal(after.mtimeMs,before.mtimeMs,"accepted_enforcement_file_mtime_drift");
-  assert.equal(after.ctimeMs,before.ctimeMs,"accepted_enforcement_file_ctime_drift");
-  const blob=gitBlobSha1(bytes);
+  const stable=readBoundedRegularFileV1(
+    absolute,relative,maxBytes,"accepted_enforcement_file",
+  );
+  const blob=gitBlobSha1(stable.bytes);
   assert.equal(git(repositoryRoot,["rev-parse","HEAD:"+relative]),blob,
     "accepted_enforcement_file_not_exact_head");
-  return Object.freeze({bytes,git_blob_sha1:blob,sha256:sha256(bytes)});
+  return Object.freeze({
+    bytes:stable.bytes,
+    git_blob_sha1:blob,
+    sha256:sha256(stable.bytes),
+  });
 }
 
 export function inspectAcceptedEnforcementLockV1(
