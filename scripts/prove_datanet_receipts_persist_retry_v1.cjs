@@ -8,6 +8,231 @@ const vm = require("node:vm");
 const repositoryRoot = path.resolve(__dirname, "..");
 const target = path.join(repositoryRoot, "src/diag/datanet_receipts_persist_v1.cjs");
 const source = fs.readFileSync(target, "utf8");
+const packageManifest = JSON.parse(
+  fs.readFileSync(path.join(repositoryRoot, "package.json"), "utf8"),
+);
+assert.equal(
+  packageManifest.dependencies.express,
+  "4.22.3",
+  "router alias contract is bound to pinned Express 4.22.3",
+);
+// Exact getter excerpt from expressjs/express@v4.22.3 lib/application.js,
+// Git blob ebb30b51b3d6e84d33288251d11ab92d8462c181.
+const express4RouterGetterSource = String.raw`
+Object.defineProperty(app, "router", {
+  configurable: true,
+  get: function getrouter() {
+    throw new Error(
+      "'app.router' is deprecated!\n" +
+      "Please see the 3.x to 4.x migration guide for details on how to update your app."
+    );
+  }
+});
+`;
+const express4FixtureApp = {};
+vm.runInNewContext(express4RouterGetterSource, { app: express4FixtureApp });
+let actualExpress4RouterGetterError = null;
+try {
+  void express4FixtureApp.router;
+} catch (error) {
+  actualExpress4RouterGetterError = String(error?.message || error || "");
+}
+assert.ok(
+  actualExpress4RouterGetterError.includes("\n"),
+  "pinned Express getter must emit an actual newline",
+);
+assert.ok(
+  !actualExpress4RouterGetterError.includes("\\n"),
+  "pinned Express getter must not emit a literal backslash-n",
+);
+
+function makeMountHarness(app, options = {}) {
+  let tick;
+  let clearCalls = 0;
+  const intervalId = 91;
+  const context = vm.createContext({
+    __void_http_app: app,
+    Buffer,
+    Date,
+    console: {
+      error: options.consoleError || (() => {}),
+    },
+    process: {
+      env: {},
+      stderr: {
+        write: options.stderrWrite || (() => true),
+      },
+    },
+    require(name) {
+      if (name === "fs") return fs;
+      if (name === "path") return path;
+      throw new Error(`unexpected require: ${name}`);
+    },
+    setInterval(callback, delay) {
+      assert.equal(delay, 250);
+      assert.equal(tick, undefined, "one mount retry interval expected");
+      tick = callback;
+      return intervalId;
+    },
+    clearInterval(id) {
+      assert.equal(id, intervalId);
+      clearCalls += 1;
+    },
+    setTimeout() {
+      throw new Error("mount-only proof must not scan");
+    },
+    clearTimeout() {},
+  });
+  new vm.Script(source, { filename: target }).runInContext(context);
+  assert.equal(typeof tick, "function");
+  return {
+    tick,
+    clearCalls() { return clearCalls; },
+  };
+}
+
+(function proveRegistrationRetryState() {
+  let attempts = 0;
+  const app = {
+    _router: { stack: [] },
+    get(routePath, handler) {
+      attempts += 1;
+      if (attempts === 1) throw new Error("synthetic_before_retain");
+      this._router.stack.push({
+        route: {
+          path: routePath,
+          methods: { get: true },
+          stack: [{ handle: handler }],
+        },
+      });
+    },
+  };
+  let legacyRouterReads = 0;
+  Object.defineProperty(app, "router", {
+    configurable: true,
+    get() {
+      legacyRouterReads += 1;
+      throw new Error(actualExpress4RouterGetterError);
+    },
+  });
+  const harness = makeMountHarness(app);
+
+  assert.doesNotThrow(harness.tick, "registration exceptions must not escape the retry timer");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "idle");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mounted, undefined);
+  assert.equal(harness.clearCalls(), 0, "known unretained failure remains retryable");
+
+  assert.doesNotThrow(harness.tick);
+  assert.equal(attempts, 2);
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "bound");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mounted, true);
+  assert.equal(app._router.stack.length, 1, "successful retry retains exactly one route");
+  assert.equal(harness.clearCalls(), 1);
+  assert.ok(legacyRouterReads >= 2, "Express 4 router getter shape exercised");
+})();
+
+(function proveRetainedThrowIsNotDuplicated() {
+  let attempts = 0;
+  const app = {
+    _router: { stack: [] },
+    get(routePath, handler) {
+      attempts += 1;
+      this._router.stack.push({
+        route: {
+          path: routePath,
+          methods: { get: true },
+          stack: [{ handle: handler }],
+        },
+      });
+      throw new Error("synthetic_after_retain");
+    },
+  };
+  Object.defineProperty(app, "router", {
+    configurable: true,
+    get() {
+      throw new Error("synthetic_unreadable_alias_after_retain");
+    },
+  });
+  const harness = makeMountHarness(app);
+
+  assert.doesNotThrow(harness.tick);
+  assert.equal(attempts, 1);
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "bound");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mounted, true);
+  assert.equal(app._router.stack.length, 1);
+  assert.equal(harness.clearCalls(), 1, "retained registration stops retries");
+})();
+
+(function proveUnexpectedUnreadableAliasFailsClosed() {
+  let attempts = 0;
+  const app = {
+    _router: { stack: [] },
+    get() {
+      attempts += 1;
+      throw new Error("synthetic_unreadable_alias_before_retain");
+    },
+  };
+  Object.defineProperty(app, "router", {
+    configurable: true,
+    get() {
+      throw new Error("synthetic_unexpected_router_getter");
+    },
+  });
+  const harness = makeMountHarness(app);
+
+  assert.doesNotThrow(harness.tick);
+  assert.equal(attempts, 1);
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "indeterminate");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mounted, undefined);
+  assert.equal(
+    harness.clearCalls(),
+    1,
+    "unexpected unreadable alias must fail closed instead of duplicating a route",
+  );
+})();
+
+(function proveMountErrorFallbackVisible() {
+  const fallback = [];
+  const app = {
+    _router: { stack: [] },
+    get() {
+      throw new Error("synthetic_visible_mount_failure");
+    },
+  };
+  const harness = makeMountHarness(app, {
+    consoleError() {
+      throw new Error("synthetic_console_failure");
+    },
+    stderrWrite(message) {
+      fallback.push(String(message));
+      return true;
+    },
+  });
+
+  assert.doesNotThrow(harness.tick);
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "idle");
+  assert.equal(harness.clearCalls(), 0);
+  assert.equal(fallback.length, 1);
+  assert.match(fallback[0], /synthetic_visible_mount_failure/u);
+  assert.match(fallback[0], /console_error=synthetic_console_failure/u);
+})();
+
+(function proveUnknownRetentionFailsClosed() {
+  let attempts = 0;
+  const app = {
+    get() {
+      attempts += 1;
+      throw new Error("synthetic_unknown_retention");
+    },
+  };
+  const harness = makeMountHarness(app);
+
+  assert.doesNotThrow(harness.tick);
+  assert.equal(attempts, 1);
+  assert.equal(app.__void_datanet_receipts_persist_v1_mount_state, "indeterminate");
+  assert.equal(app.__void_datanet_receipts_persist_v1_mounted, undefined);
+  assert.equal(harness.clearCalls(), 1, "unknown retention must not duplicate the route");
+})();
 const MAX_SCAN_WINDOW_BYTES = 256 * 1024;
 const receiptBytes = Buffer.from(
   [
@@ -364,6 +589,12 @@ function metric(body, name) {
   assert.match(source, /rejectAndDestroy\("line_too_large"\)/u);
 
   console.log("VOID_DATANET_RECEIPTS_PERSIST_RETRY_V1_GREEN");
+  console.log("registration_throw_retry=true");
+  console.log("express4_router_getter_retry=true");
+  console.log("unexpected_unreadable_alias_fail_closed=true");
+  console.log("mount_error_fallback_visible=true");
+  console.log("retained_throw_single_mount=true");
+  console.log("unknown_retention_fail_closed=true");
   console.log("failed_read_rollback=true");
   console.log("short_read_rollback=true");
   console.log("premature_close_rollback=true");

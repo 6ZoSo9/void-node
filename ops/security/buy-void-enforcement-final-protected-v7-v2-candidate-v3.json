@@ -5,7 +5,7 @@
   "repository": "6ZoSo9/void-node",
   "runtime_source_parent": "16563121f8d6c2a1fa7cd2f99ca4be2f88aa3cca",
   "protected_census_parent": "3faa7ba803b479d0f709bdc1f437b553154787d9",
-  "current_enforcement_parent": "8e0f3c42208a0630b07cd0a64c0bf0b2a2819099",
+  "current_enforcement_parent": "9d1fba7fc676f3f5592eb7a4dff971cd7045e1b5",
   "hosted_census_evidence": {
     "workflow_run": 38649905025,
     "node22_artifact_id": 11934412568,
@@ -389,5 +389,5 @@
     "predecessor_candidate_preserved": true,
     "current_candidate_rederived": true
   },
-  "candidate_enforcement_set_sha256": "2bfc8455c09e8cbbaa56ac580ccc5f193b54f95c3e4bec1e2274a068303236ec"
+  "candidate_enforcement_set_sha256": "4d06da56a3fa3fa7891c64a0c7191756c344effb62b330a1b003bd4952dc0223"
 }

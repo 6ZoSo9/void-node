@@ -80,6 +80,12 @@ function syncNavigation(route) {
 function render() {
   const route = currentRoute();
   root.innerHTML = route === 'data' ? dataView() : views[route]();
+  const homeStatus = root.querySelector('[data-home-summary]');
+  if (homeStatus) {
+    homeStatus.setAttribute('role', 'status');
+    homeStatus.setAttribute('aria-live', 'polite');
+    homeStatus.setAttribute('aria-atomic', 'true');
+  }
   syncNavigation(route);
   document.title = `${route[0].toUpperCase()}${route.slice(1)} — VOID App Shell`;
   root.querySelectorAll('[data-demo-toast]').forEach((button) => {

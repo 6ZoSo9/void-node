@@ -39,12 +39,27 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+      - name: Bind exact source generation
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            SOURCE_BASE="$(git merge-base "$EXPECTED_HEAD" refs/remotes/origin/main)"
+            test -n "$SOURCE_BASE"
+            git diff --check "$SOURCE_BASE" "$EXPECTED_HEAD" --
+          else
+            git diff --check "$EXPECTED_HEAD^" "$EXPECTED_HEAD" --
+          fi
       - run: npm ci
       - run: node --check public/void-app-wave1-v1/assets/js/app.js
       - run: npx tsx scripts/prove_void_ui_wave1_repository_foundation_v1.ts
-      - run: git diff --check
