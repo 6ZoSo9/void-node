@@ -17,7 +17,7 @@ TARGET = (
       "void_buy_allocation_custody_runtime_v3_"
       "protected_all_process_installer_candidate_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "c294dc543d04121d8dbbb27d89fe1b46010907ba"
+EXPECTED_SOURCE_BLOB = "8d45c6086d4f3f36d59f8a663e0c0596ee3fc5a3"
 
 
 def git_blob(raw: bytes) -> str:
@@ -85,6 +85,11 @@ assert plan["candidate_contract"]["destination_absent_required"] is True
 assert plan["candidate_contract"]["stage_absent_required"] is True
 assert plan["candidate_contract"]["same_filesystem_stage_required"] is True
 assert plan["candidate_contract"]["truthful_post_publication_failure_receipt_required"] is True
+assert plan["candidate_contract"]["stage_generation_unknown_hold_required"] is True
+assert (
+    plan["candidate_contract"]["retry_after_unknown_stage_requires_operator_inspection"]
+    is True
+)
 assert plan["authority"]["protected_install_authorized"] is False
 assert plan["authority"]["protected_source_installed"] is False
 assert plan["authority"]["live_privileged_census_authorized"] is False
@@ -156,6 +161,9 @@ for required in (
     "destination_root_present",
     "staging_root_present",
     "stage_initial_rebound",
+    "prepublication_stage_generation_unknown",
+    "possible_residual_stage",
+    "retry_requires_operator_inspection",
     "prepublication_failure_stage_cleanup_incomplete",
     "prepublication_failure_stage_cleanup_error",
     "stage_cross_filesystem",
@@ -210,9 +218,48 @@ assert source.index("os.fchmod(stage_fd, 0o700)") < source.index(
 stage_create_block = source.split("os.mkdir(stage_name, 0o700, dir_fd=parent_fd)", 1)[1].split(
     "file_fd = os.open(", 1
 )[0]
+assert stage_create_block.index("stage_created = True") < stage_create_block.index(
+    "stage_initial_stat_fn(parent_fd, stage_name)"
+)
 assert stage_create_block.index("stage_identity =") < stage_create_block.index(
     "stage_fd = os.open("
 )
+
+with tempfile.TemporaryDirectory(
+    prefix="void-custody-procref-stage-generation-unknown-proof-"
+) as tmp:
+    parent = Path(tmp) / "opt"
+    parent.mkdir(mode=0o755)
+
+    def fail_first_post_mkdir_stat(_fd: int, _name: str):
+        raise OSError("proof_first_post_mkdir_identity_failure")
+
+    try:
+        module._apply_create_only_internal(
+            parent=parent,
+            install_name=module.INSTALL_NAME,
+            stage_name=module.STAGE_NAME,
+            source_name=module.SOURCE_NAME,
+            source_raw=source_raw,
+            expected_uid=os.geteuid(),
+            expected_gid=os.getegid(),
+            require_root_parent=False,
+            stage_initial_stat_fn=fail_first_post_mkdir_stat,
+        )
+    except module.StageGenerationUnknownError as exc:
+        assert exc.stage_creation_succeeded is True
+        assert exc.stage_identity_bound is False
+        assert exc.possible_residual_stage is True
+        assert exc.retry_requires_operator_inspection is True
+        assert exc.stage_name == module.STAGE_NAME
+        assert (
+            "proof_first_post_mkdir_identity_failure"
+            in exc.original_failure_reason
+        )
+    else:
+        raise AssertionError("unbound created stage did not raise dedicated HOLD")
+    assert (parent / module.STAGE_NAME).is_dir()
+    assert not (parent / module.INSTALL_NAME).exists()
 
 with tempfile.TemporaryDirectory(
     prefix="void-custody-procref-installer-cleanup-proof-"
@@ -412,7 +459,11 @@ print("direct_apply_cli=false")
 print("protected_first_entry_required=true")
 print("create_only=true")
 print("destination_collision_rejected=true")
-print("stage_identity_bound_immediately_after_create=true")
+print("stage_identity_bound_on_first_successful_post_create_read=true")
+print("stage_generation_unknown_hold=true")
+print("possible_residual_stage_reported=true")
+print("retry_after_unknown_stage_requires_operator_inspection=true")
+print("first_post_mkdir_identity_failure_regression=true")
 print("cleanup_failure_explicit_hold=true")
 print("forced_rename_failure_cleanup_proven=true")
 print("kernel_rename_noreplace_required=true")
