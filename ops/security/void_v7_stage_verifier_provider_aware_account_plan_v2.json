@@ -72,23 +72,30 @@
     "passwd_and_group_routes_may_differ": true,
     "files_provider_required_for_local_account_creation": true,
     "namespace_specific_name_and_numeric_negative_lookup_required": true,
-    "expected_post_group_local_binding_is_not_a_collision": true
+    "expected_post_group_local_binding_is_not_a_collision": true,
+    "future_provider_allocation_ranges_must_exclude_candidate": true
   },
   "provider_requirements": {
     "files": [
       "descriptor_bind_root_owned_nonwritable_nsswitch_passwd_group_shadow_gshadow_login_defs",
       "parse_local_passwd_name_uid_and_group_name_gid_collisions",
       "bind_system_uid_gid_ranges_from_exact_login_defs_generation",
-      "recheck_local_file_generation_and_expected_phase_specific_entries_before_each_create_operation"
+      "require_candidate_uid_gid_inside_bound_system_account_ranges",
+      "bind_existing_subuid_subgid_delegations_and_require_candidate_numbers_outside_all_delegated_ranges",
+      "recheck_local_file_subid_and_expected_phase_specific_entry_generation_before_each_create_operation"
     ],
     "systemd": [
       "bind_running_system_manager_generation_and_nss_systemd_availability",
+      "bind_complete_systemd_userdb_service_inventory_reachable_by_nss_systemd",
       "census_dynamic_and_transient_user_group_allocations_and_reservations",
+      "bind_dynamic_user_allocation_range_and_require_candidate_outside_or_explicitly_reserved_as_static",
       "direct_passwd_name_uid_negative_lookup_when_configured",
       "direct_group_name_gid_negative_lookup_when_configured_and_recheck_after_local_group_creation"
     ],
     "sss": [
       "bind_sssd_provider_configuration_health_domain_and_cache_generation",
+      "bind_all_domain_min_max_and_algorithmic_id_mapping_ranges",
+      "require_candidate_uid_gid_and_name_outside_future_sss_provider_allocation_or_explicitly_reserved_for_local_identity",
       "require_direct_passwd_name_uid_negative_lookup_when_configured_not_enumeration_only",
       "require_direct_group_name_gid_negative_lookup_when_configured_not_enumeration_only",
       "hold_if_domain_offline_degraded_unreachable_timeout_or_lookup_status_ambiguous"
@@ -105,6 +112,8 @@
     "exclude_preexisting_uid_gid_file_ownership",
     "exclude_preexisting_numeric_posix_access_and_default_acl_references",
     "exclude_systemd_dynamic_user_reservations",
+    "exclude_candidate_uid_from_all_existing_subuid_delegated_ranges",
+    "exclude_candidate_gid_from_all_existing_subgid_delegated_ranges",
     "before_group_creation_require_user_and_group_names_and_uid_gid_absent_in_each_configured_namespace_provider",
     "repeat_complete_provider_process_mount_ownership_acl_census_immediately_before_group_creation",
     "after_group_creation_bind_exact_expected_local_files_group_name_gid_generation",
@@ -120,7 +129,8 @@
       "requires_explicit_reviewed_gid": true,
       "modify_existing": false,
       "implemented_here": false,
-      "postcondition": "exact_local_files_group_binding_only_no_nonfiles_collision"
+      "postcondition": "exact_local_files_group_binding_only_no_nonfiles_collision",
+      "requires_gid_inside_bound_system_range": true
     },
     {
       "order": 2,
@@ -133,7 +143,9 @@
       "supplementary_group_count": 0,
       "modify_existing": false,
       "implemented_here": false,
-      "precondition": "expected_local_group_bound_user_name_uid_still_absent"
+      "precondition": "expected_local_group_bound_user_name_uid_still_absent",
+      "requires_uid_inside_bound_system_range": true,
+      "must_not_create_subuid_or_subgid_delegation": true
     }
   ],
   "post_create_requirements": [
@@ -142,6 +154,7 @@
     "password_locked_nologin_no_home",
     "groups_exactly_primary_gid_only",
     "no_custody_ipc_gid980",
+    "no_subuid_or_subgid_delegation_created",
     "no_running_process_or_service_started",
     "no_preexisting_file_or_acl_authority_rebound",
     "no_operator_home_custody_wallet_signer_or_admin_access",
