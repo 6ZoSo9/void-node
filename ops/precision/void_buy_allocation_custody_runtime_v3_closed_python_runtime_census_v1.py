@@ -431,7 +431,7 @@ def _runtime_probe(stdlib_sha256: str) -> dict[str, Any]:
         "'voidfs_loader_builtin':getattr(q.__spec__,'loader',None) is importlib.machinery.BuiltinImporter and getattr(q,'__loader__',None) is importlib.machinery.BuiltinImporter,"
         "'voidfs_surface':sorted(x for x in dir(q) if not x.startswith('__')),"
         "'external_module_origins':v,'stdlib_sha256':" + repr(stdlib_sha256) + "};"
-        "\nprint(json.dumps(out,sort_keys=True,separators=(',',':')))"
+        "\nprint(j.dumps(out,sort_keys=True,separators=(',',':')))"
     )
     completed = subprocess.run(
         [str(PYTHON), "-I", "-B", "-S", "-c", probe],
