@@ -94,6 +94,8 @@ assert contract["live_at_use_reverification_required"] is True
 assert contract["installed_execution_authorized"] is False
 assert contract["live_privileged_census_authorized"] is False
 
+assert authority["install_target_selected"] is True
+
 for key in (
     "protected_install_authorized",
     "protected_source_installed",
@@ -101,7 +103,6 @@ for key in (
     "live_privileged_census_executed",
     "service_mutation",
     "systemd_mutation",
-    "install_target_selected",
     "existing_target_replaced",
     "replacement_apply_authorized",
     "runtime_integration",
@@ -224,6 +225,7 @@ for required in (
     "post_publish_root_owned_nonwritable_ancestry_required",
     "host_namespace_lease_provenance_still_required",
     "live_at_use_reverification_required",
+    "install_target_selected",
     "protected_install_authorized",
     "live_privileged_census_authorized",
     "replacement_apply_authorized",
@@ -249,6 +251,7 @@ print("live_at_use_reverification_required=true")
 print("production_plan_explicit_filesystem_write=false")
 print("production_plan_filesystem_write_free=false")
 print("production_plan_atime_write_possible=true")
+print("install_target_selected=true")
 print("proof_fixture_filesystem_write=true")
 print("protected_install_authorized=false")
 print("protected_source_installed=false")
