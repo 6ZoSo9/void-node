@@ -13,7 +13,7 @@ TARGET = (
     / "ops/precision/"
     "void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py"
 )
-EXPECTED_SOURCE_BLOB = "a40f60ff9d11e9a9bc8f215ebef539d759cc0e83"
+EXPECTED_SOURCE_BLOB = "1dc88905c55efafaca9431fd5d6372a9bf664d44"
 
 
 def git_blob(raw: bytes) -> str:
@@ -182,6 +182,9 @@ probe = pre_self_test.split("def _runtime_probe(", 1)[1].split(
 assert "subprocess.run(" in probe
 assert '"import sys;"' in probe
 assert '"import json,sys;"' not in probe
+assert '"import argparse,hashlib,importlib.machinery,importlib.util,json as j,"' in probe
+assert '"\\nprint(j.dumps(out,sort_keys=True,separators=(\',\',\':\')))"' in probe
+assert '"\\nprint(json.dumps(' not in probe
 assert probe.index('"sys.path[:]=[z];"') < probe.index('"import argparse,hashlib')
 assert "[str(PYTHON), \"-I\", \"-B\", \"-S\", \"-c\", probe]" in probe
 assert "shell=True" not in probe
@@ -226,6 +229,7 @@ print("post_probe_runtime_generation_revalidated=true")
 print("post_probe_same_path_replacement_rejected=true")
 print("isolated_stdlib_only_probe_bound=true")
 print("sys_path_closed_before_stdlib_imports=true")
+print("path_closed_json_binding_used=true")
 print("voidfs_builtin_required=true")
 print("voidfs_builtin_loader_identity_required=true")
 print("external_module_origin_forbidden=true")
