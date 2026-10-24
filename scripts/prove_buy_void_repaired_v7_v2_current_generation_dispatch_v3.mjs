@@ -798,6 +798,26 @@ function verifyWorkflowDispatch(){
       );
     }
   }
+
+  const finalWorkflowSource=read(FINAL_WORKFLOW,256*1024).toString("utf8");
+  for(const required of [
+    "Require frozen V2 lock to refuse current protected successor",
+    "marker=VOID_BUY_VOID_SOURCE_FINALITY_V7_DEPLOYMENT_RECEIPT_INSTALL_V1_HOLD",
+    "reason=accepted_enforcement_candidate_current_source_inventory_mismatch:ops/run-void-node-live-v1.sh",
+    "frozen_v2_deployment_plan_refuses_current_protected_successor=true",
+    "candidate_enforcement_identity_accepted=false",
+    "successor_runtime_generation_accepted=false",
+    "public_presale_activation=false",
+    "funds_movement=false",
+  ]){
+    assert.ok(finalWorkflowSource.includes(required),
+      "v3_frozen_deployment_refusal_missing:"+required);
+  }
+  assert.equal(
+    finalWorkflowSource.includes("status=PLAN_GREEN"),
+    false,
+    "frozen_v2_lock_must_not_claim_current_plan_green",
+  );
 }
 
 function verify(){
