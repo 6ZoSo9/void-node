@@ -45,11 +45,11 @@ jobs:
           diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
 
           test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
-            "d0d500d5a4715c9319e702350a8851884b4baff8"
+            "0fef4e6f76738dd474ea775985b1facdd922bb54"
           test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_protected_all_process_install_plan_v1.py)" = \
-            "d6055b12c3e89e1ed550579b1bffaa9b815144a7"
+            "8b1ffda2a049b696829a35389d71bec822adf6a7"
           test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-protected-all-process-install-plan-v1.md)" = \
-            "06fe9faacb9330ce6f36e728af317f42f4520a52"
+            "5b493d87fb3ced8af3950e48bf3083cdbb07131c"
           test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-protected-all-process-reference-census-lock-v6.json)" = \
             "5ba0c8d7b1ab8e8384472bb867e0603e6986b9b1"
 
@@ -87,6 +87,7 @@ jobs:
             'production_plan_explicit_filesystem_write=false' \
             'production_plan_filesystem_write_free=false' \
             'production_plan_atime_write_possible=true' \
+            'install_target_selected=true' \
             'protected_install_authorized=false' \
             'protected_source_installed=false' \
             'live_privileged_census_authorized=false' \
@@ -126,6 +127,7 @@ jobs:
             'production_plan_explicit_filesystem_write=false' \
             'production_plan_filesystem_write_free=false' \
             'production_plan_atime_write_possible=true' \
+            'install_target_selected=true' \
             'proof_fixture_filesystem_write=true' \
             'protected_install_authorized=false' \
             'protected_source_installed=false' \
@@ -155,6 +157,7 @@ jobs:
           assert value["install_contract"]["existing_destination_replacement_forbidden"] is True
           assert value["install_contract"]["installed_execution_authorized"] is False
           assert value["install_contract"]["live_privileged_census_authorized"] is False
+          assert value["authority"]["install_target_selected"] is True
           assert value["authority"]["protected_install_authorized"] is False
           assert value["authority"]["protected_source_installed"] is False
           assert value["authority"]["replacement_apply_authorized"] is False
