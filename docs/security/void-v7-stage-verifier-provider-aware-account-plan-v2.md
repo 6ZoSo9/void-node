@@ -12,7 +12,7 @@ Current exact role/stager identities:
 - source-stage installer: Git blob `d88a9548ea34b8209ed7dcd53732fd25dd1371bf`;
 - receipt-stage installer: Git blob `b462696826b4f90fdf5f4938cd5467e5711addab`.
 
-This plan's exact machine source is `ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json`, Git blob `dc68696a60a226ea774b95c9c9f0a38201769957`. The exact source proof is `scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py`, Git blob `28544d49d244eaca8d4d9a872f7e68d56bed7d4c`.
+This plan's exact machine source is `ops/security/void_v7_stage_verifier_provider_aware_account_plan_v2.json`, Git blob `c38b886ec58bcc2e274d43b937defe0db4754a1a`. The exact source proof is `scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py`, Git blob `13b39f49a5827283c7c8385deb35a2f53a6c95fc`.
 
 ## Why historical #3754 is not enough
 
@@ -54,15 +54,15 @@ For every configured provider, both the proposed **name** and candidate **numeri
 
 ### files
 
-Future evidence must descriptor-bind stable root-owned, non-group/world-writable `nsswitch.conf`, `passwd`, `group`, `shadow`, `gshadow`, and `login.defs`; parse all local collisions; bind system UID/GID ranges; and recheck the exact file generation immediately before each create-only operation.
+Future evidence must descriptor-bind stable root-owned, non-group/world-writable `nsswitch.conf`, `passwd`, `group`, `shadow`, `gshadow`, and `login.defs`; parse local passwd-name/UID and group-name/GID collisions; bind the exact system-account UID/GID ranges from that `login.defs` generation; require the selected numeric IDs to fall inside those reviewed system ranges; bind all existing subordinate-ID delegations; reject any candidate UID/GID that falls inside an existing `/etc/subuid` or `/etc/subgid` range; and recheck the exact local-file/subordinate-ID generation immediately before each create-only operation.
 
 ### systemd
 
-Future evidence must bind the running system manager generation and `nss-systemd` availability, census DynamicUser/transient allocations and reservations, perform exact name/UID/GID negative lookups, and HOLD if allocator or manager generation changes.
+Future evidence must bind the running system manager generation, `nss-systemd` availability, and the complete systemd userdb-service inventory reachable by that provider; census DynamicUser/transient allocations and reservations; bind the future DynamicUser allocation range; require the candidate numeric IDs to stay outside that recyclable pool unless a separately reviewed static-reservation policy proves noncollision; perform namespace-appropriate direct negative lookups; and HOLD if allocator, provider, userdb-service inventory, or manager generation changes.
 
 ### sss
 
-Future evidence must bind SSSD configuration/domain/cache generation and provider health. Direct exact name/UID/GID negative lookup is mandatory. Enumeration-only evidence is invalid; offline, degraded, unreachable, timed-out or ambiguous provider state is HOLD.
+Future evidence must bind SSSD configuration, provider health, domain/cache generation, and every domain's configured or algorithmic numeric ID-mapping ranges. The candidate name and UID/GID must be outside present **and future** SSSD allocation/mapping authority unless a separately reviewed local-identity reservation makes that separation explicit. Direct namespace-specific negative lookup is mandatory. Enumeration-only evidence is invalid; offline, degraded, unreachable, timed-out or ambiguous provider state is HOLD.
 
 This source generation performs **none** of those live queries.
 
@@ -78,9 +78,14 @@ A future candidate numeric UID/GID also requires:
 6. HOLD on any unreadable, unsupported or unclassifiable relevant mount;
 7. absence of existing ownership by the candidate UID/GID;
 8. absence of numeric POSIX access/default ACL references to the candidate UID/GID;
-9. absence from systemd DynamicUser/reservation state;
-10. repetition of provider, process, mount, ownership and ACL evidence immediately before group creation;
-11. the same complete repetition immediately before user creation.
+9. absence from systemd DynamicUser/reservation state and future allocation ranges;
+10. absence from every existing subordinate-UID delegation;
+11. absence from every existing subordinate-GID delegation;
+12. absence from every configured SSSD future ID-mapping/allocation range unless separately reserved for the local identity;
+13. repetition of provider, process, mount, ownership and ACL evidence immediately before group creation;
+14. after group creation, re-authentication of the exact expected local group plus continued nonlocal group-provider absence;
+15. before user creation, renewed passwd-provider absence and proof that the selected GID acquired no process/file/ACL/service authority outside the expected account database record;
+16. the same complete provider/process/mount/ownership/ACL evidence immediately before user creation.
 
 A matching source-plan digest is never host attestation.
 
@@ -88,8 +93,8 @@ A matching source-plan digest is never host attestation.
 
 A separately reviewed provisioner may eventually:
 
-1. create exactly the approved primary group with an explicitly reviewed GID, only if the name and number remain absent;
-2. create exactly the approved system user with explicitly reviewed UID, that primary group, locked password, nologin shell, no home and no supplementary groups.
+1. create exactly the approved primary group with an explicitly reviewed GID **inside the bound system-account GID range**, only if the name and number remain absent;
+2. create exactly the approved system user with explicitly reviewed UID **inside the bound system-account UID range**, that primary group, locked password, nologin shell, no home, no supplementary groups, and **no subordinate UID/GID delegation creation**.
 
 No existing identity may be modified or reused.
 
@@ -97,7 +102,7 @@ After the future group-create step, the selected group is expected to exist **ex
 
 Partial creation is HOLD. No automatic `usermod`, `userdel`, or `groupdel` is allowed. Rollback requires separate authorization and exact proof that the created generation owns no files/ACLs, has no live processes, group members, services, or other dependents, and was not preexisting.
 
-After provisioning, effective NSS must resolve a unique name↔UID/GID mapping across the entire configured provider stack. Account creation alone still does **not** authorize V5 staging.
+After provisioning, effective NSS must resolve a unique name↔UID/GID mapping across the entire configured provider stack; no subordinate UID/GID delegation may have been created; and the selected IDs must remain outside provider-controlled future allocation ranges. Account creation alone still does **not** authorize V5 staging.
 
 ## Source-only proof
 
@@ -107,7 +112,7 @@ Run under a nonroot account on this exact branch:
 python3 -I -B scripts/prove_void_v7_stage_verifier_provider_aware_account_plan_v2.py
 ```
 
-The proof pins this plan, current #3804 role contract, and both current #3715 installers. Its plan/role JSON reads use retained `O_NOFOLLOW|O_NONBLOCK` descriptors with exact regular-file size/EOF, visible-generation and Git-blob checks, plus disposable FIFO/symlink substitution regressions. It verifies all authority fields remain false and evaluates **47 synthetic fail-closed cases**, including provider-profile/order errors, unknown providers, provider health/collision ambiguity, SSS enumeration-only evidence, systemd DynamicUser gaps, live-process collisions, mount/ownership/ACL reuse, stale recensus, login/group/admin authority, and recovery errors.
+The proof pins this plan, current #3804 role contract, and both current #3715 installers. Its plan/role JSON reads use retained `O_NOFOLLOW|O_NONBLOCK` descriptors with exact regular-file size/EOF, visible-generation and Git-blob checks, plus disposable FIFO/symlink substitution regressions. It verifies all authority fields remain false and evaluates **54 synthetic fail-closed cases**, including provider-profile/order errors, unknown providers, provider health/collision ambiguity, SSS enumeration-only and future-ID-range evidence, systemd userdb/DynamicUser current and future allocation gaps, system-account-range and subordinate-ID delegation collisions, live-process collisions, mount/ownership/ACL reuse, stale recensus, login/group/admin authority, and recovery errors.
 
 The fake `123456789/123456790` values are deliberately absurd proof-only numbers. Even the synthetic fully satisfied case returns only `SHAPE_ONLY_PROVIDER_AWARE_NOT_HOST_ATTESTED`.
 
