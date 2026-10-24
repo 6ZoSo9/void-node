@@ -115,13 +115,19 @@ requires:
 The probe neither invokes the protected installer nor calls
 `rename_noreplace`.
 
+After the probe exits, the census re-stats both the Python executable and stdlib
+ZIP and requires the exact dev/inode/UID/GID/mode/link-count/size/mtime/ctime
+generation captured before the probe. A same-path replacement or metadata drift
+during execution therefore HOLDs before a runtime-candidate receipt is emitted.
+
 ## fs-verity observation
 
 The census also invokes Linux `FS_IOC_MEASURE_VERITY` read-only on the exact
 same retained Python and stdlib descriptors used to read/hash those bytes.
 It does not close and reopen the pathname between byte identity and verity
 measurement; before/open/post-visible generation equality is required before
-the descriptor is released.
+the descriptor is released. The later post-probe generation check then binds
+the runtime execution window back to that same admitted file generation.
 
 This gate **observes rather than assumes** fs-verity:
 
