@@ -61,6 +61,7 @@
       display:inline-block;
     }
     .dot.ok{background:var(--ok)}
+    .dot.pending{background:var(--accent)}
     .dot.bad{background:var(--bad)}
     .btn{
       appearance:none;
@@ -186,8 +187,8 @@
   <script>
     const $ = (id) => document.getElementById(id);
 
-    function setDot(dotEl, labelEl, ok, text){
-      dotEl.className = "dot " + (ok ? "ok" : "bad");
+    function setDot(dotEl, labelEl, state, text){
+      dotEl.className = "dot " + state;
       labelEl.textContent = text;
     }
 
@@ -205,7 +206,7 @@
 
     async function refreshHealth(){
       const j = await getJson("/health");
-      setDot($("healthDot"), $("healthLabel"), !!j.ok, j.ok ? "healthy" : "unhealthy");
+      setDot($("healthDot"), $("healthLabel"), j.ok ? "ok" : "bad", j.ok ? "healthy" : "unhealthy");
       $("nodeId").textContent = fmt(j.nodeId);
       $("nodeHttp").textContent = fmt(j.http);
       $("nodeP2p").textContent = fmt(j.p2p);
@@ -229,7 +230,7 @@
       try {
         await Promise.all([refreshHealth(), refreshAi()]);
       } catch (e) {
-        setDot($("healthDot"), $("healthLabel"), false, "error");
+        setDot($("healthDot"), $("healthLabel"), "bad", "error");
         console.error(e);
       }
     }
@@ -264,7 +265,7 @@
     async function submitJob(){
       const msg = $("jobMsg").value.trim() || "hello from VOID demo";
       $("submitBtn").disabled = true;
-      setDot($("submitDot"), $("submitLabel"), false, "submitting");
+      setDot($("submitDot"), $("submitLabel"), "pending", "submitting");
       $("resultBox").textContent = "Submitting...";
       $("resultStatusLabel").textContent = "Submitting job.";
       $("jobId").textContent = "-";
@@ -288,13 +289,13 @@
 
         $("jobId").textContent = j.id;
         $("inputHash").textContent = fmt(j.inputHash);
-        setDot($("submitDot"), $("submitLabel"), true, "queued");
+        setDot($("submitDot"), $("submitLabel"), "ok", "queued");
 
         const ok = await pollResult(j.id);
-        setDot($("submitDot"), $("submitLabel"), ok, ok ? "done" : "timeout");
+        setDot($("submitDot"), $("submitLabel"), ok ? "ok" : "bad", ok ? "done" : "timeout");
         await refreshAi();
       } catch (e) {
-        setDot($("submitDot"), $("submitLabel"), false, "error");
+        setDot($("submitDot"), $("submitLabel"), "bad", "error");
         $("resultBox").textContent = String(e);
         $("resultStatusLabel").textContent = "Job failed.";
       } finally {
