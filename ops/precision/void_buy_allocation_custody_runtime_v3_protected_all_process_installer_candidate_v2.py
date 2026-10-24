@@ -185,11 +185,17 @@ def _leaf_read_flags() -> int:
     values = (
         getattr(os, "O_RDONLY", None),
         getattr(os, "O_NOFOLLOW", None),
+        getattr(os, "O_NONBLOCK", None),
         getattr(os, "O_CLOEXEC", None),
     )
     if any(type(value) is not int for value in values):
         raise InstallError("descriptor_capability_invalid")
-    return os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
+    return (
+        os.O_RDONLY
+        | os.O_NOFOLLOW
+        | os.O_NONBLOCK
+        | os.O_CLOEXEC
+    )
 
 
 def _open_bound_directory(path: Path) -> tuple[int, os.stat_result]:
