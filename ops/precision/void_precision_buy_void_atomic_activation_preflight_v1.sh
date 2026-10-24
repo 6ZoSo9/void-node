@@ -138,10 +138,10 @@ say "preflight_tool_blob_green=true"
 
 declare -A reviewed_source_blob=(
   ["src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"]="4e5d9a633b05d9254424c2132fc6620b94ff3692"
-  ["ops/mainnet0/buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.json"]="ed853b88329cd3a708b22a025cec0fe48540168a"
-  ["tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs"]="db6a56b56eea4fe150ad1ebc98519bc263b70ee2"
-  ["ops/precision/void_precision_buy_void_postgres_host_qualification_v1.sh"]="e92c8c73823323d4d77e5edb2bd2f41bd6a2dd16"
-  ["tools/void-precision-buy-void-postgres-host-qualification-v1.mjs"]="18d16f3528155bc118a9f1d4dcca4dc6663db40d"
+  ["ops/mainnet0/buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.json"]="a03f6fd4d0f86024aa276aa3be9c1eb00fb4cef2"
+  ["tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs"]="f8281ffc9cfbfd2b810a11a10f8cb3ff8473fa95"
+  ["ops/precision/void_precision_buy_void_postgres_host_qualification_v1.sh"]="f6061763fa4231c7e48b1d1beb28108ad58067d6"
+  ["tools/void-precision-buy-void-postgres-host-qualification-v1.mjs"]="3a9db8d007539bc605b6aa374dee6ba59ca36e1c"
   ["ops/systemd/void-node-live.service.d/91-buy-void-payment-keyed-production-dormant-v1.conf.example"]="a3500a7f1813972b90e5c00dbf8a03ed4b4ddd6b"
   ["ops/systemd/void-node-live.service.d/92-buy-void-dispatcher-postgres-credentials-v1.conf.example"]="dfe25fac6dfd98bc884ade38fe5196e6c048f60b"
   ["ops/systemd/void-node-live.service.d/94-buy-void-claimed-postgres-precision-reconcile-v1.conf.example"]="67981a141ebfc8a05902fdefc21a8db58946329c"
@@ -150,13 +150,13 @@ declare -A reviewed_source_blob=(
   ["src/economic/buy_void_payment_keyed_dispatcher_postgres_schema_admission_v1.ts"]="88c72330c5a5b92780f2c6add7dda7dd5e92af10"
   ["src/economic/buy_void_payment_keyed_dispatcher_postgres_store_v1.ts"]="aae34461ac47b3c5cbdecf75e6f6aa5935df677e"
   ["src/economic/buy_void_runtime_integration_v1.ts"]="00dad9a345dcbdc9d96bc0f61543f8d0db63e0ac"
-  ["src/economic/buy_void_payment_keyed_full_runtime_v1.ts"]="1c238ae8dff7e088421eabff93a98d97357d99e7"
+  ["src/economic/buy_void_payment_keyed_full_runtime_v1.ts"]="af2179651a88a74b158e7f3602fc5b3c30701f87"
   ["src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_v1.ts"]="2db30a0d7f343c5c1264d89ec5c752ade609d843"
   ["src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts"]="f74cafa7665be4ac0ea4fd518ec02440d337fa27"
   ["src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.ts"]="27045345cf48cacd2a5f2bc9330812579d0761a4"
   ["src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_contract_v1.ts"]="1495c6dd21cfda1608ea29885d98617784a04bb0"
-  ["package.json"]="f28c3e9446c7623ef203da36a9642d046e5f34ee"
-  ["package-lock.json"]="b2671f0149f522b2489247016df0a5ec4bb72b8b"
+  ["package.json"]="14fbdf5717b07fd4c734f5da7a8e84ed59bee93f"
+  ["package-lock.json"]="15b5c82ea36f13079a2f9e8863722f654eb3f201"
 )
 
 source_slice_material="$(
