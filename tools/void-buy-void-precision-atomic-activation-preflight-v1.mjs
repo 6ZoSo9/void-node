@@ -99,13 +99,13 @@ const EXPECTED_GATE_WINNERS = Object.freeze({
 
 const EXPECTED_RUNTIME_STATUS = Object.freeze({
   full_runtime_policy_fingerprint_sha256:
-    "b56c0abde0ea767711053a15975863ee012758c07907e729ca016f2a3190bd92",
+    "e48e46aed80d601d65102330177ac4d50f05f35c2653969abe129154249aa3be",
   runtime_policy_fingerprint_sha256:
-    "ba23302c2af292e78c07692d58d8bb03090ad695943cdbb15d6b9af394aa7c88",
+    "33d417097b9f5262c80f788c2598053fb27c395ce4298b336bc941ab2b896d0e",
   preparation_policy_fingerprint_sha256:
-    "3f4361d0ac5dac407e4ab1ae3f47b86e497f5af3db481a586c2c3f92b8f85da5",
+    "9afacbd85ac0b4c6edb9a71e5a9c9ac446c2b8f615d0a4d18d480c4cf5eb8af3",
   receipt_policy_fingerprint_sha256:
-    "23fac2c2de846eb99bc3647bfe54a83f704a5bc95a336eb1cc6edf54664390e4",
+    "9c3a4009e9c83f94ffca70cbe76184ecbb1dbc1ee7e2eb31d0d18ab3b6a12ee9",
   history_carrier_authority_id:
     "d4c9e22f0d619e7377ec0388bb8cdc19ef8d3782138ec87c3fe5ef271040af81",
   history_carrier_generation: 1,

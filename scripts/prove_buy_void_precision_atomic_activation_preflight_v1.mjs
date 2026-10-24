@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import * as activationContract from "../src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts";
 import {
@@ -58,13 +62,13 @@ const runtimeStatus = {
   policy_configured: true,
   signing_dependency_env_configured: true,
   full_runtime_policy_fingerprint_sha256:
-    "b56c0abde0ea767711053a15975863ee012758c07907e729ca016f2a3190bd92",
+    "e48e46aed80d601d65102330177ac4d50f05f35c2653969abe129154249aa3be",
   runtime_policy_fingerprint_sha256:
-    "ba23302c2af292e78c07692d58d8bb03090ad695943cdbb15d6b9af394aa7c88",
+    "33d417097b9f5262c80f788c2598053fb27c395ce4298b336bc941ab2b896d0e",
   preparation_policy_fingerprint_sha256:
-    "3f4361d0ac5dac407e4ab1ae3f47b86e497f5af3db481a586c2c3f92b8f85da5",
+    "9afacbd85ac0b4c6edb9a71e5a9c9ac446c2b8f615d0a4d18d480c4cf5eb8af3",
   receipt_policy_fingerprint_sha256:
-    "23fac2c2de846eb99bc3647bfe54a83f704a5bc95a336eb1cc6edf54664390e4",
+    "9c3a4009e9c83f94ffca70cbe76184ecbb1dbc1ee7e2eb31d0d18ab3b6a12ee9",
   history_carrier_authority_id:
     "d4c9e22f0d619e7377ec0388bb8cdc19ef8d3782138ec87c3fe5ef271040af81",
   history_carrier_generation: 1,
@@ -484,6 +488,161 @@ const wrapperSource = fs.readFileSync(
   "ops/precision/void_precision_buy_void_atomic_activation_preflight_v1.sh",
   "utf8",
 );
+function gitBlobSha1(bytes) {
+  return crypto
+    .createHash("sha1")
+    .update(Buffer.from(`blob ${bytes.length}\0`, "utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+
+const toolSwapDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-atomic-preflight-tool-snapshot-proof-"),
+);
+try {
+  const sourcePath = path.join(toolSwapDir, "preflight-tool.mjs");
+  const reviewedPath = path.join(toolSwapDir, "reviewed-tool.mjs");
+  const snapshotPath = path.join(toolSwapDir, "snapshot-tool.mjs");
+  const reviewedBytes = Buffer.from("console.log('reviewed')\\n", "utf8");
+  const swappedBytes = Buffer.from("console.log('swapped')\\n", "utf8");
+  const reviewedBlob = gitBlobSha1(reviewedBytes);
+
+  fs.writeFileSync(sourcePath, reviewedBytes, { flag: "wx", mode: 0o600 });
+  const sourceFd = fs.openSync(
+    sourcePath,
+    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+  );
+  let openedBytes;
+  try {
+    openedBytes = fs.readFileSync(sourceFd);
+  } finally {
+    fs.closeSync(sourceFd);
+  }
+  assert.equal(gitBlobSha1(openedBytes), reviewedBlob);
+
+  fs.writeFileSync(snapshotPath, openedBytes, { flag: "wx", mode: 0o400 });
+  fs.renameSync(sourcePath, reviewedPath);
+  fs.writeFileSync(sourcePath, swappedBytes, { flag: "wx", mode: 0o600 });
+
+  assert.equal(gitBlobSha1(fs.readFileSync(snapshotPath)), reviewedBlob);
+  assert.notEqual(gitBlobSha1(fs.readFileSync(sourcePath)), reviewedBlob);
+  assert.equal(
+    fs.statSync(snapshotPath).mode & 0o777,
+    0o400,
+    "private preflight snapshot mode changed",
+  );
+} finally {
+  fs.rmSync(toolSwapDir, { recursive: true, force: true });
+}
+
+function extractEmbeddedSnapshotReader(source, invocationNeedle) {
+  const invocation = source.indexOf(invocationNeedle);
+  assert(invocation >= 0, "embedded snapshot reader invocation missing");
+  const marker = "<<'PY'\n";
+  const start = source.indexOf(marker, invocation);
+  assert(start >= 0, "embedded snapshot reader start missing");
+  const bodyStart = start + marker.length;
+  const end = source.indexOf("\nPY\nthen", bodyStart);
+  assert(end > bodyStart, "embedded snapshot reader end missing");
+  return source.slice(bodyStart, end);
+}
+
+const embeddedReader = extractEmbeddedSnapshotReader(
+  wrapperSource,
+  'python3 - "$tool" "$tool_snapshot" "$tool_head_blob"',
+);
+assert.equal(
+  embeddedReader.includes("\\n    os.O_RDONLY"),
+  false,
+  "embedded reader contains literal newline escapes",
+);
+assert(embeddedReader.includes('getattr(os, "O_NONBLOCK", 0)'));
+
+const embeddedReaderDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-atomic-preflight-embedded-reader-proof-"),
+);
+try {
+  const sourcePath = path.join(embeddedReaderDir, "preflight-tool.mjs");
+  const snapshotPath = path.join(embeddedReaderDir, "snapshot-tool.mjs");
+  const reviewedBytes = Buffer.from("console.log('reviewed embedded reader')\n", "utf8");
+  const expectedBlob = gitBlobSha1(reviewedBytes);
+  fs.writeFileSync(sourcePath, reviewedBytes, { flag: "wx", mode: 0o600 });
+
+  const regular = spawnSync(
+    "python3",
+    ["-I", "-B", "-", sourcePath, snapshotPath, expectedBlob],
+    {
+      input: embeddedReader,
+      encoding: "utf8",
+      timeout: 2000,
+      env: { PATH: "/usr/bin:/bin", HOME: "/nonexistent", LC_ALL: "C" },
+    },
+  );
+  assert.equal(regular.signal, null, "embedded regular-file reader timed out");
+  assert.equal(regular.status, 0, regular.stderr);
+  assert.deepEqual(fs.readFileSync(snapshotPath), reviewedBytes);
+  assert.equal(fs.statSync(snapshotPath).mode & 0o777, 0o400);
+} finally {
+  fs.rmSync(embeddedReaderDir, { recursive: true, force: true });
+}
+
+const fifoDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-atomic-preflight-tool-fifo-proof-"),
+);
+try {
+  const fifoPath = path.join(fifoDir, "preflight-tool.fifo");
+  const mkfifo = spawnSync("/usr/bin/mkfifo", [fifoPath], {
+    encoding: "utf8",
+    timeout: 2000,
+  });
+  assert.equal(mkfifo.status, 0, mkfifo.stderr);
+
+  const fifoSnapshot = path.join(fifoDir, "fifo-snapshot.mjs");
+  const fifoOpen = spawnSync(
+    "python3",
+    ["-I", "-B", "-", fifoPath, fifoSnapshot, "0".repeat(40)],
+    {
+      input: embeddedReader,
+      encoding: "utf8",
+      timeout: 2000,
+      env: { PATH: "/usr/bin:/bin", HOME: "/nonexistent", LC_ALL: "C" },
+    },
+  );
+  assert.equal(fifoOpen.signal, null, "nonblocking FIFO probe timed out");
+  assert.notEqual(fifoOpen.status, 0, "FIFO unexpectedly accepted");
+  assert.match(fifoOpen.stderr, /preflight_tool_not_regular/u);
+  assert.equal(fs.existsSync(fifoSnapshot), false);
+} finally {
+  fs.rmSync(fifoDir, { recursive: true, force: true });
+}
+
+for (const required of [
+  'tool_rel="tools/void-buy-void-precision-atomic-activation-preflight-v1.mjs"',
+  "preflight_tool_path_not_canonical",
+  "preflight_tool_symlink_forbidden",
+  "preflight_tool_realpath_not_canonical",
+  'getattr(os, "O_NOFOLLOW", 0)',
+  'getattr(os, "O_NONBLOCK", 0)',
+  '["ops/precision/void_precision_buy_void_postgres_host_qualification_v1.sh"]="cd798a5dc74aa4f8f4bdbc1e5406ffc4dcd4851b"',
+  "preflight_tool_snapshot_failed",
+  "preflight_tool_path_canonical=true",
+  "preflight_tool_snapshot_green=true",
+  '"$tsx" "$tool_snapshot" --gate-sources "$gate_sources_json"',
+  '"$tsx" "$tool_snapshot" --snapshot "$snapshot"',
+]) {
+  assert(wrapperSource.includes(required), required);
+}
+assert.equal(
+  wrapperSource.includes('"$tsx" "$tool" --gate-sources'),
+  false,
+  "caller pathname must not execute during gate inventory",
+);
+assert.equal(
+  wrapperSource.includes('"$tsx" "$tool" --snapshot'),
+  false,
+  "caller pathname must not execute during full preflight",
+);
+
 const inventoryPosition = wrapperSource.indexOf(
   '--gate-sources "$gate_sources_json"',
 );
@@ -493,8 +652,13 @@ const qualifierPosition = wrapperSource.indexOf(
 const sourceSlicePosition = wrapperSource.indexOf(
   "reviewed_source_slice_green=true",
 );
+const toolSnapshotPosition = wrapperSource.indexOf(
+  "preflight_tool_snapshot_green=true",
+);
 assert(inventoryPosition >= 0);
 assert(sourceSlicePosition >= 0);
+assert(toolSnapshotPosition >= 0);
+assert(toolSnapshotPosition < sourceSlicePosition);
 assert(sourceSlicePosition < inventoryPosition);
 assert(qualifierPosition > inventoryPosition);
 assert(
@@ -664,6 +828,12 @@ console.log("base_unit_gate_inventory_green=true");
 console.log("late_dormant_override_hold_green=true");
 console.log("credential_read_blocked_before_inventory_green=true");
 console.log("preflight_tool_current_head_binding_green=true");
+console.log("preflight_tool_canonical_path_green=true");
+console.log("preflight_tool_private_snapshot_green=true");
+console.log("preflight_tool_path_swap_adversary_green=true");
+console.log("preflight_embedded_reader_regular_file_green=true");
+console.log("preflight_embedded_reader_fifo_nonblocking_green=true");
+console.log("preflight_tool_fifo_nonblocking_green=true");
 console.log("preflight_wrapper_current_head_binding_green=true");
 console.log("canonical_repository_origin_green=true");
 console.log("reviewed_source_slice_count=22");

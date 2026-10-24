@@ -1,0 +1,79 @@
+name: Buy VOID Epoch-2 current activation source qualification v3
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/buy-void-payment-keyed-epoch2-envelope-v3.yml"
+      - "tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs"
+      - "scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs"
+      - "tools/void-buy-void-epoch2-postgres-source-qualification-v1.mjs"
+      - "tools/void-buy-void-epoch2-postgres-source-qualification-v2.mjs"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v1.json"
+      - "ops/mainnet0/buy-void-payment-keyed-epoch2-dormant-candidate-v2.json"
+      - "ops/mainnet0/evidence/buy-void-epoch2-signer-control-public-evidence-v1.json"
+      - "tools/void-buy-void-epoch2-signer-control-public-evidence-v1.mjs"
+      - "src/economic/buy_void_epoch2_fulfillment_access_list_v1.ts"
+      - "src/economic/buy_void_epoch2_credential_source_binding_v1.ts"
+      - "src/economic/buy_void_payment_keyed_full_runtime_v1.ts"
+      - "src/economic/buy_void_payment_keyed_runtime_dependency_bootstrap_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_guarded_broadcast_apply_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_full_runtime_v1.ts"
+      - "scripts/prove_buy_void_epoch2_runtime_credential_source_binding_v1.ts"
+      - "scripts/prove_buy_void_payment_keyed_epoch2_dormant_candidate_v1.ts"
+      - "src/economic/buy_void_payment_keyed_transaction_preparation_v1.ts"
+      - "src/economic/buy_void_payment_keyed_unsigned_transaction_v1.ts"
+      - "src/economic/buy_void_payment_keyed_custodian_prepare_request_v1.ts"
+      - "src/economic/buy_void_payment_keyed_custodian_signer_v1.ts"
+      - "src/economic/buy_void_payment_keyed_custodian_broadcast_v1.ts"
+      - "src/economic/buy_void_payment_keyed_chain2050_broadcaster_v1.ts"
+      - "src/economic/buy_void_delivery_sign_broadcast_adapter_v1.ts"
+      - "src/economic/buy_void_payment_keyed_chain2050_inspection_v1.ts"
+      - "src/economic/buy_void_payment_keyed_plan_reservation_v1.ts"
+      - "src/economic/buy_void_payment_keyed_preparation_custody_v1.ts"
+      - "src/economic/buy_void_epoch2_signer_control_v1.ts"
+      - "src/economic/buy_void_native_fulfillment_wallet_credential_signer_v1.ts"
+      - "scripts/prove_buy_void_epoch2_credential_signer_v1.ts"
+      - "src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
+      - "ops/mainnet0/buy-void-payment-keyed-production-candidate-v1.json"
+      - "tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs"
+      - "ops/mainnet0/buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.json"
+      - "ops/mainnet0/production-epoch2-rpc-target-v1.json"
+      - "scripts/prove_buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    name: E2 current source V3 / Node ${{ matrix.node }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24, 26]
+    steps:
+      - name: Checkout exact candidate without stored Git credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Use supported Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax-check current source successor
+        run: |
+          set -euo pipefail
+          node --check tools/void-buy-void-epoch2-postgres-source-qualification-v3.mjs
+          node --check scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs
+      - name: Prove historical carrier and current source successor
+        run: node scripts/prove_void_buy_void_epoch2_postgres_source_qualification_v3.mjs
+      - name: Diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="origin/${GITHUB_BASE_REF:-main}"
+          git diff --check "$base"...HEAD

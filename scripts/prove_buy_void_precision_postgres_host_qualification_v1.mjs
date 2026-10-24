@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
   VOID_BUY_VOID_PRECISION_POSTGRES_HOST_QUALIFICATION_AUTHORITY_V1,
@@ -73,13 +77,13 @@ const expectedBlobs = {
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_admitted_guarded_runtime_v1.ts":
     "f74cafa7665be4ac0ea4fd518ec02440d337fa27",
   "src/economic/buy_void_payment_keyed_full_runtime_v1.ts":
-    "1c238ae8dff7e088421eabff93a98d97357d99e7",
+    "af2179651a88a74b158e7f3602fc5b3c30701f87",
   "src/economic/buy_void_payment_keyed_dispatcher_postgres_claimed_runtime_parent_v1.ts":
     "27045345cf48cacd2a5f2bc9330812579d0761a4",
   "package.json":
-    "f28c3e9446c7623ef203da36a9642d046e5f34ee",
+    "14fbdf5717b07fd4c734f5da7a8e84ed59bee93f",
   "package-lock.json":
-    "b2671f0149f522b2489247016df0a5ec4bb72b8b",
+    "15b5c82ea36f13079a2f9e8863722f654eb3f201",
 };
 assert.deepEqual(
   VOID_BUY_VOID_PRECISION_POSTGRES_SOURCE_SLICE_BLOBS_V1,
@@ -156,7 +160,7 @@ for (const forbidden of [
 }
 for (const required of [
   "source_slice_blob_identity_green=true",
-  'expected_tool_blob="18d16f3528155bc118a9f1d4dcca4dc6663db40d"',
+  'expected_tool_blob="3a9db8d007539bc605b6aa374dee6ba59ca36e1c"',
   "qualifier_tool_blob_mismatch",
   "installed_dropin_contract_green=true",
   "credential_metadata_green=true",
@@ -176,6 +180,154 @@ for (const required of [
 ]) {
   assert(wrapper.includes(required), required);
 }
+for (const required of [
+  'tool_rel="tools/void-precision-buy-void-postgres-host-qualification-v1.mjs"',
+  "qualifier_tool_path_not_canonical",
+  "qualifier_tool_symlink_forbidden",
+  "qualifier_tool_realpath_not_canonical",
+  'getattr(os, "O_NOFOLLOW", 0)',
+  'getattr(os, "O_NONBLOCK", 0)',
+  "qualifier_tool_snapshot_failed",
+  "qualifier_tool_path_canonical=true",
+  "qualifier_tool_snapshot_green=true",
+  '"$tsx" "$tool_snapshot"',
+]) {
+  assert(wrapper.includes(required), required);
+}
+assert.equal(
+  wrapper.includes('"$tsx" "$tool"'),
+  false,
+  "validated caller pathname must never be executed directly",
+);
+
+function gitBlobSha1(bytes) {
+  return crypto
+    .createHash("sha1")
+    .update(Buffer.from(`blob ${bytes.length}\0`, "utf8"))
+    .update(bytes)
+    .digest("hex");
+}
+
+const swapDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-postgres-qualifier-snapshot-proof-"),
+);
+try {
+  const sourcePath = path.join(swapDir, "qualifier-tool.mjs");
+  const reviewedPath = path.join(swapDir, "reviewed-tool.mjs");
+  const snapshotPath = path.join(swapDir, "snapshot-tool.mjs");
+  const reviewedBytes = Buffer.from("console.log('reviewed')\\n", "utf8");
+  const swappedBytes = Buffer.from("console.log('swapped')\\n", "utf8");
+  const reviewedBlob = gitBlobSha1(reviewedBytes);
+
+  fs.writeFileSync(sourcePath, reviewedBytes, { flag: "wx", mode: 0o600 });
+  const sourceFd = fs.openSync(
+    sourcePath,
+    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+  );
+  let openedBytes;
+  try {
+    openedBytes = fs.readFileSync(sourceFd);
+  } finally {
+    fs.closeSync(sourceFd);
+  }
+  assert.equal(gitBlobSha1(openedBytes), reviewedBlob);
+
+  fs.writeFileSync(snapshotPath, openedBytes, { flag: "wx", mode: 0o400 });
+  fs.renameSync(sourcePath, reviewedPath);
+  fs.writeFileSync(sourcePath, swappedBytes, { flag: "wx", mode: 0o600 });
+
+  assert.equal(gitBlobSha1(fs.readFileSync(snapshotPath)), reviewedBlob);
+  assert.notEqual(gitBlobSha1(fs.readFileSync(sourcePath)), reviewedBlob);
+  assert.equal(
+    fs.statSync(snapshotPath).mode & 0o777,
+    0o400,
+    "private snapshot mode changed",
+  );
+} finally {
+  fs.rmSync(swapDir, { recursive: true, force: true });
+}
+
+function extractEmbeddedSnapshotReader(source, invocationNeedle) {
+  const invocation = source.indexOf(invocationNeedle);
+  assert(invocation >= 0, "embedded snapshot reader invocation missing");
+  const marker = "<<'PY'\n";
+  const start = source.indexOf(marker, invocation);
+  assert(start >= 0, "embedded snapshot reader start missing");
+  const bodyStart = start + marker.length;
+  const end = source.indexOf("\nPY\nthen", bodyStart);
+  assert(end > bodyStart, "embedded snapshot reader end missing");
+  return source.slice(bodyStart, end);
+}
+
+const embeddedReader = extractEmbeddedSnapshotReader(
+  wrapper,
+  'python3 - "$tool" "$tool_snapshot" "$expected_tool_blob"',
+);
+assert.equal(
+  embeddedReader.includes("\\n    os.O_RDONLY"),
+  false,
+  "embedded reader contains literal newline escapes",
+);
+assert(embeddedReader.includes('getattr(os, "O_NONBLOCK", 0)'));
+
+const embeddedReaderDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-postgres-qualifier-embedded-reader-proof-"),
+);
+try {
+  const sourcePath = path.join(embeddedReaderDir, "qualifier-tool.mjs");
+  const snapshotPath = path.join(embeddedReaderDir, "snapshot-tool.mjs");
+  const reviewedBytes = Buffer.from("console.log('reviewed embedded reader')\n", "utf8");
+  const expectedBlob = gitBlobSha1(reviewedBytes);
+  fs.writeFileSync(sourcePath, reviewedBytes, { flag: "wx", mode: 0o600 });
+
+  const regular = spawnSync(
+    "python3",
+    ["-I", "-B", "-", sourcePath, snapshotPath, expectedBlob],
+    {
+      input: embeddedReader,
+      encoding: "utf8",
+      timeout: 2000,
+      env: { PATH: "/usr/bin:/bin", HOME: "/nonexistent", LC_ALL: "C" },
+    },
+  );
+  assert.equal(regular.signal, null, "embedded regular-file reader timed out");
+  assert.equal(regular.status, 0, regular.stderr);
+  assert.deepEqual(fs.readFileSync(snapshotPath), reviewedBytes);
+  assert.equal(fs.statSync(snapshotPath).mode & 0o777, 0o400);
+} finally {
+  fs.rmSync(embeddedReaderDir, { recursive: true, force: true });
+}
+
+const fifoDir = fs.mkdtempSync(
+  path.join(os.tmpdir(), "void-postgres-qualifier-fifo-proof-"),
+);
+try {
+  const fifoPath = path.join(fifoDir, "qualifier-tool.fifo");
+  const mkfifo = spawnSync("/usr/bin/mkfifo", [fifoPath], {
+    encoding: "utf8",
+    timeout: 2000,
+  });
+  assert.equal(mkfifo.status, 0, mkfifo.stderr);
+
+  const fifoSnapshot = path.join(fifoDir, "fifo-snapshot.mjs");
+  const fifoOpen = spawnSync(
+    "python3",
+    ["-I", "-B", "-", fifoPath, fifoSnapshot, "0".repeat(40)],
+    {
+      input: embeddedReader,
+      encoding: "utf8",
+      timeout: 2000,
+      env: { PATH: "/usr/bin:/bin", HOME: "/nonexistent", LC_ALL: "C" },
+    },
+  );
+  assert.equal(fifoOpen.signal, null, "nonblocking FIFO probe timed out");
+  assert.notEqual(fifoOpen.status, 0, "FIFO unexpectedly accepted");
+  assert.match(fifoOpen.stderr, /qualifier_tool_not_regular/u);
+  assert.equal(fs.existsSync(fifoSnapshot), false);
+} finally {
+  fs.rmSync(fifoDir, { recursive: true, force: true });
+}
+
 for (const forbidden of [
   "runBuyVoidPaymentKeyedDispatcherPostgresClaimedRuntimeV1",
   "runBuyVoidPaymentKeyedDispatcherPostgresAdmittedGuardedRuntimeV1",
@@ -241,6 +393,12 @@ console.log(
 );
 console.log("dormant_gate_fail_closed_green=true");
 console.log("source_slice_blob_binding_green=true");
+console.log("qualifier_tool_canonical_path_green=true");
+console.log("qualifier_tool_private_snapshot_green=true");
+console.log("qualifier_tool_path_swap_adversary_green=true");
+console.log("qualifier_embedded_reader_regular_file_green=true");
+console.log("qualifier_embedded_reader_fifo_nonblocking_green=true");
+console.log("qualifier_tool_fifo_nonblocking_green=true");
 console.log("host_wrapper_no_mutation_contract_green=true");
 console.log("production_factory_only_green=true");
 console.log("schema_admission_only_green=true");
