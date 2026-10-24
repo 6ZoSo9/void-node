@@ -7,6 +7,7 @@ on:
       - "runtime/canonical-producer-self-http-guard-v2.cjs"
       - "runtime/canonical-producer-self-http-guard-v3.cjs"
       - "runtime/canonical-producer-self-http-guard-v4.cjs"
+      - "runtime/canonical-producer-self-http-guard-v5.cjs"
       - "runtime/canonical-producer-source-custody-v1.cjs"
       - "ops/run-void-node-live-v1.sh"
       - "ops/guard-canonical-producer-liveness-v1.sh"
@@ -16,8 +17,10 @@ on:
       - "scripts/prove_canonical_producer_source_generation_dispatch_v2.mjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v3.mjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v4.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs"
       - "scripts/prove_canonical_producer_source_generation_dispatch_v3.mjs"
       - "scripts/prove_canonical_producer_source_generation_dispatch_v4.mjs"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs"
       - "src/index.ts"
       - ".github/workflows/canonical-producer-legacy-self-http-observers-v1.yml"
   push:
@@ -28,6 +31,7 @@ on:
       - "runtime/canonical-producer-self-http-guard-v2.cjs"
       - "runtime/canonical-producer-self-http-guard-v3.cjs"
       - "runtime/canonical-producer-self-http-guard-v4.cjs"
+      - "runtime/canonical-producer-self-http-guard-v5.cjs"
       - "runtime/canonical-producer-source-custody-v1.cjs"
       - "ops/run-void-node-live-v1.sh"
       - "ops/guard-canonical-producer-liveness-v1.sh"
@@ -37,8 +41,10 @@ on:
       - "scripts/prove_canonical_producer_source_generation_dispatch_v2.mjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v3.mjs"
       - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v4.mjs"
+      - "scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs"
       - "scripts/prove_canonical_producer_source_generation_dispatch_v3.mjs"
       - "scripts/prove_canonical_producer_source_generation_dispatch_v4.mjs"
+      - "scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs"
       - "src/index.ts"
       - ".github/workflows/canonical-producer-legacy-self-http-observers-v1.yml"
 
@@ -70,9 +76,12 @@ jobs:
           node --check scripts/prove_canonical_producer_legacy_self_http_observers_current_v3.mjs
           node --check scripts/prove_canonical_producer_source_generation_dispatch_v3.mjs
           node --check runtime/canonical-producer-self-http-guard-v4.cjs
+          node --check runtime/canonical-producer-self-http-guard-v5.cjs
           node --check scripts/prove_canonical_producer_legacy_self_http_observers_current_v4.mjs
+          node --check scripts/prove_canonical_producer_legacy_self_http_observers_current_v5.mjs
           node --check scripts/prove_canonical_producer_source_generation_dispatch_v4.mjs
+          node --check scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs
           bash -n ops/guard-canonical-producer-liveness-v1.sh
           bash -n ops/mainnet0/install-canonical-producer-liveness-v1.sh
       - name: Canonical legacy observer proof
-        run: node scripts/prove_canonical_producer_source_generation_dispatch_v4.mjs
+        run: node scripts/prove_canonical_producer_source_generation_dispatch_v5.mjs
