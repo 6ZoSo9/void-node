@@ -163,9 +163,11 @@ settings and historical evidence remain unchanged.
 ## Repaired-parent exact identities
 
 ```text
-current_main=61b0f81b2112aab32e3dc16084fe2d43178ec4da
+accepted_source_base=61b0f81b2112aab32e3dc16084fe2d43178ec4da
 accepted_v2_parent=f84d380d41e3aefd3c96b3fa956f5f7addf9f908
 accepted_v2_parent_tree=6d03b668ca51cc7ffa115c164955d09dc9b13e70
+landed_main=652197dc8df36f0f2004d50c6bbf95369790e2d1
+landed_main_tree=00e5dd00386372e533c945141dd857f663fdf036
 accepted_transport_workflow=0cc7e50febb6d289c343e188a10e63bbd22053d6
 current_transport_workflow=6d9c8e821ba70f28183bc2d879b95b7e2f829be1
 custody_inspect_proof=b87945fb2d7df4af4740fc28ae467f8f660361e3
@@ -175,6 +177,8 @@ custody_inspect_source=45ade2941e28a51e4dbb4884dfcbe9ec549022e6
 transport_source=61dc219117538f2894b170ac98bb56806f69f430
 allocation_stage_source=6efb2be5f03ff87290ef376d7852d22db22900f8
 ```
+
+The accepted branch generation is preserved as immutable evidence even though #3692 landed by squash merge and therefore cannot remain a Git ancestor of `main`. Current and future proofs bind the permanent landed carrier `652197dc8df36f0f2004d50c6bbf95369790e2d1` as an ancestor, require its exact tree `00e5dd00386372e533c945141dd857f663fdf036`, and verify every current seven-file V2 source identity at both that landed carrier and the executing head. This replaces an ancestry assumption; it does not alter source acceptance, mount, payment, or funds authority.
 
 The accepted V2 add-only generation remains immutable at `f84d380d41e3aefd3c96b3fa956f5f7addf9f908`; its transport workflow blob is still `0cc7e50febb6d289c343e188a10e63bbd22053d6`. The current combined-head successor changes only that one seven-file source-map member to workflow blob `6d9c8e821ba70f28183bc2d879b95b7e2f829be1` so the historical seven-path proof and the separately reviewed 16-path composition can both remain exact. This successor binding does not set independent source acceptance or runtime authority true.
 
