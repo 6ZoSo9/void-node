@@ -773,6 +773,18 @@ function verifyWorkflowDispatch(){
       "v3_historical_acceptance_assertion_missing:"+relative);
     assert.ok(source.includes("candidate_enforcement_identity_accepted,false"),
       "v3_current_acceptance_false_assertion_missing:"+relative);
+    for(const assertion of [
+      "frozen_protected_inventory_preserved,true",
+      "protected_path_identity_preserved,false",
+      "unchanged_protected_path_count,47",
+      "reviewed_protected_successor_count,2",
+      "current_protected_successor_binding_verified,true",
+      "current_router_v6_successor_verified,true",
+      "canonical_producer_v5_successor_verified,true",
+    ]){
+      assert.ok(source.includes(assertion),
+        "v3_successor_receipt_assertion_missing:"+relative+":"+assertion);
+    }
     assert.ok(source.includes("node "+CURRENT_SUCCESSOR+" --self-test"),
       "v3_workflow_invocation_missing:"+relative);
     assert.ok(!source.includes("node "+PREVIOUS_SUCCESSOR+" --self-test"),
