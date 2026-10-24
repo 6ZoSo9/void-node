@@ -54,6 +54,19 @@ class RebindError(RuntimeError):
     pass
 
 
+class StageWriteError(RebindError):
+    def __init__(
+        self,
+        reason: str,
+        *,
+        cleanup_attempted: bool,
+        cleanup_green: bool,
+    ) -> None:
+        super().__init__(reason)
+        self.cleanup_attempted = cleanup_attempted
+        self.cleanup_green = cleanup_green
+
+
 def sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
@@ -378,6 +391,31 @@ def plan(expected_head: str) -> None:
         )
 
 
+def _inode_identity(st: os.stat_result) -> tuple[int, int]:
+    return (st.st_dev, st.st_ino)
+
+
+def _remove_owned_stage(
+    opt_fd: int,
+    stage_identity: tuple[int, int],
+) -> None:
+    try:
+        visible = os.stat(
+            STAGE_NAME,
+            dir_fd=opt_fd,
+            follow_symlinks=False,
+        )
+    except OSError as exc:
+        raise RebindError("stage_cleanup_identity_unavailable") from exc
+    if (
+        not stat.S_ISREG(visible.st_mode)
+        or _inode_identity(visible) != stage_identity
+    ):
+        raise RebindError("stage_cleanup_identity_changed")
+    os.unlink(STAGE_NAME, dir_fd=opt_fd)
+    os.fsync(opt_fd)
+
+
 def _write_stage(
     v2: types.ModuleType,
     installer: Any,
@@ -385,6 +423,7 @@ def _write_stage(
     new_policy: bytes,
 ) -> None:
     fd: int | None = None
+    stage_identity: tuple[int, int] | None = None
     try:
         fd = os.open(
             STAGE_NAME,
@@ -396,6 +435,10 @@ def _write_stage(
             0o400,
             dir_fd=opt_fd,
         )
+        opened = os.fstat(fd)
+        if not stat.S_ISREG(opened.st_mode) or opened.st_nlink != 1:
+            raise RebindError("stage_open_identity_invalid")
+        stage_identity = _inode_identity(opened)
         os.fchown(fd, 0, 0)
         view = memoryview(new_policy)
         offset = 0
@@ -406,16 +449,55 @@ def _write_stage(
             offset += wrote
         os.fchmod(fd, 0o444)
         os.fsync(fd)
+        os.close(fd)
+        fd = None
+
+        v2._hash_exact_file(
+            installer.INSTALL_PARENT / STAGE_NAME,
+            expected_bytes=len(new_policy),
+            expected_sha256=sha256(new_policy),
+            expected_mode=0o444,
+        )
+        os.fsync(opt_fd)
+    except BaseException as exc:
+        if fd is not None:
+            try:
+                os.close(fd)
+            finally:
+                fd = None
+        cleanup_attempted = stage_identity is not None
+        cleanup_green = False
+        if cleanup_attempted:
+            try:
+                _remove_owned_stage(opt_fd, stage_identity)
+                cleanup_green = True
+            except BaseException:
+                cleanup_green = False
+        raise StageWriteError(
+            "stage_write_failed",
+            cleanup_attempted=cleanup_attempted,
+            cleanup_green=cleanup_green,
+        ) from exc
     finally:
         if fd is not None:
             os.close(fd)
 
-    v2._hash_exact_file(
-        installer.INSTALL_PARENT / STAGE_NAME,
-        expected_bytes=len(new_policy),
-        expected_sha256=sha256(new_policy),
-        expected_mode=0o444,
+
+def _durable_rollback_exchange(
+    v1: types.ModuleType,
+    opt_fd: int,
+    recovery_name: str,
+    root_fd: int,
+    policy_name: str,
+) -> None:
+    v1._renameat2(
+        opt_fd,
+        recovery_name,
+        root_fd,
+        policy_name,
+        RENAME_EXCHANGE,
     )
+    os.fsync(root_fd)
     os.fsync(opt_fd)
 
 
@@ -703,17 +785,20 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
         ):
             raise RebindError("post_chain_rebind_v3_state_not_green")
 
-    except BaseException:
+    except BaseException as exc:
+        if isinstance(exc, StageWriteError):
+            rollback_attempted = exc.cleanup_attempted
+            rollback_green = exc.cleanup_green
         if exchanged:
             rollback_attempted = True
             try:
                 if immediate_backup_retained:
-                    v1._renameat2(
+                    _durable_rollback_exchange(
+                        v1,
                         opt_fd,
                         IMMEDIATE_BACKUP_NAME,
                         root_fd,
                         installer.POLICY_NAME,
-                        RENAME_EXCHANGE,
                     )
                     immediate_backup_retained = False
                     _remove_verified_new_policy(
@@ -724,12 +809,12 @@ def apply(expected_head: str, expected_plan_id: str, confirm: str) -> None:
                         IMMEDIATE_BACKUP_NAME,
                     )
                 else:
-                    v1._renameat2(
+                    _durable_rollback_exchange(
+                        v1,
                         opt_fd,
                         STAGE_NAME,
                         root_fd,
                         installer.POLICY_NAME,
-                        RENAME_EXCHANGE,
                     )
                     _remove_verified_new_policy(
                         v2,
