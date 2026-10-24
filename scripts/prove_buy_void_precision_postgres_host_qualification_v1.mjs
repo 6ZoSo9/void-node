@@ -203,7 +203,7 @@ assert.equal(
 function gitBlobSha1(bytes) {
   return crypto
     .createHash("sha1")
-    .update(Buffer.from(`blob ${bytes.length}\\0`, "utf8"))
+    .update(Buffer.from(`blob ${bytes.length}\0`, "utf8"))
     .update(bytes)
     .digest("hex");
 }
