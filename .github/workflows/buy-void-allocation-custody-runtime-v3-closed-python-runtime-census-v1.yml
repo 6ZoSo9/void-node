@@ -1,0 +1,153 @@
+name: VOID Buy custody V3 closed Python runtime census v1
+
+on:
+  pull_request:
+    paths:
+      - "ops/precision/void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py"
+      - "scripts/prove_void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py"
+      - "docs/operators/buy-void-allocation-custody-runtime-v3-closed-python-runtime-census-v1.md"
+      - ".github/workflows/buy-void-allocation-custody-runtime-v3-closed-python-runtime-census-v1.yml"
+      - "ops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Bind exact closed-Python census successor
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BASE="ee05308ecf72407b93aaee2dfab3fa09109ffd20"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git merge-base "$BASE" HEAD)" = "$BASE"
+
+          mapfile -t actual < <(git diff --name-status "$BASE" HEAD -- | LC_ALL=C sort)
+          expected=(
+            $'A\t.github/workflows/buy-void-allocation-custody-runtime-v3-closed-python-runtime-census-v1.yml'
+            $'A\tdocs/operators/buy-void-allocation-custody-runtime-v3-closed-python-runtime-census-v1.md'
+            $'A\tops/precision/void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py'
+            $'A\tscripts/prove_void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py'
+          )
+          mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | LC_ALL=C sort)
+          diff -u <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}")
+
+          test "$(git rev-parse HEAD:ops/precision/void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py)" = \
+            "8914d9e8031377e3bcda4770194024e2f6fed2fd"
+          test "$(git rev-parse HEAD:scripts/prove_void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py)" = \
+            "ef859fcea64d9a9b84279f68674301401224aa55"
+          test "$(git rev-parse HEAD:docs/operators/buy-void-allocation-custody-runtime-v3-closed-python-runtime-census-v1.md)" = \
+            "529b5e46983b4d514f9088ca60eda6c122ced9c8"
+          test "$(git rev-parse HEAD:ops/security/buy-void-allocation-custody-runtime-v3-installer-first-entry-lock-v2.json)" = \
+            "36d6c4a5ff825993371f109ee86a77b601e12d07"
+
+          git diff --check "$BASE" HEAD
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Compile Python
+        run: |
+          set -euo pipefail
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            ops/precision/void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py
+          PYTHONPYCACHEPREFIX="$RUNNER_TEMP/pycache" python3 -m py_compile \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py
+
+      - name: Self-test source boundary only
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/closed-python-selftest.txt"
+          python3 -I -B \
+            ops/precision/void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py \
+            --self-test | tee "$out"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_CLOSED_PYTHON_RUNTIME_CENSUS_V1_SELF_TEST_GREEN' "$out"
+          for marker in \
+            'first_entry_lock_exact=true' \
+            'closed_runtime_tree_contract=true' \
+            'runtime_root_mode_0555_required=true' \
+            'python_mode_0555_required=true' \
+            'stdlib_mode_0444_required=true' \
+            'trusted_files_single_link_required=true' \
+            'static_python_elf64_x86_64_required=true' \
+            'pt_interp_forbidden=true' \
+            'pt_dynamic_forbidden=true' \
+            'voidfs_builtin_required=true' \
+            'stdlib_only_sys_path_required=true' \
+            'external_module_origin_forbidden=true' \
+            'retained_python_descriptor_exec_required=true' \
+            'fsverity_measurement_observed_not_assumed=true' \
+            'post_probe_runtime_generation_revalidated=true' \
+            'runtime_identity_candidate_only=true' \
+            'python_runtime_identity_selected=false' \
+            'python_stdlib_import_closure_selected=false' \
+            'first_entry_candidate_derived=false' \
+            'protected_install_authorized=false' \
+            'replacement_apply_authorized=false' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$out"
+          done
+
+      - name: Prove source boundary
+        run: |
+          set -euo pipefail
+          proof="$RUNNER_TEMP/closed-python-proof.txt"
+          python3 -I -B \
+            scripts/prove_void_buy_allocation_custody_runtime_v3_closed_python_runtime_census_v1.py \
+            | tee "$proof"
+          grep -Fx 'VOID_BUY_VOID_CUSTODY_RUNTIME_V3_CLOSED_PYTHON_RUNTIME_CENSUS_V1_PROOF_GREEN' "$proof"
+          for marker in \
+            'exact_source_blob_asserted=true' \
+            'source_proof_descriptor_capture=true' \
+            'source_proof_fifo_symlink_race_rejected=true' \
+            'source_proof_executes_captured_bytes=true' \
+            'first_entry_lock_exact=true' \
+            'fixed_runtime_namespace_bound=true' \
+            'closed_tree_contract_bound=true' \
+            'static_elf_parser_bound=true' \
+            'pt_interp_rejected=true' \
+            'pt_dynamic_rejected=true' \
+            'fsverity_measurement_observed_not_assumed=true' \
+            'runtime_hash_and_verity_same_descriptor=true' \
+            'post_probe_runtime_generation_revalidated=true' \
+            'post_probe_same_path_replacement_rejected=true' \
+            'isolated_stdlib_only_probe_bound=true' \
+            'sys_path_closed_before_stdlib_imports=true' \
+            'path_closed_json_binding_used=true' \
+            'voidfs_builtin_required=true' \
+            'voidfs_builtin_loader_identity_required=true' \
+            'external_module_origin_forbidden=true' \
+            'runtime_probe_shell_false=true' \
+            'runtime_probe_environment_empty=true' \
+            'retained_python_descriptor_exec_bound=true' \
+            'canonical_python_argv0_preserved=true' \
+            'host_census_not_executed_in_ci=true' \
+            'runtime_identity_candidate_only=true' \
+            'python_runtime_identity_selected=false' \
+            'python_stdlib_import_closure_selected=false' \
+            'first_entry_candidate_derived=false' \
+            'protected_runtime_accepted=false' \
+            'protected_install_authorized=false' \
+            'replacement_apply_authorized=false' \
+            'production_explicit_filesystem_write=false' \
+            'production_filesystem_write_free=false' \
+            'production_atime_write_possible=true' \
+            'funds_movement=false'; do
+            grep -Fx "$marker" "$proof"
+          done
+
+      - name: Diff hygiene
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          git diff --check
