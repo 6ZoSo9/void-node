@@ -58,8 +58,10 @@ jobs:
               test "$base" = "d44a2a57abf80d41eac605cbe8518f0dc7b673b7"
               ;;
             main)
-              base="$PR_BASE"
-              test "$base" = "e83b1df4bc3b52d08d5e38e076fa6c80085f7e01"
+              git fetch --no-tags --prune origin \
+                '+refs/heads/main:refs/remotes/origin/main'
+              base="$(git rev-parse refs/remotes/origin/main)"
+              test -n "$base"
               ;;
             *)
               exit 1
