@@ -400,6 +400,10 @@ static void verify_ancestry(const char *path) {
   if (close(fd) != 0) die("close_parent_failed");
 }
 
+static int trusted_leaf_flags(void) {
+  return O_RDONLY|O_NOFOLLOW|O_NONBLOCK|O_CLOEXEC;
+}
+
 static int open_verified_regular(
   const char *path,
   mode_t expected_mode,
@@ -427,7 +431,7 @@ static int open_verified_regular(
     die("trusted_file_metadata_invalid");
   }
 
-  fd = open(path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+  fd = open(path, trusted_leaf_flags());
   if (fd < 0) die("open_trusted_file_failed");
   if (fstat(fd, &opened) != 0) die("fstat_trusted_file_failed");
   if (!same_generation(&before, &opened)) die("trusted_file_rebound");
@@ -519,7 +523,7 @@ static void verify_self_generation(void) {
   verify_ancestry(VOID_FIRST_ENTRY_BIN);
   exe_fd = open("/proc/self/exe", O_RDONLY|O_CLOEXEC);
   if (exe_fd < 0) die("open_self_exe_failed");
-  path_fd = open(VOID_FIRST_ENTRY_BIN, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
+  path_fd = open(VOID_FIRST_ENTRY_BIN, trusted_leaf_flags());
   if (path_fd < 0) die("open_installed_self_failed");
   if (fstat(exe_fd, &exe_st) != 0 || fstat(path_fd, &path_st) != 0) {
     die("stat_self_generation_failed");
