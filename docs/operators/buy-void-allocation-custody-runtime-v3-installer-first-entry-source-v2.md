@@ -169,6 +169,27 @@ The C source itself still contains no filesystem publication primitive:
 Publication remains inside the accepted Python V2 installer and is not
 authorized by this source generation.
 
+## Proof source-generation binding
+
+The standalone proof does not hash one pathname generation and ask the compiler
+to reopen that mutable pathname later. It opens both the native source and the
+accepted lock with `O_RDONLY|O_NOFOLLOW|O_NONBLOCK|O_CLOEXEC`, requires a
+bounded regular file and stable before/open/after generation, reads exact bytes
+plus EOF, and computes the Git blob from those retained bytes.
+
+For compilation tests the proof writes the already-authenticated native bytes to
+a disposable proof-only regular file. Both direct compilation and the FIFO
+helper harness consume that captured copy, not the repository pathname.
+
+Disposable regressions require:
+- a symlink source to be rejected;
+- a FIFO source to fail promptly instead of blocking;
+- a pathname replacement after the retained read to leave the captured compile
+  bytes equal to the original authenticated generation.
+
+These are proof-fixture writes only. The production native source remains
+source-only and contains no filesystem-publication primitive.
+
 ## Verification
 
 Hosted proof must establish:
