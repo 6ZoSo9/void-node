@@ -89,7 +89,7 @@ for cmd in systemctl python3 node curl sha256sum mktemp timeout awk readlink sor
 done
 test -x "$git_bin" || hold "reviewed_git_executable_missing"
 
-test -n "$tool" && test -f "$tool" || hold "preflight_tool_missing"
+test -n "$tool" || hold "preflight_tool_missing"
 test "$repo" = "/home/zoso/dev/void-node" || hold "live_repo_root_mismatch"
 test -d "$repo/.git" || hold "live_repo_missing"
 cd "$repo"
@@ -121,6 +121,11 @@ test "$head" = "$remote_main" ||
 safe_git merge-base --is-ancestor "$REVIEWED_MAIN_ANCHOR" "$head" ||
   hold "reviewed_main_anchor_not_ancestor"
 
+tmp="$(mktemp -d "${TMPDIR:-/tmp}/void-buy-void-atomic-preflight.XXXXXX")"
+cleanup(){ rm -rf "$tmp"; }
+trap cleanup EXIT INT TERM
+tool_snapshot="$tmp/preflight-tool.mjs"
+
 wrapper_path="$(readlink -f "${BASH_SOURCE[0]}")"
 test "$wrapper_path" = "$repo/$wrapper_rel" ||
   hold "preflight_wrapper_path_not_canonical"
@@ -129,18 +134,80 @@ wrapper_actual_blob="$(safe_git hash-object "$wrapper_path")"
 test "$wrapper_actual_blob" = "$wrapper_head_blob" ||
   hold "preflight_wrapper_not_current_head_bytes"
 
+canonical_tool="$repo/$tool_rel"
+test -f "$tool" || hold "preflight_tool_missing"
+test "$tool" = "$canonical_tool" || hold "preflight_tool_path_not_canonical"
+test ! -L "$tool" || hold "preflight_tool_symlink_forbidden"
+test "$(readlink -f -- "$tool")" = "$canonical_tool" ||
+  hold "preflight_tool_realpath_not_canonical"
+
 tool_head_blob="$(safe_git rev-parse "HEAD:$tool_rel")"
-tool_actual_blob="$(safe_git hash-object "$tool")"
-test "$tool_actual_blob" = "$tool_head_blob" ||
-  hold "preflight_tool_not_current_head_bytes"
+if ! python3 - "$tool" "$tool_snapshot" "$tool_head_blob" <<'PY'
+import hashlib
+import os
+import stat
+import sys
+
+src, dst, expected = sys.argv[1:]
+flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+fd = os.open(src, flags)
+try:
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode):
+        raise SystemExit("preflight_tool_not_regular")
+    if st.st_size <= 0 or st.st_size > 1048576:
+        raise SystemExit("preflight_tool_size_invalid")
+    chunks = []
+    while True:
+        chunk = os.read(fd, 65536)
+        if not chunk:
+            break
+        chunks.append(chunk)
+finally:
+    os.close(fd)
+
+data = b"".join(chunks)
+blob = hashlib.sha1(
+    b"blob " + str(len(data)).encode("ascii") + b"\0" + data
+).hexdigest()
+if blob != expected:
+    raise SystemExit("preflight_tool_not_current_head_bytes")
+
+out_flags = (
+    os.O_WRONLY
+    | os.O_CREAT
+    | os.O_EXCL
+    | getattr(os, "O_CLOEXEC", 0)
+    | getattr(os, "O_NOFOLLOW", 0)
+)
+out_fd = os.open(dst, out_flags, 0o400)
+try:
+    view = memoryview(data)
+    while view:
+        written = os.write(out_fd, view)
+        view = view[written:]
+    os.fsync(out_fd)
+    os.fchmod(out_fd, 0o400)
+finally:
+    os.close(out_fd)
+
+snap = os.stat(dst, follow_symlinks=False)
+if not stat.S_ISREG(snap.st_mode) or stat.S_IMODE(snap.st_mode) != 0o400:
+    raise SystemExit("preflight_tool_snapshot_mode_invalid")
+PY
+then
+  hold "preflight_tool_snapshot_failed"
+fi
 say "preflight_wrapper_blob_green=true"
 say "preflight_tool_blob_green=true"
+say "preflight_tool_path_canonical=true"
+say "preflight_tool_snapshot_green=true"
 
 declare -A reviewed_source_blob=(
   ["src/economic/buy_void_payment_keyed_dispatcher_postgres_activation_contract_v1.ts"]="4e5d9a633b05d9254424c2132fc6620b94ff3692"
   ["ops/mainnet0/buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.json"]="a03f6fd4d0f86024aa276aa3be9c1eb00fb4cef2"
   ["tools/void-buy-void-payment-keyed-dispatcher-postgres-activation-candidate-v1.mjs"]="f8281ffc9cfbfd2b810a11a10f8cb3ff8473fa95"
-  ["ops/precision/void_precision_buy_void_postgres_host_qualification_v1.sh"]="a4ddef65444ae44c10615c8fe9930da1f4a5c964"
+  ["ops/precision/void_precision_buy_void_postgres_host_qualification_v1.sh"]="16721cfcd61ae1c745b7c38901feef6e9c792e5f"
   ["tools/void-precision-buy-void-postgres-host-qualification-v1.mjs"]="3a9db8d007539bc605b6aa374dee6ba59ca36e1c"
   ["ops/systemd/void-node-live.service.d/91-buy-void-payment-keyed-production-dormant-v1.conf.example"]="a3500a7f1813972b90e5c00dbf8a03ed4b4ddd6b"
   ["ops/systemd/void-node-live.service.d/92-buy-void-dispatcher-postgres-credentials-v1.conf.example"]="dfe25fac6dfd98bc884ade38fe5196e6c048f60b"
@@ -206,10 +273,6 @@ say "void_node_process_cwd=$process_cwd"
 
 tsx="$repo/node_modules/.bin/tsx"
 test -x "$tsx" || hold "tsx_runtime_missing"
-
-tmp="$(mktemp -d "${TMPDIR:-/tmp}/void-buy-void-atomic-preflight.XXXXXX")"
-cleanup(){ rm -rf "$tmp"; }
-trap cleanup EXIT INT TERM
 
 gate_sources_json="$tmp/gate-sources.json"
 configured_raw="$tmp/configured-environment.txt"
@@ -279,7 +342,7 @@ PY
 
 say "=== GATE SOURCE INVENTORY ==="
 set +e
-"$tsx" "$tool" --gate-sources "$gate_sources_json"
+"$tsx" "$tool_snapshot" --gate-sources "$gate_sources_json"
 inventory_rc=$?
 set -e
 if [ "$inventory_rc" -ne 0 ]; then
@@ -474,7 +537,7 @@ with open(out_path,'w',encoding='utf-8') as fh:
 PY
 
 say "=== FULL ATOMIC ACTIVATION PREFLIGHT ==="
-"$tsx" "$tool" --snapshot "$snapshot"
+"$tsx" "$tool_snapshot" --snapshot "$snapshot"
 
 say "credential_content_output=false"
 say "dropin_mutation=false"
